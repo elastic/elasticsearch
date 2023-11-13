@@ -194,7 +194,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         Exception shardFailed = new Exception("Shard Failed");
         if (randomBoolean()) {
             ShardStateAction instance = internalCluster().getInstance(ShardStateAction.class, indexNode);
-            PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
+            PlainActionFuture<Void> listener = new PlainActionFuture<>();
             instance.localShardFailed(findIndexShard(indexName).routingEntry(), "test failure", shardFailed, listener);
             listener.actionGet();
         } else {

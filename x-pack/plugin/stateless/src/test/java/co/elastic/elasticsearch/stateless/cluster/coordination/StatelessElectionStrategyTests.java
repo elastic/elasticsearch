@@ -254,7 +254,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
             );
             registerValueRef.set(OptionalBytesReference.MISSING);
 
-            PlainActionFuture<Void> beforeCommitListener = PlainActionFuture.newFuture();
+            PlainActionFuture<Void> beforeCommitListener = new PlainActionFuture<>();
             electionStrategy.beforeCommit(1, 2, beforeCommitListener);
 
             final var failAllReads = randomBoolean();

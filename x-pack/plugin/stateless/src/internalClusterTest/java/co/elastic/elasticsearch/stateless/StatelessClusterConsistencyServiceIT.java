@@ -49,7 +49,7 @@ public class StatelessClusterConsistencyServiceIT extends AbstractStatelessInteg
             indexNode
         );
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         consistencyService.ensureClusterStateConsistentWithRootBlob(future, TimeValue.timeValueSeconds(30));
         future.actionGet();
     }
@@ -95,7 +95,7 @@ public class StatelessClusterConsistencyServiceIT extends AbstractStatelessInteg
                 indexNode
             );
 
-            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
             consistencyService.ensureClusterStateConsistentWithRootBlob(future, TimeValue.timeValueMillis(100));
             expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
         } finally {
@@ -145,7 +145,7 @@ public class StatelessClusterConsistencyServiceIT extends AbstractStatelessInteg
             indexNode
         );
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         consistencyService.ensureClusterStateConsistentWithRootBlob(future, TimeValue.timeValueSeconds(30));
 
         validationStarted.onResponse(null);

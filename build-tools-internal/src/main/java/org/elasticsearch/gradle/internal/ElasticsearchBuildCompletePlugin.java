@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal;
 
 import com.gradle.scan.plugin.BuildScanExtension;
 
+import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
@@ -66,6 +67,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                 spec.getParameters().getUploadFile().set(targetFile);
                 spec.getParameters().getProjectDir().set(projectDir);
                 spec.getParameters().getFilteredFiles().addAll(getFlowProviders().getBuildWorkResult().map((result) -> {
+                    System.out.println("Build Finished Action: Collecting archive files...");
                     List<File> files = new ArrayList<>();
                     files.addAll(resolveProjectLogs(projectDir));
                     if (files.isEmpty() == false) {
@@ -104,7 +106,6 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         gradleDaemonFileSet.include("**/daemon-" + ProcessHandle.current().pid() + "*.log");
         return gradleDaemonFileSet.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).toList();
     }
-
     public abstract static class BuildFinishedFlowAction implements FlowAction<BuildFinishedFlowAction.Parameters> {
         interface Parameters extends FlowParameters {
             @Input
@@ -188,14 +189,15 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                 TarArchiveOutputStream tOut = new TarArchiveOutputStream(bzOut)
             ) {
                 Path projectPath = projectDir.toPath();
-                tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
-                for (Path path : files.stream().map(File::toPath).collect(Collectors.toList())) {
+                tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
+                tOut.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_STAR);
+                for (Path path : files.stream().map(File::toPath).toList()) {
                     if (!Files.isRegularFile(path)) {
                         throw new IOException("Support only file!");
                     }
 
                     TarArchiveEntry tarEntry = new TarArchiveEntry(path.toFile(), calculateArchivePath(path, projectPath));
-
+                    tarEntry.setSize(Files.size(path));
                     tOut.putArchiveEntry(tarEntry);
 
                     // copy file to TarArchiveOutputStream

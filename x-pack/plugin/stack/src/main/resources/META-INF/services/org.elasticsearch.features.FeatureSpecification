@@ -5,4 +5,4 @@
 # 2.0.
 #
 
-org.elasticsearch.xpack.stack.StackFeature
+org.elasticsearch.xpack.stack.StackTemplateFeatures

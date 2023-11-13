@@ -13,7 +13,7 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Map;
 
-public class StackFeature implements FeatureSpecification {
+public class StackTemplateFeatures implements FeatureSpecification {
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.of(StackTemplateRegistry.STACK_TEMPLATES_FEATURE, Version.V_8_9_0);

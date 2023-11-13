@@ -86,7 +86,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        featureService = new FeatureService(List.of(new StackFeature()));
+        featureService = new FeatureService(List.of(new StackTemplateFeatures()));
         registry = new StackTemplateRegistry(
             Settings.EMPTY,
             clusterService,

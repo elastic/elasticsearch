@@ -40,6 +40,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -103,16 +104,22 @@ public class SearchStatsIT extends ESIntegTestCase {
         refresh();
         int iters = scaledRandomIntBetween(100, 150);
         for (int i = 0; i < iters; i++) {
-            SearchResponse searchResponse = internalCluster().coordOnlyNodeClient()
-                .prepareSearch()
-                .setQuery(QueryBuilders.termQuery("field", "value"))
-                .setStats("group1", "group2")
-                .highlighter(new HighlightBuilder().field("field"))
-                .addScriptField("script1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.field", Collections.emptyMap()))
-                .setSize(100)
-                .get();
-            assertHitCount(searchResponse, docsTest1 + docsTest2);
-            assertAllSuccessful(searchResponse);
+            assertResponse(
+                internalCluster().coordOnlyNodeClient()
+                    .prepareSearch()
+                    .setQuery(QueryBuilders.termQuery("field", "value"))
+                    .setStats("group1", "group2")
+                    .highlighter(new HighlightBuilder().field("field"))
+                    .addScriptField(
+                        "script1",
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.field", Collections.emptyMap())
+                    )
+                    .setSize(100),
+                searchResponse -> {
+                    assertHitCount(searchResponse, docsTest1 + docsTest2);
+                    assertAllSuccessful(searchResponse);
+                }
+            );
         }
 
         IndicesStatsResponse indicesStats = indicesAdmin().prepareStats().get();

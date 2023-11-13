@@ -10,7 +10,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.fetch.FetchSearchResult;
 
 import java.util.stream.Stream;
 
@@ -32,10 +31,7 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
     @Override
     void consumeResult(Result result, Runnable next) {
         assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
-        if (result instanceof FetchSearchResult) {
-            // TODO: yuck
-            result.incRef();
-        }
+        result.incRef();
         results.set(result.getShardIndex(), result);
         next.run();
     }

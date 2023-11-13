@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.HashMap;
@@ -84,13 +83,6 @@ public abstract class DriverRunner {
                     responseHeaders.setOnce(driverIndex, threadContext.getResponseHeaders());
                     if (counter.countDown()) {
                         mergeResponseHeaders(responseHeaders);
-                        for (Driver d : drivers) {
-                            if (d.status().status() == DriverStatus.Status.QUEUED) {
-                                d.close();
-                            } else {
-                                Releasables.close(d.driverContext().getSnapshot().releasables());
-                            }
-                        }
                         Exception error = failure.get();
                         if (error != null) {
                             listener.onFailure(error);

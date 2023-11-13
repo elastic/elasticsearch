@@ -190,7 +190,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
     private static TestPlugin getMasterNodePlugin() {
         return internalCluster().getCurrentMasterNodeInstance(PluginsService.class)
             .filterPlugins(TestPlugin.class)
-            .stream()
             .findFirst()
             .orElseThrow(() -> new AssertionError("no plugin"));
     }
@@ -378,7 +377,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "ES-4677")
     public void testRelocation() {
         var routingTableWatcher = new RoutingTableWatcher();
 

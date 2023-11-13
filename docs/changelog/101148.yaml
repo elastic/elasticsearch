@@ -1,0 +1,6 @@
+pr: 101148
+summary: Add support for marking component templates as deprecated
+area: Indices APIs
+type: enhancement
+issues:
+ - 100992

@@ -11,27 +11,16 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-
 public final class OpenPointInTimeResponse extends ActionResponse implements ToXContentObject {
     private static final ParseField ID = new ParseField("id");
 
-    private static final ConstructingObjectParser<OpenPointInTimeResponse, Void> PARSER;
-
-    static {
-        PARSER = new ConstructingObjectParser<>("open_point_in_time", true, a -> new OpenPointInTimeResponse((String) a[0]));
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), ID, ObjectParser.ValueType.STRING);
-    }
     private final String pointInTimeId;
 
     public OpenPointInTimeResponse(String pointInTimeId) {
@@ -60,7 +49,4 @@ public final class OpenPointInTimeResponse extends ActionResponse implements ToX
         return pointInTimeId;
     }
 
-    public static OpenPointInTimeResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
 }

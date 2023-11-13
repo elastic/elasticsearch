@@ -52,7 +52,7 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
   }
 
   public LongBlock eval(int positionCount, LongBlock valBlock, LongBlock decimalsBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -69,7 +69,7 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
   }
 
   public LongVector eval(int positionCount, LongVector valVector, LongVector decimalsVector) {
-    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendLong(Round.processUnsignedLong(valVector.getLong(p), decimalsVector.getLong(p)));
       }

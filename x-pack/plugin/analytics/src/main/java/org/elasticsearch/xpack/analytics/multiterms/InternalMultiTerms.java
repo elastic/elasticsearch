@@ -194,8 +194,9 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         @Override
         public int compare(List<Object> thisTerms, List<Object> otherTerms) {
             if (thisTerms.size() != otherTerms.size()) {
+                // Not clear on how this can happen.
                 throw new AggregationExecutionException(
-                    "Merging/Reducing the multi_term aggregations failed due to different term list" + " sizes"
+                    "Merging/Reducing the multi_term aggregations failed due to different term list sizes"
                 );
             }
             for (int i = 0; i < thisTerms.size(); i++) {
@@ -203,7 +204,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                 try {
                     res = ((Comparable) thisTerms.get(i)).compareTo(otherTerms.get(i));
                 } catch (ClassCastException ex) {
-                    throw AggregationErrors.reduceTypeMissmatch("MultiTerms", Optional.empty());
+                    throw AggregationErrors.reduceTypeMismatch("MultiTerms", Optional.empty());
                 }
                 if (res != 0) {
                     return res;
@@ -464,7 +465,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                 }
             }
             if (hasNonNumber && (hasDouble || hasUnsignedLong || hasLong)) {
-                throw AggregationErrors.reduceTypeMissmatch(name, Optional.of(i + 1));
+                throw AggregationErrors.reduceTypeMismatch(name, Optional.of(i + 1));
             }
             // Promotion to double is required if at least 2 of these 3 conditions are true.
             if ((hasDouble ? 1 : 0) + (hasUnsignedLong ? 1 : 0) + (hasLong ? 1 : 0) > 1) {

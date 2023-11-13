@@ -176,7 +176,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         DownsampleShardTaskParams params,
         SearchHit[] lastDownsampleTsidHits
     ) {
-        client.threadPool().executor(Downsample.DOWSAMPLE_TASK_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+        client.threadPool().executor(Downsample.DOWNSAMPLE_TASK_THREAD_POOL_NAME).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
                 markAsFailed(task, e);

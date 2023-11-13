@@ -83,7 +83,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
     protected List<ScriptedBlockPlugin> initBlockFactory() {
         List<ScriptedBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(ScriptedBlockPlugin.class));
+            pluginsService.filterPlugins(ScriptedBlockPlugin.class).forEach(plugins::add);
         }
         for (ScriptedBlockPlugin plugin : plugins) {
             plugin.reset();
@@ -263,7 +263,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
     protected List<SearchShardBlockingPlugin> initSearchShardBlockingPlugin() {
         List<SearchShardBlockingPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(SearchShardBlockingPlugin.class));
+            pluginsService.filterPlugins(SearchShardBlockingPlugin.class).forEach(plugins::add);
         }
         return plugins;
     }

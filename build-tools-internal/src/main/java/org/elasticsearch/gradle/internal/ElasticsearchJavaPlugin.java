@@ -15,6 +15,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -44,6 +45,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaModulePathPlugin.class);
+        project.getPluginManager().apply(HistoricalFeaturesMetadataPlugin.class);
 
         // configureConfigurations(project);
         configureJars(project);

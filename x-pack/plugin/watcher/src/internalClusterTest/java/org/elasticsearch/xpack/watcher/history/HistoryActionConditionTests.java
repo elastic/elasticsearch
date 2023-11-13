@@ -173,7 +173,6 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // only one action should have failed via condition
         assertBusy(() -> {
-            System.out.println("**** I am here");
             // Watcher history is now written asynchronously, so we check this in an assertBusy
             ensureGreen(HistoryStoreField.DATA_STREAM);
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
@@ -236,31 +235,25 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
             try {
                 assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+                final SearchHit hit = response.getHits().getAt(0);
+                final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
+
+                for (int i = 0; i < actionConditions.size(); ++i) {
+                    final Map<String, Object> action = (Map<String, Object>) actions.get(i);
+                    final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
+                    final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
+
+                    assertThat(action.get("id"), is("action" + i));
+                    assertThat(action.get("status"), is("success"));
+                    assertThat(condition.get("type"), is(actionConditions.get(i).type()));
+                    assertThat(condition.get("met"), is(true));
+                    assertThat(action.get("reason"), nullValue());
+                    assertThat(logging.get("logged_text"), is(Integer.toString(i)));
+                }
             } finally {
                 response.decRef();
             }
         });
-
-        final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        try {
-            final SearchHit hit = response.getHits().getAt(0);
-            final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
-
-            for (int i = 0; i < actionConditions.size(); ++i) {
-                final Map<String, Object> action = (Map<String, Object>) actions.get(i);
-                final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
-                final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
-
-                assertThat(action.get("id"), is("action" + i));
-                assertThat(action.get("status"), is("success"));
-                assertThat(condition.get("type"), is(actionConditions.get(i).type()));
-                assertThat(condition.get("met"), is(true));
-                assertThat(action.get("reason"), nullValue());
-                assertThat(logging.get("logged_text"), is(Integer.toString(i)));
-            }
-        } finally {
-            response.decRef();
-        }
     }
 
     /**

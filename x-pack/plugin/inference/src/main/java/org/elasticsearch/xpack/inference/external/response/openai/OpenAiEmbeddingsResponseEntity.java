@@ -199,7 +199,7 @@ public record OpenAiEmbeddingsResponseEntity(List<Embedding> embeddings) impleme
     @Override
     public Map<String, Object> asMap(String outputField) {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(outputField, embeddings);
+        map.put(outputField, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
 
         return map;
     }

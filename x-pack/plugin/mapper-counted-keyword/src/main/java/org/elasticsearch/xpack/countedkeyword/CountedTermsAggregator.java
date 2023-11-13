@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.countedkeyword;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -90,7 +88,6 @@ class CountedTermsAggregator extends TermsAggregator {
         StringTerms.Bucket[][] topBucketsPerOrd = new StringTerms.Bucket[owningBucketOrds.length][];
         long[] otherDocCounts = new long[owningBucketOrds.length];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
             int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
             BucketPriorityQueue<StringTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
@@ -146,29 +143,6 @@ class CountedTermsAggregator extends TermsAggregator {
             );
         }
         return result;
-    }
-
-    private void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {
-        if (bucketCountThresholds.getMinDocCount() != 0) {
-            return;
-        }
-        if (InternalOrder.isCountDesc(order) && bucketOrds.bucketsInOrd(owningBucketOrd) >= bucketCountThresholds.getRequiredSize()) {
-            return;
-        }
-        // we need to fill-in the blanks
-        for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
-            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-            // brute force
-            for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                if (values.advanceExact(docId)) {
-                    int valueCount = values.docValueCount();
-                    for (int i = 0; i < valueCount; ++i) {
-                        BytesRef term = values.nextValue();
-                        bucketOrds.add(owningBucketOrd, term);
-                    }
-                }
-            }
-        }
     }
 
     @Override

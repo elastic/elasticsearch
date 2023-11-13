@@ -730,23 +730,45 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     return;
                 }
 
-                // complete at least request.getRegisterOperationCount() steps, but we may as well keep running for longer too
-                if (currentValue >= request.getRegisterOperationCount() && otherAnalysisComplete.get()) {
-                    return;
+                if (currentValue <= request.getRegisterOperationCount() || otherAnalysisComplete.get() == false) {
+                    // complete at least request.getRegisterOperationCount() steps, but we may as well keep running for longer too
+                    transportService.sendChildRequest(
+                        nodes.get(currentValue < nodes.size() ? currentValue : random.nextInt(nodes.size())),
+                        UncontendedRegisterAnalyzeAction.NAME,
+                        new UncontendedRegisterAnalyzeAction.Request(request.getRepositoryName(), blobPath, registerName, currentValue),
+                        task,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(
+                            ActionListener.releaseAfter(stepListener, requestRefs.acquire()),
+                            in -> ActionResponse.Empty.INSTANCE,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
+                    );
+                } else {
+                    transportService.getThreadPool()
+                        .executor(ThreadPool.Names.SNAPSHOT)
+                        .execute(
+                            ActionRunnable.<Void>wrap(
+                                ActionListener.releaseAfter(
+                                    ActionListener.wrap(
+                                        r -> logger.trace("uncontended register analysis succeeded"),
+                                        AsyncAction.this::fail
+                                    ),
+                                    requestRefs.acquire()
+                                ),
+                                l -> UncontendedRegisterAnalyzeAction.verifyFinalValue(
+                                    new UncontendedRegisterAnalyzeAction.Request(
+                                        request.getRepositoryName(),
+                                        blobPath,
+                                        registerName,
+                                        currentValue
+                                    ),
+                                    repository,
+                                    l
+                                )
+                            )
+                        );
                 }
-
-                transportService.sendChildRequest(
-                    nodes.get(currentValue < nodes.size() ? currentValue : random.nextInt(nodes.size())),
-                    UncontendedRegisterAnalyzeAction.NAME,
-                    new UncontendedRegisterAnalyzeAction.Request(request.getRepositoryName(), blobPath, registerName, currentValue),
-                    task,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(
-                        ActionListener.releaseAfter(stepListener, requestRefs.acquire()),
-                        in -> ActionResponse.Empty.INSTANCE,
-                        TransportResponseHandler.TRANSPORT_WORKER
-                    )
-                );
             }
         }
 

@@ -9,7 +9,7 @@
 package org.elasticsearch.health.plugin;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;

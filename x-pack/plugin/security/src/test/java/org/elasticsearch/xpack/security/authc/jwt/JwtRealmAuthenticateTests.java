@@ -67,6 +67,26 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcCount);
     }
 
+    public void testJwtCache() throws Exception {
+        jwtIssuerAndRealms = generateJwtIssuerRealmPairs(1, 1, 1, 1, 1, 1, 99, false);
+        JwtRealm realm = jwtIssuerAndRealms.get(0).realm();
+        realm.expireAll();
+        assertThat(realm.getJwtCache().count(), is(0));
+        final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
+        final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
+        for (int i = 1; i <= randomIntBetween(2, 10); i++) {
+            User user = randomUser(jwtIssuerAndRealm.issuer());
+            doMultipleAuthcAuthzAndVerifySuccess(
+                jwtIssuerAndRealm.realm(),
+                user,
+                randomJwt(jwtIssuerAndRealm, user),
+                clientSecret,
+                randomIntBetween(2, 10)
+            );
+            assertThat(realm.getJwtCache().count(), is(i));
+        }
+    }
+
     /**
      * Test with no authz realms.
      * @throws Exception Unexpected test failure

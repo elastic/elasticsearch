@@ -59,7 +59,7 @@ for the plugin. If you need other resources, package them into a resources JAR.
 [discrete]
 ==== Development process
 
-Elastic provides a Grade plugin, `elasticsearch.stable-esplugin`, that makes it
+Elastic provides a Gradle plugin, `elasticsearch.stable-esplugin`, that makes it
 easier to develop and package stable plugins. The steps in this section assume
 you use this plugin. However, you don't need Gradle to create plugins.
 

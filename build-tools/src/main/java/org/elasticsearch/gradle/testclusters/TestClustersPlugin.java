@@ -37,6 +37,7 @@ import org.gradle.tooling.events.task.TaskFinishEvent;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import javax.inject.Inject;
@@ -49,7 +50,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     public static final String THROTTLE_SERVICE_NAME = "testClustersThrottle";
 
     private static final String LIST_TASK_NAME = "listTestClusters";
-    private static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
+    public static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
     private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
     private final ProviderFactory providerFactory;
     private Provider<File> runtimeJavaProvider;
@@ -222,11 +223,19 @@ public class TestClustersPlugin implements Plugin<Project> {
                         testClusterTasksService.get().register(awareTask.getPath(), awareTask);
                         awareTask.doFirst(task -> {
                             awareTask.beforeStart();
-                            awareTask.getClusters().forEach(registry::maybeStartCluster);
+                            awareTask.getClusters().forEach(awareTask.getRegistery().get()::maybeStartCluster);
                         });
                     });
             });
         }
+    }
+
+    public static void maybeStartCluster(ElasticsearchCluster cluster, Set<ElasticsearchCluster> runningClusters) {
+        if (runningClusters.contains(cluster)) {
+            return;
+        }
+        runningClusters.add(cluster);
+        cluster.start();
     }
 
     static public abstract class TaskEventsService implements BuildService<BuildServiceParameters.None>, OperationCompletionListener {

@@ -1,6 +1,0 @@
-pr: 99588
-summary: Make ESQL more resilient to non-indexed fields
-area: ES|QL
-type: bug
-issues:
- - 99506

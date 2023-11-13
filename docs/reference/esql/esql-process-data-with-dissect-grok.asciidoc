@@ -120,7 +120,6 @@ include::../ingest/processors/dissect.asciidoc[tag=dissect-key-modifiers]
 | `+`           | Append             | left           | `%{+keyname} %{+keyname}`    | Appends two or more fields together                          | <<esql-append-modifier,link>>
 | `+` with `/n` | Append with order  | left and right | `%{+keyname/2} %{+keyname/1}` | Appends two or more fields together in the order specified   | <<esql-append-order-modifier,link>>
 | `?`           | Named skip key     | left           | `%{?ignoreme}`  | Skips the matched value in the output. Same behavior as `%{}`| <<esql-named-skip-key,link>>
-| `*` and `&`   | Reference keys     | left           | `%{*r1} %{&r1}`    | Sets the output key as value of `*` and output value of `&`  | <<esql-reference-keys,link>>
 |======
 
 [[esql-dissect-modifier-skip-right-padding]]
@@ -139,9 +138,13 @@ include::../ingest/processors/dissect.asciidoc[tag=append-order-modifier]
 ====== Named skip key (`?`)
 include::../ingest/processors/dissect.asciidoc[tag=named-skip-key]
 
-[[esql-reference-keys]]
-====== Reference keys (`*` and `&`)
-include::../ingest/processors/dissect.asciidoc[tag=reference-keys]
+[[esql-dissect-limitations]]
+===== Limitations
+
+// tag::dissect-limitations[]
+The `DISSECT` command does not support
+<<dissect-modifier-reference-keys,reference keys>>.
+// end::dissect-limitations[]
 
 [[esql-process-data-with-grok]]
 ==== Process data with `GROK`
@@ -253,6 +256,8 @@ as the `GROK` command.
 [[esql-grok-limitations]]
 ===== Limitations
 
+// tag::grok-limitations[]
 The `GROK` command does not support configuring <<custom-patterns,custom
 patterns>>, or <<trace-match,multiple patterns>>. The `GROK` command is not
 subject to <<grok-watchdog,Grok watchdog settings>>.
+// end::grok-limitations[]

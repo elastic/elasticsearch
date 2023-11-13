@@ -25,17 +25,19 @@ import static org.elasticsearch.test.rest.ESRestTestCase.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.sql.qa.rest.RemoteClusterAwareSqlRestTestCase.clientBuilder;
 
 public class SqlTestClusterWithRemote implements TestRule {
-    private static final String REMOTE_CLUSTER_NAME = "my_remote_cluster";
-    private static final String USER_NAME = "test_user";
-    private static final String PASSWORD = "x-pack-test-password";
+    public static final String LOCAL_CLUSTER_NAME = "javaRestTest";
+    public static final String REMOTE_CLUSTER_NAME = "remote-cluster";
+    public static final String REMOTE_CLUSTER_ALIAS = "my_remote_cluster";
+    public static final String USER_NAME = "test_user";
+    public static final String PASSWORD = "x-pack-test-password";
 
     private static ElasticsearchCluster getCluster(String remoteAddress) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .name("javaRestTest")
+            .name(LOCAL_CLUSTER_NAME)
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.watcher.enabled", "false")
-            .setting("cluster.remote." + REMOTE_CLUSTER_NAME + ".seeds", remoteAddress)
+            .setting("cluster.remote." + REMOTE_CLUSTER_ALIAS + ".seeds", remoteAddress)
             .setting("cluster.remote.connections_per_cluster", "1")
             .setting("xpack.security.enabled", "true")
             .setting("xpack.license.self_generated.type", "trial")
@@ -48,7 +50,7 @@ public class SqlTestClusterWithRemote implements TestRule {
     private static ElasticsearchCluster getRemoteCluster() {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .name("remote-cluster")
+            .name(REMOTE_CLUSTER_NAME)
             .setting("node.roles", "[data,ingest,master]")
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.watcher.enabled", "false")
@@ -71,10 +73,6 @@ public class SqlTestClusterWithRemote implements TestRule {
     private ElasticsearchCluster cluster;
     private final ElasticsearchCluster remote = getRemoteCluster();
     private RestClient remoteClient;
-
-    public static String remoteClusterName() {
-        return REMOTE_CLUSTER_NAME;
-    }
 
     public Statement apply(Statement base, Description description) {
         return remote.apply(startRemoteClient(startCluster(base)), null);

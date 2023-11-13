@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 import org.junit.ClassRule;
 
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
-import static org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.SqlTestClusterWithRemote.remoteClusterName;
+import static org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.SqlTestClusterWithRemote.REMOTE_CLUSTER_ALIAS;
 
 public class RestSqlIT extends RestSqlTestCase {
     @ClassRule
@@ -20,7 +20,7 @@ public class RestSqlIT extends RestSqlTestCase {
 
     @Override
     protected String getTestRestCluster() {
-        return clusterAndRemote.cluster().getHttpAddress(0);
+        return clusterAndRemote.cluster().getHttpAddresses();
     }
 
     @Override
@@ -36,9 +36,9 @@ public class RestSqlIT extends RestSqlTestCase {
     @Override
     protected String indexPattern(String pattern) {
         if (randomBoolean()) {
-            return buildRemoteIndexName(remoteClusterName(), pattern);
+            return buildRemoteIndexName(REMOTE_CLUSTER_ALIAS, pattern);
         } else {
-            String cluster = remoteClusterName().substring(0, randomIntBetween(0, remoteClusterName().length())) + "*";
+            String cluster = REMOTE_CLUSTER_ALIAS.substring(0, randomIntBetween(0, REMOTE_CLUSTER_ALIAS.length())) + "*";
             if (pattern.startsWith("\\\"") && pattern.endsWith("\\\"") && pattern.length() > 4) {
                 pattern = pattern.substring(2, pattern.length() - 2);
             }

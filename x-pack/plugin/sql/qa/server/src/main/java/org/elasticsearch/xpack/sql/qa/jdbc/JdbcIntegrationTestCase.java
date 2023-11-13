@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
@@ -72,18 +73,32 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
         return connection;
     }
 
-    public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
-        index(index, "1", body);
+    public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body, RestClient provisioningClient)
+        throws IOException {
+        index(index, "1", body, provisioningClient);
     }
 
-    public static void index(String index, String documentId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
+    public void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
+        index(index, body, provisioningClient());
+    }
+
+    public static void index(
+        String index,
+        String documentId,
+        CheckedConsumer<XContentBuilder, IOException> body,
+        RestClient provisioningClient
+    ) throws IOException {
         Request request = new Request("PUT", "/" + index + "/_doc/" + documentId);
         request.addParameter("refresh", "true");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
-        legacyProvisioningClient().performRequest(request);
+        provisioningClient.performRequest(request);
+    }
+
+    public void index(String index, String documentId, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
+        index(index, documentId, body, provisioningClient());
     }
 
     public void delete(String index, String documentId) throws IOException {

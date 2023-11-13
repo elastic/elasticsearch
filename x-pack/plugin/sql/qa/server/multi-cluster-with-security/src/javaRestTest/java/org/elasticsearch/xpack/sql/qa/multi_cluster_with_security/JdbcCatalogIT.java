@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.sql.qa.multi_cluster_with_security;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -18,25 +21,51 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Properties;
 
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
+import static org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.SqlTestClusterWithRemote.LOCAL_CLUSTER_NAME;
+import static org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.SqlTestClusterWithRemote.PASSWORD;
+import static org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.SqlTestClusterWithRemote.REMOTE_CLUSTER_ALIAS;
+import static org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.SqlTestClusterWithRemote.USER_NAME;
 
 public class JdbcCatalogIT extends JdbcIntegrationTestCase {
+    @ClassRule
+    public static SqlTestClusterWithRemote clusterAndRemote = new SqlTestClusterWithRemote();
 
-    // gradle defines
-    public static final String LOCAL_CLUSTER_NAME = "javaRestTest";
-    public static final String REMOTE_CLUSTER_NAME = "my_remote_cluster";
+    @Override
+    protected String getTestRestCluster() {
+        return clusterAndRemote.cluster().getHttpAddresses();
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        return clusterAndRemote.clusterAuthSettings();
+    }
+
+    @Override
+    protected RestClient provisioningClient() {
+        return clusterAndRemote.remoteClient();
+    }
+
+    @Override
+    protected Properties connectionProperties() {
+        Properties connectionProperties = super.connectionProperties();
+        connectionProperties.put("user", USER_NAME);
+        connectionProperties.put("password", PASSWORD);
+        return connectionProperties;
+    }
 
     private static final String INDEX_NAME = "test";
 
     @BeforeClass
     static void setupIndex() throws IOException {
-        index(INDEX_NAME, body -> body.field("zero", 0));
+        index(INDEX_NAME, body -> body.field("zero", 0), clusterAndRemote.remoteClient());
     }
 
     @AfterClass
     static void cleanupIndex() throws IOException {
-        legacyProvisioningClient().performRequest(new Request("DELETE", "/" + INDEX_NAME));
+        clusterAndRemote.remoteClient().performRequest(new Request("DELETE", "/" + INDEX_NAME));
     }
 
     public void testJdbcSetCatalog() throws Exception {
@@ -45,7 +74,7 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
             SQLException ex = expectThrows(SQLException.class, ps::executeQuery);
             assertTrue(ex.getMessage().contains("Unknown index [" + INDEX_NAME + "]"));
 
-            String catalog = REMOTE_CLUSTER_NAME.substring(0, randomIntBetween(0, REMOTE_CLUSTER_NAME.length())) + "*";
+            String catalog = REMOTE_CLUSTER_ALIAS.substring(0, randomIntBetween(0, REMOTE_CLUSTER_ALIAS.length())) + "*";
             es.setCatalog(catalog);
             assertEquals(catalog, es.getCatalog());
 
@@ -62,7 +91,7 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
 
     public void testQueryCatalogPrecedence() throws Exception {
         try (Connection es = esJdbc()) {
-            PreparedStatement ps = es.prepareStatement("SELECT count(*) FROM " + buildRemoteIndexName(REMOTE_CLUSTER_NAME, INDEX_NAME));
+            PreparedStatement ps = es.prepareStatement("SELECT count(*) FROM " + buildRemoteIndexName(REMOTE_CLUSTER_ALIAS, INDEX_NAME));
             es.setCatalog(LOCAL_CLUSTER_NAME);
             ResultSet rs = ps.executeQuery();
             assertTrue(rs.next());
@@ -73,7 +102,7 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
     public void testQueryWithQualifierAndSetCatalog() throws Exception {
         try (Connection es = esJdbc()) {
             PreparedStatement ps = es.prepareStatement("SELECT " + INDEX_NAME + ".zero FROM " + INDEX_NAME);
-            es.setCatalog(REMOTE_CLUSTER_NAME);
+            es.setCatalog(REMOTE_CLUSTER_ALIAS);
             ResultSet rs = ps.executeQuery();
             assertTrue(rs.next());
             assertEquals(0, rs.getInt(1));
@@ -84,7 +113,7 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
     public void testQueryWithQualifiedFieldAndIndex() throws Exception {
         try (Connection es = esJdbc()) {
             PreparedStatement ps = es.prepareStatement(
-                "SELECT " + INDEX_NAME + ".zero FROM " + buildRemoteIndexName(REMOTE_CLUSTER_NAME, INDEX_NAME)
+                "SELECT " + INDEX_NAME + ".zero FROM " + buildRemoteIndexName(REMOTE_CLUSTER_ALIAS, INDEX_NAME)
             );
             es.setCatalog(LOCAL_CLUSTER_NAME); // set, but should be ignored
             ResultSet rs = ps.executeQuery();
@@ -105,7 +134,7 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
                 ResultSet rs = ps.executeQuery();
                 assertFalse(rs.next());
 
-                es.setCatalog(REMOTE_CLUSTER_NAME);
+                es.setCatalog(REMOTE_CLUSTER_ALIAS);
                 rs = ps.executeQuery();
                 assertTrue(rs.next());
                 assertFalse(rs.next());

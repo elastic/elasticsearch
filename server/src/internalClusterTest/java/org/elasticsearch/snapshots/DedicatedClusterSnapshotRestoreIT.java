@@ -1166,7 +1166,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int concurrentLoops = randomIntBetween(2, 5);
         final List<Future<Void>> futures = new ArrayList<>(concurrentLoops);
         for (int i = 0; i < concurrentLoops; i++) {
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
             futures.add(future);
             startSnapshotDeleteLoop(repoName, indexName, "test-snap-" + i, future);
         }

@@ -175,8 +175,12 @@ public class SearchStatesIT extends ESRestTestCase {
                 )
             ) {
                 SearchResponse searchResponse = SearchResponse.fromXContent(parser);
-                ElasticsearchAssertions.assertNoFailures(searchResponse);
-                ElasticsearchAssertions.assertHitCount(searchResponse, expectedDocs);
+                try {
+                    ElasticsearchAssertions.assertNoFailures(searchResponse);
+                    ElasticsearchAssertions.assertHitCount(searchResponse, expectedDocs);
+                } finally {
+                    searchResponse.decRef();
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

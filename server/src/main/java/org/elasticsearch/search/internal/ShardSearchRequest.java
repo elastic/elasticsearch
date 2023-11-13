@@ -240,7 +240,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = originalIndices;
         this.readerId = readerId;
         this.keepAlive = keepAlive;
-        assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        assert keepAlive == null || readerId != null : "readerId: null keepAlive: " + keepAlive;
         this.channelVersion = TransportVersion.current();
         this.waitForCheckpoint = waitForCheckpoint;
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
@@ -334,7 +334,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             readerId = null;
             keepAlive = null;
         }
-        assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        assert keepAlive == null || readerId != null : "readerId: null keepAlive: " + keepAlive;
         channelVersion = TransportVersion.min(TransportVersion.readVersion(in), in.getTransportVersion());
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
             waitForCheckpoint = in.readLong();

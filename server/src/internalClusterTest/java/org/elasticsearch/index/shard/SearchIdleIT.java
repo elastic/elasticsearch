@@ -95,7 +95,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         indexingDone.countDown(); // one doc is indexed above blocking
         IndexShard shard = indexService.getShard(0);
-        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         shard.scheduledRefresh(future);
         boolean hasRefreshed = future.actionGet();
         if (randomTimeValue == TimeValue.ZERO) {
@@ -193,7 +193,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
     }
 
     private static void scheduleRefresh(IndexShard shard, boolean expectRefresh) {
-        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         shard.scheduledRefresh(future);
         assertThat(future.actionGet(), equalTo(expectRefresh));
     }

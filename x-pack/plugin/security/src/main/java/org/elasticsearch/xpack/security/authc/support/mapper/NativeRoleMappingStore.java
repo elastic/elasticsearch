@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -243,6 +244,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                     .setId(getIdForName(mapping.getName()))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
+                    .setWaitForActiveShards(ActiveShardCount.NONE)
                     .request(),
                 new ActionListener<DocWriteResponse>() {
                     @Override
@@ -275,6 +277,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                     SECURITY_ORIGIN,
                     client.prepareDelete(SECURITY_MAIN_ALIAS, getIdForName(request.getName()))
                         .setRefreshPolicy(request.getRefreshPolicy())
+                        .setWaitForActiveShards(ActiveShardCount.NONE)
                         .request(),
                     new ActionListener<DeleteResponse>() {
 

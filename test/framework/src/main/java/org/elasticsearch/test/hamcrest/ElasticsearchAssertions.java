@@ -285,11 +285,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertHitCount(ActionFuture<SearchResponse> responseFuture, long expectedHitCount) {
-        try {
-            assertResponse(responseFuture, res -> assertHitCount(res, expectedHitCount));
-        } catch (ExecutionException | InterruptedException ex) {
-            throw new AssertionError(ex);
-        }
+        assertResponse(responseFuture, res -> assertHitCount(res, expectedHitCount));
     }
 
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
@@ -341,15 +337,11 @@ public class ElasticsearchAssertions {
         });
     }
 
-    public static void assertNoFailuresAndResponse(ActionFuture<SearchResponse> responseFuture, Consumer<SearchResponse> consumer)
-        throws ExecutionException, InterruptedException {
-        var res = responseFuture.get();
-        try {
+    public static void assertNoFailuresAndResponse(ActionFuture<SearchResponse> responseFuture, Consumer<SearchResponse> consumer) {
+        assertResponse(responseFuture, res -> {
             assertNoFailures(res);
             consumer.accept(res);
-        } finally {
-            res.decRef();
-        }
+        });
     }
 
     public static void assertResponse(SearchRequestBuilder searchRequestBuilder, Consumer<SearchResponse> consumer) {
@@ -361,9 +353,8 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertResponse(ActionFuture<SearchResponse> responseFuture, Consumer<SearchResponse> consumer)
-        throws ExecutionException, InterruptedException {
-        var res = responseFuture.get();
+    public static void assertResponse(ActionFuture<SearchResponse> responseFuture, Consumer<SearchResponse> consumer) {
+        var res = responseFuture.actionGet();
         try {
             consumer.accept(res);
         } finally {
@@ -386,8 +377,8 @@ public class ElasticsearchAssertions {
     public static void assertCheckedResponse(
         ActionFuture<SearchResponse> responseFuture,
         CheckedConsumer<SearchResponse, IOException> consumer
-    ) throws IOException, ExecutionException, InterruptedException {
-        var res = responseFuture.get();
+    ) throws IOException {
+        var res = responseFuture.actionGet();
         try {
             consumer.accept(res);
         } finally {

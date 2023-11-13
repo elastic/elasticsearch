@@ -721,6 +721,7 @@ docs. Both are optional.
 (Optional, string)
 The prefix string to prepend to the input text for requests
 originating from a search query.
+
 `ingest`:::
 (Optional, string)
 The prefix string to prepend to the input text for requests

@@ -214,12 +214,13 @@ public class TransformProgressIT extends TransformSingleNodeTestCase {
         final AtomicReference<TransformProgress> progressHolder = new AtomicReference<>();
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        assertResponse(client().search(searchRequest), response -> {
-            function.getInitialProgressFromResponse(
+        assertResponse(
+            client().search(searchRequest),
+            response -> function.getInitialProgressFromResponse(
                 response,
                 new LatchedActionListener<>(ActionListener.wrap(progressHolder::set, exceptionHolder::set), latch)
-            );
-        });
+            )
+        );
 
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
         if (exceptionHolder.get() != null) {

@@ -347,7 +347,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
         shard.prepareForIndexRecovery();
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, null, null, new PeerRecoveryTargetService.RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
@@ -458,7 +458,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, snapshotFilesProvider, () -> {}, null);
 
-        PlainActionFuture<Void> writeSnapshotFileFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> writeSnapshotFileFuture = new PlainActionFuture<>();
         recoveryTarget.restoreFileFromSnapshot(repositoryName, indexId, fileInfo, writeSnapshotFileFuture);
         writeSnapshotFileFuture.get();
 
@@ -538,7 +538,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             SNAPSHOT_FILE_PART_SIZE
         );
 
-        PlainActionFuture<Void> writeSnapshotFileFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> writeSnapshotFileFuture = new PlainActionFuture<>();
         recoveryTarget.restoreFileFromSnapshot(repositoryName, indexId, fileInfo, writeSnapshotFileFuture);
         ExecutionException executionException = expectThrows(ExecutionException.class, writeSnapshotFileFuture::get);
 
@@ -558,7 +558,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         assertThat(fileDetails.recovered(), equalTo(0L));
 
         // Subsequent writes on the same file can proceed without issues
-        PlainActionFuture<Void> writeChunkFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> writeChunkFuture = new PlainActionFuture<>();
         ReleasableBytesReference bytesRef = ReleasableBytesReference.wrap(new BytesArray(fileData));
         recoveryTarget.writeFileChunk(storeFileMetadata, 0, bytesRef, true, 0, writeChunkFuture);
         writeChunkFuture.get();
@@ -641,7 +641,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         for (Map.Entry<BlobStoreIndexShardSnapshot.FileInfo, byte[]> fileInfoEntry : snapshotFiles.entrySet()) {
             BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfoEntry.getKey();
-            PlainActionFuture<Void> writeSnapshotFileFuture = PlainActionFuture.newFuture();
+            PlainActionFuture<Void> writeSnapshotFileFuture = new PlainActionFuture<>();
             recoveryTarget.restoreFileFromSnapshot(repositoryName, indexId, fileInfo, writeSnapshotFileFuture);
 
             // Simulate error, that stops downloading snapshot files
@@ -652,7 +652,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             writeSnapshotFileFuture.get();
         }
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         recoveryTarget.receiveFileInfo(emptyList(), emptyList(), emptyList(), emptyList(), 0, future);
         future.get();
 
@@ -713,7 +713,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         recoveryTarget.incRef();
 
-        PlainActionFuture<Void> writeSnapshotFileFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> writeSnapshotFileFuture = new PlainActionFuture<>();
         recoveryTarget.restoreFileFromSnapshot(repository, indexId, fileInfo, writeSnapshotFileFuture);
         writeSnapshotFileFuture.get();
 

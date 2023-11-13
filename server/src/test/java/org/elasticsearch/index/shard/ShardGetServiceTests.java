@@ -246,7 +246,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
 
         // A flush shouldn't change the recorded last unsafe generation for gets
-        PlainActionFuture<Engine.FlushResult> flushFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Engine.FlushResult> flushFuture = new PlainActionFuture<>();
         engine.flush(true, true, flushFuture);
         var flushResult = flushFuture.actionGet();
         assertTrue(flushResult.flushPerformed());

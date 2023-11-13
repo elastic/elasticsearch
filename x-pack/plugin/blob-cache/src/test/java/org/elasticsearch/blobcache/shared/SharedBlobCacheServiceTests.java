@@ -415,7 +415,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertEquals(5, cacheService.freeRegionCount());
                 final long size = size(250);
                 AtomicLong bytesRead = new AtomicLong(size);
-                final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+                final PlainActionFuture<Void> future = new PlainActionFuture<>();
                 cacheService.maybeFetchFullEntry(cacheKey, size, (channel, channelPos, relativePos, length, progressUpdater) -> {
                     bytesRead.addAndGet(-length);
                     progressUpdater.accept(length);

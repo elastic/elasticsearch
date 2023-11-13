@@ -1140,7 +1140,7 @@ public abstract class Engine implements Closeable {
      */
     // TODO: Remove or rename for increased clarity
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
         flush(force, waitIfOngoing, future);
         future.actionGet();
     }
@@ -1167,7 +1167,7 @@ public abstract class Engine implements Closeable {
      * a lucene commit if nothing needs to be committed.
      */
     public final void flush() throws EngineException {
-        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
         flush(false, false, future);
         future.actionGet();
     }

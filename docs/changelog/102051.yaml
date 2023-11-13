@@ -1,0 +1,5 @@
+pr: 102051
+summary: "Repo analysis: allow configuration of register ops"
+area: Snapshot/Restore
+type: enhancement
+issues: []

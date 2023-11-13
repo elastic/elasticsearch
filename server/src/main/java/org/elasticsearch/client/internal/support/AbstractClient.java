@@ -361,7 +361,7 @@ public abstract class AbstractClient implements Client {
         ActionType<Response> action,
         Request request
     ) {
-        PlainActionFuture<Response> actionFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Response> actionFuture = new PlainActionFuture<>();
         execute(action, request, actionFuture);
         return actionFuture;
     }

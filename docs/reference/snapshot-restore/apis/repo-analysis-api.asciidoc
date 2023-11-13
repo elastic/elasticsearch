@@ -204,9 +204,9 @@ the blobs written during the test. Defaults to `1gb`. For realistic experiments
 you should set this to at least `1tb`.
 
 `register_operation_count`::
-(Optional, integer) The number of linearizable register operations to perform
-in total. Defaults to `10`. For realistic experiments you should set this to at
-least `100`.
+(Optional, integer) The minimum number of linearizable register operations to
+perform in total. Defaults to `10`. For realistic experiments you should set
+this to at least `100`.
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for

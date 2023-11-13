@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.List;
@@ -33,7 +34,8 @@ public class RestTasksActionTests extends ESTestCase {
             Map.of("parent_task_id", "the node:3", "nodes", "node1,node2", "actions", "*")
         ).build();
         FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, false, 1);
-        try (NoOpNodeClient nodeClient = buildNodeClient()) {
+        try (var threadPool = createThreadPool()) {
+            final var nodeClient = buildNodeClient(threadPool);
             action.handleRequest(fakeRestRequest, fakeRestChannel, nodeClient);
         }
 
@@ -41,8 +43,8 @@ public class RestTasksActionTests extends ESTestCase {
         assertThat(fakeRestChannel.responses().get(), is(1));
     }
 
-    private NoOpNodeClient buildNodeClient() {
-        return new NoOpNodeClient(getTestName()) {
+    private NoOpNodeClient buildNodeClient(ThreadPool threadPool) {
+        return new NoOpNodeClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

@@ -67,7 +67,7 @@ public class ToDouble extends AbstractConvertFunction {
         return bool ? 1d : 0d;
     }
 
-    @ConvertEvaluator(extraName = "FromString")
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { NumberFormatException.class })
     static double fromKeyword(BytesRef in) {
         return Double.parseDouble(in.utf8ToString());
     }

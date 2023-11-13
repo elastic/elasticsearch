@@ -1,7 +1,0 @@
-pr: 98809
-summary: Avoiding the use of nodes that are no longer in the cluster when computing
-  master stability
-area: Health
-type: enhancement
-issues:
- - 98636

@@ -56,12 +56,6 @@ public class CancellationIT extends ProfilingTestCase {
         return plugins;
     }
 
-    @Override
-    protected boolean useOnlyAllEvents() {
-        // we assume that all indices have been created to simplify the testing logic.
-        return false;
-    }
-
     public void testAutomaticCancellation() throws Exception {
         Request restRequest = new Request("POST", "/_profiling/stacktraces");
         restRequest.setEntity(new StringEntity("""

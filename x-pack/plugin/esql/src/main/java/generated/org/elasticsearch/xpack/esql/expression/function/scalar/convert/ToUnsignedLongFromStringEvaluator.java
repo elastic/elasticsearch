@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.NumberFormatException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -39,7 +40,7 @@ public final class ToUnsignedLongFromStringEvaluator extends AbstractConvertFunc
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0, scratchPad), positionCount);
-      } catch (Exception e) {
+      } catch (NumberFormatException  e) {
         registerException(e);
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
@@ -48,7 +49,7 @@ public final class ToUnsignedLongFromStringEvaluator extends AbstractConvertFunc
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendLong(evalValue(vector, p, scratchPad));
-        } catch (Exception e) {
+        } catch (NumberFormatException  e) {
           registerException(e);
           builder.appendNull();
         }
@@ -83,7 +84,7 @@ public final class ToUnsignedLongFromStringEvaluator extends AbstractConvertFunc
             }
             builder.appendLong(value);
             valuesAppended = true;
-          } catch (Exception e) {
+          } catch (NumberFormatException  e) {
             registerException(e);
           }
         }

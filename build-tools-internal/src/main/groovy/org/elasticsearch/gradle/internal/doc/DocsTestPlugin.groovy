@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
+import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.Directory
@@ -61,16 +62,24 @@ class DocsTestPlugin implements Plugin<Project> {
             group 'Docs'
             description 'List each snippet'
             defaultSubstitutions = commonDefaultSubstitutions
-            perSnippet { println(it.toString()) }
+            perSnippet = new Action<SnippetsTask.Snippet>() {
+                @Override
+                void execute(SnippetsTask.Snippet snippet) {
+                    println(snippet.toString())
+                }
+            }
         }
         project.tasks.register('listConsoleCandidates', SnippetsTask) {
             group 'Docs'
             description
             'List snippets that probably should be marked // CONSOLE'
             defaultSubstitutions = commonDefaultSubstitutions
-            perSnippet {
-                if (RestTestsFromSnippetsTask.isConsoleCandidate(it)) {
-                    println(it.toString())
+            perSnippet = new Action<SnippetsTask.Snippet>() {
+                @Override
+                void execute(SnippetsTask.Snippet snippet) {
+                    if (RestTestsFromSnippetsTask.isConsoleCandidate(it)) {
+                        println(it.toString())
+                    }
                 }
             }
         }
@@ -80,7 +89,7 @@ class DocsTestPlugin implements Plugin<Project> {
             defaultSubstitutions = commonDefaultSubstitutions
             testRoot.convention(restRootDir)
             doFirst {
-                fileOperations.delete(restRootDir)
+                getFileOperations().delete(testRoot.get())
             }
         }
 

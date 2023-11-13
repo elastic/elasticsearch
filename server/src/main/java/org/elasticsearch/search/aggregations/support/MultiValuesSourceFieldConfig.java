@@ -310,17 +310,9 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         private String format = null;
         private IncludeExclude includeExclude = null;
 
-        public String getFieldName() {
-            return fieldName;
-        }
-
         public Builder setFieldName(String fieldName) {
             this.fieldName = fieldName;
             return this;
-        }
-
-        public Object getMissing() {
-            return missing;
         }
 
         public Builder setMissing(Object missing) {
@@ -328,17 +320,9 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             return this;
         }
 
-        public Script getScript() {
-            return script;
-        }
-
         public Builder setScript(Script script) {
             this.script = script;
             return this;
-        }
-
-        public ZoneId getTimeZone() {
-            return timeZone;
         }
 
         public Builder setTimeZone(ZoneId timeZone) {
@@ -356,17 +340,9 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             return this;
         }
 
-        public ValueType getUserValueTypeHint() {
-            return userValueTypeHint;
-        }
-
         public Builder setFormat(String format) {
             this.format = format;
             return this;
-        }
-
-        public String getFormat() {
-            return format;
         }
 
         public Builder setIncludeExclude(IncludeExclude includeExclude) {

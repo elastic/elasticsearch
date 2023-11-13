@@ -8,4 +8,5 @@
 
 org.elasticsearch.features.FeatureInfrastructureFeatures
 org.elasticsearch.health.HealthFeatures
+org.elasticsearch.cluster.metadata.MetadataFeatures
 org.elasticsearch.rest.RestFeatures

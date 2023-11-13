@@ -91,7 +91,18 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
      * @param client the client used to call the Health Service.
      * @param healthService the Health Service, where the actual Health API logic lives.
      */
-    public HealthPeriodicLogger(Settings settings, ClusterService clusterService, Client client, HealthService healthService) {
+    public static HealthPeriodicLogger create(
+        Settings settings,
+        ClusterService clusterService,
+        Client client,
+        HealthService healthService
+    ) {
+        HealthPeriodicLogger logger = new HealthPeriodicLogger(settings, clusterService, client, healthService);
+        logger.registerListeners();
+        return logger;
+    }
+
+    private HealthPeriodicLogger(Settings settings, ClusterService clusterService, Client client, HealthService healthService) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.client = client;
@@ -101,11 +112,8 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         this.enabled = ENABLED_SETTING.get(settings);
     }
 
-    /**
-     * Initializer method to avoid the publication of a self reference in the constructor.
-     */
-    public void init() {
-        if (this.enabled) {
+    private void registerListeners() {
+        if (enabled) {
             clusterService.addListener(this);
         }
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);

@@ -113,7 +113,7 @@ public class JoinHelperTests extends ESTestCase {
         assertEquals(node1, capturedRequest1.node());
 
         assertTrue(joinHelper.isJoinPending());
-        final var join1Term = optionalJoin1.stream().mapToLong(Join::getTerm).findFirst().orElse(0L);
+        final var join1Term = optionalJoin1.stream().mapToLong(Join::term).findFirst().orElse(0L);
         final var join1Status = new JoinStatus(node1, join1Term, PENDING_JOIN_WAITING_RESPONSE, TimeValue.ZERO);
         assertThat(joinHelper.getInFlightJoinStatuses(), equalTo(List.of(join1Status)));
 
@@ -127,7 +127,7 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest capturedRequest2 = capturedRequests2[0];
         assertEquals(node2, capturedRequest2.node());
 
-        final var join2Term = optionalJoin2.stream().mapToLong(Join::getTerm).findFirst().orElse(0L);
+        final var join2Term = optionalJoin2.stream().mapToLong(Join::term).findFirst().orElse(0L);
         final var join2Status = new JoinStatus(node2, join2Term, PENDING_JOIN_WAITING_RESPONSE, TimeValue.ZERO);
         assertThat(
             new HashSet<>(joinHelper.getInFlightJoinStatuses()),

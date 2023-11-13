@@ -24,36 +24,24 @@ import java.io.IOException;
  * A voting node will only cast a single vote per term. The vote includes information about
  * the current state of the node casting the vote, so that the candidate for the vote can
  * determine whether it has a more up-to-date state than the voting node.
+ *
+ * @param votingNode The node casting a vote for a master candidate.
+ * @param masterCandidateNode The master candidate node receiving the vote for election.
+ * @param term
+ * @param lastAcceptedTerm
+ * @param lastAcceptedVersion
  */
-public class Join implements Writeable {
-    // The node casting a vote for a master candidate.
-    private final DiscoveryNode votingNode;
-
-    // The master candidate node receiving the vote for election.
-    private final DiscoveryNode masterCandidateNode;
-
-    private final long term;
-    private final long lastAcceptedTerm;
-    private final long lastAcceptedVersion;
-
-    public Join(DiscoveryNode votingNode, DiscoveryNode masterCandidateNode, long term, long lastAcceptedTerm, long lastAcceptedVersion) {
+public record Join(DiscoveryNode votingNode, DiscoveryNode masterCandidateNode, long term, long lastAcceptedTerm, long lastAcceptedVersion)
+    implements
+        Writeable {
+    public Join {
         assert term >= 0;
         assert lastAcceptedTerm >= 0;
         assert lastAcceptedVersion >= 0;
-
-        this.votingNode = votingNode;
-        this.masterCandidateNode = masterCandidateNode;
-        this.term = term;
-        this.lastAcceptedTerm = lastAcceptedTerm;
-        this.lastAcceptedVersion = lastAcceptedVersion;
     }
 
     public Join(StreamInput in) throws IOException {
-        votingNode = new DiscoveryNode(in);
-        masterCandidateNode = new DiscoveryNode(in);
-        term = in.readLong();
-        lastAcceptedTerm = in.readLong();
-        lastAcceptedVersion = in.readLong();
+        this(new DiscoveryNode(in), new DiscoveryNode(in), in.readLong(), in.readLong(), in.readLong());
     }
 
     @Override
@@ -65,51 +53,8 @@ public class Join implements Writeable {
         out.writeLong(lastAcceptedVersion);
     }
 
-    public DiscoveryNode getVotingNode() {
-        return votingNode;
-    }
-
-    public DiscoveryNode getMasterCandidateNode() {
-        return masterCandidateNode;
-    }
-
-    /**
-     * Temporary compatibility with serverless code repository.
-     */
-    public DiscoveryNode getSourceNode() {
-        return masterCandidateNode;
-    }
-
     public boolean masterCandidateMatches(DiscoveryNode matchingNode) {
         return masterCandidateNode.getId().equals(matchingNode.getId());
-    }
-
-    public long getLastAcceptedVersion() {
-        return lastAcceptedVersion;
-    }
-
-    public long getTerm() {
-        return term;
-    }
-
-    public long getLastAcceptedTerm() {
-        return lastAcceptedTerm;
-    }
-
-    @Override
-    public String toString() {
-        return "Join{"
-            + "term="
-            + term
-            + ", lastAcceptedTerm="
-            + lastAcceptedTerm
-            + ", lastAcceptedVersion="
-            + lastAcceptedVersion
-            + ", votingNode="
-            + votingNode
-            + ", masterCandidateNode="
-            + masterCandidateNode
-            + '}';
     }
 
     @Override

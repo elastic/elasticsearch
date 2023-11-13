@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -59,11 +58,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -161,8 +160,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                 });
             });
 
-            final SearchResponse response = client().prepareSearch(monitoringIndex).get();
-            try {
+            assertCheckedResponse(client().prepareSearch(monitoringIndex), response -> {
                 final SearchHits hits = response.getHits();
 
                 assertThat(response.getHits().getTotalHits().value, equalTo(3L));
@@ -183,9 +181,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                 for (final SearchHit hit : hits.getHits()) {
                     assertMonitoringDoc(toMap(hit), system, interval);
                 }
-            } finally {
-                response.decRef();
-            }
+            });
         });
     }
 
@@ -213,42 +209,27 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertAcked(clusterAdmin().prepareUpdateSettings().setTransientSettings(settings));
 
         whenExportersAreReady(() -> {
-            final AtomicReference<SearchResponse> searchResponseRef = new AtomicReference<>();
-            try {
-                assertBusy(() -> {
-                    final SearchResponse response = client().prepareSearch(".monitoring-es-*")
+            assertBusy(() -> {
+                assertCheckedResponse(
+                    client().prepareSearch(".monitoring-es-*")
                         .setCollapse(new CollapseBuilder("type"))
-                        .addSort("timestamp", SortOrder.DESC)
-                        .get();
-
-                    try {
+                        .addSort("timestamp", SortOrder.DESC),
+                    response -> {
                         assertThat(response.status(), is(RestStatus.OK));
                         assertThat(
                             "Expecting a minimum number of 6 docs, one per collector",
                             response.getHits().getHits().length,
                             greaterThanOrEqualTo(6)
                         );
-                    } catch (Exception e) {
-                        // if an exception is thrown, then we will not set the AtomicReference
-                        // so we need to decRef this response that is failing the asserts
-                        response.decRef();
-                        throw e;
+
+                        for (final SearchHit hit : response.getHits()) {
+                            final Map<String, Object> searchHit = toMap(hit);
+                            assertMonitoringDoc(searchHit, MonitoredSystem.ES, MonitoringService.MIN_INTERVAL);
+                        }
                     }
-
-                    searchResponseRef.set(response);
-                });
-                for (final SearchHit hit : searchResponseRef.get().getHits()) {
-                    final Map<String, Object> searchHit = toMap(hit);
-                    assertMonitoringDoc(searchHit, MonitoredSystem.ES, MonitoringService.MIN_INTERVAL);
-                }
-            } finally {
-                SearchResponse rsp = searchResponseRef.get();
-                if (rsp != null) {
-                    rsp.decRef();
-                }
-            }
+                );
+            });
         });
-
     }
 
     /**

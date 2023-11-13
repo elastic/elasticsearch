@@ -24,7 +24,7 @@ import java.io.IOException;
 import static org.elasticsearch.common.Strings.hasText;
 
 public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
-    
+
     private static final long CLIENT_TIMEOUT = 40L; // upped from 10s to accommodate for max measured throughput decline
 
     // client used for loading data on a remote cluster only.

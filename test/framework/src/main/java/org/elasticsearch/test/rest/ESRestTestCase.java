@@ -2224,7 +2224,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
             String metadataPath = System.getProperty("tests.features.metadata.path");
             if (metadataPath == null) {
-                throw new IllegalStateException("System property 'tests.features.metadata.path' is undefined.");
+                throw new UnsupportedOperationException("Historical features information is unavailable when using legacy test plugins.");
             }
 
             String[] metadataFiles = metadataPath.split(File.pathSeparator);

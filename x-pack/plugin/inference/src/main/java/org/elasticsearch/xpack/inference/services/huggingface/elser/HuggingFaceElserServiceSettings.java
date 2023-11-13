@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.io.IOException;
 import java.net.URI;
@@ -24,6 +23,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredString;
 
 public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSettings {
     public static final String NAME = "hugging_face_elser_service_settings";
@@ -33,14 +33,12 @@ public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSetting
     public static HuggingFaceElserServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        String parsedUrl = MapParsingUtils.removeAsType(map, URL, String.class);
-
-        URI uri = null;
-        if (parsedUrl == null) {
-            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(URL, ModelConfigurations.SERVICE_SETTINGS));
-        } else {
-            uri = convertToUri(parsedUrl, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String parsedUrl = extractRequiredString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
         }
+
+        URI uri = convertToUri(parsedUrl, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

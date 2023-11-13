@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<OpenAiServiceSettings> {
@@ -43,6 +44,23 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
     public void testFromMap_MissingUrl_DoesNotThrowException() {
         var serviceSettings = OpenAiServiceSettings.fromMap(new HashMap<>());
         assertNull(serviceSettings.uri());
+    }
+
+    public void testFromMap_EmptyUrl_ThrowsError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceSettings.URL, "")))
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
+                    OpenAiServiceSettings.URL
+                )
+            )
+        );
     }
 
     public void testFromMap_InvalidUrl_ThrowsError() {

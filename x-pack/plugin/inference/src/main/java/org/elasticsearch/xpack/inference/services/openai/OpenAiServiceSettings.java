@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.io.IOException;
 import java.net.URI;
@@ -24,6 +23,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractOptionalString;
 
 /**
  * Defines the base settings for interacting with OpenAI.
@@ -38,19 +38,19 @@ public record OpenAiServiceSettings(@Nullable URI uri) implements ServiceSetting
     public static OpenAiServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        String url = MapParsingUtils.removeAsType(map, URL, String.class);
+        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        // If the url was empty, throw to indicate that it must be non-empty if defined
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
 
         // the url is optional and only for testing
         if (url == null) {
             return new OpenAiServiceSettings((String) null);
         }
 
-        URI uri = null;
-        if (url.isEmpty()) {
-            validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(URL, ModelConfigurations.TASK_SETTINGS));
-        } else {
-            uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        }
+        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

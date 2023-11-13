@@ -32,6 +32,23 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
         assertThat(new HuggingFaceElserServiceSettings(url), is(serviceSettings));
     }
 
+    public void testFromMap_EmptyUrl_ThrowsError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> HuggingFaceElserServiceSettings.fromMap(new HashMap<>(Map.of(HuggingFaceElserServiceSettings.URL, "")))
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
+                    HuggingFaceElserServiceSettings.URL
+                )
+            )
+        );
+    }
+
     public void testFromMap_MissingUrl_ThrowsError() {
         var thrownException = expectThrows(ValidationException.class, () -> HuggingFaceElserServiceSettings.fromMap(new HashMap<>()));
 

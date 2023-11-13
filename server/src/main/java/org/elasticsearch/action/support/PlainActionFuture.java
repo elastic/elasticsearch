@@ -30,14 +30,6 @@ import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
 public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> {
 
-    /**
-     * @deprecated just create a new {@link PlainActionFuture} directly.
-     */
-    @Deprecated(forRemoval = true)
-    public static <T> PlainActionFuture<T> newFuture() {
-        return new PlainActionFuture<>();
-    }
-
     @Override
     public void onResponse(T result) {
         set(result);

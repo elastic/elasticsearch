@@ -701,6 +701,8 @@ class NodeConstruction {
         rerouteServiceReference.set(rerouteService);
         clusterService.setRerouteService(rerouteService);
 
+        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
+
         final IndicesService indicesService = new IndicesService(
             settings,
             pluginsService,
@@ -717,6 +719,7 @@ class NodeConstruction {
             scriptService,
             clusterService,
             client,
+            featureService,
             metaStateService,
             engineFactoryProviders,
             indexStoreFactories,
@@ -764,8 +767,6 @@ class NodeConstruction {
             shardLimitValidator,
             threadPool
         );
-
-        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
         record PluginServiceInstances(
             Client client,

@@ -114,7 +114,7 @@ public class StaleTranslogsGCIT extends AbstractStatelessIntegTestCase {
             .filter(t -> t instanceof ObjectStoreGCTask)
             .findFirst()
             .get();
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         gcTask.cleanStaleTranslogs(future, listenerOnConsistentClusterState);
         future.get(secondsTimeout, TimeUnit.SECONDS);
     }

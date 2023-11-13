@@ -101,6 +101,7 @@ public class MemoryMetricsService implements ClusterStateListener {
             for (IndexMetadata indexMetadata : event.state().metadata()) {
                 IndexMemoryMetrics indexMemoryMetrics = new IndexMemoryMetrics(0, MetricQuality.MISSING);
 
+                // new master should track the current assigned primary shard node in order to accept updates from such nodes
                 var shardRouting = getPrimaryShardRouting(event, indexMetadata.getIndex());
                 if (shardRouting.assignedToNode()) {
                     indexMemoryMetrics.update(shardRouting.currentNodeId());

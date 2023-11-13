@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTransmissionLogging.getExceptionLogLevel;
 
@@ -65,6 +66,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
     private final TimeValue publicationFrequency;
     private final Map<Index, IndexMappingSize> indexToMappingSizeMetrics = new ConcurrentHashMap<>();
     private final AtomicLong seqNo = new AtomicLong();
+    private final AtomicReference<Object> inFlightPublicationTicket = new AtomicReference<>();
     private volatile PublishTask publishTask;
 
     public IndicesMappingSizeCollector(
@@ -131,16 +133,22 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
 
         final HeapMemoryUsage heapMemoryUsage = new HeapMemoryUsage(seqNo.incrementAndGet(), Map.copyOf(indexToMappingSizeMetrics));
 
-        // TODO: (Optimization) Do not try to publish new metrics if previous sending has not completed yet
-        publisher.publishIndicesMappingSize(heapMemoryUsage, new ActionListener<>() {
-            @Override
-            public void onResponse(final ActionResponse.Empty ignore) {}
+        final Object ticket = new Object();
+        if (inFlightPublicationTicket.compareAndSet(null, ticket)) {
+            publisher.publishIndicesMappingSize(heapMemoryUsage, ActionListener.runAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(final ActionResponse.Empty ignore) {}
 
-            @Override
-            public void onFailure(final Exception e) {
-                logger.log(getExceptionLogLevel(e), () -> "Unable to publish indices mapping size", e);
-            }
-        });
+                @Override
+                public void onFailure(final Exception e) {
+                    logger.log(getExceptionLogLevel(e), () -> "Unable to publish indices mapping size", e);
+                }
+            }, () -> inFlightPublicationTicket.compareAndSet(ticket, null)));
+        }
+    }
+
+    private void clearInFlightPublicationTicket() {
+        inFlightPublicationTicket.set(null);
     }
 
     // Visible for testing
@@ -156,6 +164,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
         if (event.nodesDelta().masterNodeChanged()) {
             // new master does not have any mapping size estimation data
             // therefore each index node pushes it explicitly not waiting for the next scheduled publish task run
+            clearInFlightPublicationTicket();
             threadPool.generic().execute(this::publishIndicesMappingSize);
         }
         if (event.metadataChanged()) {
@@ -253,6 +262,7 @@ public class IndicesMappingSizeCollector implements ClusterStateListener, IndexE
 
         @Override
         public void onFailure(Exception e) {
+            clearInFlightPublicationTicket();
             logger.error("Unexpected error during publishing indices memory mapping size metric", e);
         }
 

@@ -38,7 +38,7 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
     SamlInitiateSingleSignOnRequest,
     SamlInitiateSingleSignOnResponse> {
 
-    private final Logger logger = LogManager.getLogger(TransportSamlInitiateSingleSignOnAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportSamlInitiateSingleSignOnAction.class);
 
     private final SecurityContext securityContext;
     private final SamlIdentityProvider identityProvider;

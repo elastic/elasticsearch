@@ -221,7 +221,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
 
     private TestPlugin getTestPlugin(String node) {
         PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, node);
-        List<TestPlugin> testPlugins = pluginsService.filterPlugins(TestPlugin.class);
+        List<TestPlugin> testPlugins = pluginsService.filterPlugins(TestPlugin.class).toList();
         assertThat(testPlugins, Matchers.hasSize(1));
         return testPlugins.get(0);
     }

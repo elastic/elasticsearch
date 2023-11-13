@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
+import org.elasticsearch.xpack.core.template.JsonIngestPipelineConfig;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -112,7 +113,7 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
         return List.of(
-            new IngestPipelineConfig(
+            new JsonIngestPipelineConfig(
                 ENT_SEARCH_GENERIC_PIPELINE_NAME,
                 ROOT_RESOURCE_PATH + ENT_SEARCH_GENERIC_PIPELINE_FILE + ".json",
                 REGISTRY_VERSION,

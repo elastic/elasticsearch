@@ -51,118 +51,112 @@ public class ChunkedTrainedModelRestorerTests extends ESTestCase {
     }
 
     public void testRetryingSearch_ThrowsSearchPhaseExceptionWithNoRetries() {
-        try (var mockClient = mock(Client.class)) {
-            var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
-            when(mockClient.search(any())).thenThrow(searchPhaseException);
+        final var mockClient = mock(Client.class);
+        var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
+        when(mockClient.search(any())).thenThrow(searchPhaseException);
 
-            var request = createSearchRequest();
+        var request = createSearchRequest();
 
-            ElasticsearchException exception = expectThrows(
-                ElasticsearchException.class,
-                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "1", request, 0, new TimeValue(1, TimeUnit.NANOSECONDS))
-            );
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "1", request, 0, new TimeValue(1, TimeUnit.NANOSECONDS))
+        );
 
-            assertThat(exception.getCause(), is(searchPhaseException));
-            assertThat(
-                exception.getMessage(),
-                is(
-                    "loading model [1] failed after [0] retries. The deployment is now in a failed state, the error may be "
-                        + "transient please stop the deployment and restart"
-                )
-            );
-            verify(mockClient, times(1)).search(any());
-        }
+        assertThat(exception.getCause(), is(searchPhaseException));
+        assertThat(
+            exception.getMessage(),
+            is(
+                "loading model [1] failed after [0] retries. The deployment is now in a failed state, the error may be "
+                    + "transient please stop the deployment and restart"
+            )
+        );
+        verify(mockClient, times(1)).search(any());
     }
 
     public void testRetryingSearch_ThrowsSearchPhaseExceptionAfterOneRetry() {
-        try (var mockClient = mock(Client.class)) {
-            var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
-            when(mockClient.search(any())).thenThrow(searchPhaseException);
+        final var mockClient = mock(Client.class);
+        var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
+        when(mockClient.search(any())).thenThrow(searchPhaseException);
 
-            var request = createSearchRequest();
+        var request = createSearchRequest();
 
-            ElasticsearchException exception = expectThrows(
-                ElasticsearchException.class,
-                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
-            );
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
+        );
 
-            assertThat(exception.getCause(), is(searchPhaseException));
-            verify(mockClient, times(2)).search(any());
-        }
+        assertThat(exception.getCause(), is(searchPhaseException));
+        verify(mockClient, times(2)).search(any());
     }
 
     public void testRetryingSearch_ThrowsCircuitBreakingExceptionAfterOneRetry_FromSearchPhaseException() {
-        try (var mockClient = mock(Client.class)) {
-            var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
-            var circuitBreakerException = new CircuitBreakingException("error", CircuitBreaker.Durability.TRANSIENT);
-            when(mockClient.search(any())).thenThrow(searchPhaseException).thenThrow(circuitBreakerException);
+        final var mockClient = mock(Client.class);
+        var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
+        var circuitBreakerException = new CircuitBreakingException("error", CircuitBreaker.Durability.TRANSIENT);
+        when(mockClient.search(any())).thenThrow(searchPhaseException).thenThrow(circuitBreakerException);
 
-            var request = createSearchRequest();
+        var request = createSearchRequest();
 
-            ElasticsearchException exception = expectThrows(
-                ElasticsearchException.class,
-                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
-            );
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
+        );
 
-            assertThat(exception.getCause(), is(circuitBreakerException));
-            verify(mockClient, times(2)).search(any());
-        }
+        assertThat(exception.getCause(), is(circuitBreakerException));
+        verify(mockClient, times(2)).search(any());
     }
 
     public void testRetryingSearch_EnsureExceptionCannotBeUnwrapped() {
-        try (var mockClient = mock(Client.class)) {
-            var searchPhaseExecutionException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
-            when(mockClient.search(any())).thenThrow(searchPhaseExecutionException);
+        final var mockClient = mock(Client.class);
+        var searchPhaseExecutionException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
+        when(mockClient.search(any())).thenThrow(searchPhaseExecutionException);
 
-            var request = createSearchRequest();
+        var request = createSearchRequest();
 
-            ElasticsearchException exception = expectThrows(
-                ElasticsearchException.class,
-                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
-            );
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
+        );
 
-            assertThat(ExceptionsHelper.unwrapCause(exception), is(exception));
-            assertThat(ExceptionsHelper.unwrapCause(exception), instanceOf(ElasticsearchException.class));
-            verify(mockClient, times(2)).search(any());
-        }
+        assertThat(ExceptionsHelper.unwrapCause(exception), is(exception));
+        assertThat(ExceptionsHelper.unwrapCause(exception), instanceOf(ElasticsearchException.class));
+        verify(mockClient, times(2)).search(any());
     }
 
     public void testRetryingSearch_ThrowsIllegalArgumentExceptionIgnoringRetries() {
-        try (var mockClient = mock(Client.class)) {
-            var exception = new IllegalArgumentException("Error");
-            when(mockClient.search(any())).thenThrow(exception);
+        final var mockClient = mock(Client.class);
+        var exception = new IllegalArgumentException("Error");
+        when(mockClient.search(any())).thenThrow(exception);
 
-            var request = createSearchRequest();
+        var request = createSearchRequest();
 
-            IllegalArgumentException thrownException = expectThrows(
-                IllegalArgumentException.class,
-                () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
-            );
+        IllegalArgumentException thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS))
+        );
 
-            assertThat(thrownException, is(exception));
-            verify(mockClient, times(1)).search(any());
-        }
+        assertThat(thrownException, is(exception));
+        verify(mockClient, times(1)).search(any());
     }
 
     public void testRetryingSearch_ThrowsSearchPhaseExceptionOnce_ThenReturnsResponse() throws InterruptedException {
-        try (var mockClient = mock(Client.class)) {
-            var mockSearchResponse = mock(SearchResponse.class, RETURNS_DEEP_STUBS);
+        final var mockClient = mock(Client.class);
+        var mockSearchResponse = mock(SearchResponse.class, RETURNS_DEEP_STUBS);
 
-            PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
-            searchFuture.onResponse(mockSearchResponse);
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
+        searchFuture.onResponse(mockSearchResponse);
 
-            var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
-            when(mockClient.search(any())).thenThrow(searchPhaseException).thenReturn(searchFuture);
+        var searchPhaseException = new SearchPhaseExecutionException("phase", "error", ShardSearchFailure.EMPTY_ARRAY);
+        when(mockClient.search(any())).thenThrow(searchPhaseException).thenReturn(searchFuture);
 
-            var request = createSearchRequest();
+        var request = createSearchRequest();
 
-            assertThat(
-                ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS)),
-                is(mockSearchResponse)
-            );
+        assertThat(
+            ChunkedTrainedModelRestorer.retryingSearch(mockClient, "", request, 1, new TimeValue(1, TimeUnit.NANOSECONDS)),
+            is(mockSearchResponse)
+        );
 
-            verify(mockClient, times(2)).search(any());
-        }
+        verify(mockClient, times(2)).search(any());
     }
 
     private static SearchRequest createSearchRequest() {

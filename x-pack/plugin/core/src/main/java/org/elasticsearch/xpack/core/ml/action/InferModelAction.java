@@ -82,7 +82,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         private final List<Map<String, Object>> objectsToInfer;
         private final InferenceConfigUpdate update;
         private final boolean previouslyLicensed;
-        private TimeValue inferenceTimeout;
+        private final TimeValue inferenceTimeout;
         // textInput added for uses that accept a query string
         // and do know which field the model expects to find its
         // input and so cannot construct a document.
@@ -95,18 +95,32 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
          * the inference queue for) is set to a high value {@code #DEFAULT_TIMEOUT_FOR_INGEST}
          * to prefer slow ingest over dropping documents.
          */
+
+        /**
+         * Build a request from a list of documents as maps.
+         *
+         * @param id The model Id
+         * @param docs List of document maps
+         * @param update Inference config update
+         * @param previouslyLicensed License has been checked previously
+         *                           and can now be skipped
+         * @param inferenceTimeout The inference timeout (how long the
+         *                         request waits in the inference queue for)
+         * @return the new Request
+         */
         public static Request forIngestDocs(
             String id,
             List<Map<String, Object>> docs,
             InferenceConfigUpdate update,
-            boolean previouslyLicensed
+            boolean previouslyLicensed,
+            TimeValue inferenceTimeout
         ) {
             return new Request(
                 ExceptionsHelper.requireNonNull(id, InferModelAction.Request.ID),
                 update,
                 ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
                 null,
-                DEFAULT_TIMEOUT_FOR_INGEST,
+                inferenceTimeout,
                 previouslyLicensed
             );
         }
@@ -114,17 +128,30 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         /**
          * Build a request from a list of strings, each string
          * is one evaluation of the model.
-         * The inference timeout (how long the request waits in
-         * the inference queue for) is set to {@code #DEFAULT_TIMEOUT_FOR_API}
+         *
+         * @param id The model Id
+         * @param update Inference config update
+         * @param textInput Inference input
+         * @param previouslyLicensed License has been checked previously
+         *                           and can now be skipped
+         * @param inferenceTimeout The inference timeout (how long the
+         *                         request waits in the inference queue for)
+         * @return the new Request
          */
-        public static Request forTextInput(String id, InferenceConfigUpdate update, List<String> textInput) {
+        public static Request forTextInput(
+            String id,
+            InferenceConfigUpdate update,
+            List<String> textInput,
+            boolean previouslyLicensed,
+            TimeValue inferenceTimeout
+        ) {
             return new Request(
                 id,
                 update,
                 List.of(),
                 ExceptionsHelper.requireNonNull(textInput, "inference text input"),
-                DEFAULT_TIMEOUT_FOR_API,
-                false
+                inferenceTimeout,
+                previouslyLicensed
             );
         }
 
@@ -195,11 +222,6 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         public TimeValue getInferenceTimeout() {
             return inferenceTimeout;
-        }
-
-        public Request setInferenceTimeout(TimeValue inferenceTimeout) {
-            this.inferenceTimeout = inferenceTimeout;
-            return this;
         }
 
         public boolean isHighPriority() {

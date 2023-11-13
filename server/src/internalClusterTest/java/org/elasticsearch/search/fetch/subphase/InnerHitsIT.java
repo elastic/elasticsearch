@@ -27,6 +27,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -193,10 +194,8 @@ public class InnerHitsIT extends ESIntegTestCase {
         innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
         assertThat(innerHits.getTotalHits().value, equalTo(2L));
         assertThat(innerHits.getHits().length, equalTo(1));
-        assertThat(
-            innerHits.getAt(0).getHighlightFields().get("comments.message").getFragments()[0].string(),
-            equalTo("<em>fox</em> eat quick")
-        );
+        HighlightField highlightField = innerHits.getAt(0).getHighlightFields().get("comments.message");
+        assertThat(highlightField.fragments()[0].string(), equalTo("<em>fox</em> eat quick"));
         assertThat(innerHits.getAt(0).getExplanation().toString(), containsString("weight(comments.message:fox in"));
         assertThat(
             innerHits.getAt(0).getFields().get("comments").getValue(),

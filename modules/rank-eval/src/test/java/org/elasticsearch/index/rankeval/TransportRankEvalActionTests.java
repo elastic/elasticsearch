@@ -30,10 +30,9 @@ import java.util.List;
 
 import static org.mockito.Mockito.mock;
 
-public class TransportRankEvalActionTests extends ESTestCase {
+public final class TransportRankEvalActionTests extends ESTestCase {
 
-    @SuppressWarnings("this-escape")
-    private Settings settings = Settings.builder()
+    private final Settings settings = Settings.builder()
         .put("path.home", createTempDir().toString())
         .put("node.name", "test-" + getTestName())
         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())

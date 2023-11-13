@@ -139,11 +139,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 FieldWork field = fields.get(b);
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime.reader(shard, segment, firstDoc);
                 if (columnAtATime != null) {
-                    readersBuilt.merge(field.info.name + ":" + columnAtATime, 1, (prev, one) -> prev + one);
                     blocks[b] = (Block) columnAtATime.read(blockFactory, loaderDocs);
                 } else {
                     BlockLoader.RowStrideReader rowStride = field.rowStride.reader(shard, segment, firstDoc);
-                    readersBuilt.merge(field.info.name + ":" + rowStride, 1, (prev, one) -> prev + one);
                     rowStrideReaders.add(
                         new RowStrideReaderWork(
                             rowStride,
@@ -279,7 +277,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 if (lastShard == shard && lastSegment == segment && lastReader != null && lastReader.canReuse(startingDocId)) {
                     return lastReader;
                 }
-                return build(info.blockLoaders.get(shard), ctx(shard, segment));
+                lastShard = shard;
+                lastSegment = segment;
+                lastReader = build(info.blockLoaders.get(shard), ctx(shard, segment));
+                readersBuilt.merge(info.name + ":" + lastReader, 1, (prev, one) -> prev + one);
+                return lastReader;
             }
 
             abstract V build(BlockLoader loader, LeafReaderContext ctx) throws IOException;

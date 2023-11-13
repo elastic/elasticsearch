@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuilder<CountedTermsAggregationBuilder> {
     public static final String NAME = "counted_terms";
@@ -47,7 +48,7 @@ class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuilder<Coun
     }
 
     // see TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS
-    private final TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(1, 0, 10, -1);
+    private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(1, 0, 10, -1);
 
     protected CountedTermsAggregationBuilder(String name) {
         super(name);
@@ -63,6 +64,7 @@ class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuilder<Coun
 
     protected CountedTermsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
+        bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -129,7 +131,28 @@ class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuilder<Coun
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        bucketCountThresholds.toXContent(builder, params);
+        // expose only size in XContent as only size can be set externally
+        builder.field(REQUIRED_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.getRequiredSize());
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
+        CountedTermsAggregationBuilder that = (CountedTermsAggregationBuilder) o;
+        return Objects.equals(bucketCountThresholds, that.bucketCountThresholds);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), bucketCountThresholds);
     }
 }

@@ -13,6 +13,22 @@ being managed by Data stream lifecycle. As we'll see, {ilm-cap} and Data stream 
 can co-manage a data stream; however, an index can only be managed by one system at 
 a time.
 
+[discrete]
+[[migrate-dsl-ilm-tldr]]
+==== TL;DR
+To migrate a data stream from {ilm-cap} to  data stream lifecycle we'll have to execute
+two steps:
+
+1. Update the index template that's backing the data stream to configure <<index-lifecycle-prefer-ilm, prefer_ilm>> 
+to `false`, and to configure data stream lifecycle. 
+2. Configure the data stream lifecycle for the _existing_ data streams using
+the <<data-streams-put-lifecycle, lifecycle API>>.
+
+For more details see the <<migrate-from-ilm-to-dsl, migrate to data stream lifecycle>> section.
+
+[discrete]
+[[setup-test-data]]
+==== Setup ILM managed data stream
 Let's first create a data stream with two backing indices managed by {ilm-cap}.
 We first create an {ilm-cap} policy:
 
@@ -153,10 +169,13 @@ currently richer in features).
 stream (which will be configured on all the new backing indices, as long as it exists 
 in the index template).
 
+[discrete]
+[[migrate-from-ilm-to-dsl]]
+==== Migrate data stream to data stream lifecycle
 To migrate the `dsl-data-stream` to data stream lifecycle we'll have to execute
 two steps:
 
-1. Update the index template that's backing the index template to configure <<index-lifecycle-prefer-ilm, prefer_ilm>> 
+1. Update the index template that's backing the data stream to configure <<index-lifecycle-prefer-ilm, prefer_ilm>> 
 to `false`, and to configure data stream lifecycle. 
 2. Configure the data stream lifecycle for the _existing_ `dsl-data-stream` using
 the <<data-streams-put-lifecycle, lifecycle API>>.
@@ -352,6 +371,9 @@ GET _data_stream/dsl-data-stream
 in the index template
 <4> The new write index is managed by `Data stream lifecycle`
 
+[discrete]
+[[migrate-from-dsl-to-ilm]]
+==== Migrate data stream back to ILM
 We can easily change this data stream to be managed by {ilm-cap} because we didn't remove 
 the {ilm-cap} policy when we <<update-index-template-for-dsl, updated 
 the index template>>. 

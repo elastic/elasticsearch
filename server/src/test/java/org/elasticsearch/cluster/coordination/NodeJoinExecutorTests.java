@@ -198,35 +198,6 @@ public class NodeJoinExecutorTests extends ESTestCase {
         );
     }
 
-    public void testCanJoinClusterWithMissingOptionalFeatures() throws Exception {
-        AllocationService allocationService = createAllocationService();
-        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
-            @Override
-            public Set<NodeFeature> getFeatures() {
-                return Set.of(new NodeFeature("f1"), new NodeFeature("f2", true));
-            }
-        }));
-
-        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
-
-        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
-            .nodeFeatures(Map.of(masterNode.getId(), Set.of("f1", "f2"), otherNode.getId(), Set.of("f1", "f2")))
-            .build();
-
-        DiscoveryNode newNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
-            clusterState,
-            executor,
-            List.of(
-                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, NO_FAILURE_LISTENER, 0L)
-            )
-        );
-    }
-
     public void testCanJoinClusterWithMissingIncompleteFeatures() throws Exception {
         AllocationService allocationService = createAllocationService();
         RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);

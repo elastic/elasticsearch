@@ -14,13 +14,8 @@ import java.util.Objects;
  * A feature published by a node.
  *
  * @param id        The feature id. Must be unique in the node.
- * @param optional  {@code true} if nodes do not have to have this feature to join a cluster.
  */
-public record NodeFeature(String id, boolean optional) {
-
-    public NodeFeature(String id) {
-        this(id, false);
-    }
+public record NodeFeature(String id) {
 
     public NodeFeature {
         Objects.requireNonNull(id);

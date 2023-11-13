@@ -452,28 +452,13 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
     }
 
-    private void enforceNodeFeatureBarrier(String nodeId, Set<String> existingNodesFeatures, Set<String> nodeFeatures) {
+    private void enforceNodeFeatureBarrier(String nodeId, Set<String> existingNodesFeatures, Set<String> newNodeFeatures) {
         // prevent join if it does not have one or more features that all other nodes have
         Set<String> missingFeatures = new HashSet<>(existingNodesFeatures);
-        missingFeatures.removeAll(nodeFeatures);
+        missingFeatures.removeAll(newNodeFeatures);
 
         if (missingFeatures.isEmpty() == false) {
-            // check if the missing features are actually optional
-            // we should know about all of these - if all the nodes have the feature, we have the feature
-            for (var it = missingFeatures.iterator(); it.hasNext();) {
-                String feature = it.next();
-                var nf = featureService.getNodeFeatures().get(feature);
-                assert nf != null : "NodeFeature not found for feature [" + feature + "] this node allegedly supports";
-                if (nf.optional()) {
-                    // ok for this feature to be missing
-                    logger.debug("Allowing node {} to join cluster missing optional feature {}", nodeId, feature);
-                    it.remove();
-                }
-            }
-
-            if (missingFeatures.isEmpty() == false) {
-                throw new IllegalStateException("Node is missing required features " + missingFeatures);
-            }
+            throw new IllegalStateException("Node " + nodeId + " is missing required features " + missingFeatures);
         }
     }
 

@@ -67,10 +67,6 @@ public class FeatureService {
                     );
                 }
 
-                if (hfe.getKey().optional()) {
-                    throw new IllegalArgumentException(Strings.format("Historical feature [%s] can't be optional", hfe.getKey().id()));
-                }
-
                 historicalFeatures.computeIfAbsent(hfe.getValue(), k -> new HashSet<>()).add(hfe.getKey().id());
             }
 

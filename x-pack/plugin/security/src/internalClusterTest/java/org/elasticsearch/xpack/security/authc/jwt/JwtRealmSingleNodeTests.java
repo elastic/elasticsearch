@@ -155,6 +155,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         final JWTClaimsSet.Builder jwtClaims = new JWTClaimsSet.Builder();
         final String subject;
         final String sharedSecret;
+        // id_token or access_token
         if (randomBoolean()) {
             subject = "me";
             // JWT "id_token" valid for jwt0
@@ -193,6 +194,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             CreateApiKeyResponse createApiKeyResponse = client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet();
             assertThat(createApiKeyResponse.getId(), notNullValue());
             assertThat(createApiKeyResponse.getKey(), notNullValue());
+            assertThat(createApiKeyResponse.getName(), is(grantApiKeyRequest.getApiKeyRequest().getName()));
             final String base64ApiKeyKeyValue = Base64.getEncoder()
                 .encodeToString((createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey()).getBytes(StandardCharsets.UTF_8));
             AuthenticateResponse authenticateResponse = client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue))

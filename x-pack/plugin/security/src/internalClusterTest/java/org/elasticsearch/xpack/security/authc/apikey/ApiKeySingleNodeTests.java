@@ -26,6 +26,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuil
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
@@ -99,6 +101,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
@@ -108,6 +111,19 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings());
         builder.put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true);
         builder.put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true);
+        builder.put("xpack.security.authc.realms.jwt.jwt1.order", 2)
+            .put("xpack.security.authc.realms.jwt.jwt1.allowed_audiences", "https://audience.example.com/")
+            .put("xpack.security.authc.realms.jwt.jwt1.allowed_issuer", "https://issuer.example.com/")
+            .put(
+                "xpack.security.authc.realms.jwt.jwt1.pkc_jwkset_path",
+                getDataPath("/org/elasticsearch/xpack/security/authc/apikey/rsa-public-jwkset.json")
+            )
+            .put("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "NONE")
+            .put("xpack.security.authc.realms.jwt.jwt1.claims.name", "name")
+            .put("xpack.security.authc.realms.jwt.jwt1.claims.dn", "dn")
+            .put("xpack.security.authc.realms.jwt.jwt1.claims.groups", "roles")
+            .put("xpack.security.authc.realms.jwt.jwt1.claims.principal", "sub")
+            .put("xpack.security.authc.realms.jwt.jwt1.claims.mail", "mail");
         return builder.build();
     }
 
@@ -400,6 +416,84 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
                     + ", because user [user1] is unauthorized to run as [user4]"
             )
         );
+    }
+
+    public void testGrantAPIKeyFromTokens() throws IOException {
+        getSecurityClient().putRole(new RoleDescriptor("user1_role", new String[] { "manage_token" }, null, null));
+        String role_mapping_rules = """
+            {
+              "enabled": true,
+              "roles": "user1_role",
+              "rules": {
+                "all": [
+                  {
+                    "field": {
+                      "realm.name": "jwt1"
+                    }
+                  },
+                  {
+                    "field": {
+                      "username": "user1"
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        getSecurityClient().putRoleMapping(
+            "user1_role_mapping",
+            XContentHelper.convertToMap(XContentType.JSON.xContent(), role_mapping_rules, true)
+        );
+        getSecurityClient().putUser(new User("user1", "user1_role"), new SecureString("user1-strong-password".toCharArray()));
+        // grant API Key for regular ES access tokens
+        {
+            final TestSecurityClient.OAuth2Token oAuth2Token;
+            if (randomBoolean()) {
+                oAuth2Token = getSecurityClient().createToken(
+                    new UsernamePasswordToken("user1", new SecureString("user1-strong-password".toCharArray()))
+                );
+            } else {
+                oAuth2Token = getSecurityClient(
+                    RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue("user1",
+                            new SecureString("user1-strong-password".toCharArray()))).build()
+                ).createTokenWithClientCredentialsGrant();
+            }
+            String apiKeyName = randomAlphaOfLength(8);
+            GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
+            grantApiKeyRequest.getGrant().setType("access_token");
+            grantApiKeyRequest.getGrant().setAccessToken(new SecureString(oAuth2Token.accessToken().toCharArray()));
+            grantApiKeyRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+            grantApiKeyRequest.getApiKeyRequest().setName(apiKeyName);
+            CreateApiKeyResponse createApiKeyResponse = client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet();
+            assertThat(createApiKeyResponse.getName(), is(apiKeyName));
+            assertThat(createApiKeyResponse.getId(), notNullValue());
+            assertThat(createApiKeyResponse.getKey(), notNullValue());
+            final String apiKeyId = createApiKeyResponse.getId();
+            final String base64ApiKeyKeyValue = Base64.getEncoder()
+                    .encodeToString((apiKeyId + ":" + createApiKeyResponse.getKey()).getBytes(StandardCharsets.UTF_8));
+            // Works for both the API key itself or the token created by it
+            AuthenticateResponse authenticateResponse = client().filterWithHeader(
+                Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue)
+            ).execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE).actionGet();
+            authenticateResponse.toString();
+
+            }
+        // grant API Key for JWT token
+        {
+            String apiKeyName = randomAlphaOfLength(8);
+            GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
+            grantApiKeyRequest.getGrant().setType("access_token");
+            try (var in = getDataInputStream("/org/elasticsearch/xpack/security/authc/apikey/serialized-signed-RS256-jwt.txt")) {
+                grantApiKeyRequest.getGrant()
+                        .setAccessToken(new SecureString(new String(in.readAllBytes(), StandardCharsets.UTF_8).toCharArray()));
+            }
+            grantApiKeyRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+            grantApiKeyRequest.getApiKeyRequest().setName(apiKeyName);
+            CreateApiKeyResponse createApiKeyResponse = client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet();
+            assertThat(createApiKeyResponse.getName(), is(apiKeyName));
+            assertThat(createApiKeyResponse.getId(), notNullValue());
+            assertThat(createApiKeyResponse.getKey(), notNullValue());
+        }
     }
 
     public void testInvalidateApiKeyWillRecordTimestamp() {

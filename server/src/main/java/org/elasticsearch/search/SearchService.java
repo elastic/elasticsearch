@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -544,7 +545,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }));
     }
 
-    private <T> void ensureAfterSeqNoRefreshed(
+    private <T extends RefCounted> void ensureAfterSeqNoRefreshed(
         IndexShard shard,
         ShardSearchRequest request,
         CheckedSupplier<T, Exception> executable,
@@ -648,8 +649,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    private static <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
-        executor.execute(ActionRunnable.supply(listener, executable));
+    private static <T extends RefCounted> void runAsync(
+        Executor executor,
+        CheckedSupplier<T, Exception> executable,
+        ActionListener<T> listener
+    ) {
+        executor.execute(ActionRunnable.wrap(listener, l -> {
+            final T res = executable.get();
+            try {
+                l.onResponse(res);
+            } finally {
+                res.decRef();
+            }
+        }));
     }
 
     /**

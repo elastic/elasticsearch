@@ -99,9 +99,15 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
         return refCounted.tryIncRef();
     }
 
+    private volatile Exception releasedBy;
+
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            releasedBy = new RuntimeException();
+            return true;
+        }
+        return false;
     }
 
     @Override

@@ -493,10 +493,16 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return super.tryIncRef();
     }
 
+    private volatile Exception releasedBy;
+
     @Override
     public boolean decRef() {
         if (refCounted != null) {
-            return refCounted.decRef();
+            if (refCounted.decRef()) {
+                releasedBy = new RuntimeException();
+                return true;
+            }
+            return false;
         }
         return super.decRef();
     }

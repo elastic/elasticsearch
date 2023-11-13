@@ -488,7 +488,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private static Optional<Join> joinWithDestination(Optional<Join> lastJoin, DiscoveryNode leader, long term) {
-        if (lastJoin.isPresent() && lastJoin.get().targetMatches(leader) && lastJoin.get().getTerm() == term) {
+        if (lastJoin.isPresent() && lastJoin.get().masterCandidateMatches(leader) && lastJoin.get().getTerm() == term) {
             return lastJoin;
         }
 
@@ -565,6 +565,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         });
     }
 
+    /**
+     * Attempts to abdicate master position to a new master-eligible node in the cluster.
+     * Broadcasts {@link StartJoinRequest} for {@param newMaster} to each member of the cluster.
+     */
     private void abdicateTo(DiscoveryNode newMaster) {
         assert Thread.holdsLock(mutex);
         assert mode == Mode.LEADER : "expected to be leader on abdication but was " + mode;
@@ -594,7 +598,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private Join joinLeaderInTerm(StartJoinRequest startJoinRequest) {
         synchronized (mutex) {
-            logger.debug("joinLeaderInTerm: for [{}] with term {}", startJoinRequest.getSourceNode(), startJoinRequest.getTerm());
+            logger.debug("joinLeaderInTerm: for [{}] with term {}", startJoinRequest.getMasterCandidateNode(), startJoinRequest.getTerm());
             final Join join = coordinationState.get().handleStartJoin(startJoinRequest);
             lastJoin = Optional.of(join);
             peerFinder.setCurrentTerm(getCurrentTerm());
@@ -2070,7 +2074,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
 
         private void handleAssociatedJoin(Join join) {
-            if (join.getTerm() == getCurrentTerm() && missingJoinVoteFrom(join.getSourceNode())) {
+            if (join.getTerm() == getCurrentTerm() && missingJoinVoteFrom(join.getVotingNode())) {
                 logger.trace("handling {}", join);
                 handleJoin(join);
             }

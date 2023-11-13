@@ -117,7 +117,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
         translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
@@ -158,7 +158,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.add(shardId, operationsBytes[3], 3, intermediateLocation);
         currentLocation += operationsBytes[3].length();
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, intermediateLocation, future);
         future.actionGet();
 
@@ -169,7 +169,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[4].length());
         translogReplicator.add(shardId, operationsBytes[4], 4, finalLocation);
 
-        future = PlainActionFuture.newFuture();
+        future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
@@ -231,7 +231,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.add(shardId, operationsBytes[2], 2, intermediateLocation);
         currentLocation += operationsBytes[2].length();
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, intermediateLocation, future);
         future.actionGet();
 
@@ -255,7 +255,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[5].length());
         translogReplicator.add(shardId, operationsBytes[5], 5, finalLocation);
 
-        future = PlainActionFuture.newFuture();
+        future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
@@ -307,7 +307,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.add(shardId, bytesArray, 0, location);
 
         AtomicReference<String> value = new AtomicReference<>();
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
 
         threadPool.getThreadContext().putHeader(header, preserved);
 
@@ -368,7 +368,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
         translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
@@ -435,7 +435,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
         translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
@@ -465,7 +465,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
         Translog.Location location = new Translog.Location(0, 0, bytesArray.length());
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, location, future);
         assertFalse(future.isDone());
 
@@ -473,11 +473,11 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         future.actionGet();
 
-        PlainActionFuture<Void> synchronouslyCompleteFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> synchronouslyCompleteFuture = new PlainActionFuture<>();
         translogReplicator.sync(shardId, location, synchronouslyCompleteFuture);
         assertTrue(synchronouslyCompleteFuture.isDone());
 
-        PlainActionFuture<Void> synchronouslyIncompleteFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> synchronouslyIncompleteFuture = new PlainActionFuture<>();
         Translog.Location incompleteLocation = new Translog.Location(location.generation, location.translogLocation + location.size, 1);
         translogReplicator.sync(shardId, incompleteLocation, synchronouslyIncompleteFuture);
         assertFalse(synchronouslyIncompleteFuture.isDone());
@@ -527,7 +527,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         currentLocation += operationsBytes[1].length();
         intermediateStartedLatch.await();
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, intermediateLocation, future);
         expectThrows(ElasticsearchTimeoutException.class, () -> future.actionGet(300));
 
@@ -537,7 +537,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.add(shardId, operationsBytes[3], 3, finalLocation);
         finalSyncStartedLatch.await();
 
-        PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future2 = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future2);
         expectThrows(ElasticsearchTimeoutException.class, () -> future2.actionGet(300));
 
@@ -581,10 +581,10 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.add(shardId2, operationsBytes[3], 3, intermediateLocationShard2);
         currentLocation += operationsBytes[3].length();
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId1, future);
         future.actionGet();
-        PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future2 = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId2, future2);
         future2.actionGet();
 
@@ -599,7 +599,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         Translog.Location finalLocationShard2 = new Translog.Location(0, currentLocation, operationsBytes[2].length());
 
-        PlainActionFuture<Void> future3 = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future3 = new PlainActionFuture<>();
         translogReplicator.sync(shardId2, finalLocationShard2, future3);
         assertFalse(future3.isDone());
 
@@ -646,7 +646,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
         translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future);
         future.actionGet();
 
@@ -681,7 +681,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         long currentLocation = 0;
         translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future);
 
         assertBusy(() -> {
@@ -723,7 +723,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location location = new Translog.Location(0, 0, operationsBytes[0].length());
         translogReplicator.add(shardId, operationsBytes[0], 0, location);
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         if (randomBoolean()) {
             translogReplicator.syncAll(shardId, future);
         } else {
@@ -806,7 +806,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
         currentLocation += operationsBytes[0].length();
 
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future);
         future.actionGet();
 
@@ -815,7 +815,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
         currentLocation += operationsBytes[1].length();
 
-        PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future2 = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future2);
         future2.actionGet();
 
@@ -826,7 +826,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
         translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
 
-        PlainActionFuture<Void> future3 = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future3 = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future3);
         future3.actionGet();
 

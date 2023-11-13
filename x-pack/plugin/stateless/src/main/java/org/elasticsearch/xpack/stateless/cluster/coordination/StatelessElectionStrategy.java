@@ -124,7 +124,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     }
 
     public void onNodeLeft(long expectedTerm, long nodeLeftGeneration) {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         readLease(future.delegateFailureAndWrap((delegate, currentLeaseOpt) -> {
             final Lease currentLease = currentLeaseOpt.orElse(Lease.ZERO);
             if (currentLease.currentTerm != expectedTerm) {

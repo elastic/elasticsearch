@@ -1151,90 +1151,79 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .actionGet();
         indicesAdmin().prepareRefresh().get();
 
-        MultiSearchResponse response = null;
-        try {
-            response = client().prepareMultiSearch()
-                .add(
-                    prepareSearch("test").setQuery(
-                        new PercolateQueryBuilder(
-                            "query",
-                            BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
-                            XContentType.JSON
-                        )
+        MultiSearchResponse response = client().prepareMultiSearch()
+            .add(
+                prepareSearch("test").setQuery(
+                    new PercolateQueryBuilder(
+                        "query",
+                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
+                        XContentType.JSON
                     )
                 )
-                .add(
-                    prepareSearch("test").setQuery(
-                        new PercolateQueryBuilder(
-                            "query",
-                            BytesReference.bytes(yamlBuilder().startObject().field("field1", "c").endObject()),
-                            XContentType.YAML
-                        )
+            )
+            .add(
+                prepareSearch("test").setQuery(
+                    new PercolateQueryBuilder(
+                        "query",
+                        BytesReference.bytes(yamlBuilder().startObject().field("field1", "c").endObject()),
+                        XContentType.YAML
                     )
                 )
-                .add(
-                    prepareSearch("test").setQuery(
-                        new PercolateQueryBuilder(
-                            "query",
-                            BytesReference.bytes(jsonBuilder().startObject().field("field1", "b c").endObject()),
-                            XContentType.JSON
-                        )
+            )
+            .add(
+                prepareSearch("test").setQuery(
+                    new PercolateQueryBuilder(
+                        "query",
+                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "b c").endObject()),
+                        XContentType.JSON
                     )
                 )
-                .add(
-                    prepareSearch("test").setQuery(
-                        new PercolateQueryBuilder(
-                            "query",
-                            BytesReference.bytes(jsonBuilder().startObject().field("field1", "d").endObject()),
-                            XContentType.JSON
-                        )
+            )
+            .add(
+                prepareSearch("test").setQuery(
+                    new PercolateQueryBuilder(
+                        "query",
+                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "d").endObject()),
+                        XContentType.JSON
                     )
                 )
-                .add(prepareSearch("test").setQuery(new PercolateQueryBuilder("query", "test", "5", null, null, null)))
-                .add(
-                    prepareSearch("test") // non existing doc, so error element
-                        .setQuery(new PercolateQueryBuilder("query", "test", "6", null, null, null))
-                )
-                .get();
+            )
+            .add(prepareSearch("test").setQuery(new PercolateQueryBuilder("query", "test", "5", null, null, null)))
+            .add(
+                prepareSearch("test") // non existing doc, so error element
+                    .setQuery(new PercolateQueryBuilder("query", "test", "6", null, null, null))
+            )
+            .get();
 
-            MultiSearchResponse.Item item = response.getResponses()[0];
-            assertHitCount(item.getResponse(), 2L);
-            assertSearchHits(item.getResponse(), "1", "4");
-            assertThat(item.getFailureMessage(), nullValue());
+        MultiSearchResponse.Item item = response.getResponses()[0];
+        assertHitCount(item.getResponse(), 2L);
+        assertSearchHits(item.getResponse(), "1", "4");
+        assertThat(item.getFailureMessage(), nullValue());
 
-            item = response.getResponses()[1];
-            assertHitCount(item.getResponse(), 2L);
-            assertSearchHits(item.getResponse(), "2", "4");
-            assertThat(item.getFailureMessage(), nullValue());
+        item = response.getResponses()[1];
+        assertHitCount(item.getResponse(), 2L);
+        assertSearchHits(item.getResponse(), "2", "4");
+        assertThat(item.getFailureMessage(), nullValue());
 
-            item = response.getResponses()[2];
-            assertHitCount(item.getResponse(), 4L);
-            assertSearchHits(item.getResponse(), "1", "2", "3", "4");
-            assertThat(item.getFailureMessage(), nullValue());
+        item = response.getResponses()[2];
+        assertHitCount(item.getResponse(), 4L);
+        assertSearchHits(item.getResponse(), "1", "2", "3", "4");
+        assertThat(item.getFailureMessage(), nullValue());
 
-            item = response.getResponses()[3];
-            assertHitCount(item.getResponse(), 1L);
-            assertSearchHits(item.getResponse(), "4");
-            assertThat(item.getFailureMessage(), nullValue());
+        item = response.getResponses()[3];
+        assertHitCount(item.getResponse(), 1L);
+        assertSearchHits(item.getResponse(), "4");
+        assertThat(item.getFailureMessage(), nullValue());
 
-            item = response.getResponses()[4];
-            assertHitCount(item.getResponse(), 2L);
-            assertSearchHits(item.getResponse(), "2", "4");
-            assertThat(item.getFailureMessage(), nullValue());
+        item = response.getResponses()[4];
+        assertHitCount(item.getResponse(), 2L);
+        assertSearchHits(item.getResponse(), "2", "4");
+        assertThat(item.getFailureMessage(), nullValue());
 
-            item = response.getResponses()[5];
-            assertThat(item.getResponse(), nullValue());
-            assertThat(item.getFailureMessage(), notNullValue());
-            assertThat(item.getFailureMessage(), containsString("[test/6] couldn't be found"));
-        } finally {
-            if (response != null) {
-                for (MultiSearchResponse.Item responseItem : response.getResponses()) {
-                    if (responseItem != null && responseItem.getResponse() != null) {
-                        responseItem.getResponse().decRef();
-                    }
-                }
-            }
-        }
+        item = response.getResponses()[5];
+        assertThat(item.getResponse(), nullValue());
+        assertThat(item.getFailureMessage(), notNullValue());
+        assertThat(item.getFailureMessage(), containsString("[test/6] couldn't be found"));
     }
 
     public void testDisallowExpensiveQueries() throws IOException {

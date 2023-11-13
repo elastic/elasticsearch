@@ -31,7 +31,7 @@ public class SqlTestClusterWithRemote implements TestRule {
     public static final String USER_NAME = "test_user";
     public static final String PASSWORD = "x-pack-test-password";
 
-    private static ElasticsearchCluster getCluster(String remoteAddress) {
+    private static ElasticsearchCluster clusterSettings(String remoteAddress) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .name(LOCAL_CLUSTER_NAME)
@@ -47,7 +47,7 @@ public class SqlTestClusterWithRemote implements TestRule {
             .build();
     }
 
-    private static ElasticsearchCluster getRemoteCluster() {
+    private static ElasticsearchCluster remoteClusterSettings() {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .name(REMOTE_CLUSTER_NAME)
@@ -71,14 +71,14 @@ public class SqlTestClusterWithRemote implements TestRule {
     }
 
     private ElasticsearchCluster cluster;
-    private final ElasticsearchCluster remote = getRemoteCluster();
+    private final ElasticsearchCluster remote = remoteClusterSettings();
     private RestClient remoteClient;
 
     public Statement apply(Statement base, Description description) {
         return remote.apply(startRemoteClient(startCluster(base)), null);
     }
 
-    public ElasticsearchCluster cluster() {
+    public ElasticsearchCluster getCluster() {
         return cluster;
     }
 
@@ -86,7 +86,7 @@ public class SqlTestClusterWithRemote implements TestRule {
         return clientAuthSettings();
     }
 
-    public RestClient remoteClient() {
+    public RestClient getRemoteClient() {
         return remoteClient;
     }
 
@@ -96,7 +96,7 @@ public class SqlTestClusterWithRemote implements TestRule {
             public void evaluate() throws Throwable {
                 // Remote address will look like [::1]:12345 - elasticsearch.yml does not like the square brackets.
                 String remoteAddress = remote.getTransportEndpoint(0).replaceAll("\\[|\\]", "");
-                cluster = getCluster(remoteAddress);
+                cluster = clusterSettings(remoteAddress);
                 cluster.apply(base, null).evaluate();
             }
         };

@@ -11,11 +11,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -30,12 +31,30 @@ import static org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.SqlTest
 import static org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.SqlTestClusterWithRemote.USER_NAME;
 
 public class JdbcCatalogIT extends JdbcIntegrationTestCase {
-    @ClassRule
     public static SqlTestClusterWithRemote clusterAndRemote = new SqlTestClusterWithRemote();
+    public static TestRule setupIndex = new TestRule() {
+        @Override
+        public Statement apply(Statement base, Description description) {
+            return new Statement() {
+                @Override
+                public void evaluate() throws Throwable {
+                    try {
+                        index(INDEX_NAME, body -> body.field("zero", 0), clusterAndRemote.getRemoteClient());
+                        base.evaluate();
+                    } finally {
+                        clusterAndRemote.getRemoteClient().performRequest(new Request("DELETE", "/" + INDEX_NAME));
+                    }
+                }
+            };
+        }
+    };
+
+    @ClassRule
+    public static RuleChain testSetup = RuleChain.outerRule(clusterAndRemote).around(setupIndex);
 
     @Override
     protected String getTestRestCluster() {
-        return clusterAndRemote.cluster().getHttpAddresses();
+        return clusterAndRemote.getCluster().getHttpAddresses();
     }
 
     @Override
@@ -45,7 +64,7 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
 
     @Override
     protected RestClient provisioningClient() {
-        return clusterAndRemote.remoteClient();
+        return clusterAndRemote.getRemoteClient();
     }
 
     @Override
@@ -57,16 +76,6 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
     }
 
     private static final String INDEX_NAME = "test";
-
-    @BeforeClass
-    static void setupIndex() throws IOException {
-        index(INDEX_NAME, body -> body.field("zero", 0), clusterAndRemote.remoteClient());
-    }
-
-    @AfterClass
-    static void cleanupIndex() throws IOException {
-        clusterAndRemote.remoteClient().performRequest(new Request("DELETE", "/" + INDEX_NAME));
-    }
 
     public void testJdbcSetCatalog() throws Exception {
         try (Connection es = esJdbc()) {

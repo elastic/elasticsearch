@@ -20,7 +20,7 @@ public class RestSqlIT extends RestSqlTestCase {
 
     @Override
     protected String getTestRestCluster() {
-        return clusterAndRemote.cluster().getHttpAddresses();
+        return clusterAndRemote.getCluster().getHttpAddresses();
     }
 
     @Override
@@ -30,7 +30,7 @@ public class RestSqlIT extends RestSqlTestCase {
 
     @Override
     protected RestClient provisioningClient() {
-        return clusterAndRemote.remoteClient();
+        return clusterAndRemote.getRemoteClient();
     }
 
     @Override

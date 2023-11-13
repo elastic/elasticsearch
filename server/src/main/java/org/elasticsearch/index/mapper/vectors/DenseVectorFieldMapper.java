@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
@@ -169,6 +170,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed"
                         );
                     }
+                }
+            });
+            this.indexOptions.addValidator(v -> {
+                if ((v instanceof HnswIndexOptions hnswIndexOptions)
+                    && hnswIndexOptions.quantizationOptions != null
+                    && elementType.getValue() == ElementType.BYTE) {
+                    throw new IllegalArgumentException(
+                        "[element_type] cannot be [byte] when using quantization type ["
+                            + Int8ScalarQuantizationOptions.NAME
+                            + "] in [index_options]"
+                    );
                 }
             });
         }
@@ -702,29 +714,74 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
+    private record Int8ScalarQuantizationOptions(Float confidenceInterval) implements ToXContent {
+        static final String NAME = "byte";
+
+        static Int8ScalarQuantizationOptions fromParams(Map<String, ?> params) {
+            Object confidenceIntervalNode = params.remove("confidence_interval");
+            if (confidenceIntervalNode == null) {
+                return new Int8ScalarQuantizationOptions(null);
+            }
+            float confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
+            MappingParser.checkNoRemainingFields("quantization_options", params);
+            return new Int8ScalarQuantizationOptions(confidenceInterval);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", NAME);
+            if (confidenceInterval != null) {
+                builder.field("confidence_interval", confidenceInterval);
+            }
+            builder.endObject();
+            return builder;
+        }
+    }
+
     private static class HnswIndexOptions extends IndexOptions {
         private final int m;
         private final int efConstruction;
+        private final Int8ScalarQuantizationOptions quantizationOptions;
 
         static IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
             Object mNode = indexOptionsMap.remove("m");
             Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+            Object quantizationOptionsNode = indexOptionsMap.remove("quantization_options");
             if (mNode == null) {
-                throw new MapperParsingException("[index_options] of type [hnsw] requires field [m] to be configured");
+                mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
             }
             if (efConstructionNode == null) {
-                throw new MapperParsingException("[index_options] of type [hnsw] requires field [ef_construction] to be configured");
+                efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+            }
+            Int8ScalarQuantizationOptions quantizationOptions = null;
+            if (quantizationOptionsNode != null) {
+                @SuppressWarnings("unchecked")
+                Map<String, ?> quantizationParamsMap = (Map<String, ?>) quantizationOptionsNode;
+                Object quantizationTypeObj = quantizationParamsMap.remove("type");
+                if (quantizationTypeObj == null) {
+                    throw new IllegalArgumentException("[quantization_options] requires field [type] to be configured");
+                }
+                String quantizationType = XContentMapValues.nodeStringValue(quantizationTypeObj, null);
+                if (quantizationType.equals(Int8ScalarQuantizationOptions.NAME)) {
+                    quantizationOptions = Int8ScalarQuantizationOptions.fromParams(quantizationParamsMap);
+                } else {
+                    throw new MapperParsingException(
+                        "Unknown quantization options type [" + quantizationType + "] for field [" + fieldName + "]"
+                    );
+                }
             }
             int m = XContentMapValues.nodeIntegerValue(mNode);
             int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
             MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-            return new HnswIndexOptions(m, efConstruction);
+            return new HnswIndexOptions(m, efConstruction, quantizationOptions);
         }
 
-        private HnswIndexOptions(int m, int efConstruction) {
+        private HnswIndexOptions(int m, int efConstruction, Int8ScalarQuantizationOptions quantizationOptions) {
             super("hnsw");
             this.m = m;
             this.efConstruction = efConstruction;
+            this.quantizationOptions = quantizationOptions;
         }
 
         @Override
@@ -733,6 +790,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
+            if (quantizationOptions != null) {
+                builder.startObject("quantization_options");
+                builder.field("type", Int8ScalarQuantizationOptions.NAME);
+                if (quantizationOptions.confidenceInterval() != null) {
+                    builder.field("confidence_interval", quantizationOptions.confidenceInterval());
+                }
+                builder.endObject();
+            }
             builder.endObject();
             return builder;
         }
@@ -742,17 +807,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             HnswIndexOptions that = (HnswIndexOptions) o;
-            return m == that.m && efConstruction == that.efConstruction;
+            return m == that.m && efConstruction == that.efConstruction && Objects.equals(quantizationOptions, that.quantizationOptions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, m, efConstruction);
+            return Objects.hash(type, m, efConstruction, quantizationOptions);
         }
 
         @Override
         public String toString() {
-            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + " }";
+            return "{type="
+                + type
+                + ", m="
+                + m
+                + ", ef_construction="
+                + efConstruction
+                + ", quantization_params="
+                + quantizationOptions
+                + "}";
         }
     }
 
@@ -1086,7 +1159,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
             format = defaultFormat;
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            format = new Lucene99HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            if (hnswIndexOptions.quantizationOptions != null) {
+                format = new Lucene99HnswScalarQuantizedVectorsFormat(
+                    hnswIndexOptions.m,
+                    hnswIndexOptions.efConstruction,
+                    1,
+                    hnswIndexOptions.quantizationOptions.confidenceInterval(),
+                    null
+                );
+            } else {
+                format = new Lucene99HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            }
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

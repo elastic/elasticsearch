@@ -945,7 +945,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             if (out.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED)) {
                 out.writeVInt(registerOperationCount);
             } else if (registerOperationCount != concurrency) {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     "cannot send request with registerOperationCount != concurrency on transport version ["
                         + out.getTransportVersion()
                         + "]"
@@ -961,7 +961,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeBoolean(abortWritePermitted);
             } else if (abortWritePermitted) {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     "cannot send abortWritePermitted request on transport version [" + out.getTransportVersion() + "]"
                 );
             }

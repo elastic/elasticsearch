@@ -3264,10 +3264,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         ).get();
         assertNoFailures(search);
         assertThat(search.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(
-            search.getHits().getAt(0).getHighlightFields().get("keyword_field").getFragments()[0].string(),
-            equalTo("<em>some text</em>")
-        );
+        HighlightField highlightField = search.getHits().getAt(0).getHighlightFields().get("keyword_field");
+        assertThat(highlightField.fragments()[0].string(), equalTo("<em>some text</em>"));
     }
 
     public void testCopyToFields() throws Exception {
@@ -3294,8 +3292,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         assertHitCount(response, 1);
         HighlightField field = response.getHits().getAt(0).getHighlightFields().get("foo_copy");
-        assertThat(field.getFragments().length, equalTo(1));
-        assertThat(field.getFragments()[0].string(), equalTo("how now <em>brown</em> cow"));
+        assertThat(field.fragments().length, equalTo(1));
+        assertThat(field.fragments()[0].string(), equalTo("how now <em>brown</em> cow"));
     }
 
     public void testACopyFieldWithNestedQuery() throws Exception {
@@ -3343,9 +3341,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .get();
         assertHitCount(searchResponse, 1);
         HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo_text");
-        assertThat(field.getFragments().length, equalTo(2));
-        assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
-        assertThat(field.getFragments()[1].string(), equalTo("<em>cow</em>"));
+        assertThat(field.fragments().length, equalTo(2));
+        assertThat(field.fragments()[0].string(), equalTo("<em>brown</em>"));
+        assertThat(field.fragments()[1].string(), equalTo("<em>cow</em>"));
     }
 
     public void testFunctionScoreQueryHighlight() throws Exception {
@@ -3360,8 +3358,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .get();
         assertHitCount(searchResponse, 1);
         HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("text");
-        assertThat(field.getFragments().length, equalTo(1));
-        assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+        assertThat(field.fragments().length, equalTo(1));
+        assertThat(field.fragments()[0].string(), equalTo("<em>brown</em>"));
     }
 
     public void testFiltersFunctionScoreQueryHighlight() throws Exception {
@@ -3383,8 +3381,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         ).highlighter(new HighlightBuilder().field(new Field("text"))).get();
         assertHitCount(searchResponse, 1);
         HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("text");
-        assertThat(field.getFragments().length, equalTo(1));
-        assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+        assertThat(field.fragments().length, equalTo(1));
+        assertThat(field.fragments()[0].string(), equalTo("<em>brown</em>"));
     }
 
     public void testHighlightQueryRewriteDatesWithNow() throws Exception {
@@ -3465,33 +3463,33 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             ).highlighter(new HighlightBuilder().field(new Field("foo.text").highlighterType(type))).get();
             assertHitCount(searchResponse, 1);
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
-            assertThat(field.getFragments().length, equalTo(2));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> shoes"));
-            assertThat(field.getFragments()[1].string(), equalTo("<em>cow</em>"));
+            assertThat(field.fragments().length, equalTo(2));
+            assertThat(field.fragments()[0].string(), equalTo("<em>brown</em> shoes"));
+            assertThat(field.fragments()[1].string(), equalTo("<em>cow</em>"));
 
             searchResponse = prepareSearch().setQuery(nestedQuery("foo", prefixQuery("foo.text", "bro"), ScoreMode.None))
                 .highlighter(new HighlightBuilder().field(new Field("foo.text").highlighterType(type)))
                 .get();
             assertHitCount(searchResponse, 1);
             field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
-            assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> shoes"));
+            assertThat(field.fragments().length, equalTo(1));
+            assertThat(field.fragments()[0].string(), equalTo("<em>brown</em> shoes"));
 
             searchResponse = prepareSearch().setQuery(nestedQuery("foo", matchPhraseQuery("foo.text", "brown shoes"), ScoreMode.None))
                 .highlighter(new HighlightBuilder().field(new Field("foo.text").highlighterType(type)))
                 .get();
             assertHitCount(searchResponse, 1);
             field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
-            assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> <em>shoes</em>"));
+            assertThat(field.fragments().length, equalTo(1));
+            assertThat(field.fragments()[0].string(), equalTo("<em>brown</em> <em>shoes</em>"));
 
             searchResponse = prepareSearch().setQuery(nestedQuery("foo", matchPhrasePrefixQuery("foo.text", "bro"), ScoreMode.None))
                 .highlighter(new HighlightBuilder().field(new Field("foo.text").highlighterType(type)))
                 .get();
             assertHitCount(searchResponse, 1);
             field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
-            assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> shoes"));
+            assertThat(field.fragments().length, equalTo(1));
+            assertThat(field.fragments()[0].string(), equalTo("<em>brown</em> shoes"));
         }
 
         // For unified and fvh highlighters we just check that the nested query is correctly extracted
@@ -3503,8 +3501,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .get();
             assertHitCount(searchResponse, 1);
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("text");
-            assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+            assertThat(field.fragments().length, equalTo(1));
+            assertThat(field.fragments()[0].string(), equalTo("<em>brown</em>"));
         }
     }
 
@@ -3526,8 +3524,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .get();
             assertHitCount(searchResponse, 1);
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("keyword");
-            assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>hello world</em>"));
+            assertThat(field.fragments().length, equalTo(1));
+            assertThat(field.fragments()[0].string(), equalTo("<em>hello world</em>"));
         }
     }
 

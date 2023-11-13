@@ -93,7 +93,6 @@ public class ILMHistoryStoreTests extends ESTestCase {
     public void setdown() {
         historyStore.close();
         clusterService.close();
-        client.close();
         threadPool.shutdownNow();
     }
 

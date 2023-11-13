@@ -135,9 +135,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         );
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
-            Client noOpClient = new NoOpClient("slm-test")
+            var clientThreadPool = createThreadPool()
         ) {
-
+            final var noOpClient = new NoOpClient(clientThreadPool);
             final String policyId = "policy";
             final String repoId = "repo";
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
@@ -232,7 +232,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         final String repoId = "repo";
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
-            Client noOpClient = new NoOpClient("slm-test") {
+            var clientThreadPool = createThreadPool()
+        ) {
+            final var noOpClient = new NoOpClient(clientThreadPool) {
 
                 @Override
                 @SuppressWarnings("unchecked")
@@ -248,8 +250,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                         super.doExecute(action, request, listener);
                     }
                 }
-            }
-        ) {
+            };
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
                 policyId,
                 "snap",
@@ -307,8 +308,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         );
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
-            Client noOpClient = new NoOpClient("slm-test") {
-
+            var clientThreadPool = createThreadPool()
+        ) {
+            final var noOpClient = new NoOpClient(clientThreadPool) {
                 @Override
                 @SuppressWarnings("unchecked")
                 protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -323,8 +325,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                         super.doExecute(action, request, listener);
                     }
                 }
-            }
-        ) {
+            };
             final String policyId = "policy";
             final String repoId = "repo";
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
@@ -393,8 +394,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         );
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
-            Client noOpClient = new NoOpClient("slm-test")
+            var clientThreadPool = createThreadPool()
         ) {
+            final var noOpClient = new NoOpClient(clientThreadPool);
             final String policyId = "policy";
             final String repoId = "repo";
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
@@ -449,8 +451,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         );
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
-            Client noOpClient = new NoOpClient("slm-test")
+            var clientThreadPool = createThreadPool()
         ) {
+            final var noOpClient = new NoOpClient(clientThreadPool);
             final String policyId = "policy";
             final String repoId = "repo";
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(

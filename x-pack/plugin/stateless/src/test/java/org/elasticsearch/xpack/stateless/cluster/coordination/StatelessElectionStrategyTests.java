@@ -84,7 +84,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                 long proposedTerm = newTerm;
                 StartJoinRequest startJoinRequest = PlainActionFuture.get(f -> electionStrategy.onNewElection(localNode, proposedTerm, f));
                 assertThat(startJoinRequest.getTerm(), is(equalTo(proposedTerm)));
-                assertThat(startJoinRequest.getSourceNode(), is(equalTo(localNode)));
+                assertThat(startJoinRequest.getMasterCandidateNode(), is(equalTo(localNode)));
 
                 var currentTerm = PlainActionFuture.get(electionStrategy::getCurrentLeaseTerm).orElseThrow();
                 assertThat(currentTerm, is(equalTo(proposedTerm)));

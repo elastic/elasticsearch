@@ -91,7 +91,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var allowsCustomRouting = instance.isAllowCustomRouting();
         var indexMode = instance.getIndexMode();
         var lifecycle = instance.getLifecycle();
-        var failureStores = instance.getFailureStores();
+        var failureStores = instance.getFailureIndices();
         switch (between(0, 10)) {
             case 0 -> name = randomAlphaOfLength(10);
             case 1 -> indices = randomValueOtherThan(List.of(), DataStreamTestHelper::randomIndexInstances);
@@ -191,7 +191,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             ds.isAllowCustomRouting(),
             indexMode,
             ds.getLifecycle(),
-            ds.getFailureStores()
+            ds.getFailureIndices()
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -217,7 +217,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             ds.isAllowCustomRouting(),
             IndexMode.TIME_SERIES,
             ds.getLifecycle(),
-            ds.getFailureStores()
+            ds.getFailureIndices()
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -578,7 +578,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             preSnapshotDataStream.isAllowCustomRouting(),
             preSnapshotDataStream.getIndexMode(),
             preSnapshotDataStream.getLifecycle(),
-            preSnapshotDataStream.getFailureStores()
+            preSnapshotDataStream.getFailureIndices()
         );
 
         var reconciledDataStream = postSnapshotDataStream.snapshot(
@@ -621,7 +621,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             preSnapshotDataStream.isAllowCustomRouting(),
             preSnapshotDataStream.getIndexMode(),
             preSnapshotDataStream.getLifecycle(),
-            preSnapshotDataStream.getFailureStores()
+            preSnapshotDataStream.getFailureIndices()
         );
 
         assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));

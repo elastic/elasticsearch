@@ -95,8 +95,8 @@ public class MetadataCreateDataStreamService {
                     ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request, delegate.reroute());
                     DataStream createdDataStream = clusterState.metadata().dataStreams().get(request.name);
                     firstBackingIndexRef.set(createdDataStream.getIndices().get(0).getName());
-                    if (createdDataStream.getFailureStores().isEmpty() == false) {
-                        firstFailureStoreRef.set(createdDataStream.getFailureStores().get(0).getName());
+                    if (createdDataStream.getFailureIndices().isEmpty() == false) {
+                        firstFailureStoreRef.set(createdDataStream.getFailureIndices().get(0).getName());
                     }
                     return clusterState;
                 }

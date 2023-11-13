@@ -265,9 +265,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                     final var dataStream = clusterState.metadata().dataStreams().get(request.index());
                     final var backingIndexName = dataStream.getIndices().get(0).getName();
-                    final var indexNames = dataStream.getFailureStores().isEmpty()
+                    final var indexNames = dataStream.getFailureIndices().isEmpty()
                         ? List.of(backingIndexName)
-                        : List.of(backingIndexName, dataStream.getFailureStores().get(0).getName());
+                        : List.of(backingIndexName, dataStream.getFailureIndices().get(0).getName());
                     taskContext.success(getAckListener(indexNames, allocationActionMultiListener));
                     successfulRequests.put(request, indexNames);
                     return clusterState;

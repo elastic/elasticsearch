@@ -281,7 +281,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 dataStream.isAllowCustomRouting(),
                 dataStream.getIndexMode(),
                 DataStreamLifecycle.newBuilder().dataRetention(0L).build(),
-                dataStream.getFailureStores()
+                dataStream.getFailureIndices()
             )
         );
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();

@@ -1816,7 +1816,7 @@ public class DataStreamIT extends ESIntegTestCase {
                         original.isAllowCustomRouting(),
                         original.getIndexMode(),
                         original.getLifecycle(),
-                        original.getFailureStores()
+                        original.getFailureIndices()
                     );
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)

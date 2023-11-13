@@ -137,8 +137,8 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             Map<Index, IndexProperties> backingIndicesSettingsValues = new HashMap<>();
             Metadata metadata = state.getMetadata();
             collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getIndices());
-            if (DataStream.isFailureStoreEnabled() && dataStream.getFailureStores().isEmpty() == false) {
-                collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getFailureStores());
+            if (DataStream.isFailureStoreEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+                collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getFailureIndices());
             }
 
             GetDataStreamAction.Response.TimeSeries timeSeries = null;

@@ -164,7 +164,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 );
 
                 List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
-                    DataStream.FAILURE_STORES_FIELD.getPreferredName()
+                    DataStream.FAILURE_INDICES_FIELD.getPreferredName()
                 );
                 Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
                 assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
@@ -256,7 +256,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 );
 
                 List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
-                    DataStream.FAILURE_STORES_FIELD.getPreferredName()
+                    DataStream.FAILURE_INDICES_FIELD.getPreferredName()
                 );
                 Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
                 assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));

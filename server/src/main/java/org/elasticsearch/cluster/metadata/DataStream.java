@@ -110,8 +110,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final IndexMode indexMode;
     @Nullable
     private final DataStreamLifecycle lifecycle;
-    private final boolean storeFailures;
-    private final List<Index> failureStores;
+    private final boolean failureStore;
+    private final List<Index> failureIndices;
 
     public DataStream(
         String name,
@@ -124,8 +124,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean allowCustomRouting,
         IndexMode indexMode,
         DataStreamLifecycle lifecycle,
-        boolean storeFailures,
-        List<Index> failureStores
+        boolean failureStore,
+        List<Index> failureIndices
     ) {
         this(
             name,
@@ -139,8 +139,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             allowCustomRouting,
             indexMode,
             lifecycle,
-            storeFailures,
-            failureStores
+            failureStore,
+            failureIndices
         );
     }
 
@@ -157,8 +157,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean allowCustomRouting,
         IndexMode indexMode,
         DataStreamLifecycle lifecycle,
-        boolean storeFailures,
-        List<Index> failureStores
+        boolean failureStore,
+        List<Index> failureIndices
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
@@ -173,8 +173,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
         this.lifecycle = lifecycle;
-        this.storeFailures = storeFailures;
-        this.failureStores = failureStores;
+        this.failureStore = failureStore;
+        this.failureIndices = failureIndices;
         assert assertConsistent(this.indices);
     }
 
@@ -227,8 +227,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return generation;
     }
 
-    public List<Index> getFailureStores() {
-        return failureStores;
+    public List<Index> getFailureIndices() {
+        return failureIndices;
     }
 
     @Override
@@ -357,8 +357,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      *
      * @return Whether this data stream should store ingestion failures.
      */
-    public boolean isStoreFailures() {
-        return storeFailures;
+    public boolean isFailureStore() {
+        return failureStore;
     }
 
     @Nullable
@@ -414,8 +414,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             allowCustomRouting,
             indexMode,
             lifecycle,
-            storeFailures,
-            failureStores
+            failureStore,
+            failureIndices
         );
     }
 
@@ -492,8 +492,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             allowCustomRouting,
             indexMode,
             lifecycle,
-            storeFailures,
-            failureStores
+            failureStore,
+            failureIndices
         );
     }
 
@@ -537,8 +537,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             allowCustomRouting,
             indexMode,
             lifecycle,
-            storeFailures,
-            failureStores
+            failureStore,
+            failureIndices
         );
     }
 
@@ -597,8 +597,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             allowCustomRouting,
             indexMode,
             lifecycle,
-            storeFailures,
-            failureStores
+            failureStore,
+            failureIndices
         );
     }
 
@@ -615,8 +615,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             allowCustomRouting,
             indexMode,
             lifecycle,
-            storeFailures,
-            failureStores
+            failureStore,
+            failureIndices
         );
     }
 
@@ -651,8 +651,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             allowCustomRouting,
             indexMode,
             lifecycle,
-            storeFailures,
-            failureStores
+            failureStore,
+            failureIndices
         );
     }
 
@@ -905,8 +905,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             out.writeOptionalWriteable(lifecycle);
         }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
-            out.writeBoolean(storeFailures);
-            out.writeCollection(failureStores);
+            out.writeBoolean(failureStore);
+            out.writeCollection(failureIndices);
         }
     }
 
@@ -921,8 +921,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
     public static final ParseField INDEX_MODE = new ParseField("index_mode");
     public static final ParseField LIFECYCLE = new ParseField("lifecycle");
-    public static final ParseField STORE_FAILURES_FIELD = new ParseField("store_failures");
-    public static final ParseField FAILURE_STORES_FIELD = new ParseField("failure_stores");
+    public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
+    public static final ParseField FAILURE_INDICES_FIELD = new ParseField("failure_indices");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
@@ -963,11 +963,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
         if (DataStream.isFailureStoreEnabled()) {
-            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), STORE_FAILURES_FIELD);
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
             PARSER.declareObjectArray(
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> Index.fromXContent(p),
-                FAILURE_STORES_FIELD
+                FAILURE_INDICES_FIELD
             );
         }
     }
@@ -994,8 +994,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             .endObject();
         builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
-        if (DataStream.isFailureStoreEnabled() && failureStores.isEmpty() == false) {
-            builder.xContentList(FAILURE_STORES_FIELD.getPreferredName(), failureStores);
+        if (DataStream.isFailureStoreEnabled() && failureIndices.isEmpty() == false) {
+            builder.xContentList(FAILURE_INDICES_FIELD.getPreferredName(), failureIndices);
         }
         if (metadata != null) {
             builder.field(METADATA_FIELD.getPreferredName(), metadata);
@@ -1005,7 +1005,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         builder.field(SYSTEM_FIELD.getPreferredName(), system);
         builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
         if (DataStream.isFailureStoreEnabled()) {
-            builder.field(STORE_FAILURES_FIELD.getPreferredName(), storeFailures);
+            builder.field(FAILURE_STORE_FIELD.getPreferredName(), failureStore);
         }
         if (indexMode != null) {
             builder.field(INDEX_MODE.getPreferredName(), indexMode);
@@ -1033,8 +1033,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             && allowCustomRouting == that.allowCustomRouting
             && indexMode == that.indexMode
             && Objects.equals(lifecycle, that.lifecycle)
-            && storeFailures == that.storeFailures
-            && failureStores.equals(that.failureStores);
+            && failureStore == that.failureStore
+            && failureIndices.equals(that.failureIndices);
     }
 
     @Override
@@ -1050,8 +1050,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             allowCustomRouting,
             indexMode,
             lifecycle,
-            storeFailures,
-            failureStores
+            failureStore,
+            failureIndices
         );
     }
 

@@ -335,7 +335,7 @@ public class OutboundHandlerTests extends ESTestCase {
 
         try {
             final int length = randomIntBetween(1, 100);
-            final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> f = new PlainActionFuture<>();
             handler.sendBytes(new FakeTcpChannel() {
                 @Override
                 public void sendMessage(BytesReference reference, ActionListener<Void> listener) {

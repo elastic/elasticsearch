@@ -46,7 +46,7 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
             ),
             Map.of(),
             Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
-            Map.of("2buqP1GpF-TXYmL4USW8gA", 1),
+            Map.of("2buqP1GpF-TXYmL4USW8gA", 1L),
             9,
             1.0d,
             1
@@ -55,8 +55,8 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertNotNull(response);
         assertEquals(10, response.getSize());
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
-        assertEquals(List.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1), response.getCountInclusive());
-        assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 1), response.getCountExclusive());
+        assertEquals(List.of(1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L), response.getCountInclusive());
+        assertEquals(List.of(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 1L), response.getCountExclusive());
         assertEquals(
             List.of(
                 Map.of("174640828", 1),
@@ -112,8 +112,8 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), response.getFunctionOffsets());
         assertEquals(List.of("", "", "", "", "", "", "", "", "", ""), response.getSourceFileNames());
         assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), response.getSourceLines());
-        assertEquals(1, response.getSelfCPU());
-        assertEquals(10, response.getTotalCPU());
+        assertEquals(1L, response.getSelfCPU());
+        assertEquals(10L, response.getTotalCPU());
         assertEquals(1L, response.getTotalSamples());
 
     }
@@ -124,8 +124,8 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertNotNull(response);
         assertEquals(1, response.getSize());
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
-        assertEquals(List.of(0), response.getCountInclusive());
-        assertEquals(List.of(0), response.getCountExclusive());
+        assertEquals(List.of(0L), response.getCountInclusive());
+        assertEquals(List.of(0L), response.getCountExclusive());
         assertEquals(List.of(Map.of()), response.getEdges());
         assertEquals(List.of(""), response.getFileIds());
         assertEquals(List.of(0), response.getFrameTypes());
@@ -136,8 +136,8 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertEquals(List.of(0), response.getFunctionOffsets());
         assertEquals(List.of(""), response.getSourceFileNames());
         assertEquals(List.of(0), response.getSourceLines());
-        assertEquals(0, response.getSelfCPU());
-        assertEquals(0, response.getTotalCPU());
+        assertEquals(0L, response.getSelfCPU());
+        assertEquals(0L, response.getTotalCPU());
         assertEquals(0L, response.getTotalSamples());
     }
 }

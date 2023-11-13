@@ -192,11 +192,11 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             )
             .execute(handleEventsGroupedByStackTrace(client, responseBuilder, submitListener, searchResponse -> {
                 StringTerms stacktraces = searchResponse.getAggregations().get("group_by");
-                Map<String, Long> stackTraceEvents = new TreeMap<>();
+                Map<String, Long> countPerStackTrace = new TreeMap<>();
                 for (StringTerms.Bucket bucket : stacktraces.getBuckets()) {
-                    stackTraceEvents.put(bucket.getKeyAsString(), bucket.getDocCount());
+                    countPerStackTrace.put(bucket.getKeyAsString(), bucket.getDocCount());
                 }
-                return stackTraceEvents;
+                return countPerStackTrace;
             }));
     }
 

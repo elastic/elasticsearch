@@ -103,12 +103,6 @@ class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuilder<Coun
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        // method is unused - no need to implement it
-        return null;
-    }
-
-    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.KEYWORD;
     }

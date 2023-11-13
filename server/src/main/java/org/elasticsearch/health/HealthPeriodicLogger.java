@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class HealthPeriodicLogger implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
     public static final String HEALTH_FIELD_PREFIX = "elasticsearch.health";
+    public static final String MESSAGE_FIELD = "message";
 
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "health.periodic_logger.poll_interval",
@@ -193,6 +194,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         // overall status
         final HealthStatus status = HealthStatus.merge(indicatorResults.stream().map(HealthIndicatorResult::status));
         result.put(String.format(Locale.ROOT, "%s.overall.status", HEALTH_FIELD_PREFIX), status.xContentValue());
+        result.put(MESSAGE_FIELD, String.format(Locale.ROOT, "health=%s", status.xContentValue()));
 
         // top-level status for each indicator
         indicatorResults.forEach((indicatorResult) -> {

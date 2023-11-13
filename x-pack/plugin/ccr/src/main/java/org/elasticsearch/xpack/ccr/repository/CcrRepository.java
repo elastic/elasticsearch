@@ -504,7 +504,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private static final ShardGeneration DUMMY_GENERATION = new ShardGeneration("");
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId index, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId index, ShardId shardId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         final String leaderIndex = index.getName();
         final IndicesStatsResponse response = getRemoteClusterClient().admin()

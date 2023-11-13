@@ -64,7 +64,6 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -174,7 +173,7 @@ import static org.junit.Assert.fail;
  */
 public final class InternalTestCluster extends TestCluster {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(InternalTestCluster.class);
 
     private static final Predicate<NodeAndClient> DATA_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.canContainData(
         nodeAndClient.node.settings()
@@ -977,7 +976,6 @@ public final class InternalTestCluster extends TestCluster {
 
         void resetClient() {
             if (closed.get() == false) {
-                Releasables.close(nodeClient);
                 nodeClient = null;
             }
         }

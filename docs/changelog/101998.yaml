@@ -1,0 +1,5 @@
+pr: 101998
+summary: Avoid negative `DesiredBalanceStats#lastConvergedIndex`
+area: Allocation
+type: bug
+issues: []

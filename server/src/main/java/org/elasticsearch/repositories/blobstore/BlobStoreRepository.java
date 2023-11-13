@@ -3040,10 +3040,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
                 for (String fileName : fileNames) {
-                    if (snapshotStatus.isAborted()) {
-                        logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
-                        throw new AbortedSnapshotException();
-                    }
+                    ensureNotAborted(shardId, snapshotId, snapshotStatus, fileName);
 
                     logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
                     final StoreFileMetadata md = metadataFromStore.get(fileName);
@@ -3245,6 +3242,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    private static void ensureNotAborted(ShardId shardId, SnapshotId snapshotId, IndexShardSnapshotStatus snapshotStatus, String fileName) {
+        try {
+            snapshotStatus.ensureNotAborted();
+        } catch (Exception e) {
+            logger.debug("[{}] [{}] {} on the file [{}], exiting", shardId, snapshotId, e.getMessage(), fileName);
+            assert e instanceof AbortedSnapshotException : e;
+            throw e;
+        }
+    }
+
     protected void snapshotFiles(
         SnapshotShardContext context,
         BlockingQueue<FileInfo> filesToSnapshot,
@@ -3273,7 +3280,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 store.decRef();
             }
         } else {
-            assert snapshotStatus.isAborted() : "if the store is already closed we must have been aborted";
+            try {
+                snapshotStatus.ensureNotAborted();
+                assert false : "if the store is already closed we must have been aborted";
+            } catch (Exception e) {
+                assert e instanceof AbortedSnapshotException : e;
+            }
         }
         return true;
     }
@@ -3497,7 +3509,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotId);
         return IndexShardSnapshotStatus.newDone(
             snapshot.startTime(),
@@ -3506,8 +3518,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshot.totalFileCount(),
             snapshot.incrementalSize(),
             snapshot.totalSize(),
-            null
-        ); // Not adding a real generation here as it doesn't matter to callers
+            null // Not adding a real generation here as it doesn't matter to callers
+        );
     }
 
     @Override
@@ -3712,10 +3724,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
 
                     private void checkAborted() {
-                        if (snapshotStatus.isAborted()) {
-                            logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileInfo.physicalName());
-                            throw new AbortedSnapshotException();
-                        }
+                        ensureNotAborted(shardId, snapshotId, snapshotStatus, fileInfo.physicalName());
                     }
                 };
                 final String partName = fileInfo.partName(i);

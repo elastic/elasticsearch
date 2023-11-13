@@ -64,6 +64,9 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
 
     private static UpdateSettingsRequest createTestInstance(boolean enclosedSettings) {
         UpdateSettingsRequest testRequest = UpdateSettingsRequestSerializationTests.createTestItem();
+        if (randomBoolean()) {
+            testRequest.reopen(true);
+        }
         if (enclosedSettings) {
             UpdateSettingsRequest requestWithEnclosingSettings = new UpdateSettingsRequest(testRequest.settings()) {
                 public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -75,6 +78,7 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
                     return builder;
                 }
             };
+            requestWithEnclosingSettings.reopen(testRequest.reopen());
             return requestWithEnclosingSettings;
         }
         return testRequest;

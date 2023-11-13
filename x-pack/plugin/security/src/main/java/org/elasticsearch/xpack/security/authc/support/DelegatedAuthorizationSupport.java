@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.DelegatedAutho
 public class DelegatedAuthorizationSupport {
 
     private final RealmUserLookup lookup;
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(DelegatedAuthorizationSupport.class);
     private final XPackLicenseState licenseState;
 
     /**
@@ -74,7 +74,6 @@ public class DelegatedAuthorizationSupport {
         final List<Realm> resolvedLookupRealms = resolveRealms(allRealms, lookupRealms);
         checkForRealmChains(resolvedLookupRealms, settings);
         this.lookup = new RealmUserLookup(resolvedLookupRealms, threadContext);
-        this.logger = LogManager.getLogger(getClass());
         this.licenseState = licenseState;
     }
 

@@ -38,6 +38,8 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
+import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.ClasspathNormalizer;
@@ -58,6 +60,7 @@ import javax.inject.Inject;
  */
 public class RestTestBasePlugin implements Plugin<Project> {
 
+    private static final String TESTS_MAX_PARALLEL_FORKS_SYSPROP = "tests.max.parallel.forks";
     private static final String TESTS_RUNTIME_JAVA_SYSPROP = "tests.runtime.java";
     private static final String DEFAULT_DISTRIBUTION_SYSPROP = "tests.default.distribution";
     private static final String INTEG_TEST_DISTRIBUTION_SYSPROP = "tests.integ-test.distribution";
@@ -123,6 +126,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
             // Enable parallel execution for these tests since each test gets its own cluster
             task.setMaxParallelForks(task.getProject().getGradle().getStartParameter().getMaxWorkerCount() / 2);
+            nonInputSystemProperties.systemProperty(TESTS_MAX_PARALLEL_FORKS_SYSPROP, () -> String.valueOf(task.getMaxParallelForks()));
 
             // Disable test failure reporting since this stuff is now captured in build scans
             task.getInputs().property(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, false);
@@ -132,16 +136,20 @@ public class RestTestBasePlugin implements Plugin<Project> {
             task.systemProperty("tests.system_call_filter", "false");
 
             // Register plugins and modules as task inputs and pass paths as system properties to tests
-            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP, modulesConfiguration::getAsPath);
-            registerConfigurationInputs(task, modulesConfiguration);
-            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP, pluginsConfiguration::getAsPath);
-            registerConfigurationInputs(task, extractedPluginsConfiguration);
+            var modulePath = project.getObjects().fileCollection().from(modulesConfiguration);
+            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP, modulePath::getAsPath);
+            registerConfigurationInputs(task, modulesConfiguration.getName(), modulePath);
+            var pluginPath = project.getObjects().fileCollection().from(pluginsConfiguration);
+            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP, pluginPath::getAsPath);
+            registerConfigurationInputs(
+                task,
+                extractedPluginsConfiguration.getName(),
+                project.getObjects().fileCollection().from(extractedPluginsConfiguration)
+            );
 
             // Wire up integ-test distribution by default for all test tasks
-            nonInputSystemProperties.systemProperty(
-                INTEG_TEST_DISTRIBUTION_SYSPROP,
-                () -> integTestDistro.getExtracted().getSingleFile().getPath()
-            );
+            FileCollection extracted = integTestDistro.getExtracted();
+            nonInputSystemProperties.systemProperty(INTEG_TEST_DISTRIBUTION_SYSPROP, () -> extracted.getSingleFile().getPath());
             nonInputSystemProperties.systemProperty(TESTS_RUNTIME_JAVA_SYSPROP, BuildParams.getRuntimeJavaHome());
 
             // Add `usesDefaultDistribution()` extension method to test tasks to indicate they require the default distro
@@ -214,15 +222,15 @@ public class RestTestBasePlugin implements Plugin<Project> {
         return distribution.getExtracted().getAsFileTree().matching(patternFilter);
     }
 
-    private void registerConfigurationInputs(Task task, Configuration configuration) {
+    private void registerConfigurationInputs(Task task, String configurationName, ConfigurableFileCollection configuration) {
         task.getInputs()
             .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar") == false)))
-            .withPropertyName(configuration.getName() + "-files")
+            .withPropertyName(configurationName + "-files")
             .withPathSensitivity(PathSensitivity.RELATIVE);
 
         task.getInputs()
             .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"))))
-            .withPropertyName(configuration.getName() + "-classpath")
+            .withPropertyName(configurationName + "-classpath")
             .withNormalizer(ClasspathNormalizer.class);
     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.internal.MutableLicenseService;
+import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -249,7 +250,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                     }
                     Metadata currentMetadata = currentState.metadata();
                     LicensesMetadata licensesMetadata = currentMetadata.custom(LicensesMetadata.TYPE);
-                    Version trialVersion = null;
+                    TrialLicenseVersion trialVersion = null;
                     if (licensesMetadata != null) {
                         trialVersion = licensesMetadata.getMostRecentTrialVersion();
                     }

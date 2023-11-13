@@ -29,7 +29,7 @@ import java.util.Objects;
 /**
  * A sort builder allowing to sort by score.
  */
-public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
+public final class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
     private static final SortFieldAndFormat SORT_SCORE = new SortFieldAndFormat(
@@ -44,7 +44,6 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     /**
      * Build a ScoreSortBuilder default to descending sort order.
      */
-    @SuppressWarnings("this-escape")
     public ScoreSortBuilder() {
         // order defaults to desc when sorting on the _score
         order(SortOrder.DESC);
@@ -53,7 +52,6 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     /**
      * Read from a stream.
      */
-    @SuppressWarnings("this-escape")
     public ScoreSortBuilder(StreamInput in) throws IOException {
         order(SortOrder.readFromStream(in));
     }
@@ -102,8 +100,12 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public BucketedSort buildBucketedSort(SearchExecutionContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
-        throws IOException {
+    public BucketedSort buildBucketedSort(
+        SearchExecutionContext context,
+        BigArrays bigArrays,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         return new BucketedSort.ForFloats(bigArrays, order, DocValueFormat.RAW, bucketSize, extra) {
             @Override
             public boolean needsScores() {
@@ -111,7 +113,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
             }
 
             @Override
-            public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
+            public Leaf forLeaf(LeafReaderContext ctx) {
                 return new BucketedSort.ForFloats.Leaf(ctx) {
                     private Scorable scorer;
                     private float score;
@@ -167,7 +169,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public ScoreSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+    public ScoreSortBuilder rewrite(QueryRewriteContext ctx) {
         return this;
     }
 

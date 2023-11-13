@@ -213,13 +213,6 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     }
 
     /**
-     * Get the offset to use when rounding, which is a number of milliseconds.
-     */
-    public long offset() {
-        return offset;
-    }
-
-    /**
      * Set the offset on this builder, which is a number of milliseconds.
      * @return this for chaining
      */

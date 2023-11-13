@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.profiling;
 
 public class GetFlameGraphActionIT extends ProfilingTestCase {
     public void testGetStackTracesUnfiltered() throws Exception {
-        GetStackTracesRequest request = new GetStackTracesRequest(10, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(10, null, null, null);
         GetFlamegraphResponse response = client().execute(GetFlamegraphAction.INSTANCE, request).get();
         // only spot-check top level properties - detailed tests are done in unit tests
-        assertEquals(231, response.getSize());
+        assertEquals(297, response.getSize());
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
         assertEquals(60, response.getSelfCPU());
-        assertEquals(1204, response.getTotalCPU());
+        assertEquals(1956, response.getTotalCPU());
         assertEquals(40, response.getTotalSamples());
     }
 }

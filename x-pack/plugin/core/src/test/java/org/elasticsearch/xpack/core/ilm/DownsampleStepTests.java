@@ -251,7 +251,8 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .metadata(Metadata.builder().put(sourceIndexMetadata, true).build())
             .build();
         {
-            try (NoOpClient client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
@@ -265,7 +266,8 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             }
         }
         {
-            try (NoOpClient client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;

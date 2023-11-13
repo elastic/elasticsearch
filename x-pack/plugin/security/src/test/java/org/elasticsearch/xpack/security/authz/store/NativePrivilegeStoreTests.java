@@ -38,7 +38,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -108,7 +107,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     public void setup() {
         requests = new ArrayList<>();
         listener = new AtomicReference<>();
-        client = new NoOpClient(getTestName()) {
+        threadPool = createThreadPool();
+        client = new NoOpClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -144,7 +144,6 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
 
-        threadPool = new TestThreadPool(getTestName());
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         allowExpensiveQueries = randomBoolean();
@@ -159,7 +158,6 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
     @After
     public void cleanup() {
-        client.close();
         terminate(threadPool);
     }
 

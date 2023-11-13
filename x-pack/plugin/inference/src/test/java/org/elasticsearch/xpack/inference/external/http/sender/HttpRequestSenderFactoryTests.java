@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
-import static org.elasticsearch.xpack.inference.external.http.Utils.createThreadPool;
+import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -56,7 +56,7 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(getTestName());
+        threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
         threadRef.set(null);
     }

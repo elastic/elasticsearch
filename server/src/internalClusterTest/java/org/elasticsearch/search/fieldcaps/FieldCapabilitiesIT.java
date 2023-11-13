@@ -193,11 +193,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         return false; // enable http
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     public void testFieldAlias() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("distance", "route_length_miles").get();
 

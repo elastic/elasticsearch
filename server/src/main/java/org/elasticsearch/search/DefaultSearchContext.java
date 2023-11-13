@@ -469,11 +469,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFetchSourceContext() {
-        return fetchSourceContext != null;
-    }
-
-    @Override
     public FetchSourceContext fetchSourceContext() {
         return this.fetchSourceContext;
     }

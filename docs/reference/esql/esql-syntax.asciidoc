@@ -46,7 +46,7 @@ backticks (+{backtick}+). What "special characters" means is command dependent.
 
 For <<esql-from, FROM>>, <<esql-keep, KEEP>>, <<esql-drop, DROP>>,
 <<esql-rename, RENAME>>, <<esql-mv_expand, MV_EXPAND>> and
-<<esql-enrich, ENRICH>> these are: `=`, ```, `,`, ` ` (space), `|` ,
+<<esql-enrich, ENRICH>> these are: `=`, +{backtick}+, `,`, ` ` (space), `|` ,
 `[`, `]`, `\t` (TAB), `\r` (CR), `\n` (LF); one `/` is allowed unquoted, but
 a sequence of two or more require quoting.
 

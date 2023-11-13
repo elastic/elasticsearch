@@ -522,9 +522,11 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                 } else {
                     assertEquals(expected, witness); // uncontended writes always succeed
                     assertNotEquals(expected, updated); // uncontended register sees only updates
-                    final var updatedValue = longFromBytes(updated);
-                    assertThat(updatedValue, allOf(greaterThan(0L), equalTo(uncontendedRegisterValue + 1)));
-                    uncontendedRegisterValue = updatedValue;
+                    if (updated.length() != 0) {
+                        final var updatedValue = longFromBytes(updated);
+                        assertThat(updatedValue, allOf(greaterThan(0L), equalTo(uncontendedRegisterValue + 1)));
+                        uncontendedRegisterValue = updatedValue;
+                    } // else this was the final step which writes an empty register
                 }
             }
 

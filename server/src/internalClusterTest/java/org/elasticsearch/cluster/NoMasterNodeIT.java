@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
@@ -45,6 +44,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -255,9 +255,10 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         logger.info("--> here 3");
         assertHitCount(clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true), 1L);
 
-        SearchResponse countResponse = clientToMasterlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0).get();
-        assertThat(countResponse.getTotalShards(), equalTo(3));
-        assertThat(countResponse.getSuccessfulShards(), equalTo(1));
+        assertResponse(clientToMasterlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0), countResponse -> {
+            assertThat(countResponse.getTotalShards(), equalTo(3));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(1));
+        });
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
         long now = System.currentTimeMillis();

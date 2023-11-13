@@ -19,11 +19,14 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.HandleTrackingFS;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -32,13 +35,16 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -51,10 +57,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.file.FileSystem;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
@@ -62,6 +73,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnap
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ReopeningIndexInputTests extends ESIndexInputTestCase {
 
@@ -105,7 +117,6 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 // number of operations to allow before the file is uploaded to the object store and deleted from disk
                 final CountDown operationsCountDown = new CountDown(randomIntBetween(1, 25));
 
-                var uploadedToObjectStore = false;
                 try (IndexInput indexInput = indexDirectory.openInput(fileName, randomIOContext())) {
                     assertEquals(bytes.length, indexInput.length());
                     assertEquals(0, indexInput.getFilePointer());
@@ -120,19 +131,18 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                     );
                     byte[] output = randomReadAndSlice(input, bytes.length);
                     assertArrayEquals(bytes, output);
-                    uploadedToObjectStore = input.isCountedDown();
 
-                    if (uploadedToObjectStore) {
-                        assertThat(indexDirectory.fileLength(fileName), equalTo((long) bytes.length));
+                    assertThat(indexDirectory.fileLength(fileName), equalTo((long) bytes.length));
+                    if (input.isCountedDown() == false) {
+                        operationsCountDown.fastForward();
+                        input.upload();
                     }
                 }
 
-                if (operationsCountDown.isCountedDown()) {
-                    expectThrowsAnyOf(
-                        List.of(FileNotFoundException.class, NoSuchFileException.class),
-                        () -> indexDirectory.getDelegate().fileLength(fileName)
-                    );
-                }
+                expectThrowsAnyOf(
+                    List.of(FileNotFoundException.class, NoSuchFileException.class),
+                    () -> indexDirectory.getDelegate().fileLength(fileName)
+                );
             }
         } finally {
             assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
@@ -200,6 +210,124 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
         }
     }
 
+    public void testFileHandleIsClosedAfterUpload() throws IOException {
+        // we can only verify non memory mapped files
+        final String fileName = "file."
+            + randomFrom(
+                Arrays.stream(LuceneFilesExtensions.values())
+                    .filter(ext -> ext.shouldMmap() == false)
+                    .map(LuceneFilesExtensions::getExtension)
+                    .toList()
+            );
+
+        final FileSystem fileSystem = PathUtils.getDefaultFileSystem();
+        final Set<String> openHandles = ConcurrentCollections.newConcurrentSet();
+        final FilterFileSystemProvider provider = new HandleTrackingFS("handletrackingfs://", fileSystem) {
+            @Override
+            protected void onOpen(Path path, Object stream) {
+                var file = path.getFileName().toString();
+                if (file.equals(fileName)) {
+                    var added = openHandles.add(file);
+                    assert added : file + " already opened";
+                }
+            }
+
+            @Override
+            protected void onClose(Path path, Object stream) {
+                var file = path.getFileName().toString();
+                if (file.equals(fileName)) {
+                    var removed = openHandles.remove(file);
+                    assert removed : file + " already removed";
+                }
+            }
+        };
+
+        final long primaryTerm = randomLongBetween(1L, 1000L);
+        PathUtilsForTesting.installMock(provider.getFileSystem(null));
+        final Path path = PathUtils.get(createTempDir().toString());
+        try (
+            var node = new FakeStatelessNode(
+                settings -> TestEnvironment.newEnvironment(
+                    Settings.builder().put(settings).put(Environment.PATH_HOME_SETTING.getKey(), path.toAbsolutePath()).build()
+                ),
+                settings -> {
+                    var build = Settings.builder().put(settings).put(Environment.PATH_HOME_SETTING.getKey(), path.toAbsolutePath()).build();
+                    return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
+                },
+                xContentRegistry(),
+                primaryTerm
+            )
+        ) {
+            final var indexDirectory = node.indexingDirectory;
+            final var indexPath = node.environment.dataFiles()[0].resolve(node.shardId.getIndex().getUUID()).resolve("0").resolve("index");
+
+            final byte[] bytes = randomByteArrayOfLength(4096);
+            try (IndexOutput output = indexDirectory.createOutput(fileName, IOContext.DEFAULT)) {
+                output.writeBytes(bytes, bytes.length);
+            }
+            indexDirectory.getSearchDirectory()
+                .getBlobContainer(primaryTerm)
+                .writeBlob(OperationPurpose.INDICES, "blob_" + fileName, BytesReference.fromByteBuffer(ByteBuffer.wrap(bytes)), true);
+
+            var input = indexDirectory.openInput(fileName, IOContext.DEFAULT);
+            assertThat(input, instanceOf(IndexDirectory.ReopeningIndexInput.class));
+            assertThat(((IndexDirectory.ReopeningIndexInput) input).getDelegate().isCached(), equalTo(false));
+            readNBytes(input, bytes, 0L, 1024);
+
+            var clone = input.clone();
+            assertThat(clone, instanceOf(IndexDirectory.ReopeningIndexInput.class));
+            assertThat(((IndexDirectory.ReopeningIndexInput) clone).getDelegate().isCached(), equalTo(false));
+            readNBytes(clone, bytes, input.getFilePointer(), 1024);
+
+            var slice = clone.slice("slice", 512L, 2048);
+            assertThat(slice, instanceOf(IndexDirectory.ReopeningIndexInput.class));
+            assertThat(((IndexDirectory.ReopeningIndexInput) slice).getDelegate().isCached(), equalTo(false));
+            readNBytes(slice, bytes, 512L, 1024);
+
+            assertThat(fileName, openHandles.contains(fileName), equalTo(true));
+            assertThat(Files.exists(indexPath.resolve(fileName)), equalTo(true));
+            assertThat(indexDirectory.getDelegate().fileLength(fileName), equalTo((long) bytes.length));
+
+            indexDirectory.updateCommit(
+                new StatelessCompoundCommit(
+                    indexDirectory.getSearchDirectory().getShardId(),
+                    1L,
+                    1L,
+                    "_na_",
+                    Map.of(fileName, new BlobLocation(primaryTerm, "blob_" + fileName, bytes.length, 0L, bytes.length))
+                ),
+                Set.of(fileName)
+            );
+
+            readNBytes(input, bytes, input.getFilePointer(), 1024);
+
+            assertThat(openHandles.contains(fileName), equalTo(false));
+            assertThat(Files.exists(indexPath.resolve(fileName)), equalTo(false));
+            expectThrows(NoSuchFileException.class, () -> indexDirectory.getDelegate().fileLength(fileName));
+            assertThat(((IndexDirectory.ReopeningIndexInput) input).getDelegate().isCached(), equalTo(true));
+            assertThat(((IndexDirectory.ReopeningIndexInput) clone).getDelegate().isCached(), equalTo(false));
+            assertThat(((IndexDirectory.ReopeningIndexInput) slice).getDelegate().isCached(), equalTo(false));
+
+            if (randomBoolean()) {
+                clone.seek(0L);
+            } else {
+                readNBytes(clone, bytes, clone.getFilePointer(), 1024);
+            }
+            assertThat(((IndexDirectory.ReopeningIndexInput) clone).getDelegate().isCached(), equalTo(true));
+
+            if (randomBoolean()) {
+                slice.seek(1024L);
+            } else {
+                readNBytes(slice, bytes, 512 + slice.getFilePointer(), 1024);
+            }
+            assertThat(((IndexDirectory.ReopeningIndexInput) slice).getDelegate().isCached(), equalTo(true));
+
+            input.close();
+        } finally {
+            PathUtilsForTesting.teardown();
+        }
+    }
+
     private void randomRead(IndexInput input, byte[] bytes) throws IOException {
         int pos = (int) input.getFilePointer();
         int remaining = (int) (input.length() - pos);
@@ -210,6 +338,14 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             System.arraycopy(bytes, Math.toIntExact(pos), expected, 0, len);
             assertArrayEquals(expected, actual);
         }
+    }
+
+    private void readNBytes(IndexInput input, byte[] bytes, long pos, int len) throws IOException {
+        byte[] actual = new byte[len];
+        input.readBytes(actual, 0, actual.length);
+        byte[] expected = new byte[len];
+        System.arraycopy(bytes, Math.toIntExact(pos), expected, 0, len);
+        assertArrayEquals(expected, actual);
     }
 
     /**
@@ -243,25 +379,30 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
 
         private void maybeUpload() {
             if (operationsCountDown.isCountedDown() == false && operationsCountDown.countDown()) {
-                try (IndexInput input = directory.openInput(fileName, IOContext.READONCE)) {
-                    final long length = input.length();
-                    final String blobName = "_blob_" + fileName;
-                    final InputStream inputStream = new InputStreamIndexInput(input, length);
-                    blobContainer.writeBlob(randomFrom(OperationPurpose.values()), blobName, inputStream, length, randomBoolean());
+                upload();
+            }
+        }
 
-                    directory.updateCommit(
-                        new StatelessCompoundCommit(
-                            directory.getSearchDirectory().getShardId(),
-                            2L,
-                            1L,
-                            "_na_",
-                            Map.of(fileName, new BlobLocation(1L, blobName, length, 0L, length))
-                        ),
-                        null
-                    );
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
+        private void upload() {
+            assertThat(operationsCountDown.isCountedDown(), equalTo(true));
+            try (IndexInput input = directory.openInput(fileName, IOContext.READONCE)) {
+                final long length = input.length();
+                final String blobName = "_blob_" + fileName;
+                final InputStream inputStream = new InputStreamIndexInput(input, length);
+                blobContainer.writeBlob(randomFrom(OperationPurpose.values()), blobName, inputStream, length, randomBoolean());
+
+                directory.updateCommit(
+                    new StatelessCompoundCommit(
+                        directory.getSearchDirectory().getShardId(),
+                        2L,
+                        1L,
+                        "_na_",
+                        Map.of(fileName, new BlobLocation(1L, blobName, length, 0L, length))
+                    ),
+                    null
+                );
+            } catch (IOException e) {
+                throw new AssertionError(e);
             }
         }
 
@@ -272,19 +413,23 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
         @Override
         public byte readByte() throws IOException {
             maybeUpload();
-            return super.readByte();
+            var read = super.readByte();
+            maybeUpload();
+            return read;
         }
 
         @Override
         public void readBytes(byte[] b, int offset, int len) throws IOException {
             maybeUpload();
             super.readBytes(b, offset, len);
+            maybeUpload();
         }
 
         @Override
         public void seek(long pos) throws IOException {
             maybeUpload();
             super.seek(pos);
+            maybeUpload();
         }
 
         @Override
@@ -292,6 +437,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             maybeUpload();
             var clone = new SimulateUploadIndexInput(fileName, fileLength, directory, in.clone(), operationsCountDown, blobContainer);
             clone.isClone = true;
+            maybeUpload();
             return clone;
         }
 
@@ -307,11 +453,13 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 blobContainer
             );
             slice.isClone = true;
+            maybeUpload();
             return slice;
         }
 
         @Override
         public void close() throws IOException {
+            maybeUpload();
             if (isClone == false) {
                 super.close();
             }

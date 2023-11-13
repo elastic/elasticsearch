@@ -78,6 +78,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -135,7 +136,11 @@ public class FakeStatelessNode implements Closeable {
         this.primaryTerm = primaryTerm;
         node = DiscoveryNodeUtils.create("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         repoPath = LuceneTestCase.createTempDir();
-        nodeSettings = Settings.builder().put(PATH_REPO_SETTING.getKey(), repoPath).put(BUCKET_SETTING.getKey(), repoPath).build();
+        nodeSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), LuceneTestCase.createTempDir().toAbsolutePath())
+            .put(PATH_REPO_SETTING.getKey(), repoPath)
+            .put(BUCKET_SETTING.getKey(), repoPath)
+            .build();
         clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         environment = environmentSupplier.apply(nodeSettings);
 
@@ -149,10 +154,11 @@ public class FakeStatelessNode implements Closeable {
             .build();
         shardId = new ShardId(indexMetadata.getIndex(), 0);
         indexSettings = new IndexSettings(indexMetadata, nodeSettings);
+        Path dataPath = Objects.requireNonNull(environment.dataFiles()[0]);
         indexingShardPath = new ShardPath(
             false,
-            LuceneTestCase.createTempDir().resolve(shardId.getIndex().getUUID()).resolve("0"),
-            LuceneTestCase.createTempDir().resolve(shardId.getIndex().getUUID()).resolve("0"),
+            dataPath.resolve(shardId.getIndex().getUUID()).resolve("0"),
+            dataPath.resolve(shardId.getIndex().getUUID()).resolve("0"),
             shardId
         );
         searchShardPath = new ShardPath(

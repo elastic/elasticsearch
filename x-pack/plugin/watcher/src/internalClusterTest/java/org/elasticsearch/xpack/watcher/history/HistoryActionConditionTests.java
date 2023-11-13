@@ -158,7 +158,6 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102070")
     public void testActionConditionWithFailures() throws Exception {
         final String id = "testActionConditionWithFailures";
         final ExecutableCondition[] actionConditionsWithFailure = new ExecutableCondition[] {
@@ -174,44 +173,39 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // only one action should have failed via condition
         assertBusy(() -> {
+            System.out.println("**** I am here");
             // Watcher history is now written asynchronously, so we check this in an assertBusy
             ensureGreen(HistoryStoreField.DATA_STREAM);
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
             try {
                 assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+                final SearchHit hit = response.getHits().getAt(0);
+                final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
+
+                for (int i = 0; i < actionConditionsWithFailure.length; ++i) {
+                    final Map<String, Object> action = (Map<String, Object>) actions.get(i);
+                    final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
+                    final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
+
+                    assertThat(action.get("id"), is("action" + i));
+                    assertThat(condition.get("type"), is(actionConditionsWithFailure[i].type()));
+
+                    if (i == failedIndex) {
+                        assertThat(action.get("status"), is("condition_failed"));
+                        assertThat(condition.get("met"), is(false));
+                        assertThat(action.get("reason"), is("condition not met. skipping"));
+                        assertThat(logging, nullValue());
+                    } else {
+                        assertThat(action.get("status"), is("success"));
+                        assertThat(condition.get("met"), is(true));
+                        assertThat(action.get("reason"), nullValue());
+                        assertThat(logging.get("logged_text"), is(Integer.toString(i)));
+                    }
+                }
             } finally {
                 response.decRef();
             }
         });
-
-        final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        try {
-            final SearchHit hit = response.getHits().getAt(0);
-            final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
-
-            for (int i = 0; i < actionConditionsWithFailure.length; ++i) {
-                final Map<String, Object> action = (Map<String, Object>) actions.get(i);
-                final Map<String, Object> condition = (Map<String, Object>) action.get("condition");
-                final Map<String, Object> logging = (Map<String, Object>) action.get("logging");
-
-                assertThat(action.get("id"), is("action" + i));
-                assertThat(condition.get("type"), is(actionConditionsWithFailure[i].type()));
-
-                if (i == failedIndex) {
-                    assertThat(action.get("status"), is("condition_failed"));
-                    assertThat(condition.get("met"), is(false));
-                    assertThat(action.get("reason"), is("condition not met. skipping"));
-                    assertThat(logging, nullValue());
-                } else {
-                    assertThat(action.get("status"), is("success"));
-                    assertThat(condition.get("met"), is(true));
-                    assertThat(action.get("reason"), nullValue());
-                    assertThat(logging.get("logged_text"), is(Integer.toString(i)));
-                }
-            }
-        } finally {
-            response.decRef();
-        }
     }
 
     @SuppressWarnings("unchecked")

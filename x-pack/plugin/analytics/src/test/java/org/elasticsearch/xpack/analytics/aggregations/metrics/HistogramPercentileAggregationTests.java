@@ -36,6 +36,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
 
@@ -115,26 +116,21 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
             .numberOfSignificantValueDigits(numberOfSignificantValueDigits)
             .percentiles(10);
 
-        SearchResponse responseRaw = null;
-        SearchResponse responsePreAgg = null;
-        SearchResponse responseBoth = null;
-        try {
-            responseRaw = client().prepareSearch("raw").addAggregation(builder).get();
-            responsePreAgg = client().prepareSearch("pre_agg").addAggregation(builder).get();
-            responseBoth = client().prepareSearch("pre_agg", "raw").addAggregation(builder).get();
-
-            InternalHDRPercentiles percentilesRaw = responseRaw.getAggregations().get("agg");
-            InternalHDRPercentiles percentilesPreAgg = responsePreAgg.getAggregations().get("agg");
-            InternalHDRPercentiles percentilesBoth = responseBoth.getAggregations().get("agg");
-            for (int i = 1; i < 100; i++) {
-                assertEquals(percentilesRaw.percentile(i), percentilesPreAgg.percentile(i), 0.0);
-                assertEquals(percentilesRaw.percentile(i), percentilesBoth.percentile(i), 0.0);
-            }
-        } finally {
-            if (responseRaw != null) responseRaw.decRef();
-            if (responsePreAgg != null) responsePreAgg.decRef();
-            if (responseBoth != null) responseBoth.decRef();
-        }
+        assertResponse(
+            client().prepareSearch("raw").addAggregation(builder),
+            responseRaw -> assertResponse(
+                client().prepareSearch("pre_agg").addAggregation(builder),
+                responsePreAgg -> assertResponse(client().prepareSearch("pre_agg", "raw").addAggregation(builder), responseBoth -> {
+                    InternalHDRPercentiles percentilesRaw = responseRaw.getAggregations().get("agg");
+                    InternalHDRPercentiles percentilesPreAgg = responsePreAgg.getAggregations().get("agg");
+                    InternalHDRPercentiles percentilesBoth = responseBoth.getAggregations().get("agg");
+                    for (int i = 1; i < 100; i++) {
+                        assertEquals(percentilesRaw.percentile(i), percentilesPreAgg.percentile(i), 0.0);
+                        assertEquals(percentilesRaw.percentile(i), percentilesBoth.percentile(i), 0.0);
+                    }
+                })
+            )
+        );
     }
 
     private void setupTDigestHistogram(int compression) throws Exception {

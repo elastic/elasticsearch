@@ -496,6 +496,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         public void onFailure(Exception exc) {
+            System.err.println("XXX AsyncSearchTask onFailure called with: " + exc.getClass());
             // if the failure occurred before calling onListShards
             searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
 
@@ -508,6 +509,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             if (failImmediately && isCancelled() == false) {
                 cancelTask(() -> {}, "fatal error has occurred in a cross-cluster search - cancelling the search");
                 logger.warn("JJJy: BINGO!! =========== ++++++++++++++ CANCELLED CANCELLED +++++");  /// MP FIXME - remove
+                System.err.println("XXX AsyncSearchTasK BINGO - CANCELLED");
             }
             executeInitListeners();
             executeCompletionListeners();

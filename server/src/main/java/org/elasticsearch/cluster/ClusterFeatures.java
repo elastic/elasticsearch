@@ -12,6 +12,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -96,6 +97,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
      * NOTE: This should not be used directly, as it does not read historical features.
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
      */
+    @SuppressForbidden(reason = "directly reading cluster features")
     public boolean clusterHasFeature(NodeFeature feature) {
         return allNodeFeatures().contains(feature.id());
     }

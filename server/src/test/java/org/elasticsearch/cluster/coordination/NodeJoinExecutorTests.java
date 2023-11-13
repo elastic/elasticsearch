@@ -190,7 +190,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     TEST_REASON,
                     ActionListener.wrap(
                         o -> fail("Should have failed"),
-                        t -> assertThat(t.getMessage(), containsString("Node is missing required features [f2]"))
+                        t -> assertThat(t.getMessage(), containsString("is missing required features [f2]"))
                     ),
                     0L
                 )

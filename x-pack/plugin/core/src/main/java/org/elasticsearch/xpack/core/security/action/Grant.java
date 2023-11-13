@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtAuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
@@ -107,10 +108,6 @@ public class Grant implements Writeable {
         return runAsUsername;
     }
 
-    public ClientAuthentication getClientAuthentication() {
-        return clientAuthentication;
-    }
-
     public void setType(String type) {
         this.type = type;
     }
@@ -146,7 +143,10 @@ public class Grant implements Writeable {
                     yield token;
                 }
                 if (this.clientAuthentication != null) {
-                    throw new ElasticsearchSecurityException("[client_authentication] not supported with the supplied access_token type");
+                    throw new ElasticsearchSecurityException(
+                        "[client_authentication] not supported with the supplied access_token type",
+                        RestStatus.BAD_REQUEST
+                    );
                 }
                 yield new BearerToken(accessToken);
             }

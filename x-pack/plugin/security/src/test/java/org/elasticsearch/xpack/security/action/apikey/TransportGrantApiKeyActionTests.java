@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
@@ -140,6 +141,25 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
 
         assertThat(future.actionGet(), sameInstance(response));
         verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
+    }
+
+    public void testClientAuthenticationForNonJWTFails() {
+        final GrantApiKeyRequest request = mockRequest();
+        request.getGrant().setType("access_token");
+        request.getGrant().setAccessToken(new SecureString("obviously a non JWT token".toCharArray()));
+        // only JWT tokens support client authentication
+        request.getGrant().setClientAuthentication(new Grant.ClientAuthentication(new SecureString("whatever".toCharArray())));
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        action.doExecute(null, request, future);
+
+        final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
+        assertThat(exception, throwableWithMessage("[client_authentication] not supported with the supplied access_token type"));
+
+        verifyNoMoreInteractions(authenticationService);
+        verifyNoMoreInteractions(authorizationService);
+        verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
     }
 
     public void testGrantApiKeyWithAccessToken() {

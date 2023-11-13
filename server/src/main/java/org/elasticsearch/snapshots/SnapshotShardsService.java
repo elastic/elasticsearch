@@ -68,7 +68,7 @@ import static org.elasticsearch.core.Strings.format;
  * starting and stopping shard level snapshots.
  * See package level documentation of {@link org.elasticsearch.snapshots} for details.
  */
-public class SnapshotShardsService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
+public final class SnapshotShardsService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SnapshotShardsService.class);
 
     private final ClusterService clusterService;
@@ -89,7 +89,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     // Runs the tasks that promptly notify shards of aborted snapshots so that resources can be released ASAP
     private final ThrottledTaskRunner notifyOnAbortTaskRunner;
 
-    @SuppressWarnings("this-escape")
     public SnapshotShardsService(
         Settings settings,
         ClusterService clusterService,
@@ -511,7 +510,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 synchronized (shardSnapshots) {
                     final var currentLocalShards = shardSnapshots.get(snapshot.snapshot());
                     if (currentLocalShards == null) {
-                        return;
+                        continue;
                     }
                     localShards = Map.copyOf(currentLocalShards);
                 }

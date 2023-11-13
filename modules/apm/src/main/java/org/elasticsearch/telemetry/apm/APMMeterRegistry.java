@@ -52,7 +52,7 @@ public class APMMeterRegistry implements MeterRegistry {
     private final Registrar<LongGaugeAdapter> longGauges = new Registrar<>();
     private final Registrar<LongHistogramAdapter> longHistograms = new Registrar<>();
 
-    private final Meter meter;
+    private Meter meter;
 
     public APMMeterRegistry(Meter meter) {
         this.meter = meter;
@@ -170,8 +170,9 @@ public class APMMeterRegistry implements MeterRegistry {
 
     public void setProvider(Meter meter) {
         try (ReleasableLock lock = registerLock.acquire()) {
+            this.meter = meter;
             for (Registrar<?> registrar : registrars) {
-                registrar.setProvider(meter);
+                registrar.setProvider(this.meter);
             }
         }
     }

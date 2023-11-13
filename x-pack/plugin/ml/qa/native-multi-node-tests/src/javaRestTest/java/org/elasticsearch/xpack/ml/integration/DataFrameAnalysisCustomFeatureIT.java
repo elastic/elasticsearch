@@ -13,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -41,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -134,20 +134,21 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
         waitUntilAnalyticsIsStopped(jobId);
 
         client().admin().indices().refresh(new RefreshRequest(destIndex));
-        SearchResponse sourceData = prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
-        for (SearchHit hit : sourceData.getHits()) {
-            Map<String, Object> destDoc = getDestDoc(config, hit);
-            Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
-            assertThat(
-                importanceArray.stream().map(m -> m.get("feature_name").toString()).collect(Collectors.toSet()),
-                everyItem(anyOf(startsWith("f."), startsWith("ngram"), equalTo("is_cat"), equalTo("frequency")))
-            );
-        }
+        assertResponse(prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000), sourceData -> {
+            for (SearchHit hit : sourceData.getHits()) {
+                Map<String, Object> destDoc = getDestDoc(config, hit);
+                Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
+                assertThat(
+                    importanceArray.stream().map(m -> m.get("feature_name").toString()).collect(Collectors.toSet()),
+                    everyItem(anyOf(startsWith("f."), startsWith("ngram"), equalTo("is_cat"), equalTo("frequency")))
+                );
+            }
+        });
 
         assertProgressComplete(jobId);
-        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(jobId, 1);
         assertExactlyOneInferenceModelPersisted(jobId);
         assertModelStatePersisted(stateDocId());
     }

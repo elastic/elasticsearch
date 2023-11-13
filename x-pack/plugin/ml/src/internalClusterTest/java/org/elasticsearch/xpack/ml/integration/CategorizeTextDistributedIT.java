@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -82,24 +82,25 @@ public class CategorizeTextDistributedIT extends BaseMlIntegTestCase {
             .collect(Collectors.toSet());
         assertThat(nodesWithShards, hasSize(internalCluster().size()));
 
-        SearchResponse searchResponse = prepareSearch(indexName).addAggregation(
-            new CategorizeTextAggregationBuilder("categories", "message")
-        ).setSize(0).execute().actionGet();
-
-        InternalCategorizationAggregation aggregation = searchResponse.getAggregations().get("categories");
-        assertThat(aggregation, notNullValue());
-
-        // We should have created 4 categories, one for each of the distinct messages we indexed, all with counts of 2500 (= 10000/4)
-        List<InternalCategorizationAggregation.Bucket> buckets = aggregation.getBuckets();
-        assertThat(buckets, notNullValue());
-        assertThat(buckets, hasSize(4));
-        Set<String> expectedLastTokens = new HashSet<>(List.of("destroy", "init", "start", "stop"));
-        for (InternalCategorizationAggregation.Bucket bucket : buckets) {
-            assertThat(bucket.getDocCount(), is(2500L));
-            String[] tokens = bucket.getKeyAsString().split(" ");
-            String lastToken = tokens[tokens.length - 1];
-            assertThat(lastToken + " not found in " + expectedLastTokens, expectedLastTokens.remove(lastToken), is(true));
-        }
-        assertThat("Some expected last tokens not found " + expectedLastTokens, expectedLastTokens, empty());
+        assertResponse(
+            prepareSearch(indexName).addAggregation(new CategorizeTextAggregationBuilder("categories", "message")).setSize(0),
+            searchResponse -> {
+                InternalCategorizationAggregation aggregation = searchResponse.getAggregations().get("categories");
+                assertThat(aggregation, notNullValue());
+                // We should have created 4 categories, one for each of the distinct messages we indexed, all with counts of 2500 (=
+                // 10000/4)
+                List<InternalCategorizationAggregation.Bucket> buckets = aggregation.getBuckets();
+                assertThat(buckets, notNullValue());
+                assertThat(buckets, hasSize(4));
+                Set<String> expectedLastTokens = new HashSet<>(List.of("destroy", "init", "start", "stop"));
+                for (InternalCategorizationAggregation.Bucket bucket : buckets) {
+                    assertThat(bucket.getDocCount(), is(2500L));
+                    String[] tokens = bucket.getKeyAsString().split(" ");
+                    String lastToken = tokens[tokens.length - 1];
+                    assertThat(lastToken + " not found in " + expectedLastTokens, expectedLastTokens.remove(lastToken), is(true));
+                }
+                assertThat("Some expected last tokens not found " + expectedLastTokens, expectedLastTokens, empty());
+            }
+        );
     }
 }

@@ -11,7 +11,8 @@ package org.elasticsearch.gradle;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.gradle.api.Action;
 import org.gradle.api.Buildable;
-import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
@@ -44,7 +45,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final String name;
     private final Property<Boolean> dockerAvailability;
     // pkg private so plugin can configure
-    final Configuration configuration;
+    final FileCollection configuration;
 
     private final Property<Architecture> architecture;
     private final Property<String> version;
@@ -52,7 +53,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<Platform> platform;
     private final Property<Boolean> bundledJdk;
     private final Property<Boolean> failIfUnavailable;
-    private final Configuration extracted;
+    private final ConfigurableFileCollection extracted;
     private Action<ElasticsearchDistribution> distributionFinalizer;
     private boolean frozen = false;
 
@@ -60,8 +61,8 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         String name,
         ObjectFactory objectFactory,
         Property<Boolean> dockerAvailability,
-        Configuration fileConfiguration,
-        Configuration extractedConfiguration,
+        ConfigurableFileCollection fileConfiguration,
+        ConfigurableFileCollection extractedConfiguration,
         Action<ElasticsearchDistribution> distributionFinalizer
     ) {
         this.name = name;
@@ -172,7 +173,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         return configuration.getSingleFile().toString();
     }
 
-    public Configuration getExtracted() {
+    public ConfigurableFileCollection getExtracted() {
         if (getType().shouldExtract() == false) {
             throw new UnsupportedOperationException(
                 "distribution type [" + getType().getName() + "] for " + "elasticsearch distribution [" + name + "] cannot be extracted"

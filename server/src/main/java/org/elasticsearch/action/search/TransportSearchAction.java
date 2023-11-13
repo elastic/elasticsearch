@@ -1424,7 +1424,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         private final AtomicReference<Exception> exceptions;
         protected final SearchResponse.Clusters clusters;
         private final ActionListener<FinalResponse> originalListener;
-        private final AtomicBoolean originalListenerOnFailureCalled = new AtomicBoolean(false);
 
         /**
          * Used by both minimize_roundtrips true and false
@@ -1505,14 +1504,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     }
                     originalListener.onResponse(response);
                 } else {
-                    // only call onFailure on the originalListener once
-                    // as that listener expects it to occur only when the search has finished
-                    // when we fail fast to do cancellations, we'll have late arriving errors
-                    // (usually TaskCancelledExceptions) that should just be ignored
-                    boolean alreadyCalled = originalListenerOnFailureCalled.getAndSet(true);
-                    if (alreadyCalled == false) {
-                        originalListener.onFailure(exceptions.get());
-                    }
+                    originalListener.onFailure(exceptions.get());
                 }
             }
         }

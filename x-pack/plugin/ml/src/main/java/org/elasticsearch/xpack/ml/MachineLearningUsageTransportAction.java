@@ -55,18 +55,51 @@ import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransportAction {
+
+    private static class ModelStats {
+
+        private final String modelId;
+        private final String taskType;
+        private final StatsAccumulator inferenceCounts = new StatsAccumulator();
+        private Instant lastAccess;
+
+        ModelStats(String modelId, String taskType) {
+            this.modelId = modelId;
+            this.taskType = taskType;
+        }
+
+        void update(AssignmentStats.NodeStats stats) {
+            inferenceCounts.add(stats.getInferenceCount().orElse(0L));
+            if (stats.getLastAccess() != null && (lastAccess == null || stats.getLastAccess().isAfter(lastAccess))) {
+                lastAccess = stats.getLastAccess();
+            }
+        }
+
+        Map<String, Object> asMap() {
+            Map<String, Object> result = new HashMap<>();
+            result.put("model_id", modelId);
+            result.put("task_type", taskType);
+            result.put("inference_counts", inferenceCounts.asMap());
+            if (lastAccess != null) {
+                result.put("last_access", lastAccess.toString());
+            }
+            return result;
+        }
+    }
 
     private static final Logger logger = LogManager.getLogger(MachineLearningUsageTransportAction.class);
 
@@ -396,7 +429,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                     Map<String, Object> inferenceUsage = new LinkedHashMap<>();
                     addInferenceIngestUsage(getStatsResponse, inferenceUsage);
                     addTrainedModelStats(getModelsResponse, getStatsResponse, inferenceUsage);
-                    addDeploymentStats(getStatsResponse, inferenceUsage);
+                    addDeploymentStats(getModelsResponse, getStatsResponse, inferenceUsage);
                     listener.onResponse(inferenceUsage);
                 }, listener::onFailure));
             }, listener::onFailure));
@@ -405,11 +438,20 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         }
     }
 
-    private void addDeploymentStats(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
+    private static void addDeploymentStats(
+        GetTrainedModelsAction.Response modelsResponse,
+        GetTrainedModelsStatsAction.Response statsResponse,
+        Map<String, Object> inferenceUsage
+    ) {
+        Map<String, String> taskTypes = modelsResponse.getResources()
+            .results()
+            .stream()
+            .collect(Collectors.toMap(TrainedModelConfig::getModelId, cfg -> cfg.getInferenceConfig().getName()));
         StatsAccumulator modelSizes = new StatsAccumulator();
         int deploymentsCount = 0;
         double avgTimeSum = 0.0;
         StatsAccumulator nodeDistribution = new StatsAccumulator();
+        Map<String, ModelStats> statsByModel = new TreeMap<>();
         for (var stats : statsResponse.getResources().results()) {
             AssignmentStats deploymentStats = stats.getDeploymentStats();
             if (deploymentStats == null) {
@@ -420,10 +462,15 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             if (modelSizeStats != null) {
                 modelSizes.add(modelSizeStats.getModelSizeBytes());
             }
+            String modelId = deploymentStats.getModelId();
+            String taskType = taskTypes.get(deploymentStats.getModelId());
+            String mapKey = modelId + ":" + taskType;
+            ModelStats modelStats = statsByModel.computeIfAbsent(mapKey, key -> new ModelStats(modelId, taskType));
             for (var nodeStats : deploymentStats.getNodeStats()) {
                 long nodeInferenceCount = nodeStats.getInferenceCount().orElse(0L);
                 avgTimeSum += nodeStats.getAvgInferenceTime().orElse(0.0) * nodeInferenceCount;
                 nodeDistribution.add(nodeInferenceCount);
+                modelStats.update(nodeStats);
             }
         }
 
@@ -437,7 +484,9 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 "model_sizes_bytes",
                 modelSizes.asMap(),
                 "inference_counts",
-                nodeDistribution.asMap()
+                nodeDistribution.asMap(),
+                "stats_by_model",
+                statsByModel.values().stream().map(ModelStats::asMap).collect(Collectors.toList())
             )
         );
     }

@@ -42,10 +42,13 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalytic
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.action.DeleteConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.ListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestDeleteConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportDeleteConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
@@ -151,6 +154,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
             // Connectors
             new ActionHandler<>(DeleteConnectorAction.INSTANCE, TransportDeleteConnectorAction.class),
+            new ActionHandler<>(ListConnectorAction.INSTANCE, TransportListConnectorAction.class),
             new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
 
             usageAction,
@@ -196,6 +200,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
             // Connectors
             new RestDeleteConnectorAction(getLicenseState()),
+            new RestListConnectorAction(getLicenseState()),
             new RestPutConnectorAction(getLicenseState())
         );
     }

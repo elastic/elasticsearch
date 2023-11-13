@@ -172,7 +172,7 @@ public class EsqlQueryGenerator {
     }
 
     private static String sort(List<Column> previousOutput) {
-        int n = randomIntBetween(1, previousOutput.size()); 
+        int n = randomIntBetween(1, previousOutput.size());
         Set<String> proj = new HashSet<>();
         for (int i = 0; i < n; i++) {
             proj.add(randomName(previousOutput));

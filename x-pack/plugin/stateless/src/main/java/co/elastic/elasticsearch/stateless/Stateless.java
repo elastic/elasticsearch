@@ -675,6 +675,16 @@ public class Stateless extends Plugin
                             RecoverySource.EmptyStoreRecoverySource.INSTANCE
                         );
                         existingBlobContainer = null;
+                    } else if (indexShard.recoveryState().getRecoverySource() instanceof RecoverySource.SnapshotRecoverySource) {
+                        logger.info(
+                            "{} bootstrapping [{}] shard restore on primary term [{}] with snapshot recovery source ({})",
+                            shardId,
+                            indexShard.routingEntry().role(),
+                            indexShard.getOperationPrimaryTerm(),
+                            indexShard.recoveryState().getRecoverySource()
+                        );
+                        existingBlobContainer = null;
+
                     } else {
                         existingBlobContainer = blobStore.blobContainer(shardBasePath);
                     }

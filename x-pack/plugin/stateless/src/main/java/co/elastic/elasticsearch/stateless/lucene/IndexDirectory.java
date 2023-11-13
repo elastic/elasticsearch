@@ -49,7 +49,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -192,9 +191,7 @@ public class IndexDirectory extends ByteSizeDirectory {
             }
             if (localFile != null && localFile.tryIncRefNotUploaded()) {
                 try {
-                    var input = new ReopeningIndexInput(name, context, super.openInput(name, context), localFile);
-                    localFile.addListener(input);
-                    return input;
+                    return new ReopeningIndexInput(name, context, super.openInput(name, context), localFile);
                 } finally {
                     localFile.decRef();
                 }
@@ -449,11 +446,15 @@ public class IndexDirectory extends ByteSizeDirectory {
             return true;
         }
 
+        public boolean isUploaded() {
+            return uploaded.get();
+        }
+
         /**
          * Tries to increment the refCount of the local file only if the file is not marked as uploaded yet.
          */
         public boolean tryIncRefNotUploaded() {
-            if (uploaded.get()) {
+            if (isUploaded()) {
                 return false;
             }
             return tryIncRef();
@@ -494,7 +495,7 @@ public class IndexDirectory extends ByteSizeDirectory {
      * cache directory. When it reopens an IndexInput it takes care of restoring the position in the file as well as the clone or slice
      * state.
      */
-    private class ReopeningIndexInput extends BlobCacheBufferedIndexInput {
+    class ReopeningIndexInput extends BlobCacheBufferedIndexInput {
 
         private final String name;
         private final long length;
@@ -505,22 +506,22 @@ public class IndexDirectory extends ByteSizeDirectory {
         private final long sliceOffset;
         private final long sliceLength;
 
-        private LinkedList<ReopeningIndexInput> clones;
         private volatile Delegate delegate;
         private boolean closed;
         private boolean clone;
         private long position;
 
         ReopeningIndexInput(String name, IOContext context, IndexInput delegate, LocalFileRef localFile) {
-            this(name, delegate.length(), context, new Delegate(name, false, delegate, localFile, false), localFile, null, 0L, 0L);
+            this(name, delegate.length(), context, localFile, new LocalDelegate(name, delegate, localFile), null, 0L, 0L);
+            localFile.addListener(this);
         }
 
         private ReopeningIndexInput(
             String name,
             long length,
             IOContext context,
-            Delegate delegate,
             LocalFileRef localFile,
+            Delegate delegate,
             String sliceDescription,
             long sliceOffset,
             long sliceLength
@@ -536,61 +537,225 @@ public class IndexDirectory extends ByteSizeDirectory {
             this.delegate = delegate;
         }
 
-        private static class Delegate extends FilterIndexInput {
+        /**
+         * Base class for all delegate implementations
+         */
+        abstract static class Delegate extends FilterIndexInput implements RefCounted {
 
+            protected final AtomicBoolean closed;
+            private final boolean cached;
+
+            private Delegate(String name, boolean cached, IndexInput input) {
+                super("delegate(" + name + ')', input);
+                this.closed = new AtomicBoolean(false);
+                this.cached = cached;
+            }
+
+            public final boolean isCached() {
+                return cached;
+            }
+        }
+
+        /**
+         * A delegate implementation that allows reading from a local file on disk.
+         * <p>
+         * The delegate is a {@link RefCounted} object that holds a ref on a {@link LocalFileRef} until the delegate is fully released. This
+         * is useful to know which files on disk are really opened for reading. It also allows to keep a more accurate estimate of the
+         * directory total size, and having the file apparent in the directory folder can be useful for debugging purpose too.
+         * </p>
+         * <p>
+         * For example, during merges Lucene might delete a local file using {@link #deleteFile(String)} and continue to read from it. By
+         * holding a ref on the {@link LocalFileRef}, the file remains in the directory folder on disk until the {@link LocalDelegate} is
+         * fully released.
+         * </p>
+         * <p>
+         * When the local file is uploaded to the object store, the {@link LocalFileRef} calls back the {@link ReopeningIndexInput}
+         * instances to reopen them from the cache. This will close the {@link LocalDelegate}, which in turn will release the local file
+         * and will allow its deletion from the disk.
+         * </p>
+         * Clones and slices of {@link LocalDelegate} work a bit differently and do not hold a ref on the {@link LocalFileRef}. Instead,
+         * they hold a ref on the parent {@link LocalDelegate} itself (ie, the original index input) and only for the time of executing an
+         * operation. If the parent has been released, then the clones and slices should be reopened from the cache.
+         */
+        private static class LocalDelegate extends Delegate {
+
+            private final String name;
             private final LocalFileRef localFile;
-            private final AtomicBoolean closed;
-            private final boolean isReopened;
+            private final AbstractRefCounted refCounted;
+
+            private LocalDelegate(String name, IndexInput input, LocalFileRef localFile) {
+                super("local(" + name + ')', false, input);
+                this.name = Objects.requireNonNull(name);
+                this.localFile = Objects.requireNonNull(localFile);
+                this.localFile.incRef();
+                this.refCounted = AbstractRefCounted.of(() -> {
+                    try {
+                        try {
+                            super.close();
+                        } catch (IOException e) {
+                            assert false : e;
+                            throw new UncheckedIOException(e);
+                        }
+                    } finally {
+                        localFile.decRef();
+                    }
+                });
+            }
+
+            @Override
+            public void incRef() {
+                refCounted.incRef();
+            }
+
+            @Override
+            public boolean tryIncRef() {
+                if (localFile.isUploaded()) {
+                    // the file is uploaded, use the cached delegate
+                    return false;
+                }
+                return refCounted.tryIncRef();
+            }
+
+            @Override
+            public boolean decRef() {
+                return refCounted.decRef();
+            }
+
+            @Override
+            public boolean hasReferences() {
+                return refCounted.hasReferences();
+            }
+
+            @Override
+            public void close() {
+                if (closed.compareAndSet(false, true)) {
+                    refCounted.decRef();
+                }
+            }
+
+            @Override
+            public IndexInput slice(String sliceDescription, long sliceOffset, long sliceLength) throws IOException {
+                return new Clone(in.slice(sliceDescription, sliceOffset, sliceLength), this);
+            }
+
+            @Override
+            public IndexInput clone() {
+                return new Clone(in.clone(), this);
+            }
+
+            @Override
+            public String toString() {
+                return "LocalDelegate [input=" + in.getClass() + ", refCount=" + refCounted.refCount() + ", localFile=" + localFile + ']';
+            }
+
+            /**
+             * Clone or slice of a {@link LocalDelegate}.
+             * <p>
+             * Clones and slices try to increment/decrement a reference on the original index input before executing an operation.
+             * </p>
+             */
+            private static class Clone extends Delegate {
+
+                private final LocalDelegate parent;
+
+                private Clone(IndexInput input, LocalDelegate parent) {
+                    super("clone(local(" + parent.name + "))", false, input);
+                    this.parent = Objects.requireNonNull(parent);
+                }
+
+                @Override
+                public void incRef() {
+                    parent.incRef();
+                }
+
+                @Override
+                public boolean tryIncRef() {
+                    return parent.tryIncRef();
+                }
+
+                @Override
+                public boolean decRef() {
+                    return parent.decRef();
+                }
+
+                @Override
+                public boolean hasReferences() {
+                    return parent.hasReferences();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    // clones are not closed and should not close the index input,
+                    // the parent will close the original index input
+                }
+
+                @Override
+                public IndexInput slice(String sliceDescription, long sliceOffset, long sliceLength) throws IOException {
+                    return new Clone(in.slice(sliceDescription, sliceOffset, sliceLength), parent);
+                }
+
+                @Override
+                public IndexInput clone() {
+                    return new Clone(in.clone(), parent);
+                }
+
+                @Override
+                public String toString() {
+                    return "Clone of LocalDelegate [input=" + in.getClass() + ", parent=" + parent + ']';
+                }
+            }
+        }
+
+        /**
+         * A delegate implementation that allows reading from the cache.
+         */
+        private static class CachedDelegate extends Delegate {
+
             private final boolean clone;
 
-            private Delegate(String name, boolean isReopened, IndexInput input, LocalFileRef localFile, boolean isClone) {
-                super("delegate(" + name + ')', input);
-                assert isClone == false || localFile == null;
-                assert isReopened == false || localFile == null;
-                this.closed = new AtomicBoolean(false);
-                this.isReopened = isReopened;
-                this.localFile = localFile;
-                this.clone = isClone;
-                if (localFile != null) {
-                    localFile.incRef();
-                }
+            private CachedDelegate(String name, IndexInput input, boolean clone) {
+                super("cached(" + name + ')', true, input);
+                assert input instanceof SearchIndexInput : input;
+                this.clone = clone;
+            }
+
+            @Override
+            public void incRef() {
+                throw new UnsupportedOperationException("incRef is not supported");
+            }
+
+            @Override
+            public boolean tryIncRef() {
+                throw new UnsupportedOperationException("tryIncRef is not supported");
+            }
+
+            @Override
+            public boolean decRef() {
+                throw new UnsupportedOperationException("decRef is not supported");
+            }
+
+            @Override
+            public boolean hasReferences() {
+                throw new UnsupportedOperationException("hasReferences is not supported");
             }
 
             @Override
             public void close() throws IOException {
                 if (closed.compareAndSet(false, true)) {
-                    try {
-                        if (clone == false) {
-                            super.close();
-                        }
-                    } finally {
-                        if (localFile != null) {
-                            localFile.decRef();
-                        }
+                    if (clone == false) {
+                        super.close();
                     }
                 }
-            }
-
-            public boolean isReopened() {
-                return isReopened;
-            }
-
-            @Override
-            public String toString() {
-                return "Delegate [isReopened="
-                    + isReopened
-                    + ", input="
-                    + in.getClass()
-                    + ", localFile="
-                    + localFile
-                    + ", clone="
-                    + clone
-                    + ']';
             }
 
             @Override
             public IndexInput clone() {
                 throw new UnsupportedOperationException("Cloning is not supported, clone the delegate input instead");
+            }
+
+            @Override
+            public String toString() {
+                return "CachedDelegate [input=" + in.getClass() + ", clone=" + clone + ']';
             }
         }
 
@@ -600,22 +765,26 @@ public class IndexDirectory extends ByteSizeDirectory {
          */
         private <T> T executeLocallyOrReopen(CheckedFunction<Delegate, T, IOException> fn) throws IOException {
             var currentDelegate = delegate;
-            if (currentDelegate.isReopened()) {
+            if (currentDelegate.isCached()) {
                 return fn.apply(currentDelegate);
             }
             synchronized (this) {
                 currentDelegate = delegate;
-                if (currentDelegate.isReopened() == false) {
-                    if (localFile.tryIncRefNotUploaded()) {
+                if (currentDelegate.isCached() == false) {
+                    if (currentDelegate.tryIncRef()) {
                         try {
                             return fn.apply(currentDelegate);
                         } finally {
-                            localFile.decRef();
+                            currentDelegate.decRef();
                         }
                     }
                 }
             }
             return fn.apply(reopenInputFromCache());
+        }
+
+        Delegate getDelegate() {
+            return delegate;
         }
 
         @Override
@@ -646,17 +815,15 @@ public class IndexDirectory extends ByteSizeDirectory {
         public BlobCacheBufferedIndexInput clone() {
             try {
                 return executeLocallyOrReopen(current -> {
-                    // We clone the actual delegate input. No need to clone our wrapper with the isReopened marker.
-                    IndexInput inputToClone = current.getDelegate();
-                    if (current.isReopened()) {
+                    if (current.isCached()) {
+                        // We clone the actual delegate input. No need to clone our Delegate wrapper with the "cached" flag.
+                        IndexInput inputToClone = current.getDelegate();
                         assert inputToClone instanceof SearchIndexInput : toString();
                         return seekOnClone(((BlobCacheBufferedIndexInput) inputToClone).clone());
                     } else {
                         final var clone = (ReopeningIndexInput) super.clone();
-                        clone.delegate = new Delegate(name, false, inputToClone.clone(), null, true);
-                        clone.clones = null;
+                        clone.delegate = (Delegate) current.clone();
                         clone.clone = true;
-                        addClone(clone);
                         return clone;
                     }
                 });
@@ -683,7 +850,7 @@ public class IndexDirectory extends ByteSizeDirectory {
         public IndexInput slice(String sliceDescription, long sliceOffset, long sliceLength) throws IOException {
             assert sliceDescription != null;
             return executeLocallyOrReopen(current -> {
-                if (current.isReopened()) {
+                if (current.isCached()) {
                     assert current.getDelegate() instanceof SearchIndexInput : toString();
                     return current.slice(sliceDescription, sliceOffset, sliceLength);
                 } else {
@@ -692,14 +859,13 @@ public class IndexDirectory extends ByteSizeDirectory {
                         name,
                         sliceLength,
                         context,
-                        new Delegate(name, false, current.slice(sliceDescription, sliceOffset, sliceLength), null, true),
-                        localFile,
+                        null,
+                        (Delegate) current.slice(sliceDescription, sliceOffset, sliceLength),
                         sliceDescription,
                         this.sliceOffset + sliceOffset,
                         sliceLength
                     );
                     slice.clone = true;
-                    addClone(slice);
                     return slice;
                 }
             });
@@ -718,43 +884,9 @@ public class IndexDirectory extends ByteSizeDirectory {
             });
         }
 
-        private void addClone(ReopeningIndexInput clone) {
-            assert Thread.holdsLock(this);
-            assert delegate.isReopened() == false;
-            assert clone.clone;
-            if (clones == null) {
-                clones = new LinkedList<>();
-            }
-            clones.add(clone);
-        }
-
-        private void reopenClonesFromCache() throws IOException {
-            assert Thread.holdsLock(this);
-            assert delegate.isReopened() == false;
-            try {
-                if (clones != null) {
-                    for (var child : clones) {
-                        try {
-                            child.reopenInputFromCache();
-                        } catch (IOException e) {
-                            assert false : e;
-                            var finalChild = child;
-                            logger.warn(
-                                () -> format("{} failed to reopen clone from cache {}", cacheDirectory.getShardId(), finalChild),
-                                e
-                            );
-                        }
-                    }
-                }
-            } finally {
-                clones = null;
-            }
-        }
-
         private synchronized Delegate reopenInputFromCache() throws IOException {
-            if (delegate.isReopened() == false) {
+            if (delegate.isCached() == false) {
                 try {
-                    reopenClonesFromCache();
                     if (closed == false) {
                         var next = cacheDirectory.openInput(name, context);
                         assert next instanceof SearchIndexInput : next;
@@ -765,7 +897,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                             next.seek(position);
                         }
                         delegate.close();
-                        Delegate nextDelegate = new Delegate(name, true, next, null, clone);
+                        Delegate nextDelegate = new CachedDelegate(name, next, clone);
                         this.delegate = nextDelegate;
                         return nextDelegate;
                     }
@@ -785,8 +917,6 @@ public class IndexDirectory extends ByteSizeDirectory {
                 + "]["
                 + ", context="
                 + context
-                + ", localFile="
-                + localFile
                 + ", delegate="
                 + delegate
                 + ", clone="

@@ -66,7 +66,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         assertTrue(future1.isDone());
 
         // Add duplicate connect attempt to ensure that we do not get duplicate connections in the round robin
-        remoteConnectionManager.connectToRemoteClusterNode(node1, validator, new PlainActionFuture<Void>());
+        remoteConnectionManager.connectToRemoteClusterNode(node1, validator, new PlainActionFuture<>());
 
         DiscoveryNode node2 = DiscoveryNodeUtils.create("node-2", address, Version.CURRENT.minimumCompatibilityVersion());
         PlainActionFuture<Void> future2 = new PlainActionFuture<>();

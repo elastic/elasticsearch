@@ -91,7 +91,7 @@ public class FlushListenersTests extends ESTestCase {
 
             expectThrows(AlreadyClosedException.class, future::actionGet);
 
-            expectThrows(IllegalStateException.class, () -> flushListeners.addOrNotify(waitLocation, new PlainActionFuture<Long>()));
+            expectThrows(IllegalStateException.class, () -> flushListeners.addOrNotify(waitLocation, new PlainActionFuture<>()));
         }
     }
 }

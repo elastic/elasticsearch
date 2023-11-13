@@ -377,7 +377,6 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     }
 
     public void testNullIndexShardRoutingTable() {
-        PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
         IndexShardRoutingTable shardRoutingTable = null;
         assertThat(
             expectThrows(

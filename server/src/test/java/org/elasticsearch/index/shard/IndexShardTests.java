@@ -427,7 +427,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexShard.getPendingPrimaryTerm() + randomIntBetween(1, 100),
                 UNASSIGNED_SEQ_NO,
                 randomNonNegativeLong(),
-                new PlainActionFuture<Releasable>()
+                new PlainActionFuture<>()
             )
         );
         closeShards(indexShard);

@@ -3928,7 +3928,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // a refresh can be a costly operation, so we should fork to a refresh thread to be safe:
                 threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
                     if (location == pendingRefreshLocation.get()) {
-                        getEngine().maybeRefresh("ensure-shard-search-active", new PlainActionFuture<Engine.RefreshResult>());
+                        getEngine().maybeRefresh("ensure-shard-search-active", new PlainActionFuture<>());
                     }
                 });
             }

@@ -84,7 +84,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
     public void testHandshakeRequestFutureVersionsCompatibility() throws IOException {
         long reqId = randomLongBetween(1, 10);
-        handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), new PlainActionFuture<TransportVersion>());
+        handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), new PlainActionFuture<>());
 
         verify(requestSender).sendRequest(node, channel, reqId, TransportHandshaker.REQUEST_HANDSHAKE_VERSION);
 

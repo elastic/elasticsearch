@@ -303,8 +303,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
      * Gets the translog blob container of a node
      */
     public BlobContainer getTranslogBlobContainer(String nodeEphemeralId) {
-        final BlobStoreRepository objectStore = getObjectStore();
-        return objectStore.blobStore().blobContainer(objectStore.basePath().add("nodes").add(nodeEphemeralId).add("translog"));
+        return getObjectStore().blobStore().blobContainer(objectStore.basePath().add("nodes").add(nodeEphemeralId).add("translog"));
+    }
+
+    /**
+     * Gets the set of node ephemeral IDs that have translog blob containers
+     */
+    public Set<String> getNodesWithTranslogBlobContainers() throws IOException {
+        return getObjectStore().blobStore().blobContainer(objectStore.basePath().add("nodes")).children(OperationPurpose.TRANSLOG).keySet();
     }
 
     public RepositoryStats stats() {

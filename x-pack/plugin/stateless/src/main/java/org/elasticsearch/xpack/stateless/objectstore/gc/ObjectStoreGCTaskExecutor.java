@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -63,17 +64,20 @@ public class ObjectStoreGCTaskExecutor extends PersistentTasksExecutor<ObjectSto
     private final ThreadPool threadPool;
     private final PersistentTasksService persistentTasksService;
     private final StaleIndicesGCService staleIndicesGCService;
+    private final StaleTranslogsGCService staleTranslogsGCService;
 
     private ObjectStoreGCTaskExecutor(
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        Supplier<ObjectStoreService> objectStoreServiceSupplier
+        Supplier<ObjectStoreService> objectStoreService,
+        Settings settings
     ) {
         super(ObjectStoreGCTask.TASK_NAME, ThreadPool.Names.GENERIC);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.staleIndicesGCService = new StaleIndicesGCService(objectStoreServiceSupplier, clusterService, threadPool, client);
+        this.staleIndicesGCService = new StaleIndicesGCService(objectStoreService, clusterService, threadPool, client);
+        this.staleTranslogsGCService = new StaleTranslogsGCService(objectStoreService, clusterService, threadPool, client, settings);
         this.persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
     }
 
@@ -81,9 +85,10 @@ public class ObjectStoreGCTaskExecutor extends PersistentTasksExecutor<ObjectSto
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        Supplier<ObjectStoreService> objectStoreServiceSupplier
+        Supplier<ObjectStoreService> objectStoreServiceSupplier,
+        Settings settings
     ) {
-        var executor = new ObjectStoreGCTaskExecutor(clusterService, threadPool, client, objectStoreServiceSupplier);
+        var executor = new ObjectStoreGCTaskExecutor(clusterService, threadPool, client, objectStoreServiceSupplier, settings);
         clusterService.addListener(executor);
         return executor;
     }
@@ -134,6 +139,7 @@ public class ObjectStoreGCTaskExecutor extends PersistentTasksExecutor<ObjectSto
             parentTaskId,
             headers,
             staleIndicesGCService,
+            staleTranslogsGCService,
             threadPool,
             clusterService.getSettings()
         );

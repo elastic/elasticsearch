@@ -571,6 +571,8 @@ public class Stateless extends Plugin
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
             BlobStoreHealthIndicator.CHECK_TIMEOUT_SETTING,
             ObjectStoreGCTask.STALE_INDICES_GC_ENABLED_SETTING,
+            ObjectStoreGCTask.STALE_TRANSLOGS_GC_ENABLED_SETTING,
+            ObjectStoreGCTask.STALE_TRANSLOGS_GC_FILES_LIMIT_SETTING,
             ObjectStoreGCTask.GC_INTERVAL_SETTING
         );
     }
@@ -1038,7 +1040,9 @@ public class Stateless extends Plugin
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return List.of(ObjectStoreGCTaskExecutor.create(clusterService, threadPool, client, objectStoreService::get));
+        return List.of(
+            ObjectStoreGCTaskExecutor.create(clusterService, threadPool, client, objectStoreService::get, settingsModule.getSettings())
+        );
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

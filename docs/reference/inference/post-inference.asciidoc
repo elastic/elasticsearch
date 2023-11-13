@@ -25,9 +25,9 @@ Performs an inference task on an input text by using an {infer} model.
 [[post-inference-api-desc]]
 ==== {api-description-title}
 
-The perform {infer} API enables you to use {infer} models to perform specific 
-tasks on data that you provide as an input. The API returns a response with the 
-resutls of the tasks. The {infer} model you use can perform one specific task 
+The perform {infer} API enables you to use {infer} models to perform specific
+tasks on data that you provide as an input. The API returns a response with the
+resutls of the tasks. The {infer} model you use can perform one specific task
 that has been defined when the model was created with the <<put-inference-api>>.
 
 
@@ -50,8 +50,9 @@ The type of {infer} task that the model performs.
 == {api-request-body-title}
 
 `input`::
-(Required, string)
+(Required, array of strings)
 The text on which you want to perform the {infer} task.
+`input` can be a single string or an array.
 
 
 [discrete]

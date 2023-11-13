@@ -56,7 +56,7 @@ public class HuggingFaceElserResponseEntity {
      *   </code>
      * </pre>
      */
-    public static TextExpansionResults fromResponse(HttpResult response) throws IOException {
+    public static List<TextExpansionResults> fromResponse(HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
@@ -70,11 +70,11 @@ public class HuggingFaceElserResponseEntity {
             );
 
             if (parsedResponse.isEmpty()) {
-                return new TextExpansionResults(DEFAULT_RESULTS_FIELD, Collections.emptyList(), false);
+                return List.of(new TextExpansionResults(DEFAULT_RESULTS_FIELD, Collections.emptyList(), false));
             }
 
             // we only handle a single response right now so just grab the first one
-            return parsedResponse.get(0);
+            return parsedResponse;
         }
     }
 

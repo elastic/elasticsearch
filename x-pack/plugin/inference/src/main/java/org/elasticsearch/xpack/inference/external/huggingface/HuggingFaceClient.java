@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFa
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -35,7 +36,7 @@ public class HuggingFaceClient {
         this.throttlerManager = throttlerManager;
     }
 
-    public void send(HuggingFaceElserRequest request, ActionListener<InferenceResults> listener) throws IOException {
+    public void send(HuggingFaceElserRequest request, ActionListener<List<? extends InferenceResults>> listener) throws IOException {
         HttpRequestBase httpRequest = request.createRequest();
         ActionListener<HttpResult> responseListener = ActionListener.wrap(response -> {
             try {

@@ -208,7 +208,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Setting.Property.NodeScope
     );
 
-    static final NodeFeature SUPPORTS_AUTO_PUT = new NodeFeature("indices.supports_auto_put");
+    static final NodeFeature SUPPORTS_AUTO_PUT = new NodeFeature("indices.auto_put_supported");
 
     /**
      * The node's settings.

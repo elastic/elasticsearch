@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -41,5 +42,19 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
 
         assertNull(settings.user());
         assertThat(settings.model(), is("model"));
+    }
+
+    public static Map<String, Object> getRequestTaskSettingsMap(@Nullable String model, @Nullable String user) {
+        var map = new HashMap<String, Object>();
+
+        if (model != null) {
+            map.put(OpenAiEmbeddingsTaskSettings.MODEL, model);
+        }
+
+        if (user != null) {
+            map.put(OpenAiEmbeddingsTaskSettings.USER, user);
+        }
+
+        return map;
     }
 }

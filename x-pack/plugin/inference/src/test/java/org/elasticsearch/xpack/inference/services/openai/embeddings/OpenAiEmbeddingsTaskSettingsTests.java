@@ -51,19 +51,54 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testFromMap_CreatesWithModelAndUser() {
-        var serviceSettings = OpenAiEmbeddingsTaskSettings.fromMap(
+        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user"))
         );
 
-        assertThat(serviceSettings.model(), is("model"));
-        assertThat(serviceSettings.user(), is("user"));
+        assertThat(taskSettings.model(), is("model"));
+        assertThat(taskSettings.user(), is("user"));
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var serviceSettings = OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model")));
+        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model")));
 
-        assertThat(serviceSettings.model(), is("model"));
-        assertNull(serviceSettings.user());
+        assertThat(taskSettings.model(), is("model"));
+        assertNull(taskSettings.user());
+    }
+
+    public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
+        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user"))
+        );
+
+        var overriddenTaskSettings = taskSettings.overrideWith(OpenAiEmbeddingsRequestTaskSettings.EMPTY_SETTINGS);
+        assertThat(overriddenTaskSettings, is(taskSettings));
+    }
+
+    public void testOverrideWith_UsesOverriddenSettings() {
+        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user"))
+        );
+
+        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model2", OpenAiEmbeddingsTaskSettings.USER, "user2"))
+        );
+
+        var overriddenTaskSettings = taskSettings.overrideWith(requestTaskSettings);
+        assertThat(overriddenTaskSettings, is(new OpenAiEmbeddingsTaskSettings("model2", "user2")));
+    }
+
+    public void testOverrideWith_UsesOnlyNonNullModelSetting() {
+        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model", OpenAiEmbeddingsTaskSettings.USER, "user"))
+        );
+
+        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model2"))
+        );
+
+        var overriddenTaskSettings = taskSettings.overrideWith(requestTaskSettings);
+        assertThat(overriddenTaskSettings, is(new OpenAiEmbeddingsTaskSettings("model2", "user")));
     }
 
     @Override

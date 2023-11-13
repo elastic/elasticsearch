@@ -1052,6 +1052,16 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 8.11.1
+      - label: 8.11.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.11.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.11.2
   - label: concurrent-search-tests
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true check
     timeout_in_minutes: 420

@@ -60,7 +60,7 @@ public class JoinRequest extends TransportRequest {
         long minimumTerm,
         Optional<Join> optionalJoin
     ) {
-        assert optionalJoin.isPresent() == false || optionalJoin.get().getSourceNode().equals(sourceNode);
+        assert optionalJoin.isPresent() == false || optionalJoin.get().getVotingNode().equals(sourceNode);
         this.sourceNode = sourceNode;
         this.compatibilityVersions = compatibilityVersions;
         this.features = features;

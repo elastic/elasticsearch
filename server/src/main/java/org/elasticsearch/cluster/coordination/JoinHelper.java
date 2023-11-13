@@ -62,6 +62,12 @@ import java.util.function.ObjLongConsumer;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
+/**
+ * Handler for cluster join commands. A master-eligible node running for election will
+ * send a {@link StartJoinRequest} to each voting node in the cluster. A node that becomes
+ * aware of a new term and master will send a {@link Join} request to the new master, to
+ * re-form the cluster around the new master node.
+ */
 public class JoinHelper {
 
     private static final Logger logger = LogManager.getLogger(JoinHelper.class);
@@ -136,7 +142,7 @@ public class JoinHelper {
             false,
             StartJoinRequest::new,
             (request, channel, task) -> {
-                final DiscoveryNode destination = request.getSourceNode();
+                final DiscoveryNode destination = request.getMasterCandidateNode();
                 sendJoinRequest(destination, currentTermSupplier.getAsLong(), Optional.of(joinLeaderInTerm.apply(request)));
                 channel.sendResponse(Empty.INSTANCE);
             }
@@ -368,8 +374,8 @@ public class JoinHelper {
     }
 
     void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
-        assert startJoinRequest.getSourceNode().isMasterNode()
-            : "sending start-join request for master-ineligible " + startJoinRequest.getSourceNode();
+        assert startJoinRequest.getMasterCandidateNode().isMasterNode()
+            : "sending start-join request for master-ineligible " + startJoinRequest.getMasterCandidateNode();
         transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new TransportResponseHandler.Empty() {
             @Override
             public Executor executor(ThreadPool threadPool) {

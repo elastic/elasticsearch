@@ -3823,16 +3823,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // lets skip this refresh since we are search idle and
                     // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
                     // cause the next schedule to refresh.
+                    logger.trace("scheduledRefresh: search-idle, skipping refresh");
                     engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
                     setRefreshPending(engine);
                     l.onResponse(false);
                     return;
                 } else {
-                    logger.trace("refresh with source [schedule]");
+                    logger.trace("scheduledRefresh: refresh with source [schedule]");
                     engine.maybeRefresh("schedule", l.map(Engine.RefreshResult::refreshed));
                     return;
                 }
             }
+            logger.trace("scheduledRefresh: no refresh needed");
             engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
             l.onResponse(false);
         });

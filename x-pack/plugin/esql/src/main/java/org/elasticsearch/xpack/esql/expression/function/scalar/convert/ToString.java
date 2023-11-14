@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -33,6 +34,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialUtils.geoPointAsString;
+import static org.elasticsearch.xpack.ql.util.SpatialUtils.longAsGeoPoint;
 
 public class ToString extends AbstractConvertFunction implements EvaluatorMapper {
 
@@ -46,14 +49,15 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
         Map.entry(TEXT, (fieldEval, source) -> fieldEval),
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
-        Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new)
+        Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
+        Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new)
     );
 
     public ToString(
         Source source,
         @Param(
             name = "v",
-            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long" }
+            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long", "geo_point" }
         ) Expression v
     ) {
         super(source, v);
@@ -117,5 +121,10 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromUnsignedLong")
     static BytesRef fromUnsignedLong(long lng) {
         return new BytesRef(unsignedLongAsNumber(lng).toString());
+    }
+
+    @ConvertEvaluator(extraName = "FromGeoPoint")
+    static BytesRef fromGeoPoint(long point) {
+        return new BytesRef(geoPointAsString(longAsGeoPoint(point)));
     }
 }

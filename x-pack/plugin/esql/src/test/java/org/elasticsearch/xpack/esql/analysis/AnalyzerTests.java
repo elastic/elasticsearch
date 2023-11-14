@@ -1121,78 +1121,78 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedFieldsInStats() {
-        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        var errorMsg = "Cannot use field [shape] with unsupported type [geo_shape]";
 
         verifyUnsupported("""
             from test
-            | stats max(point)
+            | stats max(shape)
             """, errorMsg);
         verifyUnsupported("""
             from test
-            | stats max(int) by point
+            | stats max(int) by shape
             """, errorMsg);
         verifyUnsupported("""
             from test
-            | stats max(int) by bool, point
+            | stats max(int) by bool, shape
             """, errorMsg);
     }
 
     public void testUnsupportedFieldsInEval() {
-        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        var errorMsg = "Cannot use field [shape] with unsupported type [geo_shape]";
 
         verifyUnsupported("""
             from test
-            | eval x = point
+            | eval x = shape
             """, errorMsg);
         verifyUnsupported("""
             from test
-            | eval foo = 1, x = point
+            | eval foo = 1, x = shape
             """, errorMsg);
         verifyUnsupported("""
             from test
-            | eval x = 1 + point
+            | eval x = 1 + shape
             """, errorMsg);
     }
 
     public void testUnsupportedFieldsInWhere() {
-        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        var errorMsg = "Cannot use field [shape] with unsupported type [geo_shape]";
 
         verifyUnsupported("""
             from test
-            | where point == "[1.0, 1.0]"
+            | where shape == "[1.0, 1.0]"
             """, errorMsg);
         verifyUnsupported("""
             from test
-            | where int > 2 and point == "[1.0, 1.0]"
+            | where int > 2 and shape == "[1.0, 1.0]"
             """, errorMsg);
     }
 
     public void testUnsupportedFieldsInSort() {
-        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        var errorMsg = "Cannot use field [shape] with unsupported type [geo_shape]";
 
         verifyUnsupported("""
             from test
-            | sort point
+            | sort shape
             """, errorMsg);
         verifyUnsupported("""
             from test
-            | sort int, point
+            | sort int, shape
             """, errorMsg);
     }
 
     public void testUnsupportedFieldsInDissect() {
-        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        var errorMsg = "Cannot use field [shape] with unsupported type [geo_shape]";
         verifyUnsupported("""
             from test
-            | dissect point \"%{foo}\"
+            | dissect shape \"%{foo}\"
             """, errorMsg);
     }
 
     public void testUnsupportedFieldsInGrok() {
-        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        var errorMsg = "Cannot use field [shape] with unsupported type [geo_shape]";
         verifyUnsupported("""
             from test
-            | grok point \"%{WORD:foo}\"
+            | grok shape \"%{WORD:foo}\"
             """, errorMsg);
     }
 
@@ -1216,7 +1216,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
-        final String supportedTypes = "boolean, datetime, double, integer, ip, keyword, long, text, unsigned_long or version";
+        final String supportedTypes = "boolean, datetime, double, geo_point, integer, ip, keyword, long, text, unsigned_long or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
             "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
@@ -1225,7 +1225,7 @@ public class AnalyzerTests extends ESTestCase {
             "row duration = 1 hour | eval to_string(duration)",
             "line 1:30: argument of [to_string(duration)] must be [" + supportedTypes + "], found value [duration] type [time_duration]"
         );
-        verifyUnsupported("from test | eval to_string(point)", "line 1:28: Cannot use field [point] with unsupported type [geo_point]");
+        verifyUnsupported("from test | eval to_string(shape)", "line 1:28: Cannot use field [shape] with unsupported type [geo_shape]");
     }
 
     public void testNonExistingEnrichPolicy() {

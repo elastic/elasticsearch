@@ -738,3 +738,30 @@ _source disabled:
   - match: { columns.0.type: _source }
   - length: { values: 1 }
   - match: { values.0.0: null }
+
+geo_point:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "location": "POINT(1 -1)" }
+
+  - do:
+      esql.query:
+        body:
+        query: 'from test'
+  - match: { columns.0.name: location }
+  - match: { columns.0.type: geo_point }
+  - length: { values: 1 }
+  - match: { values.0.0: "POINT (0.9999999403953552 -1.000000024214387)" }

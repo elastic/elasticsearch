@@ -42,6 +42,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.util.SpatialUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -261,6 +262,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
+            case "geo_point" -> SpatialUtils.longAsGeoPoint(((LongBlock) block).getLong(offset));
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             case "_source" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -317,6 +319,10 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
                         }
+                    }
+                    case "geo_point" -> {
+                        long longVal = SpatialUtils.geoPointAsLong(SpatialUtils.stringAsGeoPoint(value.toString()));
+                        ((LongBlock.Builder) builder).appendLong(longVal);
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }

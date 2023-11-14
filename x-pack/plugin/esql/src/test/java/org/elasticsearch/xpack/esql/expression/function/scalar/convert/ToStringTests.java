@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.SpatialUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -82,6 +83,13 @@ public class ToStringTests extends AbstractFunctionTestCase {
             "ToStringFromDatetimeEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
             i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i.toEpochMilli())),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryGeoPoint(
+            suppliers,
+            "ToStringFromGeoPointEvaluator[field=" + read + "]",
+            DataTypes.KEYWORD,
+            i -> new BytesRef(SpatialUtils.geoPointAsString(SpatialUtils.longAsGeoPoint(i))),
             List.of()
         );
         TestCaseSupplier.forUnaryIp(

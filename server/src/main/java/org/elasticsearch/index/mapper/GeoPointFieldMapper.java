@@ -207,6 +207,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 stored.get(),
                 hasDocValues.get(),
                 geoParser,
+                nullValue.get(),
                 scriptValues(),
                 meta.get(),
                 metric.get(),
@@ -363,6 +364,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             List.of(new SimpleVectorTileFormatter())
         );
 
+        private final GeoPoint nullValue;
         private final FieldValues<GeoPoint> scriptValues;
         private final IndexMode indexMode;
 
@@ -372,12 +374,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             boolean stored,
             boolean hasDocValues,
             Parser<GeoPoint> parser,
+            GeoPoint nullValue,
             FieldValues<GeoPoint> scriptValues,
             Map<String, String> meta,
             TimeSeriesParams.MetricType metricType,
             IndexMode indexMode
         ) {
             super(name, indexed, stored, hasDocValues, parser, meta);
+            this.nullValue = nullValue;
             this.scriptValues = scriptValues;
             this.metricType = metricType;
             this.indexMode = indexMode;
@@ -385,7 +389,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         // only used in test
         public GeoPointFieldType(String name, TimeSeriesParams.MetricType metricType, IndexMode indexMode) {
-            this(name, true, false, true, null, null, Collections.emptyMap(), metricType, indexMode);
+            this(name, true, false, true, null, null, null, Collections.emptyMap(), metricType, indexMode);
         }
 
         // only used in test
@@ -476,6 +480,15 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return BlockDocValuesReader.longs(name());
+            }
+            // TODO: Currently we use longs in the compute engine and render to WKT in ESQL
+            return BlockSourceReader.longs(valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT));
         }
 
         @Override

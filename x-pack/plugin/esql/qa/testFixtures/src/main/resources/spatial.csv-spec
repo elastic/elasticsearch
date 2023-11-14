@@ -1,0 +1,43 @@
+convertFromLong
+row long = 1512146573982606908
+| eval pt = to_geopoint(long);
+
+long:long           |pt:geo_point
+1512146573982606908 |POINT(42.97109630194 14.7552534413725)
+;
+
+convertFromString
+row wkt = "POINT(42.97109630194 14.7552534413725)"
+| eval pt = to_geopoint(wkt);
+
+wkt:keyword                              |pt:geo_point
+"POINT(42.97109630194 14.7552534413725)" |POINT(42.97109630194 14.7552534413725)
+;
+
+convertFromLongArray
+row long = [1512146573982606908, 2329183180959557901]
+| eval pt = to_geopoint(long);
+
+long:long                                  |pt:geo_point
+[1512146573982606908, 2329183180959557901] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
+;
+
+convertFromStringArray
+row wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
+| eval pt = to_geopoint(wkt);
+
+wkt:keyword                                                                           |pt:geo_point
+["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
+;
+
+simpleLoad
+from airports | limit 10 | sort abbrev | where length(name) > 8;
+
+abbrev:keyword | location:geo_point                       | name:text                   | scalerank:i | type:k     
+HOD            | POINT(42.97109630194 14.7552534413725)   | Hodeidah Int'l              | 9           | mid              
+IDR            | POINT(75.8092915005895 22.727749187571)  | Devi Ahilyabai Holkar Int'l | 9           | mid              
+ISK            | POINT(73.8105674924689 19.9660205672806) | Gandhinagar                 | 9           | mid              
+IXC            | POINT(76.8017261105242 30.6707248949667) | Chandigarh Int'l            | 9           | [major,military] 
+IXR            | POINT(85.3235970368767 23.3177245989962) | Birsa Munda                 | 9           | mid              
+IXU            | POINT(75.3958432922005 19.8672969621082) | Aurangabad                  | 9           | mid              
+;

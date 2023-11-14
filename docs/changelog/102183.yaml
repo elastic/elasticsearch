@@ -1,13 +1,13 @@
 pr: 102183
 summary: "[ES|QL] pow function always returns double"
 area: ES|QL
-type: "breaking, bug"
+type: "breaking"
 issues:
  - 99055
 breaking:
   title: "[ES|QL] pow function always returns double"
-  area: ES|QL
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: REST API
+  details: In ES|QL, the pow function no longer returns the type of its inputs,
+    instead always returning a double.
+  impact: low. Most queries should continue to function with the change.
   notable: false

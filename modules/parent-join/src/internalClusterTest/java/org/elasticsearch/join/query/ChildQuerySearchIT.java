@@ -12,7 +12,6 @@ import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
@@ -1320,10 +1319,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             prepareSearch("test").setPostFilter(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.None)),
             RestStatus.BAD_REQUEST
         );
-        assertFailures(
-            prepareSearch("test").setQuery(hasParentQuery("parent", termQuery("p_field", "1"), true)),
-            RestStatus.BAD_REQUEST
-        );
+        assertFailures(prepareSearch("test").setQuery(hasParentQuery("parent", termQuery("p_field", "1"), true)), RestStatus.BAD_REQUEST);
         assertFailures(
             prepareSearch("test").setPostFilter(hasParentQuery("parent", termQuery("p_field", "1"), false)),
             RestStatus.BAD_REQUEST
@@ -1394,10 +1390,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         for (QueryBuilder query : queries) {
             assertScrollResponses(
-                prepareSearch("test").setScroll(TimeValue.timeValueSeconds(30))
-                    .setSize(1)
-                    .addStoredField("_id")
-                    .setQuery(query),
+                prepareSearch("test").setScroll(TimeValue.timeValueSeconds(30)).setSize(1).addStoredField("_id").setQuery(query),
                 responses -> {
 
                     responses.forEach(searchResponse -> {

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -101,7 +102,9 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         init();
 
         String facetField = randomFrom(Arrays.asList("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
-        SearchRequestBuilder searchRequestBuilder = searchByNumericRange(1, 10).addAggregation(AggregationBuilders.terms("facet").field(facetField));
+        SearchRequestBuilder searchRequestBuilder = searchByNumericRange(1, 10).addAggregation(
+            AggregationBuilders.terms("facet").field(facetField)
+        );
         assertSearchReturns(searchRequestBuilder, resp -> {
             assertThat(resp.getAggregations().asList().size(), equalTo(1));
             Terms terms = (Terms) resp.getAggregations().asList().get(0);
@@ -199,17 +202,14 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     }
 
     private void assertSearchReturns(SearchRequestBuilder searchRequestBuilder, Consumer<SearchResponse> consumer, String... ids) {
-        assertResponse(searchRequestBuilder,
-            searchResponse -> {
-                searchRespAssertions(searchResponse, ids);
-                consumer.accept(searchResponse);
-            });
+        assertResponse(searchRequestBuilder, searchResponse -> {
+            searchRespAssertions(searchResponse, ids);
+            consumer.accept(searchResponse);
+        });
     }
 
     private void assertSearchReturns(SearchRequestBuilder searchRequestBuilder, String... ids) {
-        assertResponse(searchRequestBuilder,
-            searchResponse -> searchRespAssertions(searchResponse, ids)
-        );
+        assertResponse(searchRequestBuilder, searchResponse -> searchRespAssertions(searchResponse, ids));
     }
 
     private void searchRespAssertions(SearchResponse result, String... ids) {
@@ -223,17 +223,17 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         for (SearchHit hit : result.getHits()) {
             String id = hit.getId();
             if (id.equals("single")) {
-                assertSearchHit(hit, new int[]{4}, new int[]{4});
+                assertSearchHit(hit, new int[] { 4 }, new int[] { 4 });
             } else if (id.equals("bulk1")) {
-                assertSearchHit(hit, new int[]{3}, new int[]{3});
+                assertSearchHit(hit, new int[] { 3 }, new int[] { 3 });
             } else if (id.equals("bulk2")) {
-                assertSearchHit(hit, new int[]{5}, new int[]{4});
+                assertSearchHit(hit, new int[] { 5 }, new int[] { 4 });
             } else if (id.equals("multi")) {
-                assertSearchHit(hit, new int[]{2, 7}, new int[]{2, 7});
+                assertSearchHit(hit, new int[] { 2, 7 }, new int[] { 2, 7 });
             } else if (id.equals("multibulk1")) {
-                assertSearchHit(hit, new int[]{1, 8}, new int[]{1, 8});
+                assertSearchHit(hit, new int[] { 1, 8 }, new int[] { 1, 8 });
             } else if (id.equals("multibulk2")) {
-                assertSearchHit(hit, new int[]{6, 10}, new int[]{3, 9});
+                assertSearchHit(hit, new int[] { 6, 10 }, new int[] { 3, 9 });
             } else {
                 throw new ElasticsearchException("Unexpected response!");
             }

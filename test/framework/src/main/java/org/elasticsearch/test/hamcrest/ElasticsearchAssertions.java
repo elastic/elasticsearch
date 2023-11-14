@@ -383,7 +383,9 @@ public class ElasticsearchAssertions {
         responses.add(scrollResponse);
         try {
             while (scrollResponse.getHits().getHits().length > 0) {
-                scrollResponse = client().prepareSearchScroll(scrollResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(timoutSeconds)).get();
+                scrollResponse = client().prepareSearchScroll(scrollResponse.getScrollId())
+                    .setScroll(TimeValue.timeValueSeconds(timoutSeconds))
+                    .get();
                 responses.add(scrollResponse);
             }
             consumer.accept(responses);
@@ -393,8 +395,7 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertResponse
-        (ActionFuture<SearchResponse> responseFuture, Consumer<SearchResponse> consumer)
+    public static void assertResponse(ActionFuture<SearchResponse> responseFuture, Consumer<SearchResponse> consumer)
         throws ExecutionException, InterruptedException {
         var res = responseFuture.get();
         try {

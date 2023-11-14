@@ -194,7 +194,9 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     } catch (IOException e) {
                         logger.warn("Unable to start APM server", e);
                     }
-
+                } else {
+                    // metrics are enabled by default, if the --with-apm-server was not used we should disable it
+                    node.setting("telemetry.metrics.enabled", "false");
                 }
 
             }

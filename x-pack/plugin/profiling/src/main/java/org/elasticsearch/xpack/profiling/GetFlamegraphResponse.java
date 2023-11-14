@@ -23,8 +23,8 @@ import java.util.Map;
 public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXContentObject {
     private final int size;
     private final double samplingRate;
-    private final int selfCPU;
-    private final int totalCPU;
+    private final long selfCPU;
+    private final long totalCPU;
     private final long totalSamples;
     private final List<Map<String, Integer>> edges;
     private final List<String> fileIds;
@@ -36,8 +36,8 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     private final List<Integer> functionOffsets;
     private final List<String> sourceFileNames;
     private final List<Integer> sourceLines;
-    private final List<Integer> countInclusive;
-    private final List<Integer> countExclusive;
+    private final List<Long> countInclusive;
+    private final List<Long> countExclusive;
 
     public GetFlamegraphResponse(StreamInput in) throws IOException {
         this.size = in.readInt();
@@ -52,10 +52,10 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         this.functionOffsets = in.readCollectionAsList(StreamInput::readInt);
         this.sourceFileNames = in.readCollectionAsList(StreamInput::readString);
         this.sourceLines = in.readCollectionAsList(StreamInput::readInt);
-        this.countInclusive = in.readCollectionAsList(StreamInput::readInt);
-        this.countExclusive = in.readCollectionAsList(StreamInput::readInt);
-        this.selfCPU = in.readInt();
-        this.totalCPU = in.readInt();
+        this.countInclusive = in.readCollectionAsList(StreamInput::readLong);
+        this.countExclusive = in.readCollectionAsList(StreamInput::readLong);
+        this.selfCPU = in.readLong();
+        this.totalCPU = in.readLong();
         this.totalSamples = in.readLong();
     }
 
@@ -72,10 +72,10 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         List<Integer> functionOffsets,
         List<String> sourceFileNames,
         List<Integer> sourceLines,
-        List<Integer> countInclusive,
-        List<Integer> countExclusive,
-        int selfCPU,
-        int totalCPU,
+        List<Long> countInclusive,
+        List<Long> countExclusive,
+        long selfCPU,
+        long totalCPU,
         long totalSamples
     ) {
         this.size = size;
@@ -111,10 +111,10 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         out.writeCollection(this.functionOffsets, StreamOutput::writeInt);
         out.writeCollection(this.sourceFileNames, StreamOutput::writeString);
         out.writeCollection(this.sourceLines, StreamOutput::writeInt);
-        out.writeCollection(this.countInclusive, StreamOutput::writeInt);
-        out.writeCollection(this.countExclusive, StreamOutput::writeInt);
-        out.writeInt(this.selfCPU);
-        out.writeInt(this.totalCPU);
+        out.writeCollection(this.countInclusive, StreamOutput::writeLong);
+        out.writeCollection(this.countExclusive, StreamOutput::writeLong);
+        out.writeLong(this.selfCPU);
+        out.writeLong(this.totalCPU);
         out.writeLong(this.totalSamples);
     }
 
@@ -126,11 +126,11 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return samplingRate;
     }
 
-    public List<Integer> getCountInclusive() {
+    public List<Long> getCountInclusive() {
         return countInclusive;
     }
 
-    public List<Integer> getCountExclusive() {
+    public List<Long> getCountExclusive() {
         return countExclusive;
     }
 
@@ -174,11 +174,11 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return sourceLines;
     }
 
-    public int getSelfCPU() {
+    public long getSelfCPU() {
         return selfCPU;
     }
 
-    public int getTotalCPU() {
+    public long getTotalCPU() {
         return totalCPU;
     }
 

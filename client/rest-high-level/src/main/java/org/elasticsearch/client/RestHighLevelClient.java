@@ -23,7 +23,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
@@ -159,7 +158,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -203,14 +201,6 @@ public class RestHighLevelClient implements Closeable {
 
     /** Do not access directly but through getVersionValidationFuture() */
     private volatile ListenableFuture<Optional<String>> versionValidationFuture;
-
-    /**
-     * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
-     * {@link RestClient} to be used to perform requests.
-     */
-    public RestHighLevelClient(RestClientBuilder restClientBuilder) {
-        this(restClientBuilder.build(), RestClient::close, Collections.emptyList());
-    }
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests and
@@ -309,23 +299,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a search request using the Search API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
-     * @param searchRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final SearchResponse search(SearchRequest searchRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            searchRequest,
-            r -> RequestConverters.search(r, "_search"),
-            options,
-            SearchResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
      * Asynchronously executes a search using the Search API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
      * @param searchRequest the request
@@ -340,25 +313,6 @@ public class RestHighLevelClient implements Closeable {
             options,
             SearchResponse::fromXContent,
             listener,
-            emptySet()
-        );
-    }
-
-    /**
-     * Executes a search using the Search Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
-     * Scroll API on elastic.co</a>
-     * @param searchScrollRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final SearchResponse scroll(SearchScrollRequest searchScrollRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            searchScrollRequest,
-            RequestConverters::searchScroll,
-            options,
-            SearchResponse::fromXContent,
             emptySet()
         );
     }

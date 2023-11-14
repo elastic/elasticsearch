@@ -18,7 +18,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -268,12 +267,6 @@ final class RequestConverters {
         }
     }
 
-    static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, "/_search/scroll");
-        request.setEntity(createEntity(searchScrollRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         return createEntity(toXContent, xContentType, ToXContent.EMPTY_PARAMS);
     }
@@ -293,26 +286,8 @@ final class RequestConverters {
         return new EndpointBuilder().addPathPart(index, "_doc", id).build();
     }
 
-    @Deprecated
-    static String endpoint(String index, String type, String id, String endpoint) {
-        return new EndpointBuilder().addPathPart(index, type, id).addPathPartAsIs(endpoint).build();
-    }
-
     static String endpoint(String[] indices, String endpoint) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint).build();
-    }
-
-    @Deprecated
-    static String endpoint(String[] indices, String[] types, String endpoint) {
-        return new EndpointBuilder().addCommaSeparatedPathParts(indices)
-            .addCommaSeparatedPathParts(types)
-            .addPathPartAsIs(endpoint)
-            .build();
-    }
-
-    @Deprecated
-    static String endpoint(String[] indices, String endpoint, String type) {
-        return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint).addPathPart(type).build();
     }
 
     /**

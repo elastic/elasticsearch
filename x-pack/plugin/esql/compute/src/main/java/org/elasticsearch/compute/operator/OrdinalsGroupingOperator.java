@@ -372,11 +372,7 @@ public class OrdinalsGroupingOperator implements Operator {
                 if (BlockOrdinalsReader.canReuse(currentReader, docs.getInt(0)) == false) {
                     currentReader = new BlockOrdinalsReader(docValuesSupplier.get(), blockFactory);
                 }
-                // TODO
-                // try (IntBlock ordinals = currentReader.readOrdinalsAdded1(docs)) {
-                IntBlock ordinals = null;
-                try {
-                    ordinals = currentReader.readOrdinalsAdded1(docs);
+                try (IntBlock ordinals = currentReader.readOrdinalsAdded1(docs)) {
                     for (int p = 0; p < ordinals.getPositionCount(); p++) {
                         int start = ordinals.getFirstValueIndex(p);
                         int end = start + ordinals.getValueCount(p);
@@ -387,12 +383,6 @@ public class OrdinalsGroupingOperator implements Operator {
                     }
                     for (GroupingAggregatorFunction.AddInput addInput : prepared) {
                         addInput.add(0, ordinals);
-                    }
-                }
-                // TODO
-                finally {
-                    if (ordinals != null) {
-                        ordinals.decRef();
                     }
                 }
             } catch (IOException e) {

@@ -53,16 +53,8 @@ final class LongLongBlockHash extends BlockHash {
         LongVector vector1 = block1.asVector();
         LongVector vector2 = block2.asVector();
         if (vector1 != null && vector2 != null) {
-            // TODO
-            // try (IntBlock groupIds = add(vector1, vector2).asBlock()) {
-            IntBlock groupIds = null;
-            try {
-                groupIds = add(vector1, vector2).asBlock();
+            try (IntBlock groupIds = add(vector1, vector2).asBlock()) {
                 addInput.add(0, groupIds.asVector());
-            } finally {
-                if (groupIds != null) {
-                    groupIds.decRef();
-                }
             }
         } else {
             try (var addBlock = new AddBlock(block1, block2, addInput)) {
@@ -179,16 +171,8 @@ final class LongLongBlockHash extends BlockHash {
         }
 
         protected final void emitOrds() {
-            // TODO
-            // try (IntBlock ordsBlock = ords.build()) {
-            IntBlock ordsBlock = null;
-            try {
-                ordsBlock = ords.build();
+            try (IntBlock ordsBlock = ords.build()) {
                 addInput.add(positionOffset, ordsBlock);
-            } finally {
-                if (ordsBlock != null) {
-                    ordsBlock.decRef();
-                }
             }
         }
 

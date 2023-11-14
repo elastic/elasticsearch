@@ -59,15 +59,8 @@ final class LongBlockHash extends BlockHash {
             LongVector longVector = longBlock.asVector();
             if (longVector == null) {
                 // TODO should this be LongBlock?
-                // try (IntBlock groupIds = add(longBlock)) {
-                IntBlock groupIds = null;
-                try {
-                    groupIds = add(longBlock);
+                try (IntBlock groupIds = add(longBlock)) {
                     addInput.add(0, groupIds);
-                } finally {
-                    if (groupIds != null) {
-                        groupIds.decRef();
-                    }
                 }
             } else {
                 try (IntVector groupIds = add(longVector)) {

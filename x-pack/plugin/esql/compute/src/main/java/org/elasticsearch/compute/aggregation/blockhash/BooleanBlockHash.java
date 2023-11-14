@@ -48,28 +48,12 @@ final class BooleanBlockHash extends BlockHash {
             BooleanBlock booleanBlock = page.getBlock(channel);
             BooleanVector booleanVector = booleanBlock.asVector();
             if (booleanVector == null) {
-                // TODO
-                // try (IntBlock groupIds = add(booleanBlock)) {
-                IntBlock groupIds = null;
-                try {
-                    groupIds = add(booleanBlock);
+                try (IntBlock groupIds = add(booleanBlock)) {
                     addInput.add(0, groupIds);
-                } finally {
-                    if (groupIds != null) {
-                        groupIds.decRef();
-                    }
                 }
             } else {
-                // TODO
-                // try (IntBlock groupIds = add(booleanVector).asBlock()) {
-                IntBlock groupIds = null;
-                try {
-                    groupIds = add(booleanVector).asBlock();
+                try (IntBlock groupIds = add(booleanVector).asBlock()) {
                     addInput.add(0, groupIds.asVector());
-                } finally {
-                    if (groupIds != null) {
-                        groupIds.decRef();
-                    }
                 }
             }
         }

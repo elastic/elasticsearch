@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import java.util.List;
 
 //TODO update javadoc
-//TODO refcounted tests
 /**
  * A Block is a columnar representation of homogenous data. It has a position (row) count, and
  * various data retrieval methods for accessing the underlying data that is stored at a given

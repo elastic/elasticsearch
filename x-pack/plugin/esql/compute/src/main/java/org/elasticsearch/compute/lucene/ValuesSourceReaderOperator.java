@@ -141,16 +141,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 }
                 lastReader.readValuesFromSingleDoc(doc, builder);
             }
-            // TODO
-            // try (Block orig = ((Block.Builder) builder).build()) {
-            Block orig = null;
-            try {
-                orig = ((Block.Builder) builder).build();
+            try (Block orig = ((Block.Builder) builder).build()) {
                 return orig.filter(docVector.shardSegmentDocMapBackwards());
-            } finally {
-                if (orig != null) {
-                    orig.decRef();
-                }
             }
         }
     }

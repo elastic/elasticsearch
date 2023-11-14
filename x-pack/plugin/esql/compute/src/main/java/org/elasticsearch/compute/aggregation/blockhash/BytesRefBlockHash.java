@@ -64,16 +64,8 @@ final class BytesRefBlockHash extends BlockHash {
             BytesRefBlock bytesBlock = (BytesRefBlock) block;
             BytesRefVector bytesVector = bytesBlock.asVector();
             if (bytesVector == null) {
-                // TODO
-                // try (IntBlock groupIds = add(bytesBlock)) {
-                IntBlock groupIds = null;
-                try {
-                    groupIds = add(bytesBlock);
+                try (IntBlock groupIds = add(bytesBlock)) {
                     addInput.add(0, groupIds);
-                } finally {
-                    if (groupIds != null) {
-                        groupIds.decRef();
-                    }
                 }
             } else {
                 try (IntVector groupIds = add(bytesVector)) {

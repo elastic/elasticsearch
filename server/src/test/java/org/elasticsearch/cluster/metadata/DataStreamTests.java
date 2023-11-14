@@ -91,7 +91,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var allowsCustomRouting = instance.isAllowCustomRouting();
         var indexMode = instance.getIndexMode();
         var lifecycle = instance.getLifecycle();
-        var failureStores = instance.getFailureIndices();
+        var failureStore = instance.isFailureStore();
+        var failureIndices = instance.getFailureIndices();
         switch (between(0, 10)) {
             case 0 -> name = randomAlphaOfLength(10);
             case 1 -> indices = randomValueOtherThan(List.of(), DataStreamTestHelper::randomIndexInstances);
@@ -121,7 +122,14 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             case 9 -> lifecycle = randomBoolean() && lifecycle != null
                 ? null
                 : DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
-            case 10 -> failureStores = randomValueOtherThan(List.of(), DataStreamTestHelper::randomIndexInstances);
+            case 10 -> {
+                failureIndices = randomValueOtherThan(List.of(), DataStreamTestHelper::randomIndexInstances);
+                if (failureIndices.isEmpty()) {
+                    failureStore = false;
+                } else {
+                    failureStore = true;
+                }
+            }
         }
 
         return new DataStream(
@@ -135,7 +143,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             allowsCustomRouting,
             indexMode,
             lifecycle,
-            failureStores
+            failureStore,
+            failureIndices
         );
     }
 
@@ -191,6 +200,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             ds.isAllowCustomRouting(),
             indexMode,
             ds.getLifecycle(),
+            ds.isFailureStore(),
             ds.getFailureIndices()
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
@@ -217,6 +227,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             ds.isAllowCustomRouting(),
             IndexMode.TIME_SERIES,
             ds.getLifecycle(),
+            ds.isFailureStore(),
             ds.getFailureIndices()
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
@@ -578,6 +589,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             preSnapshotDataStream.isAllowCustomRouting(),
             preSnapshotDataStream.getIndexMode(),
             preSnapshotDataStream.getLifecycle(),
+            preSnapshotDataStream.isFailureStore(),
             preSnapshotDataStream.getFailureIndices()
         );
 
@@ -621,6 +633,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             preSnapshotDataStream.isAllowCustomRouting(),
             preSnapshotDataStream.getIndexMode(),
             preSnapshotDataStream.getLifecycle(),
+            preSnapshotDataStream.isFailureStore(),
             preSnapshotDataStream.getFailureIndices()
         );
 
@@ -1620,9 +1633,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         if (randomBoolean()) {
             metadata = Map.of("key", "value");
         }
-        List<Index> failureStores = List.of();
-        if (randomBoolean()) {
-            failureStores = randomIndexInstances();
+        boolean failureStore = randomBoolean();
+        List<Index> failureIndices = List.of();
+        if (failureStore) {
+            failureIndices = randomIndexInstances();
         }
 
         DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
@@ -1638,7 +1652,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             lifecycle,
-            failureStores
+            failureStore,
+            failureIndices
         );
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {

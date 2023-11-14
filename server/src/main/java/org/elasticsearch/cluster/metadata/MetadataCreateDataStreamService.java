@@ -289,7 +289,7 @@ public class MetadataCreateDataStreamService {
         final DataStreamLifecycle lifecycle = isSystem
             ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveLifecycle(template, metadata.componentTemplates());
-        List<Index> failureStores = failureStoreIndex == null ? List.of() : List.of(failureStoreIndex.getIndex());
+        List<Index> failureIndices = failureStoreIndex == null ? List.of() : List.of(failureStoreIndex.getIndex());
         DataStream newDataStream = new DataStream(
             dataStreamName,
             dsBackingIndices,
@@ -301,7 +301,8 @@ public class MetadataCreateDataStreamService {
             template.getDataStreamTemplate().isAllowCustomRouting(),
             indexMode,
             lifecycle,
-            failureStores
+            template.getDataStreamTemplate().hasFailureStore(),
+            failureIndices
         );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 

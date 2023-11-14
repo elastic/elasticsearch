@@ -113,7 +113,7 @@ public final class DataStreamTestHelper {
         boolean replicated,
         @Nullable DataStreamLifecycle lifecycle
     ) {
-        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, lifecycle, List.of());
+        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, lifecycle, false, List.of());
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -244,9 +244,10 @@ public final class DataStreamTestHelper {
         if (randomBoolean()) {
             metadata = Map.of("key", "value");
         }
-        List<Index> failureStores = List.of();
-        if (randomBoolean()) {
-            failureStores = randomIndexInstances();
+        List<Index> failureIndices = List.of();
+        boolean failureStore = randomBoolean();
+        if (failureStore) {
+            failureIndices = randomIndexInstances();
         }
 
         return new DataStream(
@@ -261,7 +262,8 @@ public final class DataStreamTestHelper {
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
-            failureStores
+            failureStore,
+            failureIndices
         );
     }
 

@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
-public class AbstractCrossClusterAsyncSearchTestCase extends AbstractMultiClustersTestCase {
+public class AbstractCrossClusterAsyncSearchTestCaseIT extends AbstractMultiClustersTestCase {
     static final String REMOTE_CLUSTER = "cluster_a";
     static final long EARLIEST_TIMESTAMP = 1691348810000L;
     static final long LATEST_TIMESTAMP = 1691348820000L;

@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for cross-cluster search where a remote cluster marked with skip_unavailable=false
  * fails, the other searches are cancelled in order to fail-fast the overall search query.
  */
-public class FailFastCrossClusterAsyncSearchIT extends AbstractCrossClusterAsyncSearchTestCase {
+public class FailFastCrossClusterAsyncSearchIT extends AbstractCrossClusterAsyncSearchTestCaseIT {
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {

@@ -160,7 +160,6 @@ class MutableSearchResponse {
         if (failImmediately) {
             earlyExitInvoked = true;
             clusters.notifySearchCancelled();
-            System.err.println("XXX MSR.updateWithFailure FAIL_IMMEDIATELY = notifySearchCancelled");
         }
     }
 

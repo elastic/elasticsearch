@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
-public class CrossClusterAsyncSearchIT extends AbstractCrossClusterAsyncSearchTestCase {
+public class CrossClusterAsyncSearchIT extends AbstractCrossClusterAsyncSearchTestCaseIT {
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {

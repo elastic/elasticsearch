@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.RefCounted;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
@@ -67,6 +69,41 @@ public final class LeakTracker {
                 logger.error("LEAK: resource was not cleaned up before it was garbage-collected.{}", records);
             }
         }
+    }
+
+    public static RefCounted wrap(RefCounted refCounted) {
+        if (Assertions.ENABLED == false) {
+            return refCounted;
+        }
+        var leak = INSTANCE.track(refCounted);
+        return new RefCounted() {
+            @Override
+            public void incRef() {
+                leak.record();
+                refCounted.incRef();
+            }
+
+            @Override
+            public boolean tryIncRef() {
+                leak.record();
+                return refCounted.tryIncRef();
+            }
+
+            @Override
+            public boolean decRef() {
+                if (refCounted.decRef()) {
+                    leak.close(refCounted);
+                    return true;
+                }
+                leak.record();
+                return false;
+            }
+
+            @Override
+            public boolean hasReferences() {
+                return refCounted.hasReferences();
+            }
+        };
     }
 
     public static final class Leak<T> extends WeakReference<Object> {

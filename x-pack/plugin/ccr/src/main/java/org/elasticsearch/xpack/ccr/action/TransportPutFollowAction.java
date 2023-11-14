@@ -333,6 +333,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.isAllowCustomRouting(),
                 remoteDataStream.getIndexMode(),
                 remoteDataStream.getLifecycle(),
+                remoteDataStream.isFailureStore(),
                 remoteDataStream.getFailureIndices()
             );
         } else {
@@ -385,6 +386,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 localDataStream.isAllowCustomRouting(),
                 localDataStream.getIndexMode(),
                 localDataStream.getLifecycle(),
+                localDataStream.isFailureStore(),
                 localDataStream.getFailureIndices()
             );
         }

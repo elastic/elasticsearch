@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -66,13 +65,13 @@ public class DesiredBalanceReconciler {
         Setting.Property.NodeScope
     );
 
-    private final FrequencyCappedAction logReconciliationMetrics;
     private final FrequencyCappedAction undesiredAllocationLogInterval;
     private double undesiredAllocationsLogThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
 
     // stats
+    private final DesiredBalanceReconcilerStats desiredBalanceReconcilerStats;
     /**
      * Number of unassigned shards during last reconciliation
      */
@@ -87,14 +86,13 @@ public class DesiredBalanceReconciler {
     protected final AtomicInteger undesiredAllocations = new AtomicInteger();
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this.logReconciliationMetrics = new FrequencyCappedAction(threadPool);
-        this.logReconciliationMetrics.setMinInterval(TimeValue.timeValueMinutes(30));
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(threadPool);
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
         );
+        this.desiredBalanceReconcilerStats = new DesiredBalanceReconcilerStats(threadPool);
     }
 
     public void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
@@ -528,7 +526,7 @@ public class DesiredBalanceReconciler {
             DesiredBalanceReconciler.this.undesiredAllocations.set(undesiredAllocations);
             DesiredBalanceReconciler.this.totalAllocations.set(totalAllocations);
 
-            logUndesiredAllocationsMetrics(totalAllocations, undesiredAllocations);
+            desiredBalanceReconcilerStats.logUndesiredAllocationsMetrics(totalAllocations, undesiredAllocations);
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocations, routingNodes.size());
         }
 
@@ -547,20 +545,6 @@ public class DesiredBalanceReconciler {
                     )
                 );
             }
-        }
-
-        private void logUndesiredAllocationsMetrics(int allAllocations, int undesiredAllocations) {
-            logReconciliationMetrics.maybeExecute(
-                () -> logger.debug(
-                    new ESLogMessage("DesiredBalanceReconciler stats") //
-                        .field(
-                            "allocator.desired_balance.reconciliation.undesired_allocations_fraction",
-                            (double) undesiredAllocations / allAllocations
-                        )
-                        .field("allocator.desired_balance.reconciliation.undesired_allocations", undesiredAllocations)
-                        .field("allocator.desired_balance.reconciliation.total_allocations", allAllocations)
-                )
-            );
         }
 
         private DiscoveryNode findRelocationTarget(final ShardRouting shardRouting, Set<String> desiredNodeIds) {

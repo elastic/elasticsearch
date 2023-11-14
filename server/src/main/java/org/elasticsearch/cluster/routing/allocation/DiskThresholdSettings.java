@@ -13,9 +13,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
-import org.elasticsearch.core.RemoveBeforeV9;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateBeforeV9;
 
 import java.util.Iterator;
 import java.util.List;
@@ -155,7 +155,7 @@ public class DiskThresholdSettings {
         checkAutoReleaseIndexEnabled();
     }
 
-    @RemoveBeforeV9 // this check is unnecessary in v9
+    @UpdateBeforeV9 // this check is unnecessary in v9
     private static void checkAutoReleaseIndexEnabled() {
         final String AUTO_RELEASE_INDEX_ENABLED_KEY = "es.disk.auto_release_flood_stage_block";
         final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);

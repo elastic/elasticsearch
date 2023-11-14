@@ -33,8 +33,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.RemoveBeforeV9;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateBeforeV9;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.node.Node;
@@ -234,7 +234,7 @@ public class GatewayMetaState implements Closeable {
         return persistedState;
     }
 
-    @RemoveBeforeV9
+    @UpdateBeforeV9
     private static Tuple<Manifest, Metadata> loadLegacyMetadata(MetaStateService metaStateService) throws IOException {
         return metaStateService.loadFullState();
     }

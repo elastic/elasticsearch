@@ -19,5 +19,5 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
-public @interface RemoveBeforeV9 {
+public @interface UpdateBeforeV9 {
 }

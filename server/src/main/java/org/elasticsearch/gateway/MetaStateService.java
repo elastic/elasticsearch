@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RemoveBeforeV9;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateBeforeV9;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -55,7 +55,7 @@ public class MetaStateService {
      * meta state with globalGeneration -1 and empty meta data is returned.
      * @throws IOException if some IOException when loading files occurs or there is no metadata referenced by manifest file.
      */
-    @RemoveBeforeV9
+    @UpdateBeforeV9
     public Tuple<Manifest, Metadata> loadFullState() throws IOException {
         final Manifest manifest = Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
         if (manifest == null) {

@@ -294,6 +294,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
 
         ClusterState newState = MetadataMigrateToDataStreamService.migrateToDataStream(
             cs,
+            randomBoolean(),
             this::getMapperService,
             new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(
                 dataStreamName,
@@ -356,6 +357,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
 
         ClusterState newState = MetadataMigrateToDataStreamService.migrateToDataStream(
             cs,
+            randomBoolean(),
             this::getMapperService,
             new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(
                 dataStreamName,
@@ -420,6 +422,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             IllegalArgumentException.class,
             () -> MetadataMigrateToDataStreamService.migrateToDataStream(
                 cs,
+                randomBoolean(),
                 this::getMapperService,
                 new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(
                     dataStreamName,

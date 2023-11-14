@@ -290,7 +290,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             }
         };
 
-        PlainActionFuture<Optional<ShardSnapshot>> latestSnapshots = PlainActionFuture.newFuture();
+        PlainActionFuture<Optional<ShardSnapshot>> latestSnapshots = new PlainActionFuture<>();
         shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, latestSnapshots);
         assertThat(latestSnapshots.actionGet().isPresent(), is(equalTo(false)));
     }
@@ -298,7 +298,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     private Optional<ShardSnapshot> getLatestShardSnapshot(ShardId shardId) throws Exception {
         ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
 
-        PlainActionFuture<Optional<ShardSnapshot>> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Optional<ShardSnapshot>> future = new PlainActionFuture<>();
         shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, future);
         return future.get();
     }

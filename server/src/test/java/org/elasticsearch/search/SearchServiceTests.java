@@ -1712,7 +1712,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, response.status());
 
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
-        PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
             searchRequest,
@@ -1745,7 +1745,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, response.status());
 
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
-        PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
             searchRequest,
@@ -1781,7 +1781,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, response.status());
 
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
-        PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
             searchRequest,
@@ -1818,7 +1818,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, response.status());
 
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
-        PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
             searchRequest,

@@ -12,7 +12,7 @@ https://www.elastic.co/cloud/.*
 To register an S3 repository, specify the type as `s3` when creating
 the repository. The repository defaults to using
 https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html[ECS
-IAM Role] credentials for authentication. You can also use <<iam-kubernetes-service-accounts>> Kubernetes service accounts.
+IAM Role] credentials for authentication. You can also use <<iam-kubernetes-service-accounts,Kubernetes service accounts>> for authentication.
 
 The only mandatory setting is the bucket name:
 

@@ -118,7 +118,6 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertEquals(1L, response.getSelfCPU());
         assertEquals(10L, response.getTotalCPU());
         assertEquals(1L, response.getTotalSamples());
-
     }
 
     public void testCreateEmptyFlamegraphWithRootNode() {

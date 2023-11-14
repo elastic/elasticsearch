@@ -312,7 +312,7 @@ public class MetadataCreateDataStreamService {
             isSystem,
             template.getDataStreamTemplate().isAllowCustomRouting(),
             indexMode,
-            lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT : lifecycle
+            lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT : lifecycle,
             template.getDataStreamTemplate().hasFailureStore(),
             failureIndices
         );

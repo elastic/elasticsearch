@@ -227,6 +227,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
             cs,
+            randomBoolean(),
             req,
             ActionListener.noop()
         );

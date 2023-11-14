@@ -58,7 +58,6 @@ final class LongBlockHash extends BlockHash {
             LongBlock longBlock = page.getBlock(channel);
             LongVector longVector = longBlock.asVector();
             if (longVector == null) {
-                // TODO should this be LongBlock?
                 try (IntBlock groupIds = add(longBlock)) {
                     addInput.add(0, groupIds);
                 }

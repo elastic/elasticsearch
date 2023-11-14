@@ -64,11 +64,13 @@ import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.parentId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponses;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
@@ -1306,40 +1308,26 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         client().prepareIndex("test").setId(parentId).setSource("p_field", "1").get();
         refresh();
 
-        try {
-            prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.None)).get();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        }
-
-        try {
-            prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.Max)).get();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        }
-
-        try {
-            prepareSearch("test").setPostFilter(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.None)).get();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        }
-
-        try {
-            prepareSearch("test").setQuery(hasParentQuery("parent", termQuery("p_field", "1"), true)).get();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        }
-
-        try {
-            prepareSearch("test").setPostFilter(hasParentQuery("parent", termQuery("p_field", "1"), false)).get();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        }
+        assertFailures(
+            prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.None)),
+            RestStatus.BAD_REQUEST
+        );
+        assertFailures(
+            prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.Max)),
+            RestStatus.BAD_REQUEST
+        );
+        assertFailures(
+            prepareSearch("test").setPostFilter(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.None)),
+            RestStatus.BAD_REQUEST
+        );
+        assertFailures(
+            prepareSearch("test").setQuery(hasParentQuery("parent", termQuery("p_field", "1"), true)),
+            RestStatus.BAD_REQUEST
+        );
+        assertFailures(
+            prepareSearch("test").setPostFilter(hasParentQuery("parent", termQuery("p_field", "1"), false)),
+            RestStatus.BAD_REQUEST
+        );
     }
 
     public void testParentChildCaching() throws Exception {
@@ -1405,23 +1393,24 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             boolQuery().must(matchAllQuery()).filter(hasParentQuery("parent", matchAllQuery(), false)) };
 
         for (QueryBuilder query : queries) {
-            SearchResponse scrollResponse = prepareSearch("test").setScroll(TimeValue.timeValueSeconds(30))
-                .setSize(1)
-                .addStoredField("_id")
-                .setQuery(query)
-                .execute()
-                .actionGet();
+            assertScrollResponses(
+                prepareSearch("test").setScroll(TimeValue.timeValueSeconds(30))
+                    .setSize(1)
+                    .addStoredField("_id")
+                    .setQuery(query),
+                responses -> {
 
-            assertNoFailures(scrollResponse);
-            assertThat(scrollResponse.getHits().getTotalHits().value, equalTo(10L));
-            int scannedDocs = 0;
-            do {
-                assertThat(scrollResponse.getHits().getTotalHits().value, equalTo(10L));
-                scannedDocs += scrollResponse.getHits().getHits().length;
-                scrollResponse = client().prepareSearchScroll(scrollResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();
-            } while (scrollResponse.getHits().getHits().length > 0);
-            clearScroll(scrollResponse.getScrollId());
-            assertThat(scannedDocs, equalTo(10));
+                    responses.forEach(searchResponse -> {
+                        assertNoFailures(searchResponse);
+                        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(10L));
+                    });
+
+                    var scannedDocs = responses.stream()
+                        .map(searchResponse -> searchResponse.getHits().getHits().length)
+                        .reduce(0, Integer::sum);
+                    assertThat(scannedDocs, equalTo(10));
+                }
+            );
         }
     }
 

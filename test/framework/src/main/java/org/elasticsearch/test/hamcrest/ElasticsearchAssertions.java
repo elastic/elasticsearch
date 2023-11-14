@@ -39,6 +39,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -49,6 +50,7 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -62,6 +64,8 @@ import java.util.function.Consumer;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrowsAnyOf;
+import static org.elasticsearch.test.ESIntegTestCase.clearScroll;
+import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
@@ -71,6 +75,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.greaterThan;
@@ -361,7 +366,35 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertResponse(ActionFuture<SearchResponse> responseFuture, Consumer<SearchResponse> consumer)
+    public static void assertScroll(SearchRequestBuilder searchRequestBuilder, Consumer<SearchResponse> consumer) {
+        var res = searchRequestBuilder.get();
+        try {
+            consumer.accept(res);
+        } finally {
+            res.decRef();
+        }
+    }
+
+    public static void assertScrollResponses(SearchRequestBuilder searchRequestBuilder, Consumer<List<SearchResponse>> consumer) {
+        var timoutSeconds = 30;
+        searchRequestBuilder.setScroll(TimeValue.timeValueSeconds(timoutSeconds));
+        List<SearchResponse> responses = new ArrayList<>();
+        var scrollResponse = searchRequestBuilder.get();
+        responses.add(scrollResponse);
+        try {
+            while (scrollResponse.getHits().getHits().length > 0) {
+                scrollResponse = client().prepareSearchScroll(scrollResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(timoutSeconds)).get();
+                responses.add(scrollResponse);
+            }
+            consumer.accept(responses);
+            clearScroll(scrollResponse.getScrollId());
+        } finally {
+            responses.forEach(TransportMessage::decRef);
+        }
+    }
+
+    public static void assertResponse
+        (ActionFuture<SearchResponse> responseFuture, Consumer<SearchResponse> consumer)
         throws ExecutionException, InterruptedException {
         var res = responseFuture.get();
         try {
@@ -432,6 +465,10 @@ public class ElasticsearchAssertions {
         } catch (Exception e) {
             fail("SearchPhaseExecutionException expected but got " + e.getClass());
         }
+    }
+
+    public static void assertFailures(SearchRequestBuilder searchRequestBuilder, RestStatus restStatus) {
+        assertFailures(searchRequestBuilder, restStatus, containsString(""));
     }
 
     public static void assertNoFailures(BaseBroadcastResponse response) {
@@ -783,9 +820,9 @@ public class ElasticsearchAssertions {
      * Often latches are called as <code>assertTrue(latch.await(1, TimeUnit.SECONDS));</code>
      * In case of a failure this will just throw an assertion error without any further message
      *
-     * @param latch    The latch to wait for
-     * @param timeout  The value of the timeout
-     * @param unit     The unit of the timeout
+     * @param latch   The latch to wait for
+     * @param timeout The value of the timeout
+     * @param unit    The unit of the timeout
      * @throws InterruptedException An exception if the waiting is interrupted
      */
     public static void awaitLatch(CountDownLatch latch, long timeout, TimeUnit unit) throws InterruptedException {

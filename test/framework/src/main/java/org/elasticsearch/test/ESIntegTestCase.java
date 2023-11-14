@@ -1878,7 +1878,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Clears the given scroll Ids
      */
-    public void clearScroll(String... scrollIds) {
+    public static void clearScroll(String... scrollIds) {
         ClearScrollResponse clearResponse = client().prepareClearScroll().setScrollIds(Arrays.asList(scrollIds)).get();
         assertThat(clearResponse.isSucceeded(), equalTo(true));
     }

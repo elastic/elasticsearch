@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -88,6 +89,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         // input and so cannot construct a document.
         private final List<String> textInput;
         private boolean highPriority;
+        private TrainedModelPrefixStrings.PrefixType prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
 
         /**
          * Build a request from a list of documents as maps.
@@ -190,6 +192,11 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 highPriority = in.readBoolean();
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+                prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
+            } else {
+                prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
+            }
         }
 
         public int numberOfDocuments() {
@@ -232,6 +239,14 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.highPriority = highPriority;
         }
 
+        public void setPrefixType(TrainedModelPrefixStrings.PrefixType prefixType) {
+            this.prefixType = prefixType;
+        }
+
+        public TrainedModelPrefixStrings.PrefixType getPrefixType() {
+            return prefixType;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -253,6 +268,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeBoolean(highPriority);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+                out.writeEnum(prefixType);
+            }
         }
 
         @Override
@@ -266,7 +284,8 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout)
                 && Objects.equals(objectsToInfer, that.objectsToInfer)
                 && Objects.equals(textInput, that.textInput)
-                && (highPriority == that.highPriority);
+                && (highPriority == that.highPriority)
+                && (prefixType == that.prefixType);
         }
 
         @Override
@@ -276,7 +295,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, objectsToInfer, update, previouslyLicensed, inferenceTimeout, textInput, highPriority);
+            return Objects.hash(id, objectsToInfer, update, previouslyLicensed, inferenceTimeout, textInput, highPriority, prefixType);
         }
 
         public static class Builder {

@@ -1,6 +1,6 @@
 ++++
-<div class="tabs" data-tab-group="model">
-  <div role="tablist" aria-label="model">
+<div class="tabs" data-tab-group="discover-console">
+  <div role="tablist" aria-label="discover-console">
     <button role="tab"
             aria-selected="true"
             aria-controls="esql-tab-console"
@@ -20,7 +20,7 @@
        aria-labelledby="esql-console">
 ++++
 
-include::esql-getting-started.asciidoc[tag=console]
+include::esql-getting-started-discover-console.asciidoc[tag=console]
 
 ++++
   </div>
@@ -31,7 +31,7 @@ include::esql-getting-started.asciidoc[tag=console]
        hidden="">
 ++++
 
-include::esql-getting-started.asciidoc[tag=discover]
+include::esql-getting-started-discover-console.asciidoc[tag=discover]
 
 ++++
   </div>

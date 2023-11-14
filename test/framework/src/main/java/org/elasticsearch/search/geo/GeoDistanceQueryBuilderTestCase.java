@@ -326,8 +326,20 @@ public abstract class GeoDistanceQueryBuilderTestCase extends AbstractQueryTestC
         double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
         double qLon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
         assertEquals(
-            parsedQuery.toString(),
-            "mapped_geo_point:" + qLat + "," + qLon + " +/- " + distanceUnit.toMeters(distance) + " meters"
+            "IndexOrDocValuesQuery(indexQuery=mapped_geo_point:"
+                + qLat
+                + ","
+                + qLon
+                + " +/- "
+                + distanceUnit.toMeters(distance)
+                + " meters, dvQuery=mapped_geo_point:INTERSECTS:geometries([CIRCLE(["
+                + qLat
+                + ","
+                + qLon
+                + "] radius = "
+                + distanceUnit.toMeters(distance)
+                + " meters)]))",
+            parsedQuery.toString()
         );
     }
 

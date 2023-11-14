@@ -77,7 +77,7 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
 
     private static double validateAsDouble(double base, double exponent) {
         double result = Math.pow(base, exponent);
-        if (Double.isNaN(result)) {
+        if (Double.isNaN(result) || Double.isInfinite(result)) {
             throw new ArithmeticException("invalid result when computing pow");
         }
         return result;

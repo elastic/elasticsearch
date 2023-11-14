@@ -27,17 +27,34 @@ public class PowTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        // Positive number bases
         List<TestCaseSupplier> suppliers = TestCaseSupplier.forBinaryCastingToDouble(
             "PowEvaluator",
             "base",
             "exponent",
             Math::pow,
             // 143^143 is still representable, but 144^144 is infinite
-            0d,
+            1d,
             143d,
-            0d,
+            -143d,
             143d,
             List.of()
+        );
+        // Anything to 0 is 1
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryCastingToDouble(
+                "PowEvaluator",
+                "base",
+                "exponent",
+                (b, e) -> 1,
+                // 143^143 is still representable, but 144^144 is infinite
+                TestCaseSupplier.castToDoubleSuppliersFromRange(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY),
+                List.of(
+                    new TestCaseSupplier.TypedDataSupplier("<0 double>", () -> 0d, DataTypes.DOUBLE),
+                    new TestCaseSupplier.TypedDataSupplier("<-0 double>", () -> -0d, DataTypes.DOUBLE)
+                ),
+                List.of()
+            )
         );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }

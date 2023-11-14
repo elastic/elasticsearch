@@ -152,6 +152,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
                     d.isAllowCustomRouting(),
                     d.getIndexMode(),
                     d.getLifecycle(),
+                    d.isFailureStore(),
                     d.getFailureIndices()
                 )
             )

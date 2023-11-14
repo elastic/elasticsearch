@@ -316,6 +316,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 ds.isAllowCustomRouting(),
                 IndexMode.TIME_SERIES,
                 ds.getLifecycle(),
+                ds.isFailureStore(),
                 ds.getFailureIndices()
             )
         );

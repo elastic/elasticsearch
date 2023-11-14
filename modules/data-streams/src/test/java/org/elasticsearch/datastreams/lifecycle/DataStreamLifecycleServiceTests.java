@@ -281,6 +281,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 dataStream.isAllowCustomRouting(),
                 dataStream.getIndexMode(),
                 DataStreamLifecycle.newBuilder().dataRetention(0L).build(),
+                dataStream.isFailureStore(),
                 dataStream.getFailureIndices()
             )
         );

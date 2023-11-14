@@ -87,6 +87,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 true,
                 IndexMode.STANDARD,
                 new DataStreamLifecycle(),
+                true,
                 failureStores
             );
 
@@ -190,6 +191,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 true,
                 IndexMode.STANDARD,
                 new DataStreamLifecycle(null, null, false),
+                true,
                 failureStores
             );
 

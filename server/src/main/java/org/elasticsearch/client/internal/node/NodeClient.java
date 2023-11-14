@@ -110,7 +110,7 @@ public class NodeClient extends AbstractClient {
             transportAction(action),
             request,
             localConnection,
-            new SafelyWrappedActionListener<>(listener)
+            ActionListener.assertOnce(listener)
         );
     }
 
@@ -148,27 +148,4 @@ public class NodeClient extends AbstractClient {
         return namedWriteableRegistry;
     }
 
-    private record SafelyWrappedActionListener<Response>(ActionListener<Response> listener) implements ActionListener<Response> {
-
-        @Override
-        public void onResponse(Response response) {
-            try {
-                listener.onResponse(response);
-            } catch (Exception e) {
-                assert false : new AssertionError("callback must handle its own exceptions", e);
-                throw e;
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            try {
-                listener.onFailure(e);
-            } catch (Exception ex) {
-                ex.addSuppressed(e);
-                assert false : new AssertionError("callback must handle its own exceptions", ex);
-                throw ex;
-            }
-        }
-    }
 }

@@ -98,7 +98,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Response> future = new PlainActionFuture<>();
         Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);
@@ -141,7 +141,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Response> future = new PlainActionFuture<>();
         Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);

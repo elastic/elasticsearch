@@ -1,0 +1,5 @@
+pr: 102048
+summary: "Repo analysis: verify empty register"
+area: Snapshot/Restore
+type: enhancement
+issues: []

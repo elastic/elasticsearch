@@ -123,6 +123,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -427,7 +428,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexShard.getPendingPrimaryTerm() + randomIntBetween(1, 100),
                 UNASSIGNED_SEQ_NO,
                 randomNonNegativeLong(),
-                PlainActionFuture.newFuture()
+                new PlainActionFuture<>()
             )
         );
         closeShards(indexShard);
@@ -2619,7 +2620,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
             public void restoreShard(
@@ -3028,7 +3029,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 called.set(true);
             });
 
-            PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
+            PlainActionFuture<Void> listener = new PlainActionFuture<>();
             shard.addRefreshListener(10, randomBoolean(), listener);
             expectThrows(IllegalIndexShardStateException.class, listener::actionGet);
         };
@@ -3156,13 +3157,13 @@ public class IndexShardTests extends IndexShardTestCase {
             final IndexShard differentIndex = newShard(new ShardId("index_2", "index_2", 0), true);
             recoverShardFromStore(differentIndex);
             expectThrows(IllegalArgumentException.class, () -> {
-                final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 targetShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(sourceShard, differentIndex), future);
                 future.actionGet();
             });
             closeShards(differentIndex);
 
-            final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
             targetShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(sourceShard), future);
             assertTrue(future.actionGet());
             RecoveryState recoveryState = targetShard.recoveryState();
@@ -3791,7 +3792,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
-        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         primary.scheduledRefresh(future);
         assertTrue(future.actionGet());
         assertFalse(primary.isSearchIdle());
@@ -3832,6 +3833,10 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/101008",
+        value = "org.elasticsearch.index.shard.IndexShard:TRACE"
+    )
     public void testScheduledRefresh() throws Exception {
         // Setup and make shard search idle:
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
@@ -3841,7 +3846,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
-        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         primary.scheduledRefresh(future);
         assertTrue(future.actionGet());
         IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
@@ -3854,7 +3859,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(primary.getEngine().refreshNeeded());
         long lastSearchAccess = primary.getLastSearcherAccess();
         // Now since shard is search idle scheduleRefresh(...) shouldn't refresh even if a refresh is needed:
-        PlainActionFuture<Boolean> future2 = PlainActionFuture.newFuture();
+        PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
         primary.scheduledRefresh(future2);
         assertFalse(future2.actionGet());
         assertEquals(lastSearchAccess, primary.getLastSearcherAccess());
@@ -3893,14 +3898,19 @@ public class IndexShardTests extends IndexShardTestCase {
         latch.await();
 
         // Index a document while shard is search active and ensure scheduleRefresh(...) makes documen visible:
+        logger.info("--> index doc while shard search active");
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
-        PlainActionFuture<Boolean> future4 = PlainActionFuture.newFuture();
+        logger.info("--> scheduledRefresh(future4)");
+        PlainActionFuture<Boolean> future4 = new PlainActionFuture<>();
         primary.scheduledRefresh(future4);
         assertFalse(future4.actionGet());
+
+        logger.info("--> ensure search idle");
         assertTrue(primary.isSearchIdle());
         assertTrue(primary.searchIdleTime() >= TimeValue.ZERO.millis());
         primary.flushOnIdle(0);
-        PlainActionFuture<Boolean> future5 = PlainActionFuture.newFuture();
+        logger.info("--> scheduledRefresh(future5)");
+        PlainActionFuture<Boolean> future5 = new PlainActionFuture<>();
         primary.scheduledRefresh(future5);
         assertTrue(future5.actionGet()); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
@@ -3917,7 +3927,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
-        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         primary.scheduledRefresh(future);
         assertTrue(future.actionGet());
         Engine.IndexResult doc = indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
@@ -3929,7 +3939,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertEquals(1, latch.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
-        PlainActionFuture<Boolean> future2 = PlainActionFuture.newFuture();
+        PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
         primary.scheduledRefresh(future2);
         assertTrue(future2.actionGet());
         latch.await();
@@ -3947,7 +3957,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertEquals(1, latch1.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
-        PlainActionFuture<Boolean> future3 = PlainActionFuture.newFuture();
+        PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
         primary.scheduledRefresh(future3);
         assertTrue(future3.actionGet());
         latch1.await();

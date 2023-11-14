@@ -73,7 +73,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -82,7 +81,6 @@ import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
@@ -2228,10 +2226,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw new UnsupportedOperationException("Historical features information is unavailable when using legacy test plugins.");
             }
 
-            String[] metadataFiles = metadataPath.split(File.pathSeparator);
+            String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
             for (String metadataFile : metadataFiles) {
                 try (
-                    InputStream in = Files.newInputStream(Paths.get(metadataFile));
+                    InputStream in = Files.newInputStream(PathUtils.get(metadataFile));
                     XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, in)
                 ) {
                     for (Map.Entry<String, String> entry : parser.mapStrings().entrySet()) {

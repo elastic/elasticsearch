@@ -108,6 +108,10 @@ public class Grant implements Writeable {
         return runAsUsername;
     }
 
+    public ClientAuthentication getClientAuthentication() {
+        return clientAuthentication;
+    }
+
     public void setType(String type) {
         this.type = type;
     }

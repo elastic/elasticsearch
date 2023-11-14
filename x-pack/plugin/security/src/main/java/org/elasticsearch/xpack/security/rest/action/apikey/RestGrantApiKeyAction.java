@@ -107,11 +107,15 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
         return "xpack_security_grant_api_key";
     }
 
+    public static GrantApiKeyRequest fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String refresh = request.param("refresh");
         try (XContentParser parser = request.contentParser()) {
-            final GrantApiKeyRequest grantRequest = PARSER.parse(parser, null);
+            final GrantApiKeyRequest grantRequest = fromXContent(parser);
             if (refresh != null) {
                 grantRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refresh));
             } else {

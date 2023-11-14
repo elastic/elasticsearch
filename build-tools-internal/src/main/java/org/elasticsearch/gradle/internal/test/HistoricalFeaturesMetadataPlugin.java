@@ -29,8 +29,6 @@ public class HistoricalFeaturesMetadataPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(CompileOnlyResolvePlugin.class);
-
         Configuration featureMetadataExtractorConfig = project.getConfigurations().create("featuresMetadataExtractor", c -> {
             // Don't bother adding this dependency if the project doesn't exist which simplifies testing
             if (project.findProject(":test:metadata-extractor") != null) {

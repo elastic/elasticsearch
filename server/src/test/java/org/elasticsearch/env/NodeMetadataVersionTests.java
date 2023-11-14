@@ -14,7 +14,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
-public class NodeMetadataVersionTests extends ESTestCase{
+public class NodeMetadataVersionTests extends ESTestCase {
 
     public void testVersionComparison() {
         NodeMetadataVersion V_7_17_0 = NodeMetadataVersion.V_7_17_0;

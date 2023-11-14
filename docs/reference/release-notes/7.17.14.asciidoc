@@ -15,7 +15,7 @@ https://bugs.openjdk.org/browse/JDK-8297639[Preventive GC has been removed].
 This may lead to increased memory pressure and an increased number of CircuitBreakerExceptions when retrieving large
 documents under some particular load. (issue: {es-issue}99592[#99592])
 +
-If you needed to explicitly <<known-issues-8.10.0,enable Preventive GC for your workload in a previous Elasticsearch
+If you needed to explicitly <<known-issues-7.17.10,enable Preventive GC for your workload in a previous Elasticsearch
 version>>, we recommend you avoid to upgrade to this version, as the settings to enable Preventive GC have been removed
 from JDK 21.
 // end::no-preventive-gc-issue[]

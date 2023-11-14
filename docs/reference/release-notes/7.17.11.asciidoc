@@ -5,6 +5,11 @@ coming[7.17.11]
 
 Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 
+[[known-issues-7.17.11]]
+[discrete]
+=== Known issues
+include::7.17.10.asciidoc[tag=no-preventive-gc-issue]
+
 [[bug-7.17.11]]
 [float]
 === Bug fixes

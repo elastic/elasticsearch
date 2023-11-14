@@ -1,0 +1,5 @@
+pr: 102056
+summary: Use `BulkRequest` to store Application Privileges
+area: Authorization
+type: enhancement
+issues: []

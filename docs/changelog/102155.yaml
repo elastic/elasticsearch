@@ -1,0 +1,5 @@
+pr: 102155
+summary: Normalize vectors indexed with `dot_product` similarity
+area: Vector Search
+type: enhancement
+issues: []

@@ -43,22 +43,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         for (int i = 0; i < ITERATIONS; i++) {
             String command = EsqlQueryGenerator.sourceCommand(indices);
             EsqlQueryGenerator.QueryExecuted result = execute(command, 0);
-            checkException(result);
+            if (result.exception() != null) {
+                checkException(result);
+                continue;
+            }
             for (int j = 0; j < MAX_DEPTH; j++) {
                 if (result.outputSchema().isEmpty()) {
                     break;
                 }
                 command = EsqlQueryGenerator.pipeCommand(result.outputSchema(), policies);
                 result = execute(result.query() + command, result.depth() + 1);
-                checkException(result);
+                if (result.exception() != null) {
+                    checkException(result);
+                    break;
+                }
             }
         }
     }
 
     private void checkException(EsqlQueryGenerator.QueryExecuted query) {
-        if (query.exception() == null) {
-            return;
-        }
         for (String allowedError : ALLOWED_ERRORS) {
             if (query.exception().getMessage().contains(allowedError)) {
                 return;

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -87,7 +88,7 @@ public class EsqlQueryGenerator {
                 if (field == null) {
                     yield null;
                 }
-                yield field + mathCompareOperator() + " 50";
+                yield field + " " + mathCompareOperator() + " 50";
             }
             case 1 -> "true";
             default -> "false";
@@ -106,7 +107,7 @@ public class EsqlQueryGenerator {
     }
 
     private static String enrich(List<Column> previousOutput, List<CsvTestsDataLoader.EnrichConfig> policies) {
-        String field = randomStringField(previousOutput);
+        String field = randomKeywordField(previousOutput);
         if (field == null || policies.isEmpty()) {
             return "";
         }
@@ -166,7 +167,19 @@ public class EsqlQueryGenerator {
         int n = randomIntBetween(1, previousOutput.size());
         Set<String> proj = new HashSet<>();
         for (int i = 0; i < n; i++) {
-            proj.add(randomName(previousOutput));
+            if (randomIntBetween(0, 100) < 5) {
+                proj.add("*");
+            } else {
+                String name = randomName(previousOutput);
+                if (name.length() > 1 && randomIntBetween(0, 100) < 10) {
+                    if (randomBoolean()) {
+                        name = name.substring(0, randomIntBetween(1, name.length() - 1)) + "*";
+                    } else {
+                        name = "*" + name.substring(randomIntBetween(1, name.length() - 1));
+                    }
+                }
+                proj.add(name);
+            }
         }
         return " | keep " + proj.stream().collect(Collectors.joining(", "));
     }
@@ -177,11 +190,18 @@ public class EsqlQueryGenerator {
 
     private static String rename(List<Column> previousOutput) {
         int n = randomIntBetween(1, Math.min(3, previousOutput.size()));
-        Set<String> proj = new HashSet<>();
-        List<String> names = previousOutput.stream().map(Column::name).collect(Collectors.toList());
+        List<String> proj = new ArrayList<>();
+        List<String> names = new ArrayList<>(previousOutput.stream().map(Column::name).collect(Collectors.toList()));
         for (int i = 0; i < n; i++) {
             String name = names.remove(randomIntBetween(0, names.size() - 1));
-            proj.add(name + " AS " + randomAlphaOfLength(5));
+            String newName;
+            if (names.isEmpty() || randomBoolean()) {
+                newName = randomAlphaOfLength(5);
+            } else {
+                newName = names.get(randomIntBetween(0, names.size() - 1));
+            }
+            names.add(newName);
+            proj.add(name + " AS " + newName);
         }
         return " | rename " + proj.stream().collect(Collectors.joining(", "));
     }
@@ -193,7 +213,15 @@ public class EsqlQueryGenerator {
         int n = randomIntBetween(1, previousOutput.size() - 1);
         Set<String> proj = new HashSet<>();
         for (int i = 0; i < n; i++) {
-            proj.add(randomName(previousOutput));
+            String name = randomName(previousOutput);
+            if (name.length() > 1 && randomIntBetween(0, 100) < 10) {
+                if (randomBoolean()) {
+                    name = name.substring(0, randomIntBetween(1, name.length() - 1)) + "*";
+                } else {
+                    name = "*" + name.substring(randomIntBetween(1, name.length() - 1));
+                }
+            }
+            proj.add(name);
         }
         return " | drop " + proj.stream().collect(Collectors.joining(", "));
     }
@@ -204,7 +232,10 @@ public class EsqlQueryGenerator {
         for (int i = 0; i < n; i++) {
             proj.add(randomName(previousOutput));
         }
-        return " | sort " + proj.stream().map(x -> x + " " + randomFrom("ASC", "DESC")).collect(Collectors.joining(", "));
+        return " | sort "
+            + proj.stream()
+                .map(x -> x + randomFrom("", " ASC", " DESC") + randomFrom("", " NULLS FIRST", " NULLS LAST"))
+                .collect(Collectors.joining(", "));
     }
 
     private static String mvExpand(List<Column> previousOutput) {
@@ -267,14 +298,20 @@ public class EsqlQueryGenerator {
 
     private static String agg(List<Column> previousOutput) {
         String name = randomNumericOrDateField(previousOutput);
-        if (name == null) {
-            return "count(*)";
+        if (name != null && randomBoolean()) {
+            // numerics only
+            return switch (randomIntBetween(0, 1)) {
+                case 0 -> "max(" + name + ")";
+                default -> "min(" + name + ")";
+                // TODO more numerics
+            };
         }
+        // all types
+        name = randomName(previousOutput);
         return switch (randomIntBetween(0, 2)) {
-            case 0 -> "max(" + name + ")";
-            case 1 -> "min(" + name + ")";
-            default -> "count(*)";
-            // TODO more
+            case 0 -> "count(*)";
+            case 1 -> "count(" + name + ")";
+            default -> "count_distinct(" + name + ")";
         };
     }
 
@@ -288,6 +325,10 @@ public class EsqlQueryGenerator {
 
     private static String randomStringField(List<Column> previousOutput) {
         return randomName(previousOutput, Set.of("text", "keyword"));
+    }
+
+    private static String randomKeywordField(List<Column> previousOutput) {
+        return randomName(previousOutput, Set.of("keyword"));
     }
 
     private static String randomName(List<Column> cols, Set<String> allowedTypes) {
@@ -304,7 +345,7 @@ public class EsqlQueryGenerator {
     }
 
     public static String limit() {
-        return " | limit " + randomIntBetween(0, 10000);
+        return " | limit " + randomIntBetween(0, 15000);
     }
 
     private static String from(List<String> availabeIndices) {

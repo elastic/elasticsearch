@@ -64,7 +64,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.UpdateBeforeV9;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
@@ -373,7 +373,7 @@ public class ClusterModule extends AbstractModule {
         }
     }
 
-    @UpdateBeforeV9 // in v9 there is only one allocator
+    @UpdateForV9 // in v9 there is only one allocator
     private static ShardsAllocator createShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,

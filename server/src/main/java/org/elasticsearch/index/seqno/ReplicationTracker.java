@@ -21,7 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateBeforeV9;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -470,7 +470,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         return emptyIfNull(retentionLeases);
     }
 
-    @UpdateBeforeV9
+    @UpdateForV9
     private static RetentionLeases emptyIfNull(RetentionLeases retentionLeases) {
         // we expect never to see a null in 8.x, so adjust this to throw an exception from v9 onwards.
         return retentionLeases == null ? RetentionLeases.EMPTY : retentionLeases;

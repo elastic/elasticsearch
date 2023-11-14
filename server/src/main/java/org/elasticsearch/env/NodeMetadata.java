@@ -10,7 +10,7 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.UpdateBeforeV9;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -163,12 +163,12 @@ public final class NodeMetadata {
             this.oldestIndexVersion = IndexVersion.fromId(oldestIndexVersion);
         }
 
-        @UpdateBeforeV9 // version is required in the node metadata from v9 onwards
         private Version getVersionOrFallbackToEmpty() {
             return Objects.requireNonNullElse(this.nodeVersion, Version.V_EMPTY);
         }
 
         public NodeMetadata build() {
+            @UpdateForV9 // version is required in the node metadata from v9 onwards
             final Version nodeVersion = getVersionOrFallbackToEmpty();
             final IndexVersion oldestIndexVersion;
 

@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -31,7 +30,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -86,11 +87,11 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     public void testSearchByTokenCount() throws IOException {
         init();
 
-        assertSearchReturns(searchByNumericRange(4, 4).get(), "single");
-        assertSearchReturns(searchByNumericRange(10, 10).get(), "multibulk2");
-        assertSearchReturns(searchByNumericRange(7, 10).get(), "multi", "multibulk1", "multibulk2");
-        assertSearchReturns(searchByNumericRange(1, 10).get(), "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
-        assertSearchReturns(searchByNumericRange(12, 12).get());
+        assertSearchReturns(searchByNumericRange(4, 4), "single");
+        assertSearchReturns(searchByNumericRange(10, 10), "multibulk2");
+        assertSearchReturns(searchByNumericRange(7, 10), "multi", "multibulk1", "multibulk2");
+        assertSearchReturns(searchByNumericRange(1, 10), "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
+        assertSearchReturns(searchByNumericRange(12, 12));
     }
 
     /**
@@ -100,11 +101,12 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         init();
 
         String facetField = randomFrom(Arrays.asList("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
-        SearchResponse result = searchByNumericRange(1, 10).addAggregation(AggregationBuilders.terms("facet").field(facetField)).get();
-        assertSearchReturns(result, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
-        assertThat(result.getAggregations().asList().size(), equalTo(1));
-        Terms terms = (Terms) result.getAggregations().asList().get(0);
-        assertThat(terms.getBuckets().size(), equalTo(9));
+        SearchRequestBuilder searchRequestBuilder = searchByNumericRange(1, 10).addAggregation(AggregationBuilders.terms("facet").field(facetField));
+        assertSearchReturns(searchRequestBuilder, resp -> {
+            assertThat(resp.getAggregations().asList().size(), equalTo(1));
+            Terms terms = (Terms) resp.getAggregations().asList().get(0);
+            assertThat(terms.getBuckets().size(), equalTo(9));
+        }, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
     }
 
     private void init() throws IOException {
@@ -174,8 +176,8 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         return client().prepareIndex("test").setId(id).setSource("foo", texts);
     }
 
-    private SearchResponse searchById(String id) {
-        return prepareTokenCountFieldMapperSearch().setQuery(QueryBuilders.termQuery("_id", id)).get();
+    private SearchRequestBuilder searchById(String id) {
+        return prepareTokenCountFieldMapperSearch().setQuery(QueryBuilders.termQuery("_id", id));
     }
 
     private SearchRequestBuilder searchByNumericRange(int low, int high) {
@@ -196,7 +198,21 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         return request;
     }
 
-    private void assertSearchReturns(SearchResponse result, String... ids) {
+    private void assertSearchReturns(SearchRequestBuilder searchRequestBuilder, Consumer<SearchResponse> consumer, String... ids) {
+        assertResponse(searchRequestBuilder,
+            searchResponse -> {
+                searchRespAssertions(searchResponse, ids);
+                consumer.accept(searchResponse);
+            });
+    }
+
+    private void assertSearchReturns(SearchRequestBuilder searchRequestBuilder, String... ids) {
+        assertResponse(searchRequestBuilder,
+            searchResponse -> searchRespAssertions(searchResponse, ids)
+        );
+    }
+
+    private void searchRespAssertions(SearchResponse result, String... ids) {
         assertThat(result.getHits().getTotalHits().value, equalTo((long) ids.length));
         assertThat(result.getHits().getHits().length, equalTo(ids.length));
         List<String> foundIds = new ArrayList<>();
@@ -207,17 +223,17 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         for (SearchHit hit : result.getHits()) {
             String id = hit.getId();
             if (id.equals("single")) {
-                assertSearchHit(hit, new int[] { 4 }, new int[] { 4 });
+                assertSearchHit(hit, new int[]{4}, new int[]{4});
             } else if (id.equals("bulk1")) {
-                assertSearchHit(hit, new int[] { 3 }, new int[] { 3 });
+                assertSearchHit(hit, new int[]{3}, new int[]{3});
             } else if (id.equals("bulk2")) {
-                assertSearchHit(hit, new int[] { 5 }, new int[] { 4 });
+                assertSearchHit(hit, new int[]{5}, new int[]{4});
             } else if (id.equals("multi")) {
-                assertSearchHit(hit, new int[] { 2, 7 }, new int[] { 2, 7 });
+                assertSearchHit(hit, new int[]{2, 7}, new int[]{2, 7});
             } else if (id.equals("multibulk1")) {
-                assertSearchHit(hit, new int[] { 1, 8 }, new int[] { 1, 8 });
+                assertSearchHit(hit, new int[]{1, 8}, new int[]{1, 8});
             } else if (id.equals("multibulk2")) {
-                assertSearchHit(hit, new int[] { 6, 10 }, new int[] { 3, 9 });
+                assertSearchHit(hit, new int[]{6, 10}, new int[]{3, 9});
             } else {
                 throw new ElasticsearchException("Unexpected response!");
             }

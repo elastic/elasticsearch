@@ -414,7 +414,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         SnapshotShardContext context = ShardSnapshotTaskRunnerTests.dummyContext();
         int noOfFiles = randomIntBetween(10, 100);
         BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files = new LinkedBlockingQueue<>(noOfFiles);
-        PlainActionFuture<Void> listenerCalled = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> listenerCalled = new PlainActionFuture<>();
         ActionListener<Collection<Void>> allFilesUploadListener = ActionListener.running(() -> listenerCalled.onResponse(null));
         for (int i = 0; i < noOfFiles; i++) {
             files.add(ShardSnapshotTaskRunnerTests.dummyFileInfo());

@@ -43,7 +43,7 @@ public class MessagesTests extends ESTestCase {
                     // change sourceNode
                     new Join(
                         createNode(randomAlphaOfLength(20)),
-                        join.getTargetNode(),
+                        join.getMasterCandidateNode(),
                         join.getTerm(),
                         join.getLastAcceptedTerm(),
                         join.getLastAcceptedVersion()
@@ -51,7 +51,7 @@ public class MessagesTests extends ESTestCase {
                 case 1 ->
                     // change targetNode
                     new Join(
-                        join.getSourceNode(),
+                        join.getVotingNode(),
                         createNode(randomAlphaOfLength(20)),
                         join.getTerm(),
                         join.getLastAcceptedTerm(),
@@ -60,8 +60,8 @@ public class MessagesTests extends ESTestCase {
                 case 2 ->
                     // change term
                     new Join(
-                        join.getSourceNode(),
-                        join.getTargetNode(),
+                        join.getVotingNode(),
+                        join.getMasterCandidateNode(),
                         randomValueOtherThan(join.getTerm(), ESTestCase::randomNonNegativeLong),
                         join.getLastAcceptedTerm(),
                         join.getLastAcceptedVersion()
@@ -69,8 +69,8 @@ public class MessagesTests extends ESTestCase {
                 case 3 ->
                     // change last accepted term
                     new Join(
-                        join.getSourceNode(),
-                        join.getTargetNode(),
+                        join.getVotingNode(),
+                        join.getMasterCandidateNode(),
                         join.getTerm(),
                         randomValueOtherThan(join.getLastAcceptedTerm(), ESTestCase::randomNonNegativeLong),
                         join.getLastAcceptedVersion()
@@ -78,8 +78,8 @@ public class MessagesTests extends ESTestCase {
                 case 4 ->
                     // change version
                     new Join(
-                        join.getSourceNode(),
-                        join.getTargetNode(),
+                        join.getVotingNode(),
+                        join.getMasterCandidateNode(),
                         join.getTerm(),
                         join.getLastAcceptedTerm(),
                         randomValueOtherThan(join.getLastAcceptedVersion(), ESTestCase::randomNonNegativeLong)
@@ -175,7 +175,7 @@ public class MessagesTests extends ESTestCase {
                 case 1 ->
                     // change term
                     new StartJoinRequest(
-                        startJoinRequest.getSourceNode(),
+                        startJoinRequest.getMasterCandidateNode(),
                         randomValueOtherThan(startJoinRequest.getTerm(), ESTestCase::randomNonNegativeLong)
                     );
                 default -> throw new AssertionError();
@@ -224,7 +224,7 @@ public class MessagesTests extends ESTestCase {
             randomNonNegativeLong()
         );
         JoinRequest initialJoinRequest = new JoinRequest(
-            initialJoin.getSourceNode(),
+            initialJoin.getVotingNode(),
             CompatibilityVersionsUtils.fakeSystemIndicesRandom(),
             Set.of(generateRandomStringArray(10, 10, false)),
             randomNonNegativeLong(),

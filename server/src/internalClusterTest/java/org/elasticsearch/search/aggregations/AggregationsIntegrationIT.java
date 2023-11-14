@@ -38,6 +38,8 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
 
     public void testScroll() {
         final int size = randomIntBetween(1, 4);
+        final String[] scroll = new String[1];
+        final int[] total = new int[1];
         assertNoFailuresAndResponse(
             prepareSearch("index").setSize(size).setScroll(TimeValue.timeValueMinutes(1)).addAggregation(terms("f").field("f")),
             response -> {
@@ -45,24 +47,23 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
                 assertNotNull(aggregations);
                 Terms terms = aggregations.get("f");
                 assertEquals(Math.min(numDocs, 3L), terms.getBucketByKey("0").getDocCount());
-                final String[] scroll = new String[] { response.getScrollId() };
-                final int[] total = new int[] { response.getHits().getHits().length };
-                int currentTotal = 0;
-                while (total[0] - currentTotal > 0) {
-                    currentTotal = total[0];
-                    assertNoFailuresAndResponse(
-                        client().prepareSearchScroll(scroll[0]).setScroll(TimeValue.timeValueMinutes(1)),
-                        scrollResponse -> {
-                            assertNull(scrollResponse.getAggregations());
-                            total[0] += scrollResponse.getHits().getHits().length;
-                            scroll[0] = scrollResponse.getScrollId();
-                        }
-                    );
-                }
-                clearScroll(scroll[0]);
-                assertEquals(numDocs, total[0]);
+                scroll[0] = response.getScrollId();
+                total[0] = response.getHits().getHits().length;
             }
         );
+        int currentTotal = 0;
+        while (total[0] - currentTotal > 0) {
+            currentTotal = total[0];
+            assertNoFailuresAndResponse(
+                client().prepareSearchScroll(scroll[0]).setScroll(TimeValue.timeValueMinutes(1)),
+                scrollResponse -> {
+                    assertNull(scrollResponse.getAggregations());
+                    total[0] += scrollResponse.getHits().getHits().length;
+                    scroll[0] = scrollResponse.getScrollId();
+                }
+            );
+        }
+        clearScroll(scroll[0]);
+        assertEquals(numDocs, total[0]);
     }
-
 }

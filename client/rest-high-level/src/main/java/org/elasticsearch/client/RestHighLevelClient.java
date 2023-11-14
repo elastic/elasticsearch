@@ -180,29 +180,6 @@ import static java.util.stream.Collectors.toList;
  * High level REST client that wraps an instance of the low level {@link RestClient} and allows to build requests and read responses. The
  * {@link RestClient} instance is internally built based on the provided {@link RestClientBuilder} and it gets closed automatically when
  * closing the {@link RestHighLevelClient} instance that wraps it.
- * <p>
- *
- * In case an already existing instance of a low-level REST client needs to be provided, this class can be subclassed and the
- * {@link #RestHighLevelClient(RestClient, CheckedConsumer, List)} constructor can be used.
- * <p>
- *
- * This class can also be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through plugins,
- * or to add support for custom response sections, again added to Elasticsearch through plugins.
- * <p>
- *
- * The majority of the methods in this class come in two flavors, a blocking and an asynchronous version (e.g.
- * {@link #search(SearchRequest, RequestOptions)} and {@link #searchAsync(SearchRequest, RequestOptions, ActionListener)}, where the later
- * takes an implementation of an {@link ActionListener} as an argument that needs to implement methods that handle successful responses and
- * failure scenarios. Most of the blocking calls can throw an {@link IOException} or an unchecked {@link ElasticsearchException} in the
- * following cases:
- *
- * <ul>
- * <li>an {@link IOException} is usually thrown in case of failing to parse the REST response in the high-level REST client, the request
- * times out or similar cases where there is no response coming back from the Elasticsearch server</li>
- * <li>an {@link ElasticsearchException} is usually thrown in case where the server returns a 4xx or 5xx error code. The high-level client
- * then tries to parse the response body error details into a generic ElasticsearchException and suppresses the original
- * {@link ResponseException}</li>
- * </ul>
  *
  * @deprecated The High Level Rest Client is deprecated in favor of the
  * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">

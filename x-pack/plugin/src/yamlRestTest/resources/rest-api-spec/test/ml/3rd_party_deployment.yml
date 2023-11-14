@@ -695,3 +695,61 @@ setup:
               }
             }
           }
+
+---
+"Test put model config with prefix strings":
+  - do:
+      ml.put_trained_model:
+        model_id: model_with_prefixes
+        body: >
+          {
+            "model_type": "pytorch",
+            "inference_config": {
+              "text_embedding": { }
+            },
+            "prefix_strings": {
+              "search": "this is a query",
+              "ingest": "this is a passage"
+            }
+          }
+  - match: { prefix_strings.search: "this is a query" }
+  - match: { prefix_strings.ingest: "this is a passage" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: model_with_prefixes
+  - match: { trained_model_configs.0.prefix_strings.search: "this is a query" }
+  - match: { trained_model_configs.0.prefix_strings.ingest: "this is a passage" }
+
+
+  - do:
+      ml.put_trained_model:
+        model_id: model_with_search_prefix
+        body: >
+          {
+            "model_type": "pytorch",
+            "inference_config": {
+              "text_embedding": { }
+            },
+            "prefix_strings": {
+              "search": "this is a query"
+            }
+          }
+  - match: { prefix_strings.search: "this is a query" }
+  - is_false: prefix_strings.ingest
+
+  - do:
+      ml.put_trained_model:
+        model_id: model_with_ingest_prefix
+        body: >
+          {
+            "model_type": "pytorch",
+            "inference_config": {
+              "text_embedding": { }
+            },
+            "prefix_strings": {
+              "ingest": "this is a passage"
+            }
+          }
+  - is_false: prefix_strings.search
+  - match: { prefix_strings.ingest: "this is a passage" }

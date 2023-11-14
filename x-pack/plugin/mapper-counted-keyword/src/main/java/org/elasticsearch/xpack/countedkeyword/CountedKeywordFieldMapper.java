@@ -60,17 +60,19 @@ import java.util.TreeMap;
 import static org.elasticsearch.common.lucene.Lucene.KEYWORD_ANALYZER;
 
 /**
- * A special field mapper for multi-valued keywords that may contain duplicate values. If the associated <code>counted_terms</code>
- * aggregation is used, duplicates are considered in aggregation results. Consider the following values:
+ * <p>A special field mapper for multi-valued keywords that may contain duplicate values. If the associated <code>counted_terms</code>
+ * aggregation is used, duplicates are considered in aggregation results. Consider the following values:</p>
  *
  * <ul>
  *     <li><code>["a", "a", "b"]</code></li>
  *     <li><code>["a", "b", "b"]</code></li>
  * </ul>
  *
- * While a regular <code>keyword</code> and the corresponding <code>terms</code> aggregation deduplicates values and reports a count of
+ * <p>While a regular <code>keyword</code> and the corresponding <code>terms</code> aggregation deduplicates values and reports a count of
  * 2 for each key (one per document), a <code>counted_terms</code> aggregation on a <code>counted_keyword</code> field will consider
- * the actual count and report a count of 3 for each key.
+ * the actual count and report a count of 3 for each key.</p>
+ *
+ * <p>Only regular source is supported; synthetic source won't work.</p>
  */
 public class CountedKeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "counted_keyword";
@@ -189,7 +191,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    private static class CountedKeywordSortedBinaryDocValues extends AbstractSortedSetDocValues {
+    static class CountedKeywordSortedBinaryDocValues extends AbstractSortedSetDocValues {
         private final SortedSetDocValues dvValues;
         private final BinaryDocValues dvCounts;
         private int sumCount;

@@ -8,8 +8,6 @@ setup:
       indices.create:
         index: test-events
         body:
-          settings:
-            number_of_shards: 1
           mappings:
             properties:
               events:

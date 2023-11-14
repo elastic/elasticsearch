@@ -90,6 +90,7 @@ class CountedTermsAggregator extends TermsAggregator {
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
+            // as users can't control sort order, in practice we'll always sort by doc count descending
             BucketPriorityQueue<StringTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
             StringTerms.Bucket spare = null;
             BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
@@ -97,9 +98,6 @@ class CountedTermsAggregator extends TermsAggregator {
             while (ordsEnum.next()) {
                 long docCount = bucketDocCount(ordsEnum.ord());
                 otherDocCounts[ordIdx] += docCount;
-                if (docCount < bucketCountThresholds.getShardMinDocCount()) {
-                    continue;
-                }
                 if (spare == null) {
                     spare = emptyBucketBuilder.get();
                 }

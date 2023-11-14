@@ -1603,11 +1603,11 @@ PUT /serbian_example
       "filter": {
         "serbian_stop": {
           "type":       "stop",
-          "stopwords":  "_serbian_"
+          "stopwords":  "_serbian_" <1>
         },
         "serbian_keywords": {
           "type":       "keyword_marker",
-          "keywords":   ["пример"]
+          "keywords":   ["пример"] <2>
         },
         "serbian_stemmer": {
           "type":       "stemmer",

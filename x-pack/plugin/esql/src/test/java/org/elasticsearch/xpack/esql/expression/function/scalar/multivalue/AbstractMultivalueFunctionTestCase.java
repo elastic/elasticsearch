@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -30,6 +32,8 @@ import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
 
 public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarFunctionTestCase {
     /**
@@ -373,6 +377,52 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(mvData, DataTypes.DATETIME, "field")),
+                    evaluatorName + "[field=Attribute[channel=0]]",
+                    expectedDataType,
+                    matcher.apply(mvData.size(), mvData.stream().mapToLong(Long::longValue))
+                );
+            }));
+        }
+    }
+
+    /**
+     * Build many test cases with {@code geo_point} values.
+     */
+    protected static void geoPoints(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+    ) {
+        geoPoints(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, matcher);
+    }
+
+    /**
+     * Build many test cases with {@code geo_point} values.
+     */
+    protected static void geoPoints(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType expectedDataType,
+        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+    ) {
+        cases.add(new TestCaseSupplier(name + "(geo_point)", List.of(EsqlDataTypes.GEO_POINT), () -> {
+            SpatialPoint point = ESTestCase.randomGeoPoint();
+            long data = Geo.pointAsLong(point);
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(data), EsqlDataTypes.GEO_POINT, "field")),
+                evaluatorName + "[field=Attribute[channel=0]]",
+                expectedDataType,
+                matcher.apply(1, LongStream.of(data))
+            );
+        }));
+        for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
+            cases.add(new TestCaseSupplier(name + "(<geo_points>) " + ordering, List.of(EsqlDataTypes.GEO_POINT), () -> {
+                List<Long> mvData = randomList(1, 100, () -> Geo.pointAsLong(ESTestCase.randomGeoPoint()));
+                putInOrder(mvData, ordering);
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(mvData, EsqlDataTypes.GEO_POINT, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(mvData.size(), mvData.stream().mapToLong(Long::longValue))

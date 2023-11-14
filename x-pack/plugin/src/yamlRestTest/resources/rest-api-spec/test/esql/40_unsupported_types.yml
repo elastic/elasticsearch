@@ -42,6 +42,8 @@ setup:
               geo_point_alias:
                 type: alias
                 path: geo_point
+              geo_shape:
+                type: geo_shape
               ip_range:
                 type: ip_range
               long_range:
@@ -50,6 +52,8 @@ setup:
                 type: match_only_text
               nested:
                 type: nested
+              point:
+                type: point
               rank_feature:
                 type: rank_feature
               rank_features:
@@ -86,12 +90,14 @@ setup:
             "double_range": { "gte": 1.0, "lte": 2.0 },
             "float_range": { "gte": 1.0, "lte": 2.0 },
             "geo_point": [ 10.0, 12.0 ],
+            "geo_shape": "LINESTRING (-97.154 25.996, -97.159 25.998, -97.181 25.991, -97.187 25.985)",
             "histogram": { "values": [ 0.1, 0.25, 0.35, 0.4, 0.45, 0.5 ], "counts": [ 8, 17, 8, 7, 6, 2 ] },
             "integer_range": { "gte": 1, "lte": 2 },
             "ip_range": "127.0.0.1/16",
             "long_range": { "gte": 1, "lte": 2 },
             "match_only_text": "foo bar baz",
             "name": "Alice",
+            "point": "POINT (-97.15447 25.9961525)",
             "rank_feature": 10,
             "rank_features": { "foo": 10, "bar": 20 },
             "search_as_you_type": "foo bar baz",
@@ -103,6 +109,10 @@ setup:
 
 ---
 unsupported:
+  - skip:
+      version: " - 8.11.99"
+      reason: "Latest types supported in ESQL starting with 8.12.0"
+
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
@@ -128,43 +138,47 @@ unsupported:
   - match: { columns.7.name: float_range }
   - match: { columns.7.type: unsupported }
   - match: { columns.8.name: geo_point }
-  - match: { columns.8.type: unsupported }
+  - match: { columns.8.type: geo_point }
   - match: { columns.9.name: geo_point_alias }
-  - match: { columns.9.type: unsupported }
-  - match: { columns.10.name: histogram }
+  - match: { columns.9.type: geo_point }
+  - match: { columns.10.name: geo_shape }
   - match: { columns.10.type: unsupported }
-  - match: { columns.11.name: integer_range }
+  - match: { columns.11.name: histogram }
   - match: { columns.11.type: unsupported }
-  - match: { columns.12.name: ip_range }
+  - match: { columns.12.name: integer_range }
   - match: { columns.12.type: unsupported }
-  - match: { columns.13.name: long_range }
+  - match: { columns.13.name: ip_range }
   - match: { columns.13.type: unsupported }
-  - match: { columns.14.name: match_only_text }
-  - match: { columns.14.type: text }
-  - match: { columns.15.name: name }
-  - match: { columns.15.type: keyword }
-  - match: { columns.16.name: rank_feature }
-  - match: { columns.16.type: unsupported }
-  - match: { columns.17.name: rank_features }
+  - match: { columns.14.name: long_range }
+  - match: { columns.14.type: unsupported }
+  - match: { columns.15.name: match_only_text }
+  - match: { columns.15.type: text }
+  - match: { columns.16.name: name }
+  - match: { columns.16.type: keyword }
+  - match: { columns.17.name: point }
   - match: { columns.17.type: unsupported }
-  - match: { columns.18.name: search_as_you_type }
+  - match: { columns.18.name: rank_feature }
   - match: { columns.18.type: unsupported }
-  - match: { columns.19.name: search_as_you_type._2gram }
+  - match: { columns.19.name: rank_features }
   - match: { columns.19.type: unsupported }
-  - match: { columns.20.name: search_as_you_type._3gram }
+  - match: { columns.20.name: search_as_you_type }
   - match: { columns.20.type: unsupported }
-  - match: { columns.21.name: search_as_you_type._index_prefix }
+  - match: { columns.21.name: search_as_you_type._2gram }
   - match: { columns.21.type: unsupported }
-  - match: { columns.22.name: shape }
+  - match: { columns.22.name: search_as_you_type._3gram }
   - match: { columns.22.type: unsupported }
-  - match: { columns.23.name: some_doc.bar }
-  - match: { columns.23.type: long }
-  - match: { columns.24.name: some_doc.foo }
-  - match: { columns.24.type: keyword }
-  - match: { columns.25.name: text }
-  - match: { columns.25.type: text }
-  - match: { columns.26.name: token_count }
-  - match: { columns.26.type: integer }
+  - match: { columns.23.name: search_as_you_type._index_prefix }
+  - match: { columns.23.type: unsupported }
+  - match: { columns.24.name: shape }
+  - match: { columns.24.type: unsupported }
+  - match: { columns.25.name: some_doc.bar }
+  - match: { columns.25.type: long }
+  - match: { columns.26.name: some_doc.foo }
+  - match: { columns.26.type: keyword }
+  - match: { columns.27.name: text }
+  - match: { columns.27.type: text }
+  - match: { columns.28.name: token_count }
+  - match: { columns.28.type: integer }
 
   - length: { values: 1 }
   - match: { values.0.0: null }
@@ -175,25 +189,27 @@ unsupported:
   - match: { values.0.5: null }
   - match: { values.0.6: null }
   - match: { values.0.7: null }
-  - match: { values.0.8: null }
-  - match: { values.0.9: null }
+  - match: { values.0.8: "POINT (9.999999990686774 11.999999997206032)" }
+  - match: { values.0.9: "POINT (9.999999990686774 11.999999997206032)" }
   - match: { values.0.10: null }
   - match: { values.0.11: null }
   - match: { values.0.12: null }
   - match: { values.0.13: null }
-  - match: { values.0.14: "foo bar baz" }
-  - match: { values.0.15: Alice }
-  - match: { values.0.16: null }
+  - match: { values.0.14: null }
+  - match: { values.0.15: "foo bar baz" }
+  - match: { values.0.16: Alice }
   - match: { values.0.17: null }
   - match: { values.0.18: null }
   - match: { values.0.19: null }
   - match: { values.0.20: null }
   - match: { values.0.21: null }
   - match: { values.0.22: null }
-  - match: { values.0.23: 12 }
-  - match: { values.0.24: xy }
-  - match: { values.0.25: "foo bar" }
-  - match: { values.0.26: 3 }
+  - match: { values.0.23: null }
+  - match: { values.0.24: null }
+  - match: { values.0.25: 12 }
+  - match: { values.0.26: xy }
+  - match: { values.0.27: "foo bar" }
+  - match: { values.0.28: 3 }
 
 
 # limit 0
@@ -218,43 +234,47 @@ unsupported:
   - match: { columns.7.name: float_range }
   - match: { columns.7.type: unsupported }
   - match: { columns.8.name: geo_point }
-  - match: { columns.8.type: unsupported }
+  - match: { columns.8.type: geo_point }
   - match: { columns.9.name: geo_point_alias }
-  - match: { columns.9.type: unsupported }
-  - match: { columns.10.name: histogram }
+  - match: { columns.9.type: geo_point }
+  - match: { columns.10.name: geo_shape }
   - match: { columns.10.type: unsupported }
-  - match: { columns.11.name: integer_range }
+  - match: { columns.11.name: histogram }
   - match: { columns.11.type: unsupported }
-  - match: { columns.12.name: ip_range }
+  - match: { columns.12.name: integer_range }
   - match: { columns.12.type: unsupported }
-  - match: { columns.13.name: long_range }
+  - match: { columns.13.name: ip_range }
   - match: { columns.13.type: unsupported }
-  - match: { columns.14.name: match_only_text }
-  - match: { columns.14.type: text }
-  - match: { columns.15.name: name }
-  - match: { columns.15.type: keyword }
-  - match: { columns.16.name: rank_feature }
-  - match: { columns.16.type: unsupported }
-  - match: { columns.17.name: rank_features }
+  - match: { columns.14.name: long_range }
+  - match: { columns.14.type: unsupported }
+  - match: { columns.15.name: match_only_text }
+  - match: { columns.15.type: text }
+  - match: { columns.16.name: name }
+  - match: { columns.16.type: keyword }
+  - match: { columns.17.name: point }
   - match: { columns.17.type: unsupported }
-  - match: { columns.18.name: search_as_you_type }
+  - match: { columns.18.name: rank_feature }
   - match: { columns.18.type: unsupported }
-  - match: { columns.19.name: search_as_you_type._2gram }
+  - match: { columns.19.name: rank_features }
   - match: { columns.19.type: unsupported }
-  - match: { columns.20.name: search_as_you_type._3gram }
+  - match: { columns.20.name: search_as_you_type }
   - match: { columns.20.type: unsupported }
-  - match: { columns.21.name: search_as_you_type._index_prefix }
+  - match: { columns.21.name: search_as_you_type._2gram }
   - match: { columns.21.type: unsupported }
-  - match: { columns.22.name: shape }
+  - match: { columns.22.name: search_as_you_type._3gram }
   - match: { columns.22.type: unsupported }
-  - match: { columns.23.name: some_doc.bar }
-  - match: { columns.23.type: long }
-  - match: { columns.24.name: some_doc.foo }
-  - match: { columns.24.type: keyword }
-  - match: { columns.25.name: text }
-  - match: { columns.25.type: text }
-  - match: { columns.26.name: token_count }
-  - match: { columns.26.type: integer }
+  - match: { columns.23.name: search_as_you_type._index_prefix }
+  - match: { columns.23.type: unsupported }
+  - match: { columns.24.name: shape }
+  - match: { columns.24.type: unsupported }
+  - match: { columns.25.name: some_doc.bar }
+  - match: { columns.25.type: long }
+  - match: { columns.26.name: some_doc.foo }
+  - match: { columns.26.type: keyword }
+  - match: { columns.27.name: text }
+  - match: { columns.27.type: text }
+  - match: { columns.28.name: token_count }
+  - match: { columns.28.type: integer }
 
   - length: { values: 0 }
 
@@ -269,6 +289,10 @@ unsupported:
 
 ---
 unsupported with sort:
+  - skip:
+      version: " - 8.11.99"
+      reason: "Latest types supported in ESQL starting with 8.12.0"
+
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
@@ -294,43 +318,47 @@ unsupported with sort:
   - match: { columns.7.name: float_range }
   - match: { columns.7.type: unsupported }
   - match: { columns.8.name: geo_point }
-  - match: { columns.8.type: unsupported }
+  - match: { columns.8.type: geo_point }
   - match: { columns.9.name: geo_point_alias }
-  - match: { columns.9.type: unsupported }
-  - match: { columns.10.name: histogram }
+  - match: { columns.9.type: geo_point }
+  - match: { columns.10.name: geo_shape }
   - match: { columns.10.type: unsupported }
-  - match: { columns.11.name: integer_range }
+  - match: { columns.11.name: histogram }
   - match: { columns.11.type: unsupported }
-  - match: { columns.12.name: ip_range }
+  - match: { columns.12.name: integer_range }
   - match: { columns.12.type: unsupported }
-  - match: { columns.13.name: long_range }
+  - match: { columns.13.name: ip_range }
   - match: { columns.13.type: unsupported }
-  - match: { columns.14.name: match_only_text }
-  - match: { columns.14.type: text }
-  - match: { columns.15.name: name }
-  - match: { columns.15.type: keyword }
-  - match: { columns.16.name: rank_feature }
-  - match: { columns.16.type: unsupported }
-  - match: { columns.17.name: rank_features }
+  - match: { columns.14.name: long_range }
+  - match: { columns.14.type: unsupported }
+  - match: { columns.15.name: match_only_text }
+  - match: { columns.15.type: text }
+  - match: { columns.16.name: name }
+  - match: { columns.16.type: keyword }
+  - match: { columns.17.name: point }
   - match: { columns.17.type: unsupported }
-  - match: { columns.18.name: search_as_you_type }
+  - match: { columns.18.name: rank_feature }
   - match: { columns.18.type: unsupported }
-  - match: { columns.19.name: search_as_you_type._2gram }
+  - match: { columns.19.name: rank_features }
   - match: { columns.19.type: unsupported }
-  - match: { columns.20.name: search_as_you_type._3gram }
+  - match: { columns.20.name: search_as_you_type }
   - match: { columns.20.type: unsupported }
-  - match: { columns.21.name: search_as_you_type._index_prefix }
+  - match: { columns.21.name: search_as_you_type._2gram }
   - match: { columns.21.type: unsupported }
-  - match: { columns.22.name: shape }
+  - match: { columns.22.name: search_as_you_type._3gram }
   - match: { columns.22.type: unsupported }
-  - match: { columns.23.name: some_doc.bar }
-  - match: { columns.23.type: long }
-  - match: { columns.24.name: some_doc.foo }
-  - match: { columns.24.type: keyword }
-  - match: { columns.25.name: text }
-  - match: { columns.25.type: text }
-  - match: { columns.26.name: token_count }
-  - match: { columns.26.type: integer }
+  - match: { columns.23.name: search_as_you_type._index_prefix }
+  - match: { columns.23.type: unsupported }
+  - match: { columns.24.name: shape }
+  - match: { columns.24.type: unsupported }
+  - match: { columns.25.name: some_doc.bar }
+  - match: { columns.25.type: long }
+  - match: { columns.26.name: some_doc.foo }
+  - match: { columns.26.type: keyword }
+  - match: { columns.27.name: text }
+  - match: { columns.27.type: text }
+  - match: { columns.28.name: token_count }
+  - match: { columns.28.type: integer }
 
   - length: { values: 1 }
   - match: { values.0.0: null }
@@ -341,22 +369,56 @@ unsupported with sort:
   - match: { values.0.5: null }
   - match: { values.0.6: null }
   - match: { values.0.7: null }
-  - match: { values.0.8: null }
-  - match: { values.0.9: null }
+  - match: { values.0.8: "POINT (9.999999990686774 11.999999997206032)" }
+  - match: { values.0.9: "POINT (9.999999990686774 11.999999997206032)" }
   - match: { values.0.10: null }
   - match: { values.0.11: null }
   - match: { values.0.12: null }
   - match: { values.0.13: null }
-  - match: { values.0.14: "foo bar baz" }
-  - match: { values.0.15: Alice }
-  - match: { values.0.16: null }
+  - match: { values.0.14: null }
+  - match: { values.0.15: "foo bar baz" }
+  - match: { values.0.16: Alice }
   - match: { values.0.17: null }
   - match: { values.0.18: null }
   - match: { values.0.19: null }
   - match: { values.0.20: null }
   - match: { values.0.21: null }
   - match: { values.0.22: null }
-  - match: { values.0.23: 12 }
-  - match: { values.0.24: xy }
-  - match: { values.0.25: "foo bar" }
-  - match: { values.0.26: 3 }
+  - match: { values.0.23: null }
+  - match: { values.0.24: null }
+  - match: { values.0.25: 12 }
+  - match: { values.0.26: xy }
+  - match: { values.0.27: "foo bar" }
+  - match: { values.0.28: 3 }
+
+---
+spatial types unsupported in 8.11:
+  - skip:
+      version: " - 8.10.99, 8.12.0 - "
+      reason: "Elasticsearch 8.11 did not support any spatial types"
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep geo_point, geo_point_alias, point, geo_shape, shape'
+
+  - match: { columns.0.name: geo_point }
+  - match: { columns.0.type: unsupported }
+  - match: { columns.1.name: geo_point_alias }
+  - match: { columns.1.type: unsupported }
+  - match: { columns.2.name: point }
+  - match: { columns.2.type: unsupported }
+  - match: { columns.3.name: geo_shape }
+  - match: { columns.3.type: unsupported }
+  - match: { columns.4.name: shape }
+  - match: { columns.4.type: unsupported }
+
+  - length: { values: 1 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: null }
+  - match: { values.0.2: null }
+  - match: { values.0.3: null }
+  - match: { values.0.4: null }

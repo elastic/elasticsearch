@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
+
 public class ToStringTests extends AbstractFunctionTestCase {
     public ToStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -82,6 +84,13 @@ public class ToStringTests extends AbstractFunctionTestCase {
             "ToStringFromDatetimeEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
             i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i.toEpochMilli())),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryGeoPoint(
+            suppliers,
+            "ToStringFromGeoPointEvaluator[field=" + read + "]",
+            DataTypes.KEYWORD,
+            i -> new BytesRef(Geo.pointAsString(Geo.longAsPoint(i))),
             List.of()
         );
         TestCaseSupplier.forUnaryIp(

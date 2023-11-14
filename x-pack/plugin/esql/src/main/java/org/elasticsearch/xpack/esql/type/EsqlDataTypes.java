@@ -44,6 +44,7 @@ public final class EsqlDataTypes {
 
     public static final DataType DATE_PERIOD = new DataType("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false);
     public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
+    public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2, false, false, false);
 
     private static final Collection<DataType> TYPES = Stream.of(
         BOOLEAN,
@@ -67,7 +68,8 @@ public final class EsqlDataTypes {
         SCALED_FLOAT,
         SOURCE,
         VERSION,
-        UNSIGNED_LONG
+        UNSIGNED_LONG,
+        GEO_POINT
     ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));

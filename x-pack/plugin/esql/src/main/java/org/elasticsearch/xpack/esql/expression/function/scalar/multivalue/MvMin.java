@@ -33,7 +33,7 @@ public class MvMin extends AbstractMultivalueFunction {
         Source source,
         @Param(
             name = "v",
-            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long" }
+            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long", "geo_point" }
         ) Expression field
     ) {
         super(source, field);

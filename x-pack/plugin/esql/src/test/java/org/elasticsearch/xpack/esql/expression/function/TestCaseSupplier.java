@@ -35,6 +35,8 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -340,6 +342,27 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEO_POINT}.
+     */
+    public static void forUnaryGeoPoint(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<Long, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unaryNumeric(
+            suppliers,
+            expectedEvaluatorToString,
+            EsqlDataTypes.GEO_POINT,
+            geoPointCases(),
+            expectedType,
+            n -> expectedValue.apply(n.longValue()),
+            warnings
+        );
+    }
+
+    /**
      * Generate positive test cases for a unary function operating on an {@link DataTypes#IP}.
      */
     public static void forUnaryIp(
@@ -631,6 +654,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 DataTypes.DATETIME
             )
         );
+    }
+
+    private static List<TypedDataSupplier> geoPointCases() {
+        return List.of(new TypedDataSupplier("<geo_point>", () -> Geo.pointAsLong(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
     }
 
     private static List<TypedDataSupplier> ipCases() {

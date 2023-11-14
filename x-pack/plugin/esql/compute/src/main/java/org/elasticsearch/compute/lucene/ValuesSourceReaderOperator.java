@@ -188,6 +188,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         IntVector segments = docVector.segments();
         IntVector docs = docVector.docs();
         Block.Builder[] builders = new Block.Builder[blocks.length];
+        int[] forwards = docVector.shardSegmentDocMapForwards();
         try {
             for (int b = 0; b < fields.size(); b++) {
                 FieldWork field = fields.get(b);
@@ -196,18 +197,21 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             int lastShard = -1;
             int lastSegment = -1;
             BlockLoaderStoredFieldsFromLeafLoader storedFields = null;
-            for (int p = 0; p < docs.getPositionCount(); p++) {
+            for (int i = 0; i < forwards.length; i++) {
+                int p = forwards[i];
                 int shard = shards.getInt(p);
                 int segment = segments.getInt(p);
                 int doc = docs.getInt(p);
                 if (shard != lastShard || segment != lastSegment) {
                     lastShard = shard;
+                    lastSegment = segment;
                     if (false == storedFieldsSpecForShard(shard).equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
                         StoredFieldsSpec storedFieldsSpec = storedFieldsSpecForShard(shard);
                         storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                             StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx(shard, segment), null),
                             storedFieldsSpec.requiresSource()
                         );
+                        // TODO track the number of times we build the stored fields reader
                     }
                 }
                 if (storedFields != null) {
@@ -218,7 +222,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 }
             }
             for (int r = 0; r < blocks.length; r++) {
-                blocks[r] = builders[r].build();
+                try (Block orig = builders[r].build()) {
+                    blocks[r] = orig.filter(docVector.shardSegmentDocMapBackwards());
+                }
             }
         } finally {
             Releasables.closeExpectNoException(builders);

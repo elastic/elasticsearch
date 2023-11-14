@@ -658,6 +658,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1172")
     public void testCheckShardStillAllocated() throws Exception {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 10);

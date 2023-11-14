@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +25,8 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
+
 public class LegacyStackTemplateRegistryTests extends ESTestCase {
     private LegacyStackTemplateRegistry registry;
     private ThreadPool threadPool;
@@ -33,7 +36,15 @@ public class LegacyStackTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         Client client = new NoOpClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new LegacyStackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        var featureService = new FeatureService(List.of(new StackTemplatesFeatures()));
+        registry = new LegacyStackTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            featureService
+        );
     }
 
     @After

@@ -111,6 +111,39 @@ PUT my-index-2
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
 that sacrifices result accuracy for improved speed.
 
+[[dense-vector-quantization]]
+==== Automatically quantize vectors for kNN search
+
+The `dense_vector` type supports quantization to reduce the memory footprint required when searching `float` vectors.
+Currently the only quantization method supported is `byte` and provided vectors `element_type` must be `float`.
+
+When `byte` quantization is enabled, each of the `float` vectors' dimensions are quantized to 1-byte integers. This can
+reduce the memory footprint by as much as 75% at the cost of some accuracy.
+
+To enable quantization, set `quantization_options.type` to `byte` within the `index_options` section of the mapping:
+
+[source,console]
+--------------------------------------------------
+PUT my-byte-quantized-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": true,
+        "index_options": {
+          "type": "hnsw",
+          "quantization_options": {
+            "type": "byte"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
 [role="child_attributes"]
 [[dense-vector-params]]
 ==== Parameters for dense vector fields
@@ -212,14 +245,34 @@ properties must be defined.
 The type of kNN algorithm to use. Currently only `hnsw` is supported.
 
 `m`:::
-(Required, integer)
+(Optional, integer)
 The number of neighbors each node will be connected to in the HNSW graph.
 Defaults to `16`.
 
 `ef_construction`:::
-(Required, integer)
+(Optional, integer)
 The number of candidates to track while assembling the list of nearest
 neighbors for each new node. Defaults to `100`.
+
+`quantization_options`:::
+(Optional, object)
+An optional section that configures the quantization configuration. The
+quantization configuration is used to reduce the memory footprint of the
+index. Only `byte` quantization is currently supported and can only be configured if
+`element_type` is `float`.
+.Properties of `quantization_options`
+[%collapsible%open]
+=====
+
+`type`:::
+(Required, string)
+The type of quantization. Currently only `byte` is supported.
+
+`confidence_interval`:::
+(Optional, float)
+The confidence interval to use when quantizing the vectors, can be any value between and including `0.90` and `1.0`.
+Defaults to `1/(dims + 1)`.
+=====
 ====
 
 [[dense-vector-synthetic-source]]

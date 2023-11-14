@@ -1051,8 +1051,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             + m
             + ", beamWidth="
             + efConstruction
-            + ", flatVectorFormat=Lucene99ScalarQuantizedVectorsFormat(name=Lucene99ScalarQuantizedVectorsFormat, quantile=null, rawVectorFormat=Lucene99FlatVectorsFormat())"
-            + ")";
+            + ", flatVectorFormat=Lucene99ScalarQuantizedVectorsFormat("
+            + "name=Lucene99ScalarQuantizedVectorsFormat, quantile=null, rawVectorFormat=Lucene99FlatVectorsFormat()"
+            + "))";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 

@@ -92,33 +92,33 @@ if (USE_ARTIFACTORY) {
 
 gradle.settingsEvaluated { settings ->
   settings.pluginManager.withPlugin("com.gradle.enterprise") {
-    settings.gradleEnterprise {
-      server = 'https://gradle-enterprise.elastic.co'
-    }
+    configureGradleEnterprise(settings)
   }
 }
 
+void configureGradleEnterprise(def settings) {
+  settings.gradleEnterprise {
+    server = 'https://gradle-enterprise.elastic.co'
+    buildScan.publishAlways()
+  }
 
-final String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.url')
-final boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticsearch.build.cache.push', 'false'))
+  def isCI = System.getenv("CI") == "true"
+  settings.buildCache {
+    local {
+      // Disable the local build cache in CI since we use ephemeral workers and it incurs an IO penalty
+      enabled = isCI == false
+    }
+    remote(settings.gradleEnterprise.buildCache) {
+      if (isCI) {
+        final boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticsearch.build.cache.push', 'false'))
+        final Map<String, String> buildCacheCredentials = System.getenv("GRADLE_BUILD_CACHE_USERNAME") ? [:] : vault.logical()
+          .read("${vaultPathPrefix}/gradle-build-cache")
+          .getData()
+        def username = System.getenv("GRADLE_BUILD_CACHE_USERNAME") ?: buildCacheCredentials.get("username")
+        def password = System.getenv("GRADLE_BUILD_CACHE_PASSWORD") ?: buildCacheCredentials.get("password")
 
-if (buildCacheUrl) {
-  final Map<String, String> buildCacheCredentials = System.getenv("GRADLE_BUILD_CACHE_USERNAME") ? [:] : vault.logical()
-    .read("${vaultPathPrefix}/gradle-build-cache")
-    .getData()
-  gradle.settingsEvaluated { settings ->
-    settings.buildCache {
-      local {
-        // Disable the local build cache in CI since we use ephemeral workers and it incurs an IO penalty
-        enabled = false
-      }
-      remote(HttpBuildCache) {
-        url = buildCacheUrl
         push = buildCachePush
-        credentials {
-          username = System.getenv("GRADLE_BUILD_CACHE_USERNAME") ?: buildCacheCredentials.get("username")
-          password = System.getenv("GRADLE_BUILD_CACHE_PASSWORD") ?: buildCacheCredentials.get("password")
-        }
+        usernameAndPassword(username, password)
       }
     }
   }

@@ -59,27 +59,41 @@ class HttpRequestExecutorService implements ExecutorService {
     private final HttpClientContext httpContext;
     private final HttpClient httpClient;
     private final ThreadPool threadPool;
+    private final CountDownLatch startupLatch;
 
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
-    HttpRequestExecutorService(String serviceName, HttpClient httpClient, ThreadPool threadPool) {
-        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>());
+    HttpRequestExecutorService(String serviceName, HttpClient httpClient, ThreadPool threadPool, @Nullable CountDownLatch startupLatch) {
+        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(), startupLatch);
     }
 
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
-    HttpRequestExecutorService(String serviceName, HttpClient httpClient, ThreadPool threadPool, int capacity) {
-        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity));
+    HttpRequestExecutorService(
+        String serviceName,
+        HttpClient httpClient,
+        ThreadPool threadPool,
+        int capacity,
+        @Nullable CountDownLatch startupLatch
+    ) {
+        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity), startupLatch);
     }
 
     /**
      * This constructor should only be used directly for testing.
      */
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
-    HttpRequestExecutorService(String serviceName, HttpClient httpClient, ThreadPool threadPool, BlockingQueue<HttpTask> queue) {
+    HttpRequestExecutorService(
+        String serviceName,
+        HttpClient httpClient,
+        ThreadPool threadPool,
+        BlockingQueue<HttpTask> queue,
+        @Nullable CountDownLatch startupLatch
+    ) {
         this.serviceName = Objects.requireNonNull(serviceName);
         this.httpClient = Objects.requireNonNull(httpClient);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.httpContext = HttpClientContext.create();
         this.queue = queue;
+        this.startupLatch = startupLatch;
     }
 
     /**
@@ -87,6 +101,8 @@ class HttpRequestExecutorService implements ExecutorService {
      */
     public void start() {
         try {
+            signalStartInitiated();
+
             while (running.get()) {
                 handleTasks();
             }
@@ -96,6 +112,12 @@ class HttpRequestExecutorService implements ExecutorService {
             running.set(false);
             notifyRequestsOfShutdown();
             terminationLatch.countDown();
+        }
+    }
+
+    private void signalStartInitiated() {
+        if (startupLatch != null) {
+            startupLatch.countDown();
         }
     }
 

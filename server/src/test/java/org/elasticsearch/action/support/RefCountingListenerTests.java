@@ -10,14 +10,15 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.hamcrest.Matchers.containsString;
@@ -88,7 +89,7 @@ public class RefCountingListenerTests extends ESTestCase {
 
             var reachChecker = new ReachabilityChecker();
             var consumed = new AtomicBoolean();
-            var consumingListener = refs.acquire(reachChecker.register(new Consumer<String>() {
+            var consumingListener = refs.acquire(reachChecker.register(new CheckedConsumer<String, Exception>() {
                 @Override
                 public void accept(String s) {
                     assertEquals("test response", s);
@@ -185,7 +186,7 @@ public class RefCountingListenerTests extends ESTestCase {
 
     public void testConsumerFailure() {
         final var executed = new AtomicBoolean();
-        try (var refs = new RefCountingListener(new ActionListener<Void>() {
+        try (var refs = new RefCountingListener(new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 fail("unexpected success");
@@ -197,7 +198,13 @@ public class RefCountingListenerTests extends ESTestCase {
                 executed.set(true);
             }
         })) {
-            refs.acquire(ignored -> { throw new ElasticsearchException("simulated"); }).onResponse(null);
+            refs.acquire(ignored -> {
+                if (randomBoolean()) {
+                    throw new ElasticsearchException("simulated");
+                } else {
+                    throw new IOException("simulated");
+                }
+            }).onResponse(null);
         }
         assertTrue(executed.get());
     }

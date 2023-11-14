@@ -21,7 +21,7 @@ include::8.6.0.asciidoc[tag=reconciliation-imbalance-known-issue]
 // tag::no-preventive-gc-issue[]
 * High Memory Pressure due to a GC JVM setting change
 +
-This version of Elasticsearch is bundled with JDK 20. In JDK 20
+This version of Elasticsearch is <<upgrade-8.7.1,bundled with JDK 20>>. In JDK 20
 https://bugs.openjdk.org/browse/JDK-8293861[Preventive GC is disabled by default].
 This may lead to increased memory pressure and an increased number of CircuitBreakerExceptions when retrieving large
 documents under some load patterns. (issue: {es-issue}99592[#99592])

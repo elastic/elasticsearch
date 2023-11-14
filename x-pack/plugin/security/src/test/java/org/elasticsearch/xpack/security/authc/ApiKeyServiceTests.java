@@ -2742,7 +2742,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     XContentType.JSON
                 )
             );
-            PlainActionFuture<AuthenticationResult<User>> authenticationResultFuture = PlainActionFuture.newFuture();
+            PlainActionFuture<AuthenticationResult<User>> authenticationResultFuture = new PlainActionFuture<>();
             ApiKeyService.validateApiKeyTypeAndExpiration(
                 apiKeyDoc,
                 new ApiKeyService.ApiKeyCredentials("id", new SecureString(randomAlphaOfLength(16).toCharArray()), ApiKey.Type.REST),

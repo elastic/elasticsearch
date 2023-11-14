@@ -9,7 +9,7 @@
 [[esql-basic-syntax]]
 === Basic syntax
 
-An {esql} query is composed of a <<esql-commands,source_command>> followed
+An {esql} query is composed of a <<esql-commands,source command>> followed
 by an optional series of <<esql-commands,processing commands>>,
 separated by a pipe character: `|`. For example:
 
@@ -35,6 +35,101 @@ query is identical to the previous one:
 source-command | processing-command1 | processing-command2
 ----
 ====
+
+[discrete]
+[[esql-identifiers]]
+==== Identifiers
+
+The identifiers can be used as they are and don't require quoting, unless
+containing special characters, in which case they must be quoted with
+backticks (+{backtick}+). What "special characters" means is command dependent.
+
+For <<esql-from, FROM>>, <<esql-keep, KEEP>>, <<esql-drop, DROP>>,
+<<esql-rename, RENAME>>, <<esql-mv_expand, MV_EXPAND>> and
+<<esql-enrich, ENRICH>> these are: `=`, +{backtick}+, `,`, ` ` (space), `|` ,
+`[`, `]`, `\t` (TAB), `\r` (CR), `\n` (LF); one `/` is allowed unquoted, but
+a sequence of two or more require quoting.
+
+The rest of the commands - those allowing for identifiers be used in
+expressions - require quoting if the identifier contains characters other than
+letters, numbers and `_` and doesn't start with a letter, `_` or `@`.
+
+For instance:
+
+[source,esql]
+----
+// Retain just one field
+FROM index
+| KEEP 1.field
+----
+
+is legal. However, if same field is to be used with an <<esql-eval, EVAL>>,
+it'd have to be quoted:
+
+[source,esql]
+----
+// Copy one field
+FROM index
+| EVAL my_field = `1.field`
+----
+
+[discrete]
+[[esql-literals]]
+==== Literals
+
+{esql} currently supports numeric and string literals.
+
+[discrete]
+[[esql-string-literals]]
+===== String literals
+
+A string literal is a sequence of unicode characters delimited by double
+quotes (`"`).
+
+[source,esql]
+----
+// Filter by a string value
+FROM index
+| WHERE first_name == "Georgi"
+----
+
+If the literal string itself contains quotes, these need to be escaped (`\\"`).
+{esql} also supports the triple-quotes (`"""`) delimiter, for convenience:
+
+[source,esql]
+----
+ROW name = """Indiana "Indy" Jones"""
+----
+
+The special characters CR, LF and TAB can be provided with the usual escaping:
+`\r`, `\n`, `\t`, respectively.
+
+[discrete]
+[[esql-numeric-literals]]
+===== Numerical literals
+
+The numeric literals are accepted in decimal and in the scientific notation
+with the exponent marker (`e` or `E`), starting either with a digit, decimal
+point `.` or the negative sign `-`:
+
+[source, sql]
+----
+1969    -- integer notation
+3.14    -- decimal notation
+.1234   -- decimal notation starting with decimal point
+4E5     -- scientific notation (with exponent marker)
+1.2e-3  -- scientific notation with decimal point
+-.1e2   -- scientific notation starting with the negative sign
+----
+
+The integer numeric literals are implicitly converted to the `integer`, `long`
+or the `double` type, whichever can first accommodate the literal's value.
+
+The floating point literals are implicitly converted the `double` type.
+
+To obtain constant values of different types, use one of the numeric
+<<esql-type-conversion-functions, conversion functions>>.
+
 
 [discrete]
 [[esql-comments]]

@@ -90,7 +90,7 @@ public class SearchInputTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testExecute() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         SearchResponse searchResponse = new SearchResponse(
             InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
@@ -131,7 +131,7 @@ public class SearchInputTests extends ESTestCase {
 
     public void testDifferentSearchType() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         SearchResponse searchResponse = new SearchResponse(
             InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
@@ -186,7 +186,7 @@ public class SearchInputTests extends ESTestCase {
     // source: https://discuss.elastic.co/t/need-help-for-energy-monitoring-system-alerts/89415/3
     public void testThatEmptyRequestBodyWorks() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         SearchResponse searchResponse = new SearchResponse(
             InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",

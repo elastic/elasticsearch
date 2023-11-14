@@ -664,7 +664,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 )
             );
             BlockingOnRewriteQueryBuilder.blockOnRewrite();
-            PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Response> future = new PlainActionFuture<>();
             Request restRequest = new Request("POST", "/_field_caps?fields=*");
             restRequest.setEntity(new StringEntity("""
                       {

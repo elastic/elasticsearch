@@ -185,7 +185,7 @@ public class SimpleKdcLdapServer {
         simpleKdc.getKdcConfig().setLong(KdcConfigKey.MINIMUM_TICKET_LIFETIME, minimumTicketLifeTime.getMillis());
         simpleKdc.getKdcConfig().setLong(KdcConfigKey.MAXIMUM_RENEWABLE_LIFETIME, maxRenewableLifeTime.getMillis());
         if (inFipsJvm()) {
-            // triple DES not supported in FIPs
+            // Triple DES is not allowed when running in FIPS mode
             String encryptionTypes = (String) KdcConfigKey.ENCRYPTION_TYPES.getDefaultValue();
             simpleKdc.getKdcConfig()
                 .setString(KdcConfigKey.ENCRYPTION_TYPES, encryptionTypes.toLowerCase().replace("des3-cbc-sha1-kd", ""));

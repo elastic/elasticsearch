@@ -1418,7 +1418,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         KeyEncryptionParameters keyEncryptionParameters = new KeyEncryptionParameters();
         keyEncryptionParameters.setEncryptionCredential(keyEncryptionCredential);
         if (inFipsJvm()) {
-            keyEncryptionParameters.setAlgorithm(randomFrom(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP));
+            // RSA v1.5 is not allowed when running in FIPS mode
+            keyEncryptionParameters.setAlgorithm(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP);
         } else {
             keyEncryptionParameters.setAlgorithm(
                 randomFrom(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP, EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSA15)

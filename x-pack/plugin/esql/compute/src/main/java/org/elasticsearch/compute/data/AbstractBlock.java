@@ -136,7 +136,7 @@ abstract class AbstractBlock implements Block {
     @Override
     public void close() {
         if (references <= 0) {
-            throw new IllegalStateException("cannot release already released block [" + this + "]");
+            throw new IllegalStateException("can't release already released block [" + this + "]");
         }
         references--;
     }

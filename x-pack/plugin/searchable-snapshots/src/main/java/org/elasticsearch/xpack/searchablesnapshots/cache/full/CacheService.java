@@ -347,7 +347,7 @@ public class CacheService extends AbstractLifecycleComponent {
             if (allowShardsEvictions) {
                 final ShardEviction shardEviction = new ShardEviction(snapshotUUID, snapshotIndexName, shardId);
                 pendingShardsEvictions.computeIfAbsent(shardEviction, shard -> {
-                    final PlainActionFuture<?> future = PlainActionFuture.newFuture();
+                    final PlainActionFuture<?> future = new PlainActionFuture<>();
                     threadPool.generic().execute(new AbstractRunnable() {
                         @Override
                         protected void doRun() {

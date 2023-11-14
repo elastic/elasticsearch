@@ -39,13 +39,13 @@ public class FeatureService {
     public static final Version CLUSTER_FEATURES_ADDED_VERSION = Version.V_8_12_0;
 
     private final NavigableMap<Version, Set<String>> historicalFeatures;
-    private final Set<String> nodeFeatures;
+    private final Map<String, NodeFeature> nodeFeatures;
 
     public FeatureService(List<? extends FeatureSpecification> specs) {
         Map<String, FeatureSpecification> allFeatures = new HashMap<>();
 
         NavigableMap<Version, Set<String>> historicalFeatures = new TreeMap<>();
-        Set<String> nodeFeatures = new HashSet<>();
+        Map<String, NodeFeature> nodeFeatures = new HashMap<>();
         for (FeatureSpecification spec : specs) {
             for (var hfe : spec.getHistoricalFeatures().entrySet()) {
                 FeatureSpecification existing = allFeatures.putIfAbsent(hfe.getKey().id(), spec);
@@ -78,14 +78,14 @@ public class FeatureService {
                     );
                 }
 
-                nodeFeatures.add(f.id());
+                nodeFeatures.put(f.id(), f);
             }
         }
 
         this.historicalFeatures = consolidateHistoricalFeatures(historicalFeatures);
-        this.nodeFeatures = Set.copyOf(nodeFeatures);
+        this.nodeFeatures = Map.copyOf(nodeFeatures);
 
-        logger.info("Registered local node features {}", nodeFeatures.stream().sorted().toList());
+        logger.info("Registered local node features {}", nodeFeatures.keySet().stream().sorted().toList());
     }
 
     private static NavigableMap<Version, Set<String>> consolidateHistoricalFeatures(
@@ -104,7 +104,7 @@ public class FeatureService {
     /**
      * The non-historical features supported by this node.
      */
-    public Set<String> getNodeFeatures() {
+    public Map<String, NodeFeature> getNodeFeatures() {
         return nodeFeatures;
     }
 

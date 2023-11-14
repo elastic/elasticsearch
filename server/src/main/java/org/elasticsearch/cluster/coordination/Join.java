@@ -56,28 +56,4 @@ public record Join(DiscoveryNode votingNode, DiscoveryNode masterCandidateNode, 
     public boolean masterCandidateMatches(DiscoveryNode matchingNode) {
         return masterCandidateNode.getId().equals(matchingNode.getId());
     }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Join join = (Join) o;
-
-        if (votingNode.equals(join.votingNode) == false) return false;
-        if (masterCandidateNode.equals(join.masterCandidateNode) == false) return false;
-        if (lastAcceptedVersion != join.lastAcceptedVersion) return false;
-        if (term != join.term) return false;
-        return lastAcceptedTerm == join.lastAcceptedTerm;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = (int) (lastAcceptedVersion ^ (lastAcceptedVersion >>> 32));
-        result = 31 * result + votingNode.hashCode();
-        result = 31 * result + masterCandidateNode.hashCode();
-        result = 31 * result + (int) (term ^ (term >>> 32));
-        result = 31 * result + (int) (lastAcceptedTerm ^ (lastAcceptedTerm >>> 32));
-        return result;
-    }
 }

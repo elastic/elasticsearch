@@ -133,6 +133,17 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     }
 
+    private static String enrichSongCommand() {
+        String command = " ENRICH songs ";
+        if (randomBoolean()) {
+            command += " ON song_id ";
+        }
+        if (randomBoolean()) {
+            command += " WITH artist, title, length ";
+        }
+        return command;
+    }
+
     public void testSumDurationByArtist() {
         Function<EsqlQueryResponse, Map<String, Double>> extractStats = resp -> {
             List<ColumnInfo> columns = resp.columns();
@@ -153,8 +164,8 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         };
 
         var statsCommands = List.of(
-            "ENRICH songs | STATS sum(duration) by artist",
-            "STATS duration = sum(duration) by song_id | ENRICH songs | STATS sum(duration) by artist"
+            enrichSongCommand() + " | STATS sum(duration) by artist",
+            "STATS duration = sum(duration) by song_id | " + enrichSongCommand() + " | STATS sum(duration) by artist"
         );
         for (String statsCommand : statsCommands) {
             try (var resp = run("from listens* | " + statsCommand)) {
@@ -181,7 +192,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             }
             return actualValues;
         };
-        try (var resp = run("from listens* | ENRICH songs | STATS avg(duration) by artist")) {
+        try (var resp = run("from listens* | " + enrichSongCommand() + " | STATS avg(duration) by artist")) {
             Map<String, Double> stats = extractStats.apply(resp);
             assertThat(stats.keySet(), containsInAnyOrder("Eagles", "Linkin Park"));
             assertThat(stats.get("Eagles"), closeTo(1.08333, 0.1));
@@ -208,8 +219,8 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             return actualValues;
         };
 
-        var statsCommand = " | ENRICH songs | STATS d = sum(duration), l = sum(length) by artist | EVAL ratio=d /l | KEEP ratio, artist";
-        try (var resp = run("from listens* " + statsCommand)) {
+        var statsCommand = "STATS d = sum(duration), l = sum(length) by artist | EVAL ratio=d /l | KEEP ratio, artist";
+        try (var resp = run("from listens* | " + enrichSongCommand() + "|" + statsCommand)) {
             Map<String, Double> stats = extractStats.apply(resp);
             assertThat(stats.keySet(), containsInAnyOrder("Eagles", "Linkin Park"));
             assertThat(stats.get("Eagles"), closeTo(0.1521, 0.05));
@@ -218,7 +229,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFilterAfterEnrich() {
-        try (var resp = run("from listens* | ENRICH songs | WHERE length < 3.2 | limit 10 | KEEP artist,title")) {
+        try (var resp = run("from listens* | " + enrichSongCommand() + " | WHERE length < 3.2 | limit 10 | KEEP artist,title")) {
             Iterator<Object> row = resp.values().next();
             assertThat(row.next(), equalTo("Linkin Park"));
             assertThat(row.next(), equalTo("Numb"));
@@ -226,12 +237,12 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testTopN() {
-        try (var resp = run("from listens* | sort timestamp DESC | limit 1 | ENRICH songs | KEEP timestamp, artist")) {
+        try (var resp = run("from listens* | sort timestamp DESC | limit 1 |" + enrichSongCommand() + " | KEEP timestamp, artist")) {
             Iterator<Object> row = resp.values().next();
             assertThat(row.next(), equalTo(7L));
             assertThat(row.next(), equalTo("Linkin Park"));
         }
-        try (var resp = run("from listens* | ENRICH songs | sort timestamp DESC | limit 1 | KEEP timestamp, artist")) {
+        try (var resp = run("from listens* | " + enrichSongCommand() + " | sort timestamp DESC | limit 1 | KEEP timestamp, artist")) {
             Iterator<Object> row = resp.values().next();
             assertThat(row.next(), equalTo(7L));
             assertThat(row.next(), equalTo("Linkin Park"));

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,18 +19,20 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
 public class ConnectorScheduling implements Writeable, ToXContentObject {
 
-    private ScheduleConfig accessControl;
-    private ScheduleConfig full;
-    private ScheduleConfig incremental;
+    private final ScheduleConfig accessControl;
+    private final ScheduleConfig full;
+    private final ScheduleConfig incremental;
 
     public static final ParseField ACCESS_CONTROL_FIELD = new ParseField("access_control");
     public static final ParseField FULL_FIELD = new ParseField("full");
     public static final ParseField INCREMENTAL_FIELD = new ParseField("incremental");
 
     // Constructors, getters, and setters for ConnectorScheduling
-    public ConnectorScheduling(ScheduleConfig accessControl, ScheduleConfig full, ScheduleConfig incremental) {
+    private ConnectorScheduling(ScheduleConfig accessControl, ScheduleConfig full, ScheduleConfig incremental) {
         this.accessControl = accessControl;
         this.full = full;
         this.incremental = incremental;
@@ -44,19 +47,27 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
     private ScheduleConfig readScheduleConfigFromStream(StreamInput in) throws IOException {
         boolean enabled = in.readBoolean();
         String interval = in.readString();
-        return new ScheduleConfig(enabled, interval);
+        return new ScheduleConfig.Builder().setEnabled(enabled).setInterval(interval).createScheduleConfig();
     }
 
     private static final ConstructingObjectParser<ConnectorScheduling, Void> PARSER = new ConstructingObjectParser<>(
         "connector_scheduling",
         true,
-        args -> new ConnectorScheduling((ScheduleConfig) args[0], (ScheduleConfig) args[1], (ScheduleConfig) args[2])
+        args -> new Builder().setAccessControl((ScheduleConfig) args[0])
+            .setFull((ScheduleConfig) args[1])
+            .setIncremental((ScheduleConfig) args[2])
+            .createConnectorScheduling()
     );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), ScheduleConfig.getParser(), ACCESS_CONTROL_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), ScheduleConfig.getParser(), FULL_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), ScheduleConfig.getParser(), INCREMENTAL_FIELD);
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> ScheduleConfig.fromXContent(p),
+            ACCESS_CONTROL_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareField(constructorArg(), (p, c) -> ScheduleConfig.fromXContent(p), FULL_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(constructorArg(), (p, c) -> ScheduleConfig.fromXContent(p), INCREMENTAL_FIELD, ObjectParser.ValueType.OBJECT);
     }
 
     public static ConnectorScheduling fromXContent(XContentParser parser) throws IOException {
@@ -65,19 +76,11 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("connector_scheduling");
+        builder.startObject();
         {
-            builder.startObject(ACCESS_CONTROL_FIELD.getPreferredName());
-            accessControl.toXContent(builder, params);
-            builder.endObject();
-
-            builder.startObject(FULL_FIELD.getPreferredName());
-            full.toXContent(builder, params);
-            builder.endObject();
-
-            builder.startObject(INCREMENTAL_FIELD.getPreferredName());
-            incremental.toXContent(builder, params);
-            builder.endObject();
+            builder.field(ACCESS_CONTROL_FIELD.getPreferredName(), accessControl);
+            builder.field(FULL_FIELD.getPreferredName(), full);
+            builder.field(INCREMENTAL_FIELD.getPreferredName(), incremental);
         }
         builder.endObject();
         return builder;
@@ -90,29 +93,53 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         incremental.writeTo(out);
     }
 
+    public static class Builder {
+
+        private ScheduleConfig accessControl;
+        private ScheduleConfig full;
+        private ScheduleConfig incremental;
+
+        public Builder setAccessControl(ScheduleConfig accessControl) {
+            this.accessControl = accessControl;
+            return this;
+        }
+
+        public Builder setFull(ScheduleConfig full) {
+            this.full = full;
+            return this;
+        }
+
+        public Builder setIncremental(ScheduleConfig incremental) {
+            this.incremental = incremental;
+            return this;
+        }
+
+        public ConnectorScheduling createConnectorScheduling() {
+            return new ConnectorScheduling(accessControl, full, incremental);
+        }
+    }
+
     public static class ScheduleConfig implements Writeable, ToXContentObject {
-        private boolean enabled;
-        private String interval;
+        private final boolean enabled;
+        private final String interval;
 
         public static final ParseField ENABLED_FIELD = new ParseField("enabled");
         public static final ParseField INTERVAL_FIELD = new ParseField("interval");
 
-        // Constructor, getters, and setters
-        public ScheduleConfig(boolean enabled, String interval) {
+        private ScheduleConfig(boolean enabled, String interval) {
             this.enabled = enabled;
             this.interval = interval;
         }
 
-
         private static final ConstructingObjectParser<ScheduleConfig, Void> PARSER = new ConstructingObjectParser<>(
             "schedule_config",
             true,
-            args -> new ScheduleConfig((boolean) args[0], (String) args[1])
+            args -> new Builder().setEnabled((boolean) args[0]).setInterval((String) args[1]).createScheduleConfig()
         );
 
         static {
-            PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), INTERVAL_FIELD);
+            PARSER.declareBoolean(constructorArg(), ENABLED_FIELD);
+            PARSER.declareString(constructorArg(), INTERVAL_FIELD);
         }
 
         public static ScheduleConfig fromXContent(XContentParser parser) throws IOException {
@@ -125,7 +152,7 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject("schedule_config");
+            builder.startObject();
             {
                 builder.field(ENABLED_FIELD.getPreferredName(), enabled);
                 builder.field(INTERVAL_FIELD.getPreferredName(), interval);
@@ -139,6 +166,25 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
             out.writeBoolean(enabled);
             out.writeString(interval);
         }
-    }
 
+        public static class Builder {
+
+            private boolean enabled;
+            private String interval;
+
+            public Builder setEnabled(boolean enabled) {
+                this.enabled = enabled;
+                return this;
+            }
+
+            public Builder setInterval(String interval) {
+                this.interval = interval;
+                return this;
+            }
+
+            public ScheduleConfig createScheduleConfig() {
+                return new ScheduleConfig(enabled, interval);
+            }
+        }
+    }
 }

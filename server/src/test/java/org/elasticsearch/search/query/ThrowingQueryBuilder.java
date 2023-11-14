@@ -23,14 +23,21 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-// copied from x-pack to server module
+/**
+ * A query builder that can throw an exception on a targeted shard or a targeted index.
+ * It can also put a sleep into the query (createWeight) method of another specified index
+ * (or all indexes using "*" wildcard) if that index or shard is not throwing an Exception.
+ */
 public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuilder> {
     public static final String NAME = "throw";
 
     private final long randomUID;
     private final RuntimeException failure;
     private final int shardId;
-    private final String index;
+    private final String exceptionIndex; // index to throw the Exception for
+
+    private final String sleepIndex;
+    private final long sleepTime;
 
     /**
      * Creates a {@link ThrowingQueryBuilder} with the provided <code>randomUID</code>.
@@ -40,11 +47,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
      * @param shardId what shardId to throw the exception. If shardId is less than 0, it will throw for all shards.
      */
     public ThrowingQueryBuilder(long randomUID, RuntimeException failure, int shardId) {
-        super();
-        this.randomUID = randomUID;
-        this.failure = failure;
-        this.shardId = shardId;
-        this.index = null;
+        this(randomUID, failure, shardId, null, 0, null);
     }
 
     /**
@@ -55,11 +58,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
      * @param index what index to throw the exception against (all shards of that index)
      */
     public ThrowingQueryBuilder(long randomUID, RuntimeException failure, String index) {
-        super();
-        this.randomUID = randomUID;
-        this.failure = failure;
-        this.shardId = Integer.MAX_VALUE;
-        this.index = index;
+        this(randomUID, failure, Integer.MAX_VALUE, index, 0, null);
     }
 
     public ThrowingQueryBuilder(StreamInput in) throws IOException {
@@ -68,9 +67,72 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         this.failure = in.readException();
         this.shardId = in.readVInt();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
-            this.index = in.readOptionalString();
+            this.exceptionIndex = in.readOptionalString();
         } else {
-            this.index = null;
+            this.exceptionIndex = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.THROWING_QUERY_BUILDER_SLEEPS_ADDED)) {
+            this.sleepTime = in.readVLong();
+            this.sleepIndex = in.readOptionalString();
+        } else {
+            this.sleepTime = 0;
+            this.sleepIndex = null;
+        }
+    }
+
+    private ThrowingQueryBuilder(
+        long randomUID,
+        RuntimeException exception,
+        int exceptionShardId,
+        String exceptionIndex,
+        long sleepTime,
+        String sleepIndex
+    ) {
+        super();
+        this.randomUID = randomUID;
+        this.failure = exception;
+        this.shardId = exceptionShardId;
+        this.exceptionIndex = exceptionIndex;
+        this.sleepTime = sleepTime;
+        this.sleepIndex = sleepIndex;
+    }
+
+    /**
+     * Use the Builder when you want to use multiple features of ThrowingQueryBuilder such as
+     * throwing an Exception on one index and sleeping on others
+     */
+    public static class Builder {
+        private final long randomUID;
+        private RuntimeException failure;
+        private int shardId = Integer.MAX_VALUE;  // -1 means "all shards", so this defaults to a non-existent shard
+        private String exceptionIndex;
+        private String sleepIndex;
+        private long sleepTime;
+
+        public Builder(long randomUID) {
+            this.randomUID = randomUID;
+        }
+
+        public ThrowingQueryBuilder build() {
+            return new ThrowingQueryBuilder(randomUID, failure, shardId, exceptionIndex, sleepTime, sleepIndex);
+        }
+
+        public Builder setExceptionForShard(int shardId, RuntimeException exception) {
+            this.shardId = shardId;
+            this.failure = exception;
+            return this;
+        }
+
+        public Builder setExceptionForIndex(String index, RuntimeException exception) {
+            this.exceptionIndex = index;
+            this.failure = exception;
+            return this;
+        }
+
+        public Builder setSleepForIndex(String index, long sleepTime) {
+            this.sleepIndex = index;
+            this.sleepTime = sleepTime;
+            return this;
         }
     }
 
@@ -80,7 +142,11 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         out.writeException(failure);
         out.writeVInt(shardId);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
-            out.writeOptionalString(index);
+            out.writeOptionalString(exceptionIndex);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.THROWING_QUERY_BUILDER_SLEEPS_ADDED)) {
+            out.writeVLong(sleepTime);
+            out.writeOptionalString(sleepIndex);
         }
     }
 
@@ -96,8 +162,15 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         return new Query() {
             @Override
             public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-                if (context.getShardId() == shardId || shardId < 0 || context.index().getName().equals(index)) {
+                if (context.getShardId() == shardId || shardId < 0 || context.index().getName().equals(exceptionIndex)) {
                     throw failure;
+                }
+                if (context.index().getName().equals(sleepIndex) || "*".equals(sleepIndex)) {
+                    try {
+                        Thread.sleep(sleepTime);
+                    } catch (InterruptedException e) {
+                        // ignore
+                    }
                 }
                 return delegate.createWeight(searcher, scoreMode, boost);
             }

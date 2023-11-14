@@ -6,9 +6,19 @@
  */
 package org.elasticsearch.xpack.sql.qa.single_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.jdbc.SqlSpecTestCase;
+import org.junit.ClassRule;
 
 public class JdbcSqlSpecIT extends SqlSpecTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     public JdbcSqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, String query) {
         super(fileName, groupName, testName, lineNumber, query);
     }

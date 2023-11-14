@@ -7,50 +7,14 @@
 
 This guide shows how you can use {esql} to query and aggregate your data.
 
-TIP: To get started with {esql} without setting up your own deployment, visit
-the public {esql} demo environment at
-https://esql.demo.elastic.co/[esql.demo.elastic.co]. It comes with preloaded
-data sets and sample queries.
-
 [discrete]
 [[esql-getting-started-prerequisites]]
 === Prerequisites
 
-To follow along with the queries in this getting started guide, first ingest
-some sample data using the following requests:
+To follow along with the queries in this guide, you can either set up your own
+deployment, or use Elastic's public {esql} demo environment.
 
-[source,console]
-----
-PUT sample_data
-{
-  "mappings": {
-    "properties": {
-      "client.ip": {
-        "type": "ip"
-      },
-      "message": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-
-PUT sample_data/_bulk
-{"index": {}}
-{"@timestamp": "2023-10-23T12:15:03.360Z", "client.ip": "172.21.2.162", "message": "Connected to 10.1.0.3", "event.duration": 3450233}
-{"index": {}}
-{"@timestamp": "2023-10-23T12:27:28.948Z", "client.ip": "172.21.2.113", "message": "Connected to 10.1.0.2", "event.duration": 2764889}
-{"index": {}}
-{"@timestamp": "2023-10-23T13:33:34.937Z", "client.ip": "172.21.0.5", "message": "Disconnected", "event.duration": 1232382}
-{"index": {}}
-{"@timestamp": "2023-10-23T13:51:54.732Z", "client.ip": "172.21.3.15", "message": "Connection error", "event.duration": 725448}
-{"index": {}}
-{"@timestamp": "2023-10-23T13:52:55.015Z", "client.ip": "172.21.3.15", "message": "Connection error", "event.duration": 8268153}
-{"index": {}}
-{"@timestamp": "2023-10-23T13:53:55.832Z", "client.ip": "172.21.3.15", "message": "Connection error", "event.duration": 5033755}
-{"index": {}}
-{"@timestamp": "2023-10-23T13:55:01.543Z", "client.ip": "172.21.3.15", "message": "Connected to 10.1.0.1", "event.duration": 1756467}
-----
+include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-sample-data.asciidoc[]
 
 [discrete]
 [[esql-getting-started-running-queries]]
@@ -58,7 +22,7 @@ PUT sample_data/_bulk
 
 In {kib}, you can use Console or Discover to run {esql} queries:
 
-include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget.asciidoc[]
+include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-discover-console.asciidoc[]
 
 [discrete]
 [[esql-getting-started-first-query]]
@@ -300,57 +264,9 @@ image::images/esql/esql-enrich.png[align="center"]
 
 Before you can use `ENRICH`, you first need to
 <<esql-create-enrich-policy,create>> and <<esql-execute-enrich-policy,execute>>
-an <<esql-enrich-policy,enrich policy>>. The following requests create and
-execute a policy that links an IP address to an environment ("Development",
-"QA", or "Production"):
+an <<esql-enrich-policy,enrich policy>>. 
 
-[source,console]
-----
-PUT clientips
-{
-  "mappings": {
-    "properties": {
-      "client.ip": {
-        "type": "keyword"
-      },
-      "env": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-
-PUT clientips/_bulk
-{ "index" : {}}
-{ "client.ip": "172.21.0.5", "env": "Development" }
-{ "index" : {}}
-{ "client.ip": "172.21.2.113", "env": "QA" }
-{ "index" : {}}
-{ "client.ip": "172.21.2.162", "env": "QA" }
-{ "index" : {}}
-{ "client.ip": "172.21.3.15", "env": "Production" }
-{ "index" : {}}
-{ "client.ip": "172.21.3.16", "env": "Production" }
-
-PUT /_enrich/policy/clientip_policy
-{
-  "match": {
-    "indices": "clientips",
-    "match_field": "client.ip",
-    "enrich_fields": ["env"]
-  }
-}
-
-PUT /_enrich/policy/clientip_policy/_execute
-----
-
-////
-[source,console]
-----
-DELETE /_enrich/policy/clientip_policy
-----
-// TEST[continued]
-////
+include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget-enrich-policy.asciidoc[]
 
 After creating and executing a policy, you can use it with the `ENRICH`
 command:

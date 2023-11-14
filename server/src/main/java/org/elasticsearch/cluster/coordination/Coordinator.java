@@ -63,6 +63,7 @@ import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.TransportAddressConnector;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -212,7 +213,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         LeaderHeartbeatService leaderHeartbeatService,
         PreVoteCollector.Factory preVoteCollectorFactory,
         CompatibilityVersions compatibilityVersions,
-        Set<String> features
+        FeatureService featureService
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -238,7 +239,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             reconfigurator::maybeReconfigureAfterNewMasterIsElected,
             this::getLatestStoredStateAfterWinningAnElection,
             compatibilityVersions,
-            features
+            featureService
         );
         this.joinValidationService = new JoinValidationService(
             settings,

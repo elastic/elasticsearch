@@ -38,7 +38,7 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
     public Pow(
         Source source,
         @Param(name = "base", type = { "integer", "unsigned_long", "long", "double" }) Expression base,
-        @Param(name = "exponent", type = { "integer", "double" }) Expression exponent
+        @Param(name = "exponent", type = { "integer", "unsigned_long", "long", "double" }) Expression exponent
     ) {
         super(source, Arrays.asList(base, exponent));
         this.base = base;
@@ -115,7 +115,7 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var baseEval = Cast.cast(base.dataType(), DataTypes.DOUBLE, toEvaluator.apply(base));
         var expEval = Cast.cast(exponent.dataType(), DataTypes.DOUBLE, toEvaluator.apply(exponent));
-        return new PowDoubleEvaluator.Factory(source(), baseEval, expEval);
+        return new PowEvaluator.Factory(source(), baseEval, expEval);
     }
 
     @Override

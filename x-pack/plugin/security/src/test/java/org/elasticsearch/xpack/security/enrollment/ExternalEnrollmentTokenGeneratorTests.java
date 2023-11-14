@@ -486,7 +486,6 @@ public class ExternalEnrollmentTokenGeneratorTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "blarg")
     public void testGetFilteredAddresses() throws Exception {
         List<String> addresses = Arrays.asList(
             "[::1]:9200",

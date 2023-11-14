@@ -2204,7 +2204,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     LeaderHeartbeatService.NO_OP,
                     StatefulPreVoteCollector::new,
                     CompatibilityVersionsUtils.staticCurrent(),
-                    Set.of()
+                    new FeatureService(List.of())
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

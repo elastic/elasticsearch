@@ -31,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -74,12 +73,12 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     public void testSearchReturnsTokenCount() throws IOException {
         init();
 
-        assertSearchReturns(searchById("single"), "single");
-        assertSearchReturns(searchById("bulk1"), "bulk1");
-        assertSearchReturns(searchById("bulk2"), "bulk2");
-        assertSearchReturns(searchById("multi"), "multi");
-        assertSearchReturns(searchById("multibulk1"), "multibulk1");
-        assertSearchReturns(searchById("multibulk2"), "multibulk2");
+        assertResponse(searchById("single"), resp -> assertSearchReturns(resp, "single"));
+        assertResponse(searchById("bulk1"), resp -> assertSearchReturns(resp, "bulk1"));
+        assertResponse(searchById("bulk2"), resp -> assertSearchReturns(resp, "bulk2"));
+        assertResponse(searchById("multi"), resp -> assertSearchReturns(resp, "multi"));
+        assertResponse(searchById("multibulk1"), resp -> assertSearchReturns(resp, "multibulk1"));
+        assertResponse(searchById("multibulk2"), resp -> assertSearchReturns(resp, "multibulk2"));
     }
 
     /**
@@ -88,11 +87,14 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     public void testSearchByTokenCount() throws IOException {
         init();
 
-        assertSearchReturns(searchByNumericRange(4, 4), "single");
-        assertSearchReturns(searchByNumericRange(10, 10), "multibulk2");
-        assertSearchReturns(searchByNumericRange(7, 10), "multi", "multibulk1", "multibulk2");
-        assertSearchReturns(searchByNumericRange(1, 10), "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
-        assertSearchReturns(searchByNumericRange(12, 12));
+        assertResponse(searchByNumericRange(4, 4), response -> assertSearchReturns(response, "single"));
+        assertResponse(searchByNumericRange(10, 10), response -> assertSearchReturns(response, "multibulk2"));
+        assertResponse(searchByNumericRange(7, 10), response -> assertSearchReturns(response, "multi", "multibulk1", "multibulk2"));
+        assertResponse(
+            searchByNumericRange(1, 10),
+            response -> assertSearchReturns(response, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2")
+        );
+        assertResponse(searchByNumericRange(12, 12), this::assertSearchReturns);
     }
 
     /**
@@ -102,14 +104,12 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         init();
 
         String facetField = randomFrom(Arrays.asList("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
-        SearchRequestBuilder searchRequestBuilder = searchByNumericRange(1, 10).addAggregation(
-            AggregationBuilders.terms("facet").field(facetField)
-        );
-        assertSearchReturns(searchRequestBuilder, resp -> {
-            assertThat(resp.getAggregations().asList().size(), equalTo(1));
-            Terms terms = (Terms) resp.getAggregations().asList().get(0);
+        assertResponse(searchByNumericRange(1, 10).addAggregation(AggregationBuilders.terms("facet").field(facetField)), result -> {
+            assertSearchReturns(result, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
+            assertThat(result.getAggregations().asList().size(), equalTo(1));
+            Terms terms = (Terms) result.getAggregations().asList().get(0);
             assertThat(terms.getBuckets().size(), equalTo(9));
-        }, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
+        });
     }
 
     private void init() throws IOException {
@@ -201,18 +201,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         return request;
     }
 
-    private void assertSearchReturns(SearchRequestBuilder searchRequestBuilder, Consumer<SearchResponse> consumer, String... ids) {
-        assertResponse(searchRequestBuilder, searchResponse -> {
-            searchRespAssertions(searchResponse, ids);
-            consumer.accept(searchResponse);
-        });
-    }
-
-    private void assertSearchReturns(SearchRequestBuilder searchRequestBuilder, String... ids) {
-        assertResponse(searchRequestBuilder, searchResponse -> searchRespAssertions(searchResponse, ids));
-    }
-
-    private void searchRespAssertions(SearchResponse result, String... ids) {
+    private void assertSearchReturns(SearchResponse result, String... ids) {
         assertThat(result.getHits().getTotalHits().value, equalTo((long) ids.length));
         assertThat(result.getHits().getHits().length, equalTo(ids.length));
         List<String> foundIds = new ArrayList<>();

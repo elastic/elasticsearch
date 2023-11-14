@@ -994,7 +994,7 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(
                     "fetching values from a text field ["
                         + name()
-                        + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
+                        + "] is not supported because synthetic _source is enabled and we don't have a way to load the fields"
                 );
             }
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(

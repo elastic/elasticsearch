@@ -1,11 +1,16 @@
 grant {
      permission java.security.SecurityPermission "putProviderProperty.BCFIPS";
      permission java.security.SecurityPermission "putProviderProperty.BCJSSE";
+     permission java.security.SecurityPermission "getProperty.keystore.type.compat";
+     permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
+     permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
+     permission java.security.SecurityPermission "getProperty.jdk.tls.server.defaultDHEParameters";
+     permission java.security.SecurityPermission "getProperty.org.bouncycastle.ec.disable_f2m";
+     permission java.security.SecurityPermission "getProperty.org.bouncycastle.ec.disable";
+     permission java.security.SecurityPermission "getProperty.org.bouncycastle.tripledes.allow_weak";
+     permission java.security.SecurityPermission "getProperty.org.bouncycastle.drbg.gather_pause_secs";
      permission java.lang.RuntimePermission "getProtectionDomain";
      permission java.util.PropertyPermission "java.runtime.name", "read";
-     permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.misc";
-     permission java.security.SecurityPermission "getProperty.org.bouncycastle.rsa.allow_multi_use";
-     permission java.util.PropertyPermission "javax.net.debug", "write";
      permission org.bouncycastle.crypto.CryptoServicesPermission "tlsAlgorithmsEnabled";
      //io.netty.handler.codec.DecoderException
      permission java.lang.RuntimePermission "accessClassInPackage.sun.security.internal.spec";
@@ -16,19 +21,4 @@ grant {
      permission org.bouncycastle.crypto.CryptoServicesPermission "exportSecretKey";
      permission org.bouncycastle.crypto.CryptoServicesPermission "exportPrivateKey";
      permission java.io.FilePermission "${javax.net.ssl.trustStore}", "read";
-
-     //TODO: double check these !!
-     permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
-     permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
-     permission java.security.SecurityPermission "getProperty.keystore.type.compat";
-     permission java.security.SecurityPermission "getProperty.org.bouncycastle.ec.disable_f2m";
-     permission java.security.SecurityPermission "getProperty.org.bouncycastle.ec.disable";
-     permission java.security.SecurityPermission "getProperty.org.bouncycastle.tripledes.allow_weak";
-     permission java.security.SecurityPermission "getProperty.jdk.tls.server.defaultDHEParameters";
-     permission java.security.SecurityPermission "getProperty.org.bouncycastle.drbg.gather_pause_secs";
-  //   permission java.net.NetPermission "getNetworkInformation";
-  //   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
-  //   permission java.lang.RuntimePermission "accessSystemModules";
-  //   permission java.lang.RuntimePermission "manageProcess";
-  //   permission java.lang.RuntimePermission "createSecurityManager";
 };

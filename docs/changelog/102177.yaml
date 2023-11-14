@@ -1,5 +1,5 @@
 pr: 102177
-summary: "ESQL: GEO_POINT type support"
+summary: "GEO_POINT type support"
 area: ES|QL
 type: feature
 issues: []

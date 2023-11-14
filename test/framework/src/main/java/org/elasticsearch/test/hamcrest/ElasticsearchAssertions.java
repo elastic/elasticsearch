@@ -330,11 +330,14 @@ public class ElasticsearchAssertions {
         assertThat(searchResponse.getHits().getAt(number - 1), matcher);
     }
 
-    public static void assertNoFailures(SearchRequestBuilder searchRequestBuilder) {
+    public static void assertNoFailures(ActionRequestBuilder<?, SearchResponse> searchRequestBuilder) {
         assertNoFailuresAndResponse(searchRequestBuilder, r -> {});
     }
 
-    public static void assertNoFailuresAndResponse(SearchRequestBuilder searchRequestBuilder, Consumer<SearchResponse> consumer) {
+    public static void assertNoFailuresAndResponse(
+        ActionRequestBuilder<?, SearchResponse> searchRequestBuilder,
+        Consumer<SearchResponse> consumer
+    ) {
         assertResponse(searchRequestBuilder, res -> {
             assertNoFailures(res);
             consumer.accept(res);
@@ -352,7 +355,7 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertResponse(SearchRequestBuilder searchRequestBuilder, Consumer<SearchResponse> consumer) {
+    public static void assertResponse(ActionRequestBuilder<?, SearchResponse> searchRequestBuilder, Consumer<SearchResponse> consumer) {
         var res = searchRequestBuilder.get();
         try {
             consumer.accept(res);
@@ -372,7 +375,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertCheckedResponse(
-        SearchRequestBuilder searchRequestBuilder,
+        ActionRequestBuilder<?, SearchResponse> searchRequestBuilder,
         CheckedConsumer<SearchResponse, IOException> consumer
     ) throws IOException {
         var res = searchRequestBuilder.get();

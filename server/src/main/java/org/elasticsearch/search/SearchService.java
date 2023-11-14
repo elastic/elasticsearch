@@ -772,7 +772,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 ) {
                     searchContext.searcher().setAggregatedDfs(request.dfs());
                     QueryPhase.execute(searchContext);
-                    if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
+                    final QuerySearchResult queryResult = searchContext.queryResult();
+                    if (queryResult.hasSearchContext() == false && readerContext.singleSession()) {
                         // no hits, we can release the context since there will be no fetch phase
                         freeReaderContext(readerContext.id());
                     }
@@ -781,10 +782,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // and receive them back in the fetch phase.
                     // We also pass the rescoreDocIds to the LegacyReaderContext in case the search state needs to stay in the data node.
                     final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
-                    searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
+                    queryResult.setRescoreDocIds(rescoreDocIds);
                     readerContext.setRescoreDocIds(rescoreDocIds);
-                    searchContext.queryResult().incRef();
-                    return searchContext.queryResult();
+                    queryResult.incRef();
+                    return queryResult;
                 } catch (Exception e) {
                     assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                     logger.trace("Query phase failed", e);
@@ -1321,11 +1322,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.addQuerySearchResultReleasable(aggContext);
             try {
                 final AggregatorFactories factories = source.aggregations().build(aggContext, null);
-                final Supplier<AggregationReduceContext.Builder> supplier = () -> aggReduceContextBuilder(
-                    context::isCancelled,
-                    source.aggregations()
+                context.aggregations(
+                    new SearchContextAggregations(factories, () -> aggReduceContextBuilder(context::isCancelled, source.aggregations()))
                 );
-                context.aggregations(new SearchContextAggregations(factories, supplier));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
             }

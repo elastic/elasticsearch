@@ -127,7 +127,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         }
         // Force merge to ensure that there are more than one numeric value to justify doc value.
         client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
-        PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = new PlainActionFuture<>();
         client().execute(
             AnalyzeIndexDiskUsageAction.INSTANCE,
             new AnalyzeIndexDiskUsageRequest(new String[] { index }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true),

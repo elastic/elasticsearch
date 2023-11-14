@@ -2469,7 +2469,7 @@ public class InternalEngine extends Engine {
         if (flushFirst) {
             logger.trace("start flush for snapshot");
             // TODO: Split acquireLastIndexCommit into two apis one with blocking flushes one without
-            PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
             flush(false, true, future);
             future.actionGet();
             logger.trace("finish flush for snapshot");

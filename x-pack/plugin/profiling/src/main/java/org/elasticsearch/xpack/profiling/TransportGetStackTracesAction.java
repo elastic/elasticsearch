@@ -28,11 +28,11 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
@@ -94,6 +94,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
     private final NodeClient nodeClient;
     private final ProfilingLicenseChecker licenseChecker;
+    private final CostsService costsService;
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Executor responseExecutor;
@@ -102,6 +103,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     private final int desiredSlices;
     private final int desiredDetailSlices;
     private final boolean realtime;
+    private static final Map<String, HostMetadata> hostsTable = new ConcurrentHashMap<>();
 
     @Inject
     public TransportGetStackTracesAction(
@@ -112,11 +114,13 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         ActionFilters actionFilters,
         NodeClient nodeClient,
         ProfilingLicenseChecker licenseChecker,
+        CostsService costsService,
         IndexNameExpressionResolver resolver
     ) {
         super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nodeClient = nodeClient;
         this.licenseChecker = licenseChecker;
+        this.costsService = costsService;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.responseExecutor = threadPool.executor(ProfilingPlugin.PROFILING_THREAD_POOL_NAME);
@@ -191,12 +195,25 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     .field(request.getStackTraceIds())
             )
             .execute(handleEventsGroupedByStackTrace(client, responseBuilder, submitListener, searchResponse -> {
+                long totalSamples = 0;
                 StringTerms stacktraces = searchResponse.getAggregations().get("group_by");
-                Map<String, Long> countPerStackTrace = new TreeMap<>();
-                for (StringTerms.Bucket bucket : stacktraces.getBuckets()) {
-                    countPerStackTrace.put(bucket.getKeyAsString(), bucket.getDocCount());
+                List<HostEventCount> hostEventCounts = new ArrayList<>(102400); // Preparation for future host.id aggregation
+                Map<String, TraceEvent> stackTraceEvents = new TreeMap<>();
+                for (StringTerms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
+                    long count = stacktraceBucket.getDocCount();
+                    totalSamples += count;
+
+                    String stackTraceID = stacktraceBucket.getKeyAsString();
+                    TraceEvent event = stackTraceEvents.get(stackTraceID);
+                    if (event == null) {
+                        event = new TraceEvent(stackTraceID);
+                        stackTraceEvents.put(stackTraceID, event);
+                    }
+                    event.count += count;
                 }
-                return countPerStackTrace;
+                responseBuilder.setTotalSamples(totalSamples);
+                responseBuilder.setHostEventCounts(hostEventCounts);
+                return stackTraceEvents;
             }));
     }
 
@@ -208,6 +225,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     ) {
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
         responseBuilder.setSamplingRate(eventsIndex.getSampleRate());
+        responseBuilder.setRequestedDuration(request.getRequestedDuration());
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -218,32 +236,62 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 new TermsAggregationBuilder("group_by")
                     // 'size' should be max 100k, but might be slightly more. Better be on the safe side.
                     .size(150_000)
-                    .field("Stacktrace.id")
+                    .field("host.id")
                     // 'execution_hint: map' skips the slow building of ordinals that we don't need.
                     // Especially with high cardinality fields, this makes aggregations really slow.
                     .executionHint("map")
-                    .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"))
+                    .subAggregation(
+                        new TermsAggregationBuilder("group_by").size(150_000)
+                            .field("Stacktrace.id")
+                            // 'execution_hint: map' skips the slow building of ordinals that we don't need.
+                            // Especially with high cardinality fields, this makes aggregations really slow.
+                            .executionHint("map")
+                            .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"))
+                    )
             )
             .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
             .execute(handleEventsGroupedByStackTrace(client, responseBuilder, submitListener, searchResponse -> {
-                StringTerms stacktraces = searchResponse.getAggregations().get("group_by");
-                Sum totalCountAgg = searchResponse.getAggregations().get("total_count");
-                long totalCount = Math.round(totalCountAgg.value());
+                long totalCount = getLongFromResponse(searchResponse, "total_count");
+
                 Resampler resampler = new Resampler(request, responseBuilder.getSamplingRate(), totalCount);
-                // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
+                StringTerms hosts = searchResponse.getAggregations().get("group_by");
+
+                // Sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
                 // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
                 // needed to load it.
                 long totalFinalCount = 0;
-                Map<String, Long> stackTraceEvents = new TreeMap<>();
-                for (StringTerms.Bucket bucket : stacktraces.getBuckets()) {
-                    Sum count = bucket.getAggregations().get("count");
-                    int finalCount = resampler.adjustSampleCount((int) count.value());
-                    totalFinalCount += finalCount;
-                    if (finalCount > 0) {
-                        stackTraceEvents.put(bucket.getKeyAsString(), (long) finalCount);
+                List<HostEventCount> hostEventCounts = new ArrayList<>(102400);
+                Map<String, TraceEvent> stackTraceEvents = new TreeMap<>();
+                for (StringTerms.Bucket hostBucket : hosts.getBuckets()) {
+                    String hostid = hostBucket.getKeyAsString();
+
+                    StringTerms stacktraces = hostBucket.getAggregations().get("group_by");
+                    for (StringTerms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
+                        Sum count = stacktraceBucket.getAggregations().get("count");
+                        int finalCount = resampler.adjustSampleCount((int) count.value());
+                        if (finalCount <= 0) {
+                            continue;
+                        }
+                        totalFinalCount += finalCount;
+
+                        /*
+                        The same stacktraces may come from different hosts (eventually from different datacenters).
+                        We make a list of the triples here. As soon as we have the host metadata, we can calculate
+                        the CO2 emission and the costs for each TraceEvent.
+                         */
+                        String stackTraceID = stacktraceBucket.getKeyAsString();
+                        hostEventCounts.add(new HostEventCount(hostid, stackTraceID, finalCount));
+
+                        TraceEvent event = stackTraceEvents.get(stackTraceID);
+                        if (event == null) {
+                            event = new TraceEvent(stackTraceID);
+                            stackTraceEvents.put(stackTraceID, event);
+                        }
+                        event.count += finalCount;
                     }
                 }
                 responseBuilder.setTotalSamples(totalFinalCount);
+                responseBuilder.setHostEventCounts(hostEventCounts);
                 log.debug(
                     "Found [{}] stacktrace events, resampled with sample rate [{}] to [{}] events ([{}] unique stack traces).",
                     totalCount,
@@ -259,20 +307,18 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
         ActionListener<GetStackTracesResponse> submitListener,
-        Function<SearchResponse, Map<String, Long>> stacktraceCollector
+        Function<SearchResponse, Map<String, TraceEvent>> stacktraceCollector
     ) {
         StopWatch watch = new StopWatch("eventsGroupedByStackTrace");
         return ActionListener.wrap(searchResponse -> {
-            Min minTimeAgg = searchResponse.getAggregations().get("min_time");
-            Max maxTimeAgg = searchResponse.getAggregations().get("max_time");
-            long minTime = Math.round(minTimeAgg.value());
-            long maxTime = Math.round(maxTimeAgg.value());
+            long minTime = getLongFromResponse(searchResponse, "min_time");
+            long maxTime = getLongFromResponse(searchResponse, "max_time");
 
-            Map<String, Long> stackTraceEvents = stacktraceCollector.apply(searchResponse);
+            Map<String, TraceEvent> stackTraceEvents = stacktraceCollector.apply(searchResponse);
 
             log.debug(watch::report);
             if (stackTraceEvents.isEmpty() == false) {
-                long totalSamples = stackTraceEvents.values().stream().mapToLong(v -> v).sum();
+                long totalSamples = stackTraceEvents.values().stream().mapToLong(v -> v.count).sum();
                 responseBuilder.setTotalSamples(totalSamples);
                 responseBuilder.setStart(Instant.ofEpochMilli(minTime));
                 responseBuilder.setEnd(Instant.ofEpochMilli(maxTime));
@@ -290,6 +336,11 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 submitListener.onFailure(e);
             }
         });
+    }
+
+    private static long getLongFromResponse(SearchResponse searchResponse, String field) {
+        InternalNumericMetricsAggregation.SingleValue x = searchResponse.getAggregations().get(field);
+        return Math.round(x.value());
     }
 
     private void retrieveStackTraces(
@@ -313,6 +364,13 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         for (List<String> slice : slicedEventIds) {
             mget(client, indices, slice, ActionListener.wrap(handler::onResponse, submitListener::onFailure));
         }
+
+        // TODO: query only the relevant host metadata for the given list of host IDs (mget won't work here).
+        // Retrieve the host metadata in parallel. Assume low-cardinality and do not split the query.
+        client.prepareSearch("profiling-hosts")
+            .setSize(10000)
+            .setTrackTotalHits(false)
+            .execute(ActionListener.wrap(handler::onHostsResponse, submitListener::onFailure));
     }
 
     // package private for testing
@@ -331,7 +389,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     }
 
     private class StackTraceHandler {
-        private final AtomicInteger remainingSlices;
+        private final AtomicInteger expectedSlices;
         private final ClusterState clusterState;
         private final Client client;
         private final GetStackTracesResponseBuilder responseBuilder;
@@ -344,6 +402,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private final Set<String> executableIds = new ConcurrentSkipListSet<>();
         private final AtomicInteger totalFrames = new AtomicInteger();
         private final StopWatch watch = new StopWatch("retrieveStackTraces");
+        private final StopWatch hostsWatch = new StopWatch("retrieveHostMetadata");
 
         private StackTraceHandler(
             ClusterState clusterState,
@@ -355,7 +414,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         ) {
             this.clusterState = clusterState;
             this.stackTracePerId = new ConcurrentHashMap<>(stackTraceCount);
-            this.remainingSlices = new AtomicInteger(slices);
+            this.expectedSlices = new AtomicInteger(slices + 1); // +1 for onHostsResponse
             this.client = client;
             this.responseBuilder = responseBuilder;
             this.submitListener = submitListener;
@@ -381,7 +440,40 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     }
                 }
             }
-            if (this.remainingSlices.decrementAndGet() == 0) {
+            mayFinish();
+        }
+
+        public void onHostsResponse(SearchResponse searchResponse) {
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            for (SearchHit hit : hits) {
+                HostMetadata host = HostMetadata.fromSource(hit.getSourceAsMap());
+                hostsTable.putIfAbsent(host.hostID, host);
+            }
+            log.debug(hostsWatch::report);
+            log.debug("Got [{}] host metadata items", hostsTable.size());
+
+            // Do the CO2 and cost calculation in parallel to waiting for frame metadata.
+            StopWatch watch = new StopWatch("calculateCO2AndCosts");
+            CO2Calculator co2Calculator = new CO2Calculator(costsService, hostsTable, responseBuilder.requestedDuration);
+            CostCalculator costCalculator = new CostCalculator(costsService, hostsTable, responseBuilder.requestedDuration);
+            Map<String, TraceEvent> events = responseBuilder.stackTraceEvents;
+            for (HostEventCount hec : responseBuilder.hostEventCounts) {
+                TraceEvent event = events.get(hec.stacktraceID);
+                if (event == null) {
+                    // this should never happen
+                    log.error("CO2/cost calculator: missing trace events for StackTraceID " + hec.stacktraceID);
+                    continue;
+                }
+                event.annualCO2Tons += co2Calculator.getAnnualCO2Tons(hec.hostID, hec.count);
+                event.annualCostsUSD += costCalculator.annualCostsUSD(hec.hostID, hec.count);
+            }
+            log.debug(watch::report);
+
+            mayFinish();
+        }
+
+        public void mayFinish() {
+            if (expectedSlices.decrementAndGet() == 0) {
                 responseBuilder.setStackTraces(stackTracePerId);
                 responseBuilder.setTotalFrames(totalFrames.get());
                 log.debug(
@@ -557,9 +649,11 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private int totalFrames;
         private Map<String, StackFrame> stackFrames;
         private Map<String, String> executables;
-        private Map<String, Long> stackTraceEvents;
+        private Map<String, TraceEvent> stackTraceEvents;
+        private List<HostEventCount> hostEventCounts;
         private double samplingRate;
         private long totalSamples;
+        private double requestedDuration;
 
         public void setStackTraces(Map<String, StackTrace> stackTraces) {
             this.stackTraces = stackTraces;
@@ -593,11 +687,15 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             this.executables = executables;
         }
 
-        public void setStackTraceEvents(Map<String, Long> stackTraceEvents) {
+        public void setStackTraceEvents(Map<String, TraceEvent> stackTraceEvents) {
             this.stackTraceEvents = stackTraceEvents;
         }
 
-        public Map<String, Long> getStackTraceEvents() {
+        public void setHostEventCounts(List<HostEventCount> hostEventCounts) {
+            this.hostEventCounts = hostEventCounts;
+        }
+
+        public Map<String, TraceEvent> getStackTraceEvents() {
             return stackTraceEvents;
         }
 
@@ -609,11 +707,28 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             return samplingRate;
         }
 
+        public void setRequestedDuration(double requestedDuration) {
+            this.requestedDuration = requestedDuration;
+        }
+
         public void setTotalSamples(long totalSamples) {
             this.totalSamples = totalSamples;
         }
 
         public GetStackTracesResponse build() {
+            // Merge the TraceEvent data into the StackTraces.
+            if (stackTraces != null) {
+                for (Map.Entry<String, StackTrace> entry : stackTraces.entrySet()) {
+                    String stacktraceID = entry.getKey();
+                    TraceEvent event = stackTraceEvents.get(stacktraceID);
+                    if (event != null) {
+                        StackTrace stackTrace = entry.getValue();
+                        stackTrace.count = event.count;
+                        stackTrace.annualCO2Tons = event.annualCO2Tons;
+                        stackTrace.annualCostsUSD = event.annualCostsUSD;
+                    }
+                }
+            }
             return new GetStackTracesResponse(
                 stackTraces,
                 stackFrames,

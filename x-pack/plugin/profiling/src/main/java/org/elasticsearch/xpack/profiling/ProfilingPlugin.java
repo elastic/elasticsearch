@@ -86,16 +86,22 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);
+        CostsService costsService = createCostsService();
         if (enabled) {
             registry.get().initialize();
             indexManager.get().initialize();
             dataStreamManager.get().initialize();
+            costsService.load();
         }
-        return Collections.singletonList(createLicenseChecker());
+        return List.of(createLicenseChecker(), costsService);
     }
 
     protected ProfilingLicenseChecker createLicenseChecker() {
         return new ProfilingLicenseChecker(XPackPlugin::getSharedLicenseState);
+    }
+
+    protected CostsService createCostsService() {
+        return new CostsService();
     }
 
     public void updateCheckOutdatedIndices(boolean newValue) {

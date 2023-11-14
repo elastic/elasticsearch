@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -42,7 +43,10 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
                     i.readCollectionAsList(StreamInput::readInt),
                     i.readCollectionAsList(StreamInput::readString),
                     i.readCollectionAsList(StreamInput::readString),
-                    i.readCollectionAsList(StreamInput::readInt)
+                    i.readCollectionAsList(StreamInput::readInt),
+                    i.readDouble(),
+                    i.readDouble(),
+                    i.readInt()
                 )
             )
             : null;
@@ -67,7 +71,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         Map<String, StackTrace> stackTraces,
         Map<String, StackFrame> stackFrames,
         Map<String, String> executables,
-        Map<String, Long> stackTraceEvents,
+        Map<String, TraceEvent> stackTraceEvents,
         int totalFrames,
         double samplingRate,
         long totalSamples
@@ -75,10 +79,15 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         this.stackTraces = stackTraces;
         this.stackFrames = stackFrames;
         this.executables = executables;
-        this.stackTraceEvents = stackTraceEvents;
         this.totalFrames = totalFrames;
         this.samplingRate = samplingRate;
         this.totalSamples = totalSamples;
+        if (stackTraceEvents != null) {
+            this.stackTraceEvents = new HashMap<>(stackTraceEvents.size());
+            stackTraceEvents.forEach((id, event) -> this.stackTraceEvents.put(id, event.count));
+        } else {
+            this.stackTraceEvents = null;
+        }
     }
 
     @Override
@@ -90,6 +99,9 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
                 o.writeStringCollection(v.fileIds);
                 o.writeStringCollection(v.frameIds);
                 o.writeCollection(v.typeIds, StreamOutput::writeInt);
+                o.writeDouble(v.annualCO2Tons);
+                o.writeDouble(v.annualCostsUSD);
+                o.writeLong(v.count);
             });
         } else {
             out.writeBoolean(false);

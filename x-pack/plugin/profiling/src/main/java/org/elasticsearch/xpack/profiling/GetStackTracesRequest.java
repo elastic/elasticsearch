@@ -38,11 +38,13 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids");
+    public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
 
     private QueryBuilder query;
     private Integer sampleSize;
     private String indices;
     private String stackTraceIds;
+    private Double requestedDuration;
 
     // We intentionally don't expose this field via the REST API but we can control behavior within Elasticsearch.
     // Once we have migrated all client-side code to dedicated APIs (such as the flamegraph API), we can adjust
@@ -50,11 +52,12 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private Boolean adjustSampleCount;
 
     public GetStackTracesRequest() {
-        this(null, null, null, null);
+        this(null, null, null, null, null);
     }
 
-    public GetStackTracesRequest(Integer sampleSize, QueryBuilder query, String indices, String stackTraceIds) {
+    public GetStackTracesRequest(Integer sampleSize, Double requestedDuration, QueryBuilder query, String indices, String stackTraceIds) {
         this.sampleSize = sampleSize;
+        this.requestedDuration = requestedDuration;
         this.query = query;
         this.indices = indices;
         this.stackTraceIds = stackTraceIds;
@@ -63,6 +66,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public GetStackTracesRequest(StreamInput in) throws IOException {
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.sampleSize = in.readOptionalInt();
+        this.requestedDuration = in.readOptionalDouble();
         this.adjustSampleCount = in.readOptionalBoolean();
         this.indices = in.readOptionalString();
         this.stackTraceIds = in.readOptionalString();
@@ -72,6 +76,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalInt(sampleSize);
+        out.writeOptionalDouble(requestedDuration);
         out.writeOptionalBoolean(adjustSampleCount);
         out.writeOptionalString(indices);
         out.writeOptionalString(stackTraceIds);
@@ -79,6 +84,10 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     public Integer getSampleSize() {
         return sampleSize;
+    }
+
+    public Double getRequestedDuration() {
+        return requestedDuration;
     }
 
     public QueryBuilder getQuery() {
@@ -122,6 +131,8 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     this.indices = parser.text();
                 } else if (STACKTRACE_IDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.stackTraceIds = parser.text();
+                } else if (REQUESTED_DURATION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.requestedDuration = parser.doubleValue();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -184,6 +195,12 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 );
             }
         }
+        if (requestedDuration == null) {
+            validationException = addValidationError(
+                "[" + REQUESTED_DURATION_FIELD.getPreferredName() + "] is mandatory",
+                validationException
+            );
+        }
         return validationException;
     }
 
@@ -208,6 +225,11 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     sb.append("sample_size[]");
                 } else {
                     sb.append("sample_size[").append(sampleSize).append("]");
+                }
+                if (requestedDuration == null) {
+                    sb.append(", requested_duration[]");
+                } else {
+                    sb.append(", requested_duration[").append(requestedDuration).append("]");
                 }
                 if (query == null) {
                     sb.append(", query[]");

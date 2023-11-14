@@ -14,7 +14,7 @@ import java.util.List;
 
 public class GetStackTracesActionIT extends ProfilingTestCase {
     public void testGetStackTracesUnfiltered() throws Exception {
-        GetStackTracesRequest request = new GetStackTracesRequest(10, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(10, 1.0d, null, null, null);
         request.setAdjustSampleCount(true);
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
         assertEquals(40, response.getTotalSamples());
@@ -42,7 +42,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
     public void testGetStackTracesFromAPMWithMatch() throws Exception {
         TermQueryBuilder query = QueryBuilders.termQuery("transaction.name", "encodeSha1");
 
-        GetStackTracesRequest request = new GetStackTracesRequest(null, query, "apm-test-*", "transaction.profiler_stack_trace_ids");
+        GetStackTracesRequest request = new GetStackTracesRequest(null, 1.0d, query, "apm-test-*", "transaction.profiler_stack_trace_ids");
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
         assertEquals(43, response.getTotalFrames());
 
@@ -69,7 +69,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
     public void testGetStackTracesFromAPMNoMatch() throws Exception {
         TermQueryBuilder query = QueryBuilders.termQuery("transaction.name", "nonExistingTransaction");
 
-        GetStackTracesRequest request = new GetStackTracesRequest(null, query, "apm-test-*", "transaction.profiler_stack_trace_ids");
+        GetStackTracesRequest request = new GetStackTracesRequest(null, 1.0d, query, "apm-test-*", "transaction.profiler_stack_trace_ids");
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
         assertEquals(0, response.getTotalFrames());
     }

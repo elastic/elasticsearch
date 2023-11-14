@@ -41,12 +41,15 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAA0Gra",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9"
                     ),
-                    List.of(3, 3, 3, 3, 3, 3, 3, 3, 3)
+                    List.of(3, 3, 3, 3, 3, 3, 3, 3, 3),
+                    0.3,
+                    2.7,
+                    1
                 )
             ),
             Map.of(),
             Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
-            Map.of("2buqP1GpF-TXYmL4USW8gA", 1L),
+            Map.of("2buqP1GpF-TXYmL4USW8gA", new TraceEvent("2buqP1GpF-TXYmL4USW8gA", 1L)),
             9,
             1.0d,
             1

@@ -526,3 +526,14 @@ IMPORTANT: The symlink must be created on all data and master eligible nodes and
 by the `elasticsearch` user. By default, {es} runs as user `elasticsearch` using uid:gid `1000:0`.
 
 If the symlink exists, it will be used by default by all S3 repositories that don't have explicit `client` credentials.
+
+[[repository-s3-linearizable-registers]]
+[discrete]
+==== Linearizable register implementation
+
+The linearizable register implementation for S3 repositories is based on the
+strongly consistent semantics of the multipart upload API. {es} first creates a
+multipart upload to indicate its intention to perform a linearizable register
+operation. {es} then lists and cancels all other multipart uploads for the same
+register. {es} then attempts to complete the upload. If the upload completes
+successfully then the compare-and-exchange operation was atomic.

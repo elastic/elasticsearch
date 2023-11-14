@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -34,15 +36,15 @@ public class EsqlQueryGenerator {
     }
 
     /**
-     *
      * @param previousOutput a list of fieldName+type
+     * @param policies
      * @return a new command that can process it as input
      */
-    public static String pipeCommand(List<Column> previousOutput) {
+    public static String pipeCommand(List<Column> previousOutput, List<CsvTestsDataLoader.EnrichConfig> policies) {
         return switch (randomIntBetween(0, 11)) {
             case 0 -> dissect(previousOutput);
             case 1 -> drop(previousOutput);
-            case 2 -> enrich(previousOutput);
+            case 2 -> enrich(previousOutput, policies);
             case 3 -> eval(previousOutput);
             case 4 -> grok(previousOutput);
             case 5 -> keep(previousOutput);
@@ -103,12 +105,37 @@ public class EsqlQueryGenerator {
         };
     }
 
-    private static String enrich(List<Column> previousOutput) {
-        return ""; // TODO implement this!
+    private static String enrich(List<Column> previousOutput, List<CsvTestsDataLoader.EnrichConfig> policies) {
+        String field = randomStringField(previousOutput);
+        if (field == null || policies.isEmpty()) {
+            return "";
+        }
+        // TODO add WITH
+        return " | enrich " + randomFrom(policies).policyName() + " on " + field;
     }
 
     private static String grok(List<Column> previousOutput) {
-        return ""; // TODO implement this!
+        String field = randomStringField(previousOutput);
+        if (field == null) {
+            return "";// no strings to grok, just skip
+        }
+        StringBuilder result = new StringBuilder(" | grok ");
+        result.append(field);
+        result.append(" \"");
+        for (int i = 0; i < randomIntBetween(1, 3); i++) {
+            if (i > 0) {
+                result.append(" ");
+            }
+            result.append("%{WORD:");
+            if (randomBoolean()) {
+                result.append(randomAlphaOfLength(5));
+            } else {
+                result.append(randomName(previousOutput));
+            }
+            result.append("}");
+        }
+        result.append("\"");
+        return result.toString();
     }
 
     private static String dissect(List<Column> previousOutput) {

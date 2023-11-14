@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.Before;
 
@@ -19,6 +20,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 
 public abstract class GenerativeRestTest extends ESRestTestCase {
@@ -37,6 +39,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     public void test() {
         List<String> indices = availableIndices();
+        List<CsvTestsDataLoader.EnrichConfig> policies = availableEnrichPolicies();
         for (int i = 0; i < ITERATIONS; i++) {
             String command = EsqlQueryGenerator.sourceCommand(indices);
             EsqlQueryGenerator.QueryExecuted result = execute(command, 0);
@@ -45,7 +48,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
                 if (result.outputSchema().isEmpty()) {
                     break;
                 }
-                command = EsqlQueryGenerator.pipeCommand(result.outputSchema());
+                command = EsqlQueryGenerator.pipeCommand(result.outputSchema(), policies);
                 result = execute(result.query() + command, result.depth() + 1);
                 checkException(result);
             }
@@ -86,5 +89,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     private List<String> availableIndices() {
         return new ArrayList<>(CSV_DATASET_MAP.keySet());
+    }
+
+    List<CsvTestsDataLoader.EnrichConfig> availableEnrichPolicies() {
+        return ENRICH_POLICIES;
     }
 }

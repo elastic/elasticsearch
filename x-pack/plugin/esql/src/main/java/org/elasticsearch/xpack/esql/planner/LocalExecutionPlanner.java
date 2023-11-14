@@ -364,9 +364,11 @@ public class LocalExecutionPlanner {
                     for (int i = 0, s = output.size(); i < s; i++) {
                         var out = output.get(i);
                         if (out.dataType() == DataTypes.BOOLEAN) {
+                            boolBlock.incRef();
                             blocks.add(i, boolBlock);
                         }
                     }
+                    boolBlock.close();
                 }
                 var newSupplier = LocalSupplier.of(blocks.toArray(Block[]::new));
 

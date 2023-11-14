@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
@@ -83,7 +84,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var model = service.parseRequestConfig(
@@ -107,7 +108,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var thrownException = expectThrows(
@@ -128,7 +129,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var config = getRequestConfigMap(
@@ -154,7 +155,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var serviceSettings = getServiceSettingsMap("url");
@@ -178,7 +179,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var taskSettingsMap = getTaskSettingsMap("model", "user");
@@ -202,7 +203,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var secretSettingsMap = getSecretSettingsMap("secret");
@@ -226,7 +227,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var model = service.parseRequestConfig(
@@ -250,7 +251,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
@@ -275,7 +276,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
@@ -300,7 +301,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
@@ -325,7 +326,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
@@ -351,7 +352,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var secretSettingsMap = getSecretSettingsMap("secret");
@@ -379,7 +380,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
@@ -405,7 +406,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var serviceSettingsMap = getServiceSettingsMap("url");
@@ -433,7 +434,7 @@ public class OpenAiServiceTests extends ESTestCase {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
-                new SetOnce<>(mock(ThrottlerManager.class))
+                new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
             var taskSettingsMap = getTaskSettingsMap("model", "user");
@@ -459,7 +460,7 @@ public class OpenAiServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSenderFactory.class);
         when(factory.createSender(anyString())).thenReturn(sender);
 
-        try (var service = new OpenAiService(new SetOnce<>(factory), new SetOnce<>(mock(ThrottlerManager.class)))) {
+        try (var service = new OpenAiService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
             service.start(mock(Model.class), listener);
 
@@ -479,7 +480,7 @@ public class OpenAiServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSenderFactory.class);
         when(factory.createSender(anyString())).thenReturn(sender);
 
-        try (var service = new OpenAiService(new SetOnce<>(factory), new SetOnce<>(mock(ThrottlerManager.class)))) {
+        try (var service = new OpenAiService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
             service.start(mock(Model.class), listener);
             listener.actionGet(TIMEOUT);
@@ -504,7 +505,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new OpenAiService(new SetOnce<>(factory), new SetOnce<>(mock(ThrottlerManager.class)))) {
+        try (var service = new OpenAiService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
             service.infer(mockModel, "", new HashMap<>(), listener);
 
@@ -526,7 +527,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testInfer_SendsRequest() throws IOException {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
-        try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(mock(ThrottlerManager.class)))) {
+        try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
 
             String responseJson = """
                 {

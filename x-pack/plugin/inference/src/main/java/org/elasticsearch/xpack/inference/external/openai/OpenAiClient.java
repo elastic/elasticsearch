@@ -7,47 +7,42 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.AlwaysRetryingResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
-import java.util.Objects;
-
-import static org.elasticsearch.core.Strings.format;
 
 public class OpenAiClient {
     private static final Logger logger = LogManager.getLogger(OpenAiClient.class);
+    private static final ResponseHandler EMBEDDINGS_HANDLER = createEmbeddingsHandler();
 
-    private final ThrottlerManager throttlerManager;
+    private final RetryingHttpSender sender;
 
-    private final Sender sender;
-
-    public OpenAiClient(Sender sender, ThrottlerManager throttlerManager) {
-        this.sender = Objects.requireNonNull(sender);
-        this.throttlerManager = Objects.requireNonNull(throttlerManager);
+    public OpenAiClient(Sender sender, ServiceComponents serviceComponents) {
+        this.sender = new RetryingHttpSender(
+            sender,
+            serviceComponents.throttlerManager(),
+            logger,
+            new RetrySettings(serviceComponents.settings()),
+            serviceComponents.threadPool()
+        );
     }
 
     public void send(OpenAiEmbeddingsRequest request, ActionListener<InferenceResults> listener) throws IOException {
-        HttpRequestBase httpRequest = request.createRequest();
-        ActionListener<HttpResult> responseListener = ActionListener.wrap(response -> {
-            try {
-                listener.onResponse(OpenAiEmbeddingsResponseEntity.fromResponse(response));
-            } catch (Exception e) {
-                String msg = format("Failed to parse the OpenAI embeddings response for request [%s]", httpRequest.getRequestLine());
-                throttlerManager.getThrottler().warn(logger, msg, e);
-                listener.onFailure(new ElasticsearchException(msg, e));
-            }
-        }, listener::onFailure);
+        sender.send(request.createRequest(), EMBEDDINGS_HANDLER, listener);
+    }
 
-        sender.send(httpRequest, responseListener);
+    private static ResponseHandler createEmbeddingsHandler() {
+        return new AlwaysRetryingResponseHandler("openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse);
     }
 }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.action.openai;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.util.Map;
@@ -20,17 +20,17 @@ import java.util.Objects;
  */
 public class OpenAiActionCreator implements OpenAiActionVisitor {
     private final Sender sender;
-    private final ThrottlerManager throttlerManager;
+    private final ServiceComponents serviceComponents;
 
-    public OpenAiActionCreator(Sender sender, ThrottlerManager throttlerManager) {
+    public OpenAiActionCreator(Sender sender, ServiceComponents serviceComponents) {
         this.sender = Objects.requireNonNull(sender);
-        this.throttlerManager = Objects.requireNonNull(throttlerManager);
+        this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
     @Override
     public ExecutableAction create(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings) {
         var overriddenModel = model.overrideWith(taskSettings);
 
-        return new OpenAiEmbeddingsAction(sender, overriddenModel, throttlerManager);
+        return new OpenAiEmbeddingsAction(sender, overriddenModel, serviceComponents);
     }
 }

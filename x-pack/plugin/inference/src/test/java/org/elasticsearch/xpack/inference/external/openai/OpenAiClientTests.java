@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.junit.After;
 import org.junit.Before;
 
@@ -36,8 +37,10 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequestTests.createRequest;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
+import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -93,7 +96,7 @@ public class OpenAiClientTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            OpenAiClient openAiClient = new OpenAiClient(sender, mockThrottlerManager());
+            OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
 
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
             openAiClient.send(createRequest(getUrl(webServer), "secret", "abc", "model", "user"), listener);
@@ -151,7 +154,7 @@ public class OpenAiClientTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            OpenAiClient openAiClient = new OpenAiClient(sender, mockThrottlerManager());
+            OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
 
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
             openAiClient.send(createRequest(getUrl(webServer), "secret", "abc", "model", null), listener);
@@ -208,16 +211,21 @@ public class OpenAiClientTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            OpenAiClient openAiClient = new OpenAiClient(sender, mockThrottlerManager());
+            OpenAiClient openAiClient = new OpenAiClient(
+                sender,
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    // timeout as zero for no retries
+                    buildSettingsWithRetryFields(TimeValue.timeValueMillis(1), TimeValue.timeValueMinutes(1), TimeValue.timeValueSeconds(0))
+                )
+            );
 
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
             openAiClient.send(createRequest(getUrl(webServer), "secret", "abc", "model", "user"), listener);
 
-            var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(
-                thrownException.getMessage(),
-                is(format("Failed to parse the OpenAI embeddings response for request [POST %s HTTP/1.1]", getUrl(webServer)))
-            );
+            var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(thrownException.getMessage(), is(format("Failed to find required field [data] in OpenAI embeddings response")));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -232,18 +240,15 @@ public class OpenAiClientTests extends ESTestCase {
         }
     }
 
-    public void testSend_ThrowsException() {
+    public void testSend_ThrowsException() throws URISyntaxException, IOException {
         var sender = mock(Sender.class);
         doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any());
 
-        OpenAiClient openAiClient = new OpenAiClient(sender, mockThrottlerManager());
+        OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
         PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
+        openAiClient.send(createRequest(getUrl(webServer), "secret", "abc", "model", "user"), listener);
 
-        var thrownException = expectThrows(
-            ElasticsearchException.class,
-            () -> openAiClient.send(createRequest(getUrl(webServer), "secret", "abc", "model", "user"), listener)
-        );
+        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("failed"));
     }
-
 }

@@ -24,7 +24,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceElserAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,12 +39,12 @@ public class HuggingFaceElserService implements InferenceService {
     public static final String NAME = "hugging_face_elser";
 
     private final SetOnce<HttpRequestSenderFactory> factory;
-    private final SetOnce<ThrottlerManager> throttlerManager;
+    private final SetOnce<ServiceComponents> serviceComponents;
     private final AtomicReference<Sender> sender = new AtomicReference<>();
 
-    public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ThrottlerManager> throttlerManager) {
+    public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
         this.factory = Objects.requireNonNull(factory);
-        this.throttlerManager = Objects.requireNonNull(throttlerManager);
+        this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
     @Override
@@ -106,7 +106,7 @@ public class HuggingFaceElserService implements InferenceService {
         init();
 
         HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
-        HuggingFaceElserAction action = new HuggingFaceElserAction(sender.get(), huggingFaceElserModel, throttlerManager.get());
+        HuggingFaceElserAction action = new HuggingFaceElserAction(sender.get(), huggingFaceElserModel, serviceComponents.get());
 
         action.execute(input, listener);
     }

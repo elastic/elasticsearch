@@ -18,6 +18,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStringsTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 
 import java.io.IOException;
@@ -45,12 +47,14 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
             randomFrom(TrainedModelType.values()).toString(),
             randomBoolean() ? Arrays.asList(generateRandomStringArray(randomIntBetween(0, 5), 15, false)) : null,
             randomBoolean() ? randomAlphaOfLength(10) : null,
-            randomBoolean() ? randomAlphaOfLength(10) : null
+            randomBoolean() ? randomAlphaOfLength(10) : null,
+            TrainedModelPrefixStringsTests.randomInstance()
+            // randomBoolean() ? TrainedModelPrefixStringsTests.randomInstance() : null
         );
     }
 
     public static ModelPackageConfig mutateModelPackageConfig(ModelPackageConfig instance) {
-        switch (between(0, 12)) {
+        switch (between(0, 13)) {
             case 0:
                 return new ModelPackageConfig.Builder(instance).setPackedModelId(randomAlphaOfLength(15)).build();
             case 1:
@@ -87,6 +91,12 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
                 return new ModelPackageConfig.Builder(instance).setVocabularyFile(randomAlphaOfLength(15)).build();
             case 12:
                 return new ModelPackageConfig.Builder(instance).setPlatformArchitecture(randomAlphaOfLength(15)).build();
+            case 13: {
+                TrainedModelPrefixStrings mutatedPrefixes = instance.getPrefixStrings() == null
+                    ? TrainedModelPrefixStringsTests.randomInstance()
+                    : null;
+                return new ModelPackageConfig.Builder(instance).setPrefixStrings(mutatedPrefixes).build();
+            }
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
@@ -114,10 +124,14 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
 
     @Override
     protected ModelPackageConfig mutateInstanceForVersion(ModelPackageConfig instance, TransportVersion version) {
+        var builder = new ModelPackageConfig.Builder(instance);
         if (version.before(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)) {
-            return new ModelPackageConfig.Builder(instance).setPlatformArchitecture(null).build();
+            builder.setPlatformArchitecture(null);
         }
-        return instance;
+        if (version.before(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+            builder.setPrefixStrings(null);
+        }
+        return builder.build();
     }
 
     private static Map<String, Object> randomInferenceConfigAsMap() {

@@ -23,7 +23,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.io.IOException;
@@ -40,12 +40,12 @@ public class OpenAiService implements InferenceService {
     public static final String NAME = "openai";
 
     private final SetOnce<HttpRequestSenderFactory> factory;
-    private final SetOnce<ThrottlerManager> throttlerManager;
+    private final SetOnce<ServiceComponents> serviceComponents;
     private final AtomicReference<Sender> sender = new AtomicReference<>();
 
-    public OpenAiService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ThrottlerManager> throttlerManager) {
+    public OpenAiService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
         this.factory = Objects.requireNonNull(factory);
-        this.throttlerManager = Objects.requireNonNull(throttlerManager);
+        this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
     @Override
@@ -136,7 +136,7 @@ public class OpenAiService implements InferenceService {
         }
 
         OpenAiModel openAiModel = (OpenAiModel) model;
-        var actionCreator = new OpenAiActionCreator(sender.get(), throttlerManager.get());
+        var actionCreator = new OpenAiActionCreator(sender.get(), serviceComponents.get());
 
         var action = openAiModel.accept(actionCreator, taskSettings);
         action.execute(input, listener);

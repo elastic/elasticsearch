@@ -234,7 +234,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         RangeFieldType fieldType = new RangeFieldType("field", formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals(
-            "IndexOrDocValuesQuery(indexQuery=field:<ranges:[1465975790000 : 1466062190999]>, dvQuery=BinaryDocValuesRangeQuery(fieldName=,from=1465975790000,to=1466062190999))",
+            "IndexOrDocValuesQuery(indexQuery=field:<ranges:[1465975790000 : 1466062190999]>, "
+                + "dvQuery=BinaryDocValuesRangeQuery(fieldName=,from=1465975790000,to=1466062190999))",
             query.toString()
         );
 

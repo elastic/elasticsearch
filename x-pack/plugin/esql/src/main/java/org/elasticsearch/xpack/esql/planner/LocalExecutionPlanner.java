@@ -335,8 +335,10 @@ public class LocalExecutionPlanner {
             var blocks = new Block[mappedPosition.length];
             for (int i = 0; i < blocks.length; i++) {
                 blocks[i] = p.getBlock(mappedPosition[i]);
+                blocks[i].incRef();
             }
-            return p.newPageAndRelease(blocks);
+            p.releaseBlocks();
+            return new Page(blocks);
         } : Function.identity();
 
         return transformer;

@@ -14,6 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigUpdate;
@@ -66,6 +67,9 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             );
 
         request.setHighPriority(randomBoolean());
+        if (randomBoolean()) {
+            request.setPrefixType(randomFrom(TrainedModelPrefixStrings.PrefixType.values()));
+        }
         return request;
     }
 
@@ -79,8 +83,9 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
         var update = instance.getUpdate();
         var previouslyLicensed = instance.isPreviouslyLicensed();
         var timeout = instance.getInferenceTimeout();
+        var prefixType = instance.getPrefixType();
 
-        int change = randomIntBetween(0, 6);
+        int change = randomIntBetween(0, 7);
         switch (change) {
             case 0:
                 modelId = modelId + "foo";
@@ -111,12 +116,17 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             case 6:
                 timeout = TimeValue.timeValueSeconds(timeout.getSeconds() - 1);
                 break;
+            case 7:
+                prefixType = TrainedModelPrefixStrings.PrefixType.values()[(prefixType.ordinal() + 1) % TrainedModelPrefixStrings.PrefixType
+                    .values().length];
+                break;
             default:
                 throw new IllegalStateException();
         }
 
         var r = new Request(modelId, update, objectsToInfer, textInput, timeout, previouslyLicensed);
         r.setHighPriority(highPriority);
+        r.setPrefixType(prefixType);
         return r;
     }
 
@@ -210,6 +220,18 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 instance.isPreviouslyLicensed()
             );
             r.setHighPriority(false);
+            return r;
+        } else if (version.before(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+            var r = new Request(
+                instance.getId(),
+                adjustedUpdate,
+                instance.getObjectsToInfer(),
+                instance.getTextInput(),
+                instance.getInferenceTimeout(),
+                instance.isPreviouslyLicensed()
+            );
+            r.setHighPriority(instance.isHighPriority());
+            r.setPrefixType(TrainedModelPrefixStrings.PrefixType.NONE);
             return r;
         }
 

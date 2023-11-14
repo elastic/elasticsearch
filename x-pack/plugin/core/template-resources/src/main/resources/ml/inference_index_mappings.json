@@ -149,6 +149,9 @@
       },
       "vocab": {
         "enabled": false
+      },
+      "prefix_strings": {
+        "enabled": false
       }
     }
   }

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -73,10 +74,12 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
@@ -280,7 +283,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 if (child instanceof Project p) {
                     // eliminate lower project but first replace the aliases in the upper one
                     return p.withProjections(combineProjections(project.projections(), p.projections()));
-                } else if (child instanceof Aggregate a) {
+                } else if (child instanceof Aggregate a && duplicateAggs(project.projections(), a.aggregates()) == false) {
+                    // cannot combine in case of duplicate aggs, otherwise it will loop with ReplaceDuplicateAggWithEval
                     return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(project.projections(), a.aggregates()));
                 }
             }
@@ -293,6 +297,21 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
 
             return plan;
+        }
+
+        private boolean duplicateAggs(List<? extends NamedExpression> projections, List<? extends NamedExpression> aggregates) {
+            Set<Expression> visited = new HashSet<>();
+            List<NameId> aggIds = aggregates.stream().map(NamedExpression::id).collect(Collectors.toList());
+            for (Expression projection : projections) {
+                if (projection instanceof Alias a) {
+                    projection = a.child();
+                }
+                if (visited.contains(projection) && projection instanceof NamedExpression n && aggIds.contains(n.id())) {
+                    return true;
+                }
+                visited.add(projection);
+            }
+            return false;
         }
 
         // normally only the upper projections should survive but since the lower list might have aliases definitions

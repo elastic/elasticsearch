@@ -1936,9 +1936,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * Limit[500[INTEGER]]
-     * \_Aggregate[[],[COUNT(salary{f}#19) AS x]]
-     *   \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     *
+     * Project[[c{r}#3 AS x]]
+     * \_Limit[500[INTEGER]]
+     *   \_Aggregate[[],[COUNT(salary{f}#19) AS c]]
+     *     \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      */
     public void testPruneUnusedAggMixedWithEval() {
         var plan = plan("""
@@ -1948,14 +1950,47 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | keep x
             """);
 
+        var project = as(plan, Project.class);
+        assertThat(project.projections(), hasSize(1));
+        assertThat(Expressions.names(project.projections()), contains("x"));
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.groupings(), hasSize(0));
+        var aggs = agg.aggregates();
+        assertThat(aggs, hasSize(1));
+        assertThat(Expressions.names(aggs), contains("c"));
+        aggFieldName(agg.aggregates().get(0), Count.class, "salary");
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[],[MAX(a{r}#3) AS c]]
+     *   \_Aggregate[[],[MAX(salary{f}#15) AS a]]
+     *     \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *
+     * see https://github.com/elastic/elasticsearch/issues/102083
+     */
+    public void testDuplicateProjection() {
+        var plan = plan("""
+              from test
+            | stats a = max(salary), b = max(salary)
+            | stats  c = max(b)
+            """);
+
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(agg.groupings(), hasSize(0));
         var aggs = agg.aggregates();
         assertThat(aggs, hasSize(1));
-        assertThat(Expressions.names(aggs), contains("x"));
-        aggFieldName(agg.aggregates().get(0), Count.class, "salary");
-        var source = as(agg.child(), EsRelation.class);
+        assertThat(Expressions.names(aggs), contains("c"));
+        aggFieldName(agg.aggregates().get(0), Max.class, "a");
+        var agg2 = as(agg.child(), Aggregate.class);
+        var aggs2 = agg2.aggregates();
+        assertThat(aggs2, hasSize(1));
+        var source = as(agg2.child(), EsRelation.class);
     }
 
     public void testPruneUnusedAggsChainedAgg() {

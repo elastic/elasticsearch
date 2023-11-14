@@ -697,3 +697,19 @@ c:l| m:i   | m1:i  | c1:l| gender:s
 57 | 25945 | 25945 | 57  | M
 10 | 25324 | 25324 | 10  | null
 ;
+
+
+twoCountStarInStats
+row x = 1 | stats  a = count(*), b = count(*) | stats  c = count(*);
+
+c:long
+1
+;
+
+
+twoStatsSameExp
+row x = 1 | stats  a = max(x), b = max(x) | stats  c = max(a);
+
+c:integer
+1
+;

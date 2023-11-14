@@ -56,9 +56,9 @@ public record DesiredBalanceStats(
             in.getTransportVersion().onOrAfter(COMPUTED_SHARD_MOVEMENTS_VERSION) ? in.readVLong() : -1,
             in.readVLong(),
             in.readVLong(),
-            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVInt() : 0,
-            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVInt() : 0,
-            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVInt() : 0
+            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVInt() : -1,
+            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVInt() : -1,
+            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVInt() : -1
         );
     }
 
@@ -103,6 +103,6 @@ public record DesiredBalanceStats(
     }
 
     public double undesiredAllocationsFraction() {
-        return totalAllocations > 0 ? (Math.round(10000.0 * undesiredAllocations / totalAllocations) / 10000.0) : 0.0;
+        return (double) undesiredAllocations / totalAllocations;
     }
 }

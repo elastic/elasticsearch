@@ -528,19 +528,7 @@ public class DesiredBalanceReconciler {
             DesiredBalanceReconciler.this.undesiredAllocations.set(undesiredAllocations);
             DesiredBalanceReconciler.this.totalAllocations.set(totalAllocations);
 
-            logReconciliationMetrics.maybeExecute(
-                () -> logger.debug(
-                    new ESLogMessage("DesiredBalanceReconciler stats") //
-                        .field(
-                            "allocator.desired_balance.reconciliation.undesired_allocations",
-                            DesiredBalanceReconciler.this.undesiredAllocations.get()
-                        )
-                        .field(
-                            "allocator.desired_balance.reconciliation.total_allocations",
-                            DesiredBalanceReconciler.this.totalAllocations.get()
-                        )
-                )
-            );
+            logUndesiredAllocationsMetrics(totalAllocations, undesiredAllocations);
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocations, routingNodes.size());
         }
 
@@ -559,6 +547,20 @@ public class DesiredBalanceReconciler {
                     )
                 );
             }
+        }
+
+        private void logUndesiredAllocationsMetrics(int allAllocations, int undesiredAllocations) {
+            logReconciliationMetrics.maybeExecute(
+                () -> logger.debug(
+                    new ESLogMessage("DesiredBalanceReconciler stats") //
+                        .field(
+                            "allocator.desired_balance.reconciliation.undesired_allocations_fraction",
+                            (double) undesiredAllocations / allAllocations
+                        )
+                        .field("allocator.desired_balance.reconciliation.undesired_allocations", undesiredAllocations)
+                        .field("allocator.desired_balance.reconciliation.total_allocations", allAllocations)
+                )
+            );
         }
 
         private DiscoveryNode findRelocationTarget(final ShardRouting shardRouting, Set<String> desiredNodeIds) {

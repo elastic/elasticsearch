@@ -82,7 +82,7 @@ public class DesiredBalanceStatsTests extends AbstractWireSerializingTestCase<De
                     instance.unassignedShards(),
                     instance.totalAllocations(),
                     instance.undesiredAllocations(),
-                    Double.valueOf(instance.undesiredAllocationsFraction()).toString()
+                    Double.toString(instance.undesiredAllocationsFraction())
                 )
             )
         );

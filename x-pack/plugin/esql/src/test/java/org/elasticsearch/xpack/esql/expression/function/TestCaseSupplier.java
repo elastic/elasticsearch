@@ -26,7 +26,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.DoubleBinaryOperator;
+import java.util.function.BinaryOperator;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -138,7 +138,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         String name,
         String lhsName,
         String rhsName,
-        DoubleBinaryOperator expected,
+        BinaryOperator<Double> expected,
         Double lhsMin,
         Double lhsMax,
         Double rhsMin,
@@ -154,7 +154,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         String name,
         String lhsName,
         String rhsName,
-        DoubleBinaryOperator expected,
+        BinaryOperator<Double> expected,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
         List<String> warnings
@@ -183,7 +183,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                         List.of(lhsTyped, rhsTyped),
                         name + "[" + lhsName + "=" + lhsEvalName + ", " + rhsName + "=" + rhsEvalName + "]",
                         DataTypes.DOUBLE,
-                        equalTo(expected.applyAsDouble(lhs.doubleValue(), rhs.doubleValue()))
+                        equalTo(expected.apply(lhs.doubleValue(), rhs.doubleValue()))
                     );
                     for (String warning : warnings) {
                         testCase = testCase.withWarning(warning);

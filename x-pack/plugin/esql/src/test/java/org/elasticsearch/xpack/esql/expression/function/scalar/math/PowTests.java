@@ -46,7 +46,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 "PowEvaluator",
                 "base",
                 "exponent",
-                (b, e) -> 1,
+                (b, e) -> 1d,
                 // 143^143 is still representable, but 144^144 is infinite
                 TestCaseSupplier.castToDoubleSuppliersFromRange(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY),
                 List.of(
@@ -56,7 +56,27 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 List.of()
             )
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+
+        // Add null cases before the rest of the error cases, so messages are correct.
+        suppliers = anyNullIsNull(true, suppliers);
+
+        // Overflow should be null
+        suppliers.addAll(TestCaseSupplier.forBinaryCastingToDouble(
+            "PowEvaluator",
+            "base",
+            "exponent",
+            (b, e) -> null,
+            // 143^143 is still representable, but 144^144 is infinite
+            144d,
+           Double.POSITIVE_INFINITY,
+            144d,
+            Double.POSITIVE_INFINITY,
+            List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.ArithmeticException: invalid result when computing pow"
+            )
+        ));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
     }
 
     @Override

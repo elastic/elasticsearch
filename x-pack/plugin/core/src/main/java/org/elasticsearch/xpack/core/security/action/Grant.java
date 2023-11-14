@@ -142,7 +142,8 @@ public class Grant implements Writeable {
                 if (token != null) {
                     yield token;
                 }
-                if (this.clientAuthentication != null) {
+                if (clientAuthentication != null) {
+                    clientAuthentication.close();
                     throw new ElasticsearchSecurityException(
                         "[client_authentication] not supported with the supplied access_token type",
                         RestStatus.BAD_REQUEST

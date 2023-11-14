@@ -8,7 +8,6 @@
 
 package org.elasticsearch.env;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
@@ -126,7 +125,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         );
         assertThat(
             illegalStateException.getMessage(),
-            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Build.current().version() + "]"))
+            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + NodeMetadataVersion.current() + "]"))
         );
     }
 
@@ -137,12 +136,12 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         assertThat(
             illegalStateException.getMessage(),
             allOf(
-                startsWith("cannot upgrade a node from version ["),
+                startsWith("cannot upgrade a node with metadata version ["),
                 endsWith(
-                    "] directly to version ["
-                        + Build.current().version()
-                        + "], upgrade to version ["
-                        + Build.current().minWireCompatVersion()
+                    "] directly to metadata version ["
+                        + NodeMetadataVersion.current()
+                        + "], upgrade to metadata version ["
+                        + NodeMetadataVersion.MINIMUM_COMPATIBLE
                         + "] first."
                 )
             )

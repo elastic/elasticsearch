@@ -17,6 +17,9 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
 
     private final LongVector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     LongVectorBlock(LongVector vector) {
         super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
@@ -77,10 +80,10 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
 
     @Override
     public void close() {
-        if (vector.isReleased()) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
         super.close();
+        if (vector.isReleased()) {
+            throw new IllegalStateException("cannot release block [" + this + "] containing already released vector");
+        }
         if (hasReferences() == false) {
             Releasables.closeExpectNoException(vector);
         }

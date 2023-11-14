@@ -18,6 +18,9 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
 
     private final BytesRefVector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     BytesRefVectorBlock(BytesRefVector vector) {
         super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
@@ -78,10 +81,10 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
 
     @Override
     public void close() {
-        if (vector.isReleased()) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
         super.close();
+        if (vector.isReleased()) {
+            throw new IllegalStateException("cannot release block [" + this + "] containing already released vector");
+        }
         if (hasReferences() == false) {
             Releasables.closeExpectNoException(vector);
         }

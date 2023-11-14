@@ -17,6 +17,9 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
 
     private final BooleanVector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     BooleanVectorBlock(BooleanVector vector) {
         super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
@@ -77,10 +80,10 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
 
     @Override
     public void close() {
-        if (vector.isReleased()) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
         super.close();
+        if (vector.isReleased()) {
+            throw new IllegalStateException("cannot release block [" + this + "] containing already released vector");
+        }
         if (hasReferences() == false) {
             Releasables.closeExpectNoException(vector);
         }

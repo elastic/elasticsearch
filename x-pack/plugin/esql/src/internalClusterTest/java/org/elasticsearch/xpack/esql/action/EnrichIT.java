@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.Inject;
@@ -43,6 +44,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -70,6 +72,17 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .build();
+    }
+
+    @Override
+    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+        final Client client;
+        if (randomBoolean()) {
+            client = client(randomFrom(clusterService().state().nodes().getCoordinatingOnlyNodes().values()).getName());
+        } else {
+            client = client();
+        }
+        return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
     }
 
     @Before
@@ -127,6 +140,13 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
                 .get();
         }
         client().admin().indices().prepareRefresh("listens").get();
+    }
+
+    @Before
+    public void ensureAtLeastOneCoordinatingNodeOnly() {
+        if (clusterService().state().nodes().getCoordinatingOnlyNodes().isEmpty()) {
+            internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        }
     }
 
     record Listen(long timestamp, String songId, double duration) {

@@ -5,4 +5,4 @@
 # 2.0.
 #
 
-org.elasticsearch.xpack.core.datatiers.DataTiersFeatures
+org.elasticsearch.xpack.core.XPackFeatures

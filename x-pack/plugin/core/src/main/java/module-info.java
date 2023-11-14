@@ -228,5 +228,5 @@ module org.elasticsearch.xcore {
             org.elasticsearch.xpack.core.ml.MlConfigVersionComponent,
             org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent;
 
-    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.core.datatiers.DataTiersFeatures;
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.core.XPackFeatures;
 }

@@ -5,17 +5,23 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.datatiers;
+package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
 
 import java.util.Set;
 
-public class DataTiersFeatures implements FeatureSpecification {
+/**
+ * Provides the XPack features that this version of the code supports
+ */
+public class XPackFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(NodesDataTiersUsageTransportAction.LOCALLY_PRECALCULATED_STATS_FEATURE);
+        return Set.of(
+            NodesDataTiersUsageTransportAction.LOCALLY_PRECALCULATED_STATS_FEATURE // Added in 8.12
+        );
     }
 }

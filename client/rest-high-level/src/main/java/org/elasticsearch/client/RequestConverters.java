@@ -240,7 +240,7 @@ final class RequestConverters {
         return request;
     }
 
-    static void addSearchRequestParams(Params params, SearchRequest searchRequest) {
+    private static void addSearchRequestParams(Params params, SearchRequest searchRequest) {
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         params.withRouting(searchRequest.routing());
         params.withPreference(searchRequest.preference());
@@ -267,26 +267,25 @@ final class RequestConverters {
         }
     }
 
-    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
+    private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         return createEntity(toXContent, xContentType, ToXContent.EMPTY_PARAMS);
     }
 
-    static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
+    private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
         throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
         return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
-    @Deprecated
-    static String endpoint(String index, String type, String id) {
+    private static String endpoint(String index, String type, String id) {
         return new EndpointBuilder().addPathPart(index, type, id).build();
     }
 
-    static String endpoint(String index, String id) {
+    private static String endpoint(String index, String id) {
         return new EndpointBuilder().addPathPart(index, "_doc", id).build();
     }
 
-    static String endpoint(String[] indices, String endpoint) {
+    private static String endpoint(String[] indices, String endpoint) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint).build();
     }
 
@@ -297,7 +296,7 @@ final class RequestConverters {
      * @return the {@link ContentType}
      */
     @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
-    public static ContentType createContentType(final XContentType xContentType) {
+    private static ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
 
@@ -305,7 +304,7 @@ final class RequestConverters {
      * Utility class to help with common parameter names and patterns. Wraps
      * a {@link Request} and adds the parameters to it directly.
      */
-    static class Params {
+    private static class Params {
         private final Map<String, String> parameters = new HashMap<>();
 
         Params() {}
@@ -453,7 +452,7 @@ final class RequestConverters {
      *
      * @return the {@link IndexRequest}'s content type
      */
-    static XContentType enforceSameContentType(IndexRequest indexRequest, @Nullable XContentType xContentType) {
+    private static XContentType enforceSameContentType(IndexRequest indexRequest, @Nullable XContentType xContentType) {
         XContentType requestContentType = indexRequest.getContentType();
         if (requestContentType.canonical() != XContentType.JSON && requestContentType.canonical() != XContentType.SMILE) {
             throw new IllegalArgumentException(
@@ -480,7 +479,7 @@ final class RequestConverters {
     /**
      * Utility class to build request's endpoint given its parts as strings
      */
-    static class EndpointBuilder {
+    private static class EndpointBuilder {
 
         private final StringJoiner joiner = new StringJoiner("/", "/", "");
 
@@ -507,7 +506,7 @@ final class RequestConverters {
             return this;
         }
 
-        String build() {
+        private String build() {
             return joiner.toString();
         }
 

@@ -191,7 +191,7 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Environment variable determining whether to send the 7.x compatibility header
      */
-    public static final String API_VERSIONING_ENV_VARIABLE = "ELASTIC_CLIENT_APIVERSIONING";
+    private static final String API_VERSIONING_ENV_VARIABLE = "ELASTIC_CLIENT_APIVERSIONING";
 
     // To be called using performClientRequest and performClientRequestAsync to ensure version compatibility check
     private final RestClient client;

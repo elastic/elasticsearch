@@ -43,7 +43,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         Metadata metadata = createLicensesMetadata(
-            TrialLicenseVersion.fromXContent(previousVersion.toString()),
+            TrialLicenseVersion.fromXContent(String.valueOf(previousVersion.id())),
             randomFrom("basic", "trial")
         );
         License license = mock(License.class);
@@ -80,7 +80,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         Metadata metadata = createLicensesMetadata(
-            TrialLicenseVersion.fromXContent(previousVersion.toString()),
+            TrialLicenseVersion.fromXContent(String.valueOf(previousVersion.id())),
             randomFrom("gold", "platinum")
         );
         License license = mock(License.class);
@@ -105,7 +105,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
             createTestContext(
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build(),
-                createLicensesMetadata(TrialLicenseVersion.fromXContent(previousVersion.toString()), randomFrom("basic", "trial"))
+                createLicensesMetadata(TrialLicenseVersion.fromXContent(String.valueOf(previousVersion.id())), randomFrom("basic", "trial"))
             )
         );
         assertThat(result.isSuccess(), is(true));
@@ -121,7 +121,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
             createTestContext(
                 Settings.EMPTY,
-                createLicensesMetadata(TrialLicenseVersion.fromXContent(previousVersion.toString()), randomFrom("basic", "trial"))
+                createLicensesMetadata(TrialLicenseVersion.fromXContent(String.valueOf(previousVersion.id())), randomFrom("basic", "trial"))
             )
         );
         assertThat(result.isSuccess(), is(true));
@@ -137,7 +137,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
             createTestContext(
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build(),
-                createLicensesMetadata(TrialLicenseVersion.fromXContent(previousVersion.toString()), randomFrom("basic", "trial"))
+                createLicensesMetadata(TrialLicenseVersion.fromXContent(String.valueOf(previousVersion.id())), randomFrom("basic", "trial"))
             )
         );
         assertThat(result.isSuccess(), is(true));

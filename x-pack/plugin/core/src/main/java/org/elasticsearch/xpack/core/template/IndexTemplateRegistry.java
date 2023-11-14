@@ -64,6 +64,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -71,18 +72,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * Abstracts the logic of managing versioned index templates, ingest pipelines and lifecycle policies for plugins that require such things.
  */
 public abstract class IndexTemplateRegistry implements ClusterStateListener {
-    public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
-
-    /**
-     * Check if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set to {@code true}, indicating that
-     * we're running in a cluster configuration that is only expecting to use data streams lifecycles.
-     *
-     * @param settings the node settings
-     * @return true if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set
-     */
-    public static boolean isDataStreamsLifecycleOnlyMode(final Settings settings) {
-        return settings.getAsBoolean(DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, false);
-    }
 
     private static final Logger logger = LogManager.getLogger(IndexTemplateRegistry.class);
 
@@ -121,7 +110,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     /**
      * Returns the configured configurations for the lifecycle policies. Subclasses should provide
      * the ILM configurations and they will be loaded if we're not running data stream only mode (controlled via
-     * {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME}).
+     * {@link org.elasticsearch.cluster.metadata.DataStreamLifecycle#DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME}).
      *
      * The loaded lifecycle configurations will be installed if returned by {@link #getLifecyclePolicies()}. Child classes
      * have a chance to override {@link #getLifecyclePolicies()} in case they want additional control over if these

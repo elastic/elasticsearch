@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
@@ -106,7 +105,13 @@ public class NodeClient extends AbstractClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        return taskManager.registerAndExecute("transport", transportAction(action), request, localConnection, wrapWithAssertion(listener));
+        return taskManager.registerAndExecute(
+            "transport",
+            transportAction(action),
+            request,
+            localConnection,
+            ActionListener.assertOnce(listener)
+        );
     }
 
     /**
@@ -143,31 +148,4 @@ public class NodeClient extends AbstractClient {
         return namedWriteableRegistry;
     }
 
-    private static <Response> ActionListener<Response> wrapWithAssertion(ActionListener<Response> listener) {
-        return Assertions.ENABLED ? new SafelyWrappedActionListener<>(listener) : listener;
-    }
-
-    private record SafelyWrappedActionListener<Response>(ActionListener<Response> listener) implements ActionListener<Response> {
-
-        @Override
-        public void onResponse(Response response) {
-            try {
-                listener.onResponse(response);
-            } catch (Exception e) {
-                assert false : new AssertionError("callback must handle its own exceptions", e);
-                throw e;
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            try {
-                listener.onFailure(e);
-            } catch (Exception ex) {
-                ex.addSuppressed(e);
-                assert false : new AssertionError("callback must handle its own exceptions", ex);
-                throw ex;
-            }
-        }
-    }
 }

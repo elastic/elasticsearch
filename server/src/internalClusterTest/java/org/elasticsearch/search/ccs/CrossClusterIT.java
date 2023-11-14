@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -130,13 +131,14 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 .toList()
         );
 
-        final SearchResponse resp = localCluster.client(nodeWithRemoteClusterClientRole)
-            .prepareSearch("demo", "cluster_a:prod")
-            .setQuery(new MatchAllQueryBuilder())
-            .setAllowPartialSearchResults(false)
-            .setSize(1000)
-            .get();
-        assertHitCount(resp, demoDocs + prodDocs);
+        assertHitCount(
+            localCluster.client(nodeWithRemoteClusterClientRole)
+                .prepareSearch("demo", "cluster_a:prod")
+                .setQuery(new MatchAllQueryBuilder())
+                .setAllowPartialSearchResults(false)
+                .setSize(1000),
+            demoDocs + prodDocs
+        );
     }
 
     public void testProxyConnectionDisconnect() throws Exception {
@@ -398,17 +400,21 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 .fetchField("to");
             SearchRequest request = new SearchRequest("cluster_a:remote_calls").source(searchSourceBuilder);
             request.setCcsMinimizeRoundtrips(randomBoolean());
-            SearchResponse searchResponse = client().search(request).actionGet();
-            ElasticsearchAssertions.assertHitCount(searchResponse, 2);
-            SearchHit hit0 = searchResponse.getHits().getHits()[0];
-            assertThat(hit0.getIndex(), equalTo("remote_calls"));
-            assertThat(hit0.field("from"), nullValue());
-            assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+            assertResponse(client().search(request), response -> {
+                ElasticsearchAssertions.assertHitCount(response, 2);
+                SearchHit hit0 = response.getHits().getHits()[0];
+                assertThat(hit0.getIndex(), equalTo("remote_calls"));
+                assertThat(hit0.field("from"), nullValue());
+                assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
 
-            SearchHit hit1 = searchResponse.getHits().getHits()[1];
-            assertThat(hit1.getIndex(), equalTo("remote_calls"));
-            assertThat(hit1.field("from").getValues(), contains(Map.of("name", List.of("Remote A")), Map.of("name", List.of("Remote B"))));
-            assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+                SearchHit hit1 = response.getHits().getHits()[1];
+                assertThat(hit1.getIndex(), equalTo("remote_calls"));
+                assertThat(
+                    hit1.field("from").getValues(),
+                    contains(Map.of("name", List.of("Remote A")), Map.of("name", List.of("Remote B")))
+                );
+                assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+            });
         }
         // Search on both clusters
         {
@@ -419,22 +425,26 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 .fetchField("to");
             SearchRequest request = new SearchRequest("local_calls", "cluster_a:remote_calls").source(searchSourceBuilder);
             request.setCcsMinimizeRoundtrips(randomBoolean());
-            SearchResponse searchResponse = client().search(request).actionGet();
-            ElasticsearchAssertions.assertHitCount(searchResponse, 3);
-            SearchHit hit0 = searchResponse.getHits().getHits()[0];
-            assertThat(hit0.getIndex(), equalTo("remote_calls"));
-            assertThat(hit0.field("from"), nullValue());
-            assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+            assertResponse(client().search(request), response -> {
+                assertHitCount(response, 3);
+                SearchHit hit0 = response.getHits().getHits()[0];
+                assertThat(hit0.getIndex(), equalTo("remote_calls"));
+                assertThat(hit0.field("from"), nullValue());
+                assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
 
-            SearchHit hit1 = searchResponse.getHits().getHits()[1];
-            assertThat(hit1.getIndex(), equalTo("remote_calls"));
-            assertThat(hit1.field("from").getValues(), contains(Map.of("name", List.of("Remote A")), Map.of("name", List.of("Remote B"))));
-            assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+                SearchHit hit1 = response.getHits().getHits()[1];
+                assertThat(hit1.getIndex(), equalTo("remote_calls"));
+                assertThat(
+                    hit1.field("from").getValues(),
+                    contains(Map.of("name", List.of("Remote A")), Map.of("name", List.of("Remote B")))
+                );
+                assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
 
-            SearchHit hit2 = searchResponse.getHits().getHits()[2];
-            assertThat(hit2.getIndex(), equalTo("local_calls"));
-            assertThat(hit2.field("from").getValues(), contains(Map.of("name", List.of("Local A"))));
-            assertThat(hit2.field("to").getValues(), contains(Map.of("name", List.of("Local B")), Map.of("name", List.of("Local C"))));
+                SearchHit hit2 = response.getHits().getHits()[2];
+                assertThat(hit2.getIndex(), equalTo("local_calls"));
+                assertThat(hit2.field("from").getValues(), contains(Map.of("name", List.of("Local A"))));
+                assertThat(hit2.field("to").getValues(), contains(Map.of("name", List.of("Local B")), Map.of("name", List.of("Local C"))));
+            });
         }
     }
 

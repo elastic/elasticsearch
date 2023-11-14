@@ -1,5 +1,0 @@
-pr: 101967
-summary: "Fix incorrect dynamic mapping for non-numeric-value arrays #101965"
-area: Mapping
-type: bug
-issues: []

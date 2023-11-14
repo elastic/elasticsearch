@@ -1,5 +1,0 @@
-pr: 101971
-summary: Fix inference timeout from the Inference Ingest Processor
-area: Machine Learning
-type: bug
-issues: []

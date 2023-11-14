@@ -2,6 +2,7 @@ plugins {
     id("elasticsearch.internal-es-plugin")
     id("elasticsearch.internal-cluster-test")
     id("elasticsearch.internal-yaml-rest-test")
+    id("elasticsearch.internal-test-artifact")
 }
 
 esplugin {

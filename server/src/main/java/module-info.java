@@ -408,7 +408,8 @@ module org.elasticsearch.server {
             org.elasticsearch.features.FeatureInfrastructureFeatures,
             org.elasticsearch.health.HealthFeatures,
             org.elasticsearch.cluster.metadata.MetadataFeatures,
-            org.elasticsearch.rest.RestFeatures;
+            org.elasticsearch.rest.RestFeatures,
+            org.elasticsearch.indices.IndicesFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;

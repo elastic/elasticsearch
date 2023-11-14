@@ -233,15 +233,20 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
             .addAggregation(
+                // We have nested aggregations, which in theory might blow up to 150.000 * 20.000 items
+                // reported. But we know that the total number items is limited by our down-sampling to
+                // a maximum of 100k (plus a bit due to rounding errors).
                 new TermsAggregationBuilder("group_by")
-                    // 'size' should be max 100k, but might be slightly more. Better be on the safe side.
-                    .size(150_000)
+                    // 'size' specifies the max number of host ID we support per request.
+                    .size(20_000)
                     .field("host.id")
                     // 'execution_hint: map' skips the slow building of ordinals that we don't need.
                     // Especially with high cardinality fields, this makes aggregations really slow.
                     .executionHint("map")
                     .subAggregation(
-                        new TermsAggregationBuilder("group_by").size(150_000)
+                        new TermsAggregationBuilder("group_by")
+                            // 'size' should be max 100k, but might be slightly more. Better be on the safe side.
+                            .size(150_000)
                             .field("Stacktrace.id")
                             // 'execution_hint: map' skips the slow building of ordinals that we don't need.
                             // Especially with high cardinality fields, this makes aggregations really slow.

@@ -14,8 +14,6 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.Objects;
 
 /**

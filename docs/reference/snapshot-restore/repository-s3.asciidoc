@@ -565,5 +565,6 @@ If the symlink exists, it will be used by default by all S3 repositories that do
 The linearizable register implementation for S3 repositories is based on the
 strongly consistent semantics of the multipart upload API. {es} first creates a
 multipart upload to indicate its intention to perform a linearizable register
-operation, then lists and cancels all other multipart uploads for the same
-register, and finally attempts to complete the upload.
+operation. {es} then lists and cancels all other multipart uploads for the same
+register. {es} then attempts to complete the upload. If the upload completes
+successfully then the compare-and-exchange operation was atomic.

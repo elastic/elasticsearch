@@ -178,18 +178,19 @@ complete. In this case it still instructs some of the other nodes in the
 cluster to attempt to read the blob, but all of these reads must fail to find
 the blob.
 
-Linearizable registers are special blobs which {es} manipulates using a
-compare-and-exchange operation which must have very strong consistency even
-when accessed concurrently by multiple nodes. The detailed implementation of
-the compare-and-exchange operation on linearizable registers varies by
-repository type. Repository analysis verifies that that uncontended
-compare-and-exchange operations on a linearizable register blob always succeed,
-and that contended operations either succeed or report the contention but do
-not return incorrect results. If a contended write fails due to contention then
-{es} will keep retrying until it eventually succeeds. Most of the
-compare-and-exchange operations performed by repository analysis atomically
-increment a counter, represented as an 8-byte blob, but some operations also
-verify the behaviour on small blobs with sizes other than 8 bytes.
+Linearizable registers are special blobs that {es} manipulates using an atomic
+compare-and-exchange operation. This operation ensures correct and
+strongly-consistent behavior even when the blob is accessed by multiple nodes
+at the same time. The detailed implementation of the compare-and-exchange
+operation on linearizable registers varies by repository type. Repository
+analysis verifies that that uncontended compare-and-exchange operations on a
+linearizable register blob always succeed. Repository analysis also verifies
+that contended operations either succeed or report the contention but do not
+return incorrect results. If an operation fails due to contention, {es} retries
+the operation until it succeeds. Most of the compare-and-exchange operations
+performed by repository analysis atomically increment a counter which is
+represented as an 8-byte blob. Some operations also verify the behavior on
+small blobs with sizes other than 8 bytes.
 
 [[repo-analysis-api-path-params]]
 ==== {api-path-parms-title}

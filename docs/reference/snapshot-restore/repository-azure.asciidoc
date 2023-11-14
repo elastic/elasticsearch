@@ -262,8 +262,11 @@ permitted in container names.
 [discrete]
 ==== Linearizable register implementation
 
-The linearizable register implementation for Azure repositories is based around
-Azure's support for strongly consistent leases that can prevent concurrent
-access to a blob. To perform a compare-and-exchange operation on a register,
-{es} first obtains a lease on the blob, then uploads the updated blob under the
-same lease, which ensures that the blob has not changed in the meantime.
+The linearizable register implementation for Azure repositories is based on
+Azure's support for strongly consistent leases. Each lease may only be held by
+a single node at any time. The node presents its lease when performing a read
+or write operation on a protected blob. Lease-protected operations fail if the
+lease is invalid or expired. To perform a compare-and-exchange operation on a
+register, {es} first obtains a lease on the blob, then reads the blob contents
+under the lease, and finally uploads the updated blob under the same lease.
+This process ensures that the read and write operations happen atomically.

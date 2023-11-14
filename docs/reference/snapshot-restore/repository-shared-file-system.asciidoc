@@ -91,6 +91,6 @@ for the variance in numeric IDs across nodes.
 
 The linearizable register implementation for shared filesystem repositories is
 based around file locking. To perform a compare-and-exchange operation on a
-register, {es} first obtains a lock on the underlying file, then writes the
-updated contents under the same lock, which ensures that the file has not
-changed in the meantime.
+register, {es} first locks he underlying file and then writes the updated
+contents under the same lock. This ensures that the file has not changed in the
+meantime.

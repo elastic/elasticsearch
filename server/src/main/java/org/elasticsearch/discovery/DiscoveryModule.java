@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.RemoveBeforeV9;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
@@ -112,7 +113,7 @@ public class DiscoveryModule {
         NodeHealthService nodeHealthService,
         CircuitBreakerService circuitBreakerService,
         CompatibilityVersions compatibilityVersions,
-        Set<String> features
+        FeatureService featureService
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
@@ -203,7 +204,7 @@ public class DiscoveryModule {
                 leaderHeartbeatService,
                 preVoteCollectorFactory,
                 compatibilityVersions,
-                features
+                featureService
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

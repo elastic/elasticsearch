@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -38,7 +39,7 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
-      } catch (Exception e) {
+      } catch (IllegalArgumentException  e) {
         registerException(e);
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
@@ -47,7 +48,7 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendBytesRef(evalValue(vector, p, scratchPad));
-        } catch (Exception e) {
+        } catch (IllegalArgumentException  e) {
           registerException(e);
           builder.appendNull();
         }
@@ -82,7 +83,7 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
             }
             builder.appendBytesRef(value);
             valuesAppended = true;
-          } catch (Exception e) {
+          } catch (IllegalArgumentException  e) {
             registerException(e);
           }
         }

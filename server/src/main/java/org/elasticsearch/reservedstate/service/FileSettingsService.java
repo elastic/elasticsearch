@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.file.MasterNodeFileWatchingService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -112,7 +113,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      */
     @Override
     protected void processFileChanges() throws ExecutionException, InterruptedException, IOException {
-        PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> completion = new PlainActionFuture<>();
         logger.info("processing path [{}] for [{}]", watchedFile(), NAMESPACE);
         try (
             var fis = Files.newInputStream(watchedFile());

@@ -20,7 +20,7 @@ import org.junit.Before;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.external.http.Utils.createThreadPool;
+import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
@@ -36,7 +36,7 @@ public class IdleConnectionEvictorTests extends ESTestCase {
 
     @Before
     public void init() {
-        threadPool = createThreadPool(getTestName());
+        threadPool = createThreadPool(inferenceUtilityPool());
     }
 
     @After

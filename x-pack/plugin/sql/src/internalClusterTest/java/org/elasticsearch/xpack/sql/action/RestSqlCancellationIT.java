@@ -183,8 +183,4 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
         return out.bytes().utf8ToString();
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 }

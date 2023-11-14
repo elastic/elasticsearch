@@ -137,3 +137,9 @@ include::{es-repo-dir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=upd
 ==== Update an enrich policy
 
 include::../ingest/enrich.asciidoc[tag=update-enrich-policy]
+
+==== Limitations
+// tag::limitations[]
+The {esql} `ENRICH` command only supports enrich policies of type `match`.
+Furthermore, `ENRICH` only supports enriching on a column of type `keyword`.
+// end::limitations[]

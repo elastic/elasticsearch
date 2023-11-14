@@ -1,5 +1,5 @@
 pr: 100921
-summary: "Adding entry with DEFAULT_STOP_SET for Serbian language to NAMED_STOP_WORDS map in Analysis class to enable default Serbian stopwords usage"
+summary: "Add support for Serbian Language Analyzer"
 area: Search
 type: enhancement
 issues: []

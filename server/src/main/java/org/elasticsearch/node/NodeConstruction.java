@@ -663,19 +663,10 @@ class NodeConstruction {
         IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
         modules.add(indicesModule);
 
-        List<BreakerSettings> pluginCircuitBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
-            .map(plugin -> plugin.getCircuitBreaker(settings))
-            .toList();
-        final CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
+        CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
             settingsModule.getSettings(),
-            pluginCircuitBreakers,
             settingsModule.getClusterSettings()
         );
-        pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
-            CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
-            plugin.setCircuitBreaker(breaker);
-        });
-        resourcesToClose.add(circuitBreakerService);
         modules.add(new GatewayModule());
 
         CompatibilityVersions compatibilityVersions = new CompatibilityVersions(
@@ -1133,7 +1124,6 @@ class NodeConstruction {
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);
             b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
-            b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
             b.bind(BigArrays.class).toInstance(bigArrays);
             b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
             b.bind(ScriptService.class).toInstance(scriptService);
@@ -1324,17 +1314,29 @@ class NodeConstruction {
      *
      * @see Node#BREAKER_TYPE_KEY
      */
-    private static CircuitBreakerService createCircuitBreakerService(
+    private CircuitBreakerService createCircuitBreakerService(
         Settings settings,
-        List<BreakerSettings> breakerSettings,
         ClusterSettings clusterSettings
     ) {
+        List<BreakerSettings> breakerSettings = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
+            .map(plugin -> plugin.getCircuitBreaker(settings))
+            .toList();
+
         String type = Node.BREAKER_TYPE_KEY.get(settings);
-        return switch (type) {
+        CircuitBreakerService circuitBreakerService = switch (type) {
             case "hierarchy" -> new HierarchyCircuitBreakerService(settings, breakerSettings, clusterSettings);
             case "none" -> new NoneCircuitBreakerService();
             default -> throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
         };
+        resourcesToClose.add(circuitBreakerService);
+        modules.bindToInstance(CircuitBreakerService.class, circuitBreakerService);
+
+        pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
+            CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
+            plugin.setCircuitBreaker(breaker);
+        });
+
+        return circuitBreakerService;
     }
 
     /**

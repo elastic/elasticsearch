@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -62,6 +63,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -934,12 +936,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (consumer != null) {
                     consumer.accept(commit.generation());
                 }
-            },
-                e -> logger.warn(
-                    () -> format("%s failed to notify unpromotables after upload of commit [%s]", shardId, commit.generation()),
-                    e
-                )
-            ));
+            }, e -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof ConnectTransportException) {
+                    logger.debug(
+                        () -> format(
+                            "%s failed to notify unpromotables after upload of commit [%s] due to connection issues",
+                            shardId,
+                            commit.generation()
+                        ),
+                        e
+                    );
+                } else {
+                    logger.warn(
+                        () -> format("%s failed to notify unpromotables after upload of commit [%s]", shardId, commit.generation()),
+                        e
+                    );
+                }
+            }));
         }
 
         private void maybeResendLatestNewCommitNotification() {

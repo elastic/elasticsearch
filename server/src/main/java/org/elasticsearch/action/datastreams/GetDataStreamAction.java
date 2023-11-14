@@ -345,6 +345,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(SYSTEM_FIELD.getPreferredName(), dataStream.isSystem());
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
+                if (DataStream.isFailureStoreEnabled()) {
+                    builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStore());
+                }
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());
                     builder.startArray(TEMPORAL_RANGES.getPreferredName());

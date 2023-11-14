@@ -141,8 +141,9 @@ between versions. The request parameters and response format depend on details
 of the implementation so may also be different in newer versions.
 
 The analysis comprises a number of blob-level tasks, as set by the `blob_count`
-parameter. The blob-level tasks are distributed over the data and
-master-eligible nodes in the cluster for execution.
+parameter, and a number of compare-and-exchange operations on linearizable
+registers. These tasks are distributed over the data and master-eligible nodes
+in the cluster for execution.
 
 For most blob-level tasks, the executing node first writes a blob to the
 repository, and then instructs some of the other nodes in the cluster to

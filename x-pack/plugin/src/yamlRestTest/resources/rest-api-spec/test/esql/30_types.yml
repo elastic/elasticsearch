@@ -758,6 +758,8 @@ geo_point:
           - { "location": "POINT(1 -1)" }
 
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
         query: 'from test'

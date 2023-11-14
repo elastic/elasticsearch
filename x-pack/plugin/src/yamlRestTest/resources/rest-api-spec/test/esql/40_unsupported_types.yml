@@ -294,9 +294,9 @@ unsupported with sort:
   - match: { columns.7.name: float_range }
   - match: { columns.7.type: unsupported }
   - match: { columns.8.name: geo_point }
-  - match: { columns.8.type: unsupported }
+  - match: { columns.8.type: geo_point }
   - match: { columns.9.name: geo_point_alias }
-  - match: { columns.9.type: unsupported }
+  - match: { columns.9.type: geo_point }
   - match: { columns.10.name: histogram }
   - match: { columns.10.type: unsupported }
   - match: { columns.11.name: integer_range }
@@ -341,8 +341,8 @@ unsupported with sort:
   - match: { values.0.5: null }
   - match: { values.0.6: null }
   - match: { values.0.7: null }
-  - match: { values.0.8: null }
-  - match: { values.0.9: null }
+  - match: { values.0.8: "POINT (9.999999990686774 11.999999997206032)" }
+  - match: { values.0.9: "POINT (9.999999990686774 11.999999997206032)" }
   - match: { values.0.10: null }
   - match: { values.0.11: null }
   - match: { values.0.12: null }

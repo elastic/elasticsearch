@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -65,6 +66,7 @@ public class DesiredBalanceReconciler {
         Setting.Property.NodeScope
     );
 
+    private final FrequencyCappedAction logReconciliationMetrics;
     private final FrequencyCappedAction undesiredAllocationLogInterval;
     private double undesiredAllocationsLogThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
@@ -85,6 +87,8 @@ public class DesiredBalanceReconciler {
     protected final AtomicInteger undesiredAllocations = new AtomicInteger();
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this.logReconciliationMetrics = new FrequencyCappedAction(threadPool);
+        this.logReconciliationMetrics.setMinInterval(TimeValue.timeValueMinutes(30));
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(threadPool);
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
@@ -524,6 +528,19 @@ public class DesiredBalanceReconciler {
             DesiredBalanceReconciler.this.undesiredAllocations.set(undesiredAllocations);
             DesiredBalanceReconciler.this.totalAllocations.set(totalAllocations);
 
+            logReconciliationMetrics.maybeExecute(
+                () -> logger.debug(
+                    new ESLogMessage("DesiredBalanceReconciler stats") //
+                        .field(
+                            "allocator.desired_balance.reconciliation.undesired_allocations",
+                            DesiredBalanceReconciler.this.undesiredAllocations.get()
+                        )
+                        .field(
+                            "allocator.desired_balance.reconciliation.total_allocations",
+                            DesiredBalanceReconciler.this.totalAllocations.get()
+                        )
+                )
+            );
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocations, routingNodes.size());
         }
 

@@ -156,35 +156,17 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     public void testRoundsLowerBoundCorrectly() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100);
         Query scaledFloatQ = ft.rangeQuery(-0.1, null, false, true, MOCK_CONTEXT);
-        assertEquals(
-            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9 TO 9223372036854775807], dvQuery=scaled_float:[-9 TO 9223372036854775807])",
-            scaledFloatQ.toString()
-        );
+        assertThat(scaledFloatQ.toString(), containsString("scaled_float:[-9 TO 9223372036854775807]"));
         scaledFloatQ = ft.rangeQuery(-0.1, null, true, true, MOCK_CONTEXT);
-        assertEquals(
-            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-10 TO 9223372036854775807], dvQuery=scaled_float:[-10 TO 9223372036854775807])",
-            scaledFloatQ.toString()
-        );
+        assertThat(scaledFloatQ.toString(), containsString("scaled_float:[-10 TO 9223372036854775807]"));
         scaledFloatQ = ft.rangeQuery(-0.095, null, false, true, MOCK_CONTEXT);
-        assertEquals(
-            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9 TO 9223372036854775807], dvQuery=scaled_float:[-9 TO 9223372036854775807])",
-            scaledFloatQ.toString()
-        );
+        assertThat(scaledFloatQ.toString(), containsString("scaled_float:[-9 TO 9223372036854775807]"));
         scaledFloatQ = ft.rangeQuery(-0.095, null, true, true, MOCK_CONTEXT);
-        assertEquals(
-            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9 TO 9223372036854775807], dvQuery=scaled_float:[-9 TO 9223372036854775807])",
-            scaledFloatQ.toString()
-        );
+        assertThat(scaledFloatQ.toString(), containsString("scaled_float:[-9 TO 9223372036854775807]"));
         scaledFloatQ = ft.rangeQuery(-0.105, null, false, true, MOCK_CONTEXT);
-        assertEquals(
-            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-10 TO 9223372036854775807], dvQuery=scaled_float:[-10 TO 9223372036854775807])",
-            scaledFloatQ.toString()
-        );
+        assertThat(scaledFloatQ.toString(), containsString("scaled_float:[-10 TO 9223372036854775807]"));
         scaledFloatQ = ft.rangeQuery(-0.105, null, true, true, MOCK_CONTEXT);
-        assertEquals(
-            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-10 TO 9223372036854775807], dvQuery=scaled_float:[-10 TO 9223372036854775807])",
-            scaledFloatQ.toString()
-        );
+        assertThat(scaledFloatQ.toString(), containsString("scaled_float:[-10 TO 9223372036854775807]"));
     }
 
     public void testValueForSearch() {

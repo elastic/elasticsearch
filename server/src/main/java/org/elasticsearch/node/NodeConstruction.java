@@ -341,7 +341,7 @@ class NodeConstruction {
         return getSinglePlugin(pluginsService.filterPlugins(pluginClass), pluginClass);
     }
 
-    private <T> Optional<T> getSinglePlugin(Stream<T> plugins, Class<T> pluginClass) {
+    private static <T> Optional<T> getSinglePlugin(Stream<T> plugins, Class<T> pluginClass) {
         var it = plugins.iterator();
         if (it.hasNext() == false) {
             return Optional.empty();
@@ -351,7 +351,7 @@ class NodeConstruction {
             List<T> allPlugins = new ArrayList<>();
             allPlugins.add(plugin);
             it.forEachRemaining(allPlugins::add);
-            throw new IllegalStateException("A single " + pluginClass.getName() + " was expected but got :" + allPlugins);
+            throw new IllegalStateException("A single " + pluginClass.getName() + " was expected but got " + allPlugins);
         }
         return Optional.of(plugin);
     }
@@ -1188,7 +1188,10 @@ class NodeConstruction {
         });
 
         if (ReadinessService.enabled(environment)) {
-            modules.bindToInstance(ReadinessService.class, serviceProvider.newReadinessService(pluginsService, clusterService, environment));
+            modules.bindToInstance(
+                ReadinessService.class,
+                serviceProvider.newReadinessService(pluginsService, clusterService, environment)
+            );
         }
 
         injector = modules.createInjector();

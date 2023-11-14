@@ -18,6 +18,8 @@ import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.util.List;
 
+//TODO update javadoc
+//TODO refcounted tests
 /**
  * A Block is a columnar representation of homogenous data. It has a position (row) count, and
  * various data retrieval methods for accessing the underlying data that is stored at a given
@@ -58,7 +60,8 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     /** The block factory associated with this block. */
     BlockFactory blockFactory();
 
-    /** Tells if this block has been released. A block is released by calling its {@link Block#close()} method. */
+    // TODO mention close as well
+    /** Tells if this block has been released. A block is released by calling its {@link Block#decRef()} method. */
     boolean isReleased();
 
     /**
@@ -223,7 +226,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
                 }
             } finally {
                 if (blocks[blocks.length - 1] == null) {
-                    Releasables.closeExpectNoException(blocks);
+                    Releasables.closeExpectNoException(releaseByDecRef(blocks));
                 }
             }
             return blocks;
@@ -232,7 +235,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
 
     /**
      * A reference to a {@link Block}. This is {@link Releasable} and
-     * {@link Ref#close closing} it will {@link Block#close release}
+     * {@link Ref#close closing} it will {@link Block#decRef() release}
      * the underlying {@link Block} if it wasn't borrowed from a {@link Page}.
      *
      * The usual way to use this is:
@@ -267,7 +270,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
         @Override
         public void close() {
             if (floating()) {
-                block.close();
+                block.decRef();
             }
         }
     }
@@ -281,5 +284,21 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             BooleanBlock.ENTRY,
             ConstantNullBlock.ENTRY
         );
+    }
+
+    static Releasable releaseByDecRef(Block b) {
+        return () -> {
+            if (b != null) {
+                b.decRef();
+            }
+        };
+    }
+
+    static Releasable[] releaseByDecRef(Block... blocks) {
+        Releasable[] mappedBlocks = new Releasable[blocks.length];
+        for (int i = 0; i < blocks.length; i++) {
+            mappedBlocks[i] = releaseByDecRef(blocks[i]);
+        }
+        return mappedBlocks;
     }
 }

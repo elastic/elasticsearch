@@ -100,10 +100,11 @@ public class LimitOperator implements Operator {
                 }
                 success = true;
             } finally {
-                Releasables.closeExpectNoException(lastInput::releaseBlocks);
+                // TODO: can this accidentaly not close `blocks` if there's an exception while releasing `lastInput`?
+                lastInput.releaseBlocks();
                 lastInput = null;
                 if (success == false) {
-                    Releasables.closeExpectNoException(blocks);
+                    Releasables.closeExpectNoException(Block.releaseByDecRef(blocks));
                 }
             }
             result = new Page(blocks);

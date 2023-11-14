@@ -137,8 +137,6 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     @Override
     public void close() {
         super.close();
-        if (hasReferences() == false) {
-            blockFactory.adjustBreaker(-ramBytesUsed(), true);
-        }
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

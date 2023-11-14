@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -165,7 +166,7 @@ public class LuceneCountOperator extends LuceneOperator {
                     page = new Page(PAGE_SIZE, count, seen);
                 } finally {
                     if (page == null) {
-                        Releasables.closeExpectNoException(count, seen);
+                        Releasables.closeExpectNoException(Block.releaseByDecRef(count, seen));
                     }
                 }
             }

@@ -84,8 +84,6 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
         if (vector.isReleased()) {
             throw new IllegalStateException("cannot release block [" + this + "] containing already released vector");
         }
-        if (hasReferences() == false) {
-            Releasables.closeExpectNoException(vector);
-        }
+        Releasables.closeExpectNoException(vector);
     }
 }

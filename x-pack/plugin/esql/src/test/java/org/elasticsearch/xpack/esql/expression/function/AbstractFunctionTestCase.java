@@ -385,7 +385,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 );
             }
         } finally {
-            Releasables.close(onePositionPage::releaseBlocks, Releasables.wrap(manyPositionsBlocks));
+            Releasables.close(onePositionPage::releaseBlocks, () -> Block.decRefAllExpectNoException(manyPositionsBlocks));
         }
         if (testCase.getExpectedWarnings() != null) {
             assertWarnings(testCase.getExpectedWarnings());

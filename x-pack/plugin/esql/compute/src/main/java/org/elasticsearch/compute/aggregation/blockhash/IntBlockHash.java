@@ -55,8 +55,16 @@ final class IntBlockHash extends BlockHash {
             IntBlock intBlock = (IntBlock) block;
             IntVector intVector = intBlock.asVector();
             if (intVector == null) {
-                try (IntBlock groupIds = add(intBlock)) {
+                // TODO
+                // try (IntBlock groupIds = add(intBlock)) {
+                IntBlock groupIds = null;
+                try {
+                    groupIds = add(intBlock);
                     addInput.add(0, groupIds);
+                } finally {
+                    if (groupIds != null) {
+                        groupIds.decRef();
+                    }
                 }
             } else {
                 try (IntVector groupIds = add(intVector)) {

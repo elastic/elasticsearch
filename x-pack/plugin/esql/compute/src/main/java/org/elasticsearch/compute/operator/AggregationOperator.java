@@ -112,7 +112,7 @@ public class AggregationOperator implements Operator {
             success = true;
         } finally {
             if (success == false && blocks != null) {
-                Releasables.closeExpectNoException(blocks);
+                Releasables.closeExpectNoException(Block.releaseByDecRef(blocks));
             }
         }
     }
@@ -125,6 +125,7 @@ public class AggregationOperator implements Operator {
     @Override
     public void close() {
         if (output != null) {
+            // TODO can this fail without releasing the aggregators?
             Releasables.closeExpectNoException(() -> output.releaseBlocks());
         }
         Releasables.close(aggregators);

@@ -137,8 +137,6 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
     @Override
     public void close() {
         super.close();
-        if (hasReferences() == false) {
-            blockFactory.adjustBreaker(-ramBytesUsed(), true);
-        }
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

@@ -73,9 +73,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     @Override
     public void close() {
         super.close();
-        if (hasReferences() == false) {
-            Releasables.closeExpectNoException(vector);
-        }
+        Releasables.closeExpectNoException(vector);
     }
 
     /**

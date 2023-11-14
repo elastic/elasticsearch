@@ -370,7 +370,7 @@ public class LocalExecutionPlanner {
                             blocks.add(i, boolBlock);
                         }
                     }
-                    boolBlock.close();
+                    boolBlock.decRef();
                 }
                 var newSupplier = LocalSupplier.of(blocks.toArray(Block[]::new));
 

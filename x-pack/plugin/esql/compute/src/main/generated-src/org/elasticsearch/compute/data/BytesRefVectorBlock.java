@@ -85,8 +85,6 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
         if (vector.isReleased()) {
             throw new IllegalStateException("cannot release block [" + this + "] containing already released vector");
         }
-        if (hasReferences() == false) {
-            Releasables.closeExpectNoException(vector);
-        }
+        Releasables.closeExpectNoException(vector);
     }
 }

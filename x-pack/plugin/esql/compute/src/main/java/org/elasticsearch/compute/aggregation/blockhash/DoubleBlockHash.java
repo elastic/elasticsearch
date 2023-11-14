@@ -58,8 +58,16 @@ final class DoubleBlockHash extends BlockHash {
             DoubleBlock doubleBlock = (DoubleBlock) block;
             DoubleVector doubleVector = doubleBlock.asVector();
             if (doubleVector == null) {
-                try (IntBlock groupIds = add(doubleBlock)) {
+                // TODO
+                // try (IntBlock groupIds = add(doubleBlock)) {
+                IntBlock groupIds = null;
+                try {
+                    groupIds = add(doubleBlock);
                     addInput.add(0, groupIds);
+                } finally {
+                    if (groupIds != null) {
+                        groupIds.decRef();
+                    }
                 }
             } else {
                 try (IntVector groupIds = add(doubleVector)) {

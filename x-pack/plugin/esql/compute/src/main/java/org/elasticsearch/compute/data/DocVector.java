@@ -225,6 +225,7 @@ public final class DocVector extends AbstractVector implements Vector {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(shards.asBlock(), segments.asBlock(), docs.asBlock()); // Ugh! we always close blocks
+        released = true;
+        Releasables.closeExpectNoException(shards.asBlock(), segments.asBlock(), docs); // Ugh! we always close blocks
     }
 }

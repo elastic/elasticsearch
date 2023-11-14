@@ -406,7 +406,7 @@ public class TopNOperator implements Operator, Accountable {
                         }
                     } finally {
                         if (blocks[blocks.length - 1] == null) {
-                            Releasables.closeExpectNoException(blocks);
+                            Releasables.closeExpectNoException(Block.releaseByDecRef(blocks));
                         }
                     }
                     result.add(new Page(blocks));

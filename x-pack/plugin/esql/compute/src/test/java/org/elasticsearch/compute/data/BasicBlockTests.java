@@ -1074,19 +1074,15 @@ public class BasicBlockTests extends ESTestCase {
         }
 
         for (int i = 0; i < numShallowCopies; i++) {
-            if (randomBoolean()) {
-                b.close();
-            } else {
-                // closing and decreasing must be equivalent
-                assertFalse(b.decRef());
-            }
+            assertFalse(b.decRef());
             assertTrue(b.hasReferences());
         }
 
         if (randomBoolean()) {
-            b.close();
-        } else {
             assertTrue(b.decRef());
+        } else {
+            // If there is only 1 reference, we can also just call close.
+            b.close();
         }
 
         assertFalse(b.hasReferences());

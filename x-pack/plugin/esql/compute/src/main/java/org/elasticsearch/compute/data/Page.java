@@ -103,7 +103,7 @@ public final class Page implements Writeable {
             success = true;
         } finally {
             if (success == false) {
-                Releasables.closeExpectNoException(blocks);
+                Releasables.closeExpectNoException(Block.releaseByDecRef(blocks));
             }
         }
         this.positionCount = positionCount;
@@ -233,9 +233,7 @@ public final class Page implements Writeable {
 
         blocksReleased = true;
 
-        for (Block b : blocks) {
-            Releasables.closeExpectNoException(b);
-        }
+        Releasables.closeExpectNoException(Block.releaseByDecRef(blocks));
     }
 
     static int mapSize(int expectedSize) {

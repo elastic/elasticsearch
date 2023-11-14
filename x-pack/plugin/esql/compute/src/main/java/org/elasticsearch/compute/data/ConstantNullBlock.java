@@ -128,9 +128,7 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
     @Override
     public void close() {
         super.close();
-        if (hasReferences() == false) {
-            blockFactory.adjustBreaker(-ramBytesUsed(), true);
-        }
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 
     static class Builder implements Block.Builder {

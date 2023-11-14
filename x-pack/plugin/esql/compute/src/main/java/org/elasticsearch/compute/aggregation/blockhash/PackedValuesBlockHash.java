@@ -236,7 +236,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 }
             } finally {
                 if (keyBlocks[keyBlocks.length - 1] == null) {
-                    Releasables.closeExpectNoException(keyBlocks);
+                    Releasables.closeExpectNoException(Block.releaseByDecRef(keyBlocks));
                 }
             }
             return keyBlocks;

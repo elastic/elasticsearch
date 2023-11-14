@@ -26,6 +26,8 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.compute.data.Block.releaseByDecRef;
+
 /**
  * Source operator that incrementally runs Lucene searches
  */
@@ -156,7 +158,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                     page = new Page(currentPagePos, new DocVector(shard.asVector(), leaf.asVector(), docs, true).asBlock());
                 } finally {
                     if (page == null) {
-                        Releasables.closeExpectNoException(shard, leaf, docs);
+                        Releasables.closeExpectNoException(releaseByDecRef(shard), releaseByDecRef(leaf), docs);
                     }
                 }
                 currentPagePos = 0;

@@ -149,7 +149,7 @@ public class MvExpandOperator implements Operator {
             success = true;
         } finally {
             if (success == false) {
-                Releasables.closeExpectNoException(result);
+                Releasables.closeExpectNoException(Block.releaseByDecRef(result));
             }
         }
         if (nextItemOnExpanded == expandedBlock.getPositionCount()) {
@@ -161,7 +161,7 @@ public class MvExpandOperator implements Operator {
                     prev.releaseBlocks();
                     prev = null;
                 }
-            }, expandedBlock);
+            }, expandedBlock::decRef);
             expandingBlock = null;
             expandedBlock = null;
         }
@@ -240,7 +240,11 @@ public class MvExpandOperator implements Operator {
             if (prev != null) {
                 prev.releaseBlocks();
             }
-        }, expandedBlock);
+        }, () -> {
+            if (expandedBlock != null) {
+                expandedBlock.decRef();
+            }
+        });
     }
 
     @Override

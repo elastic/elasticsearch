@@ -138,7 +138,7 @@ and that the next generation index will also be managed by {ilm-init}:
 <2> For each backing index we display the value of the <<index-lifecycle-prefer-ilm, prefer_ilm>>
 configuration which will indicate if {ilm-init} takes precedence over data stream lifecycle in case
 both systems are configured for an index.
-<3> The {ilm-ini} policy configured for this index.
+<3> The {ilm-init} policy configured for this index.
 <4> The system that manages this index (possible values are "Index Lifecycle Management",
 "Data stream lifecycle", or "Unmanaged")
 <5> The system that will manage the next generation index (the new write index of this
@@ -196,7 +196,7 @@ precedence over Data stream lifecycle.
 <2> We're configuring the data stream lifecycle so _new_ data streams will be
 managed by Data stream lifecycle.
 
-We've now make sure that new data streams will be managed by Data stream lifecycle.
+We've now made sure that new data streams will be managed by Data stream lifecycle.
 
 Let's update our existing `dsl-data-stream` and configure Data stream lifecycle:
 
@@ -359,7 +359,7 @@ the index template>>.
 We can achieve this in two ways:
 
 1. <<data-streams-delete-lifecycle, Delete the lifecycle>> from the data streams
-2. Disable Data stream lifecycle by configured the `enabled` flag to `false`.
+2. Disable Data stream lifecycle by configuring the `enabled` flag to `false`.
 
 Let's implement option 2 and disable the data stream lifecycle:
 

@@ -106,8 +106,8 @@ public class CoordinationStateTests extends ESTestCase {
         assertThat(cs1.getCurrentTerm(), equalTo(0L));
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(randomFrom(node1, node2), randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
-        assertThat(v1.getTargetNode(), equalTo(startJoinRequest1.getSourceNode()));
-        assertThat(v1.getSourceNode(), equalTo(node1));
+        assertThat(v1.getMasterCandidateNode(), equalTo(startJoinRequest1.getMasterCandidateNode()));
+        assertThat(v1.getVotingNode(), equalTo(node1));
         assertThat(v1.getTerm(), equalTo(startJoinRequest1.getTerm()));
         assertThat(v1.getLastAcceptedTerm(), equalTo(initialStateNode1.term()));
         assertThat(v1.getLastAcceptedVersion(), equalTo(initialStateNode1.version()));
@@ -129,8 +129,8 @@ public class CoordinationStateTests extends ESTestCase {
 
         StartJoinRequest startJoinRequest1 = new StartJoinRequest(randomFrom(node1, node2), randomLongBetween(1, 5));
         Join v1 = cs1.handleStartJoin(startJoinRequest1);
-        assertThat(v1.getTargetNode(), equalTo(startJoinRequest1.getSourceNode()));
-        assertThat(v1.getSourceNode(), equalTo(node1));
+        assertThat(v1.getMasterCandidateNode(), equalTo(startJoinRequest1.getMasterCandidateNode()));
+        assertThat(v1.getVotingNode(), equalTo(node1));
         assertThat(v1.getTerm(), equalTo(startJoinRequest1.getTerm()));
         assertThat(v1.getLastAcceptedTerm(), equalTo(state1.term()));
         assertThat(v1.getLastAcceptedVersion(), equalTo(state1.version()));

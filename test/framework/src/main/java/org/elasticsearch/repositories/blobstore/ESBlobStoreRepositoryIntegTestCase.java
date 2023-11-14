@@ -483,7 +483,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         BlobStoreRepository repository = (BlobStoreRepository) repositoriesSvc.repository(repoName);
 
         final SetOnce<BlobContainer> indicesBlobContainer = new SetOnce<>();
-        final PlainActionFuture<RepositoryData> repositoryData = PlainActionFuture.newFuture();
+        final PlainActionFuture<RepositoryData> repositoryData = new PlainActionFuture<>();
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
             indicesBlobContainer.set(repository.blobStore().blobContainer(repository.basePath().add("indices")));
             repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, repositoryData);

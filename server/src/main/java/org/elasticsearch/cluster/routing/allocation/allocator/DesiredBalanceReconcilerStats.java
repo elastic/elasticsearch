@@ -16,7 +16,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 public class DesiredBalanceReconcilerStats {
 
-    private static final Logger logger = LogManager.getLogger(DesiredBalanceReconciler.class);
+    private static final Logger logger = LogManager.getLogger(DesiredBalanceReconcilerStats.class);
 
     private final FrequencyCappedAction logReconciliationMetrics;
 

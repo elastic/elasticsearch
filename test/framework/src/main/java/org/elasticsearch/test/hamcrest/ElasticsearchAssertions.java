@@ -366,15 +366,6 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertScroll(SearchRequestBuilder searchRequestBuilder, Consumer<SearchResponse> consumer) {
-        var res = searchRequestBuilder.get();
-        try {
-            consumer.accept(res);
-        } finally {
-            res.decRef();
-        }
-    }
-
     public static void assertScrollResponses(SearchRequestBuilder searchRequestBuilder, Consumer<List<SearchResponse>> consumer) {
         var timoutSeconds = 30;
         searchRequestBuilder.setScroll(TimeValue.timeValueSeconds(timoutSeconds));

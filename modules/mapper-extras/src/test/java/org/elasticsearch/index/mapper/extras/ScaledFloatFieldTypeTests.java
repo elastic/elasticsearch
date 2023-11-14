@@ -136,35 +136,74 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     public void testRoundsUpperBoundCorrectly() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100);
         Query scaledFloatQ = ft.rangeQuery(null, 0.1, true, false, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9223372036854775808 TO 9], dvQuery=scaled_float:[-9223372036854775808 TO 9])",
+            scaledFloatQ.toString()
+        );
         scaledFloatQ = ft.rangeQuery(null, 0.1, true, true, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9223372036854775808 TO 10], dvQuery=scaled_float:[-9223372036854775808 TO 10])",
+            scaledFloatQ.toString()
+        );
         scaledFloatQ = ft.rangeQuery(null, 0.095, true, false, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9223372036854775808 TO 9], dvQuery=scaled_float:[-9223372036854775808 TO 9])",
+            scaledFloatQ.toString()
+        );
         scaledFloatQ = ft.rangeQuery(null, 0.095, true, true, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9223372036854775808 TO 9], dvQuery=scaled_float:[-9223372036854775808 TO 9])",
+            scaledFloatQ.toString()
+        );
         scaledFloatQ = ft.rangeQuery(null, 0.105, true, false, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9223372036854775808 TO 10], dvQuery=scaled_float:[-9223372036854775808 TO 10])",
+            scaledFloatQ.toString()
+        );
         scaledFloatQ = ft.rangeQuery(null, 0.105, true, true, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9223372036854775808 TO 10], dvQuery=scaled_float:[-9223372036854775808 TO 10])",
+            scaledFloatQ.toString()
+        );
         scaledFloatQ = ft.rangeQuery(null, 79.99, true, true, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-9223372036854775808 TO 7999]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9223372036854775808 TO 7999], dvQuery=scaled_float:[-9223372036854775808 TO 7999])",
+            scaledFloatQ.toString()
+        );
     }
 
     public void testRoundsLowerBoundCorrectly() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100);
         Query scaledFloatQ = ft.rangeQuery(-0.1, null, false, true, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9 TO 9223372036854775807], dvQuery=scaled_float:[-9 TO 9223372036854775807])",
+            scaledFloatQ.toString()
+        );
         scaledFloatQ = ft.rangeQuery(-0.1, null, true, true, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-10 TO 9223372036854775807]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-10 TO 9223372036854775807], dvQuery=scaled_float:[-10 TO 9223372036854775807])",
+            scaledFloatQ.toString()
+        );
         scaledFloatQ = ft.rangeQuery(-0.095, null, false, true, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9 TO 9223372036854775807], dvQuery=scaled_float:[-9 TO 9223372036854775807])",
+            scaledFloatQ.toString()
+        );
         scaledFloatQ = ft.rangeQuery(-0.095, null, true, true, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-9 TO 9223372036854775807], dvQuery=scaled_float:[-9 TO 9223372036854775807])",
+            scaledFloatQ.toString()
+        );
         scaledFloatQ = ft.rangeQuery(-0.105, null, false, true, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-10 TO 9223372036854775807]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-10 TO 9223372036854775807], dvQuery=scaled_float:[-10 TO 9223372036854775807])",
+            scaledFloatQ.toString()
+        );
         scaledFloatQ = ft.rangeQuery(-0.105, null, true, true, MOCK_CONTEXT);
-        assertEquals("scaled_float:[-10 TO 9223372036854775807]", scaledFloatQ.toString());
+        assertEquals(
+            "IndexOrDocValuesQuery(indexQuery=scaled_float:[-10 TO 9223372036854775807], dvQuery=scaled_float:[-10 TO 9223372036854775807])",
+            scaledFloatQ.toString()
+        );
     }
 
     public void testValueForSearch() {

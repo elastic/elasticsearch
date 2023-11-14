@@ -76,12 +76,10 @@ to search one or more `dense_vector` fields with indexing enabled.
 requires the following mapping options:
 +
 --
-* An `index` value of `true`.
-
 * A `similarity` value. This value determines the similarity metric used to
 score documents based on similarity between the query and document vector. For a
 list of available metrics, see the <<dense-vector-similarity,`similarity`>>
-parameter documentation.
+parameter documentation. The `similarity` setting defaults to `cosine`.
 
 [source,console]
 ----
@@ -92,13 +90,11 @@ PUT image-index
       "image-vector": {
         "type": "dense_vector",
         "dims": 3,
-        "index": true,
         "similarity": "l2_norm"
       },
       "title-vector": {
         "type": "dense_vector",
         "dims": 5,
-        "index": true,
         "similarity": "l2_norm"
       },
       "title": {
@@ -157,7 +153,7 @@ NOTE: Support for approximate kNN search was added in version 8.0. Before
 this, `dense_vector` fields did not support enabling `index` in the mapping.
 If you created an index prior to 8.0 containing `dense_vector` fields, then to
 support approximate kNN search the data must be reindexed using a new field
-mapping that sets `index: true`.
+mapping that sets `index: true` which is the default option.
 
 [discrete]
 [[tune-approximate-knn-for-speed-accuracy]]
@@ -198,9 +194,7 @@ PUT byte-image-index
       "byte-image-vector": {
         "type": "dense_vector",
         "element_type": "byte",
-        "dims": 2,
-        "index": true,
-        "similarity": "cosine"
+        "dims": 2
       },
       "title": {
         "type": "text"
@@ -515,9 +509,7 @@ PUT passage_vectors
                 "properties": {
                     "vector": {
                         "type": "dense_vector",
-                        "dims": 2,
-                        "index": true,
-                        "similarity": "cosine"
+                        "dims": 2
                     },
                     "text": {
                         "type": "text",
@@ -876,7 +868,6 @@ PUT image-index
       "image-vector": {
         "type": "dense_vector",
         "dims": 3,
-        "index": true,
         "similarity": "l2_norm",
         "index_options": {
           "type": "hnsw",
@@ -911,8 +902,8 @@ the global top `k` matches across shards. You cannot set the
 To run an exact kNN search, use a `script_score` query with a vector function.
 
 . Explicitly map one or more `dense_vector` fields. If you don't intend to use
-the field for approximate kNN, omit the `index` mapping option or set it to
-`false`. This can significantly improve indexing speed.
+the field for approximate kNN, set the `index` mapping option to `false`. This 
+can significantly improve indexing speed.
 +
 [source,console]
 ----

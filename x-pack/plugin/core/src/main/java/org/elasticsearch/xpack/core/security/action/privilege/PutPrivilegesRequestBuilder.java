@@ -50,7 +50,7 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
      */
     public PutPrivilegesRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
         Objects.requireNonNull(xContentType);
-        // EMPTY is ok here because we never call namedObject
+        // NamedXContentRegistry.EMPTY is ok here because we never call namedObject
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = xContentType.xContent()

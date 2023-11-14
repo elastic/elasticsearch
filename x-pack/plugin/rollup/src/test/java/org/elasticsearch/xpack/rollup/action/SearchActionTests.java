@@ -679,6 +679,7 @@ public class SearchActionTests extends ESTestCase {
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
         MultiSearchResponse msearchResponse = new MultiSearchResponse(new MultiSearchResponse.Item[] { item }, 1);
 
+        // a mock SearchResponse, so does not need to be decRef'd
         SearchResponse r = TransportRollupSearchAction.processResponses(
             result,
             msearchResponse,
@@ -743,11 +744,15 @@ public class SearchActionTests extends ESTestCase {
             msearchResponse,
             InternalAggregationTestCase.emptyReduceContextBuilder()
         );
-
-        assertNotNull(r);
-        Aggregations responseAggs = r.getAggregations();
-        Avg avg = responseAggs.get("foo");
-        assertThat(avg.getValue(), IsEqual.equalTo(5.0));
+        try {
+            assertNotNull(r);
+            Aggregations responseAggs = r.getAggregations();
+            Avg avg = responseAggs.get("foo");
+            assertThat(avg.getValue(), IsEqual.equalTo(5.0));
+        } finally {
+            // this SearchResponse is not a mock, so we decRef
+            r.decRef();
+        }
     }
 
     public void testTooManyRollups() throws IOException {
@@ -877,12 +882,14 @@ public class SearchActionTests extends ESTestCase {
                     .addAggregator(new MaxAggregationBuilder("foo." + RollupField.COUNT_FIELD))
             )
         );
-
-        assertNotNull(response);
-        Aggregations responseAggs = response.getAggregations();
-        assertNotNull(responseAggs);
-        Avg avg = responseAggs.get("foo");
-        assertThat(avg.getValue(), IsEqual.equalTo(5.0));
-
+        try {
+            assertNotNull(response);
+            Aggregations responseAggs = response.getAggregations();
+            assertNotNull(responseAggs);
+            Avg avg = responseAggs.get("foo");
+            assertThat(avg.getValue(), IsEqual.equalTo(5.0));
+        } finally {
+            response.decRef();
+        }
     }
 }

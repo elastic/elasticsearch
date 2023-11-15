@@ -79,7 +79,6 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
 
     @Override
     protected void doExecute(Task task, SearchShardsRequest searchShardsRequest, ActionListener<SearchShardsResponse> listener) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
         final long relativeStartNanos = System.nanoTime();
         SearchRequest original = new SearchRequest(searchShardsRequest.indices()).indicesOptions(searchShardsRequest.indicesOptions())
             .routing(searchShardsRequest.routing())

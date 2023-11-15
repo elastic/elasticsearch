@@ -206,7 +206,11 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
             null
         );
         request.indexTemplate(
-            new ComposableIndexTemplate(patterns, template, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(), null)
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(template)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }

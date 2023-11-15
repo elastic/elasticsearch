@@ -394,7 +394,7 @@ public class ElasticsearchAssertions {
             consumer.accept(
                 new ScrollResponses(
                     responses.isEmpty() ? null : responses.get(0),
-                    responses.isEmpty() ? List.of() : responses.subList(1, responses.size() - 1),
+                    responses.size() <= 1 ? List.of() : responses.subList(1, responses.size() - 1),
                     responses
                 )
             );

@@ -45,7 +45,7 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.connector = new Connector(in);
+            this.connector = new Connector.Builder().setIn(in).createConnector();
         }
 
         public Request(String connectorId, BytesReference content, XContentType contentType) {

@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.junit.After;
 import org.junit.Before;
 
@@ -30,12 +31,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequestTests.createRequest;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.hamcrest.Matchers.contains;
@@ -83,7 +84,10 @@ public class HuggingFaceClientTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            HuggingFaceClient huggingFaceClient = new HuggingFaceClient(sender, mockThrottlerManager());
+            HuggingFaceClient huggingFaceClient = new HuggingFaceClient(
+                sender,
+                new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY)
+            );
 
             PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
             huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
@@ -132,7 +136,15 @@ public class HuggingFaceClientTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            HuggingFaceClient huggingFaceClient = new HuggingFaceClient(sender, mockThrottlerManager());
+            HuggingFaceClient huggingFaceClient = new HuggingFaceClient(
+                sender,
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    // timeout as zero for no retries
+                    buildSettingsWithRetryFields(TimeValue.timeValueMillis(1), TimeValue.timeValueMinutes(1), TimeValue.timeValueSeconds(0))
+                )
+            );
 
             PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
             huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
@@ -140,7 +152,7 @@ public class HuggingFaceClientTests extends ESTestCase {
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is(format("Failed to parse the Hugging Face ELSER response for request [POST %s HTTP/1.1]", getUrl(webServer)))
+                is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_ARRAY]")
             );
 
             assertThat(webServer.requests(), hasSize(1));
@@ -159,17 +171,19 @@ public class HuggingFaceClientTests extends ESTestCase {
         }
     }
 
-    public void testSend_ThrowsException() {
+    public void testSend_ThrowsException() throws URISyntaxException, IOException {
         var sender = mock(Sender.class);
         doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any());
 
-        HuggingFaceClient huggingFaceClient = new HuggingFaceClient(sender, mockThrottlerManager());
+        HuggingFaceClient huggingFaceClient = new HuggingFaceClient(
+            sender,
+            new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY)
+        );
         PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
 
-        var thrownException = expectThrows(
-            ElasticsearchException.class,
-            () -> huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener)
-        );
+        huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
+
+        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("failed"));
     }
 

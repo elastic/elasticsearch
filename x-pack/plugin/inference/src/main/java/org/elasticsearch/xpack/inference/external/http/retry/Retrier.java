@@ -11,6 +11,8 @@ import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceResults;
 
+import java.util.List;
+
 public interface Retrier {
-    void send(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<InferenceResults> listener);
+    void send(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<List<? extends InferenceResults>> listener);
 }

@@ -277,7 +277,6 @@ The service account used to access the bucket must have the "Writer" access to t
 5. The service account must be configured as a "User" with "Writer" access.
 
 [[repository-gcs-linearizable-registers]]
-[discrete]
 ==== Linearizable register implementation
 
 The linearizable register implementation for GCS repositories is based on GCS's

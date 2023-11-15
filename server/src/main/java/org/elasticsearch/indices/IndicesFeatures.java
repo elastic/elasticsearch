@@ -11,12 +11,13 @@ package org.elasticsearch.indices;
 import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.util.Map;
 
 public class IndicesFeatures implements FeatureSpecification {
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(IndicesService.SUPPORTS_AUTO_PUT, Version.V_8_8_0);
+        return Map.of(IndicesService.SUPPORTS_AUTO_PUT, Version.V_8_8_0, RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED, Version.V_7_15_0);
     }
 }

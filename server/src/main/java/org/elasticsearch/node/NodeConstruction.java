@@ -1103,7 +1103,12 @@ class NodeConstruction {
         );
 
         modules.add(b -> {
-            RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
+            RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(
+                threadPool,
+                clusterService,
+                repositoryService,
+                featureService
+            );
             serviceProvider.processRecoverySettings(pluginsService, settingsModule.getClusterSettings(), recoverySettings);
             SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoryService);
             var peerRecovery = new PeerRecoverySourceService(
@@ -1357,12 +1362,13 @@ class NodeConstruction {
     private RecoveryPlannerService getRecoveryPlannerService(
         ThreadPool threadPool,
         ClusterService clusterService,
-        RepositoriesService repositoryService
+        RepositoriesService repositoryService,
+        FeatureService featureService
     ) {
         var recoveryPlannerServices = pluginsService.filterPlugins(RecoveryPlannerPlugin.class)
             .map(
                 plugin -> plugin.createRecoveryPlannerService(
-                    new ShardSnapshotsService(client, repositoryService, threadPool, clusterService)
+                    new ShardSnapshotsService(client, repositoryService, threadPool, clusterService, featureService)
                 )
             )
             .flatMap(Optional::stream);

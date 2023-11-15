@@ -101,7 +101,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetMetadataSnapshot,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null, null) {
+                new ShardSnapshotsService(null, null, null, null, null) {
                     @Override
                     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         assert false : "Unexpected call";
@@ -136,7 +136,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetMetadataSnapshot,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null, null) {
+                new ShardSnapshotsService(null, null, null, null, null) {
                     @Override
                     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         if (randomBoolean()) {
@@ -181,7 +181,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetSourceMetadata,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null, null) {
+                new ShardSnapshotsService(null, null, null, null, null) {
                     @Override
                     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         listener.onResponse(Optional.of(shardSnapshotData));
@@ -244,7 +244,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetSourceMetadata,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null, null) {
+                new ShardSnapshotsService(null, null, null, null, null) {
                     @Override
                     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         listener.onResponse(Optional.of(latestSnapshot));
@@ -309,7 +309,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetMetadataSnapshot,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null, null) {
+                new ShardSnapshotsService(null, null, null, null, null) {
                     @Override
                     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         if (availableSnapshots.isEmpty()) {
@@ -366,7 +366,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetMetadataSnapshot,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null, null) {
+                new ShardSnapshotsService(null, null, null, null, null) {
                     @Override
                     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         listener.onResponse(Optional.of(availableSnapshots.get(availableSnapshots.size() - 1)));
@@ -404,7 +404,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 targetMetadataSnapshot,
                 startingSeqNo,
                 translogOps,
-                new ShardSnapshotsService(null, null, null, null) {
+                new ShardSnapshotsService(null, null, null, null, null) {
                     @Override
                     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
                         listener.onResponse(Optional.of(shardSnapshot));

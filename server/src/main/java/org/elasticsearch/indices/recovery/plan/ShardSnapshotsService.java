@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -51,7 +52,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.indices.recovery.RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
+import static org.elasticsearch.indices.recovery.RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED;
 
 public class ShardSnapshotsService {
     private static final Logger logger = LogManager.getLogger(ShardSnapshotsService.class);
@@ -60,18 +61,21 @@ public class ShardSnapshotsService {
     private final RepositoriesService repositoriesService;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
 
     @Inject
     public ShardSnapshotsService(
         Client client,
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
-        ClusterService clusterService
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         this.client = client;
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.featureService = featureService;
     }
 
     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
@@ -175,7 +179,7 @@ public class ShardSnapshotsService {
     }
 
     protected boolean masterSupportsFetchingLatestSnapshots() {
-        return clusterService.state().nodes().getMinNodeVersion().onOrAfter(SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
+        return featureService.clusterHasFeature(clusterService.state(), SNAPSHOT_RECOVERIES_SUPPORTED);
     }
 
     private static final class StoreFileMetadataDirectory extends Directory {

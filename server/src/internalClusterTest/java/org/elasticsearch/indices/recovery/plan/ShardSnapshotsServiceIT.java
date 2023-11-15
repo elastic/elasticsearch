@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -283,7 +284,14 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         RepositoriesService repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
         ThreadPool threadPool = internalCluster().getAnyMasterNodeInstance(ThreadPool.class);
         ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
-        ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client(), repositoriesService, threadPool, clusterService) {
+        FeatureService featureService = internalCluster().getAnyMasterNodeInstance(FeatureService.class);
+        ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(
+            client(),
+            repositoriesService,
+            threadPool,
+            clusterService,
+            featureService
+        ) {
             @Override
             protected boolean masterSupportsFetchingLatestSnapshots() {
                 return false;
@@ -307,7 +315,8 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         RepositoriesService repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
         ThreadPool threadPool = internalCluster().getAnyMasterNodeInstance(ThreadPool.class);
         ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
-        return new ShardSnapshotsService(client(), repositoriesService, threadPool, clusterService);
+        FeatureService featureService = internalCluster().getAnyMasterNodeInstance(FeatureService.class);
+        return new ShardSnapshotsService(client(), repositoriesService, threadPool, clusterService, featureService);
     }
 
     private ShardId getShardIdForIndex(String indexName) {

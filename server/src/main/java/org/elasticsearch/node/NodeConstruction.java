@@ -1314,10 +1314,7 @@ class NodeConstruction {
      *
      * @see Node#BREAKER_TYPE_KEY
      */
-    private CircuitBreakerService createCircuitBreakerService(
-        Settings settings,
-        ClusterSettings clusterSettings
-    ) {
+    private CircuitBreakerService createCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
         List<BreakerSettings> breakerSettings = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
             .map(plugin -> plugin.getCircuitBreaker(settings))
             .toList();

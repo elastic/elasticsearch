@@ -92,6 +92,4 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         }
         return new Tuple<>(dataStreamsWithLifecycles, retentionStats);
     }
-
-    private record Result(long dataStreamsWithLifecycles, LongSummaryStatistics retentionStats) {}
 }

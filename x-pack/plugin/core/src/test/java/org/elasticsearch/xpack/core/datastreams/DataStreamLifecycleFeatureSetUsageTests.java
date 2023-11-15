@@ -144,11 +144,11 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
         // 3 data streams with an enabled lifecycle
         assertThat(stats.v1(), is(3L));
         LongSummaryStatistics longSummaryStatistics = stats.v2();
-        assertThat(longSummaryStatistics.getMax(), is(1000));
-        assertThat(longSummaryStatistics.getMin(), is(100));
+        assertThat(longSummaryStatistics.getMax(), is(1000L));
+        assertThat(longSummaryStatistics.getMin(), is(100L));
         // only counting the ones with an effective retention in the summary statistics
-        assertThat(longSummaryStatistics.getCount(), is(2));
-        assertThat(longSummaryStatistics.getAverage(), is(550));
+        assertThat(longSummaryStatistics.getCount(), is(2L));
+        assertThat(longSummaryStatistics.getAverage(), is(550.0));
     }
 
     @Override

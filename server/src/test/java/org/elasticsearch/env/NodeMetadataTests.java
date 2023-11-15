@@ -114,7 +114,7 @@ public class NodeMetadataTests extends ESTestCase {
         assertThat(
             illegalStateException.getMessage(),
             startsWith(
-                "cannot upgrade a node from version [" + IndexVersions.ZERO + "] directly to version [" + Build.current().version() + "]"
+                "cannot upgrade a node using index version [" + IndexVersions.ZERO + "] directly to version [" + Build.current().version() + "]"
             )
         );
     }
@@ -126,7 +126,7 @@ public class NodeMetadataTests extends ESTestCase {
         );
         assertThat(
             illegalStateException.getMessage(),
-            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Build.current().version() + "]"))
+            allOf(startsWith("cannot downgrade a node using index version ["), endsWith("] to version [" + Build.current().version() + "]"))
         );
     }
 
@@ -138,7 +138,7 @@ public class NodeMetadataTests extends ESTestCase {
         assertThat(
             illegalStateException.getMessage(),
             allOf(
-                startsWith("cannot upgrade a node from version ["),
+                startsWith("cannot upgrade a node using index version ["),
                 endsWith(
                     "] directly to version ["
                         + Build.current().version()

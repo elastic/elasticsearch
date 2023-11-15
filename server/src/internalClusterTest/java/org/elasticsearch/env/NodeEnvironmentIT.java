@@ -126,7 +126,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         );
         assertThat(
             illegalStateException.getMessage(),
-            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Build.current().version() + "]"))
+            allOf(startsWith("cannot downgrade a node using index version ["), endsWith("] to version [" + Build.current().version() + "]"))
         );
     }
 
@@ -137,7 +137,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         assertThat(
             illegalStateException.getMessage(),
             allOf(
-                startsWith("cannot upgrade a node from version ["),
+                startsWith("cannot upgrade a node using index version ["),
                 endsWith(
                     "] directly to version ["
                         + Build.current().version()

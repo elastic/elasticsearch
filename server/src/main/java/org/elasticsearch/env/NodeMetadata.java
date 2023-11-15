@@ -116,9 +116,8 @@ public final class NodeMetadata {
             : "version is required in the node metadata from v9 onwards";
 
         if (nodeIndexVersion.before(IndexVersions.MINIMUM_IN_PLACE_UPGRADE_COMPATIBLE)) {
-            // TODO[wrb]: fix message
             throw new IllegalStateException(
-                "cannot upgrade a node from version ["
+                "cannot upgrade a node using index version ["
                     + nodeIndexVersion
                     + "] directly to version ["
                     + Build.current().version()
@@ -130,9 +129,8 @@ public final class NodeMetadata {
         }
 
         if (nodeIndexVersion.after(IndexVersion.current())) {
-            // TODO[wrb]: fix message
             throw new IllegalStateException(
-                "cannot downgrade a node from version [" + nodeIndexVersion + "] to version [" + Build.current().version() + "]"
+                "cannot downgrade a node using index version [" + nodeIndexVersion + "] to version [" + Build.current().version() + "]"
             );
         }
     }

@@ -93,7 +93,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn("Could not apply transport version for nodes {} to cluster state", results.keySet(), e);
+            logger.error("Could not apply transport version for nodes {} to cluster state", results.keySet(), e);
             scheduleRetry(results.keySet(), retryNum);
         }
 

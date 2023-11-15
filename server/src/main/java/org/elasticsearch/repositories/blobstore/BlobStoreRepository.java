@@ -1987,7 +1987,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     protected void assertSnapshotOrGenericThread() {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT, ThreadPool.Names.SNAPSHOT_META, ThreadPool.Names.GENERIC);
+        // The Stateless plugin adds custom thread pools for object store operations
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SNAPSHOT,
+            ThreadPool.Names.SNAPSHOT_META,
+            ThreadPool.Names.GENERIC,
+            "stateless_shard",
+            "stateless_translog"
+        );
     }
 
     @Override

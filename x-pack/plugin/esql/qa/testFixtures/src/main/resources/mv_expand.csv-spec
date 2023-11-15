@@ -252,3 +252,20 @@ emp_no:integer  | first_name:keyword | generate_mv:keyword
 10001           | Georgi             | foo
 10002           | Bezalel            | foo
 ;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102120
+expandAfterDuplicateAggs
+row a = 1 |  stats  a = count(*), b = count(*) | mv_expand b;
+
+a:long | b:long 
+1      | 1
+;
+
+
+expandAfterDuplicateAggsAndEval
+row a = 1 |  stats  a = count(*), b = count(*) | eval c = 2 | mv_expand b;
+
+a:long | b:long | c:integer
+1      | 1      | 2
+;

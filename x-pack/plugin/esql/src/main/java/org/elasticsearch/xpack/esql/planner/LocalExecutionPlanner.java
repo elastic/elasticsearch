@@ -616,14 +616,13 @@ public class LocalExecutionPlanner {
         List<Attribute> childOutput = mvExpandExec.child().output();
         int blockSize = 5000;// TODO estimate row size and use context.pageSize()
 
-        Layout.Builder layout = new Layout.Builder();
+        Layout.Builder layout = source.layout.builder();
         List<Layout.ChannelSet> inverse = source.layout.inverse();
         var expandedName = mvExpandExec.expanded().name();
         for (int index = 0; index < inverse.size(); index++) {
-            if (childOutput.get(index).name().equals(expandedName)) {
-                layout.append(mvExpandExec.expanded());
-            } else {
-                layout.append(inverse.get(index));
+            Attribute prev = childOutput.get(index);
+            if (prev.name().equals(expandedName)) {
+                layout.replace(prev.id(), mvExpandExec.expanded().id());
             }
         }
 

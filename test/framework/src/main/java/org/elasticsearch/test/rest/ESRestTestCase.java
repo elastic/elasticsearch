@@ -52,6 +52,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -75,6 +76,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -90,6 +92,7 @@ import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -131,6 +134,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
+
+    private static Map<NodeFeature, Version> historicalFeatures;
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -2213,4 +2218,31 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    protected Map<NodeFeature, Version> getHistoricalFeatures() {
+        if (historicalFeatures == null) {
+            Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
+            String metadataPath = System.getProperty("tests.features.metadata.path");
+            if (metadataPath == null) {
+                throw new UnsupportedOperationException("Historical features information is unavailable when using legacy test plugins.");
+            }
+
+            String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
+            for (String metadataFile : metadataFiles) {
+                try (
+                    InputStream in = Files.newInputStream(PathUtils.get(metadataFile));
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, in)
+                ) {
+                    for (Map.Entry<String, String> entry : parser.mapStrings().entrySet()) {
+                        historicalFeaturesMap.put(new NodeFeature(entry.getKey()), Version.fromString(entry.getValue()));
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            historicalFeatures = Collections.unmodifiableMap(historicalFeaturesMap);
+        }
+
+        return historicalFeatures;
+    }
 }

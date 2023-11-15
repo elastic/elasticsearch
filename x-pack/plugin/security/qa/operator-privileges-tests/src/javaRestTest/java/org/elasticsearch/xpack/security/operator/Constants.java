@@ -302,6 +302,7 @@ public class Constants {
         "cluster:monitor/update/health/info",
         "cluster:monitor/ingest/geoip/stats",
         "cluster:monitor/main",
+        "cluster:monitor/nodes/data_tier_usage",
         "cluster:monitor/nodes/hot_threads",
         "cluster:monitor/nodes/info",
         "cluster:monitor/nodes/stats",

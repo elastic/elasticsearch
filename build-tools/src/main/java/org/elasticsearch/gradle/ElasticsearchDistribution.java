@@ -53,6 +53,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<Platform> platform;
     private final Property<Boolean> bundledJdk;
     private final Property<Boolean> failIfUnavailable;
+    private final Property<Boolean> preferArchive;
     private final ConfigurableFileCollection extracted;
     private Action<ElasticsearchDistribution> distributionFinalizer;
     private boolean frozen = false;
@@ -75,6 +76,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.platform = objectFactory.property(Platform.class);
         this.bundledJdk = objectFactory.property(Boolean.class);
         this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
+        this.preferArchive = objectFactory.property(Boolean.class).convention(false);
         this.extracted = extractedConfiguration;
         this.distributionFinalizer = distributionFinalizer;
     }
@@ -141,6 +143,14 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.failIfUnavailable.set(failIfUnavailable);
     }
 
+    public boolean getPreferArchive() {
+        return preferArchive.get();
+    }
+
+    public void setPreferArchive(boolean preferArchive) {
+        this.preferArchive.set(preferArchive);
+    }
+
     public void setArchitecture(Architecture architecture) {
         this.architecture.set(architecture);
     }
@@ -188,7 +198,9 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             return task -> Collections.emptySet();
         } else {
             maybeFreeze();
-            return getType().shouldExtract() ? extracted.getBuildDependencies() : configuration.getBuildDependencies();
+            return getType().shouldExtract() && (preferArchive.get() == false)
+                ? extracted.getBuildDependencies()
+                : configuration.getBuildDependencies();
         }
     }
 
@@ -252,14 +264,5 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         platform.finalizeValue();
         type.finalizeValue();
         bundledJdk.finalizeValue();
-    }
-
-    public TaskDependency getArchiveDependencies() {
-        if (skippingDockerDistributionBuild()) {
-            return task -> Collections.emptySet();
-        } else {
-            maybeFreeze();
-            return configuration.getBuildDependencies();
-        }
     }
 }

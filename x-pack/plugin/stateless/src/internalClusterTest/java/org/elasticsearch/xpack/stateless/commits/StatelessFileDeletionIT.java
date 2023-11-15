@@ -24,9 +24,11 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
@@ -45,6 +47,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -53,7 +56,9 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 
@@ -793,9 +798,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         assertThat(blobsAfterNodeIsStale.containsAll(blobsBeforeTriggeringForceMerge), is(true));
     }
 
-    // Since the commit deletion relies on a NewCommitNotification being process on all unpromotables, while an unpromotable is
-    // recovering (and cannot process a NewCommitNotification), commits should not be deleted.
-    // TODO: re-adjust after ES-7163 if needed, since that may modify how a recovering search shard responds to new commit notification
+    // Since the commit deletion relies on a NewCommitNotification being processed on all unpromotables, while an unpromotable is
+    // recovering (and does not respond to a NewCommitNotification), commits should not be deleted.
     public void testCommitsNotDeletedWhileAnUnpromotableIsRecovering() throws Exception {
         var indexNode = startMasterAndIndexNode();
         startSearchNode();
@@ -809,41 +813,84 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(3);
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
         var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
+
         // Create some commits
         int commits = randomIntBetween(2, 5);
         for (int i = 0; i < commits; i++) {
             indexDocs(indexName, randomIntBetween(1, 100));
             refresh(indexName);
         }
+
+        AtomicBoolean enableChecks = new AtomicBoolean(true);
         CountDownLatch commitRegistrationStarted = new CountDownLatch(1);
-        CountDownLatch newCommitCreated = new CountDownLatch(1);
-        MockTransportService.getInstance(searchNode2).addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
-                commitRegistrationStarted.countDown();
-                safeAwait(newCommitCreated);
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-        // Start the second search shard
+        MockRepository searchNode2Repository = ObjectStoreTestUtils.getObjectStoreMockRepository(
+            internalCluster().getInstance(ObjectStoreService.class, searchNode2)
+        );
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
+                handler.messageReceived(
+                    request,
+                    new TestTransportChannel(ActionListener.runBefore(new ChannelActionListener<>(channel), () -> {
+                        if (enableChecks.get()) {
+                            commitRegistrationStarted.countDown();
+                            searchNode2Repository.setBlockOnAnyFiles(); // block recovery
+                        }
+                    })),
+                    task
+                );
+            });
+
+        // Start the second search shard and waits for recovery to start
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2), indexName);
         safeAwait(commitRegistrationStarted);
-        // While search shard is recovering, create new commits by merge/refresh which should normally delete older commits
         var blobsBeforeMerge = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
+
+        AtomicReference<Set<String>> blobsBeforeNewCommitNotificationResponse = new AtomicReference<>();
+        CountDownLatch searchShardRecovered = new CountDownLatch(1);
+        CountDownLatch newCommitNotificationReceived = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNode2)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                handler.messageReceived(
+                    request,
+                    new TestTransportChannel(ActionListener.runBefore(new ChannelActionListener<>(channel), () -> {
+                        if (enableChecks.get()) {
+                            // After the shard has recovered, but before sending any new commit notification response (that could trigger
+                            // blob deletions), store the current blobs, so we later check that the blobs before the merge are intact.
+                            safeAwait(searchShardRecovered);
+                            blobsBeforeNewCommitNotificationResponse.set(listBlobsWithAbsolutePath(shardCommitsContainer));
+                        }
+                    })),
+                    task
+                );
+                newCommitNotificationReceived.countDown();
+            });
+
+        // While search shard is recovering, create a new merged commit
         forceMerge();
-        var refreshFuture = client().admin().indices().prepareRefresh(indexName).execute();
-        var blobsAfterMergeAndRefresh = listBlobsWithAbsolutePath(shardCommitsContainer);
-        // No deletion should happen since there is a RECOVERING unpromotable
-        assertThat(
-            "blobs before merge = " + blobsBeforeMerge + ", blobs after merge and refresh=" + blobsAfterMergeAndRefresh,
-            blobsAfterMergeAndRefresh.containsAll(blobsBeforeMerge),
-            is(true)
-        );
-        // Allow recovery to finish and verify that the commits are deleted.
-        newCommitCreated.countDown();
+
+        // Wait for the new commit notification to be processed on the search node
+        safeAwait(newCommitNotificationReceived);
+
+        // Allow recovery to finish, and trigger check that files should not be deleted
+        searchNode2Repository.unblock();
         ensureGreen(indexName);
-        // We need a new commit to trigger file deletion and trigger the previous refresh future
-        indexDocsAndFlush(indexName);
-        assertThat(refreshFuture.get().getFailedShards(), equalTo(0));
+        searchShardRecovered.countDown();
+
+        assertBusy(() -> {
+            assertThat(blobsBeforeNewCommitNotificationResponse.get(), notNullValue());
+            assertThat(
+                "blobs before merge = "
+                    + blobsBeforeMerge
+                    + ", blobs before new commit notification response ="
+                    + blobsBeforeNewCommitNotificationResponse.get(),
+                blobsBeforeNewCommitNotificationResponse.get().containsAll(blobsBeforeMerge),
+                is(true)
+            );
+        });
+
+        // Disable the handlers, do a refresh, and wait until the old commits are deleted.
+        enableChecks.set(false);
+        assertThat(client().admin().indices().prepareRefresh(indexName).execute().get().getFailedShards(), equalTo(0));
         assertBusy(() -> {
             var blobsAfterRecoveryAndRefresh = listBlobsWithAbsolutePath(shardCommitsContainer);
             assertThat(Sets.intersection(blobsAfterRecoveryAndRefresh, blobsBeforeMerge), is(empty()));

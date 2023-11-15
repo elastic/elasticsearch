@@ -415,13 +415,7 @@ public class MergePolicyConfigTests extends ESTestCase {
                 Settings.builder().put(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT_SETTING.getKey(), maxMergedSegmentSize).build()
             );
             TieredMergePolicy tieredPolicy = (TieredMergePolicy) new MergePolicyConfig(logger, indexSettings).getMergePolicy(false);
-            assertEquals(
-                maxMergedSegmentSize.getBytes() == 0L
-                    ? MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getMbFrac()
-                    : maxMergedSegmentSize.getMbFrac(),
-                tieredPolicy.getMaxMergedSegmentMB(),
-                0.0d
-            );
+            assertEquals(maxMergedSegmentSize.getMbFrac(), tieredPolicy.getMaxMergedSegmentMB(), 0.0d);
         }
         {
             var indexSettings = indexSettings(
@@ -431,13 +425,7 @@ public class MergePolicyConfigTests extends ESTestCase {
                     .build()
             );
             LogByteSizeMergePolicy timePolicy = (LogByteSizeMergePolicy) new MergePolicyConfig(logger, indexSettings).getMergePolicy(true);
-            assertEquals(
-                maxMergedSegmentSize.getBytes() == 0L
-                    ? MergePolicyConfig.DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT.getMbFrac()
-                    : maxMergedSegmentSize.getMbFrac(),
-                timePolicy.getMaxMergeMB(),
-                0.0d
-            );
+            assertEquals(maxMergedSegmentSize.getMbFrac(), timePolicy.getMaxMergeMB(), 0.0d);
         }
     }
 }

@@ -26,7 +26,7 @@ final class HostMetadata implements ToXContentObject {
     public static HostMetadata fromSource(Map<String, Object> source) {
         if (source != null) {
             String hostID = (String) source.get("host.id");
-            return new HostMetadata(hostID, DatacenterInstance.fromSource(source));
+            return new HostMetadata(hostID, DatacenterInstance.fromHostSource(source));
         }
         return null;
     }

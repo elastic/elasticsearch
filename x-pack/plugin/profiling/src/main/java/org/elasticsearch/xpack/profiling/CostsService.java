@@ -30,7 +30,7 @@ public class CostsService {
             }
             List<Map<String, Object>> rawData = XContentParserUtils.parseList(parser, XContentParser::map);
             for (Map<String, Object> entry : rawData) {
-                costsPerDatacenter.put(DatacenterInstance.fromSource(entry), CostEntry.fromSource(entry));
+                costsPerDatacenter.put(DatacenterInstance.fromCostSource(entry), CostEntry.fromSource(entry));
             }
 
         } catch (IOException e) {

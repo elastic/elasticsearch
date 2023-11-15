@@ -103,6 +103,12 @@ public record DesiredBalanceStats(
     }
 
     public double undesiredAllocationsFraction() {
-        return (double) undesiredAllocations / totalAllocations;
+        if (unassignedShards == -1 || totalAllocations == -1 || undesiredAllocations == -1) {
+            return -1.0;
+        } else if (totalAllocations == 0) {
+            return 0.0;
+        } else {
+            return (double) undesiredAllocations / totalAllocations;
+        }
     }
 }

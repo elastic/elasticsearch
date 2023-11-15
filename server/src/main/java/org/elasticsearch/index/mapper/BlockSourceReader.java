@@ -109,7 +109,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public String toString() {
-            return "SourceBooleans";
+            return "BlockSourceReader.Booleans";
         }
     }
 
@@ -145,7 +145,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public String toString() {
-            return "SourceBytes";
+            return "BlockSourceReader.Bytes";
         }
     }
 
@@ -179,7 +179,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public String toString() {
-            return "SourceDoubles";
+            return "BlockSourceReader.Doubles";
         }
     }
 
@@ -213,7 +213,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public String toString() {
-            return "SourceInts";
+            return "BlockSourceReader.Ints";
         }
     }
 
@@ -247,7 +247,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public String toString() {
-            return "SourceLongs";
+            return "BlockSourceReader.Longs";
         }
     }
 

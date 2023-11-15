@@ -378,11 +378,6 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         FieldCase(MappedFieldType ft, CheckResults checkResults, CheckReaders checkReaders) {
             this(fieldInfo(ft), checkResults, checkReaders);
         }
-
-        FieldCase(MappedFieldType ft, CheckResults checkResults) {
-            // NOCOMMIT remove me
-            this(fieldInfo(ft), checkResults, (forcedRowByRow, pageCount, segmentCount, readers) -> {});
-        }
     }
 
     /**
@@ -437,8 +432,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 StatusChecks::mvLongsFromDocValues
             )
         );
-        r.add(new FieldCase(sourceNumberField("source_long", NumberFieldMapper.NumberType.LONG), checks::longs));
-        r.add(new FieldCase(sourceNumberField("mv_source_long", NumberFieldMapper.NumberType.LONG), checks::mvLongsUnordered));
+        r.add(
+            new FieldCase(sourceNumberField("source_long", NumberFieldMapper.NumberType.LONG), checks::longs, StatusChecks::longsFromSource)
+        );
+        r.add(
+            new FieldCase(
+                sourceNumberField("mv_source_long", NumberFieldMapper.NumberType.LONG),
+                checks::mvLongsUnordered,
+                StatusChecks::mvLongsFromSource
+            )
+        );
         r.add(
             new FieldCase(docValuesNumberField("int", NumberFieldMapper.NumberType.INTEGER), checks::ints, StatusChecks::intsFromDocValues)
         );
@@ -449,8 +452,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 StatusChecks::mvIntsFromDocValues
             )
         );
-        r.add(new FieldCase(sourceNumberField("source_int", NumberFieldMapper.NumberType.INTEGER), checks::ints));
-        r.add(new FieldCase(sourceNumberField("mv_source_int", NumberFieldMapper.NumberType.INTEGER), checks::mvIntsUnordered));
+        r.add(
+            new FieldCase(sourceNumberField("source_int", NumberFieldMapper.NumberType.INTEGER), checks::ints, StatusChecks::intsFromSource)
+        );
+        r.add(
+            new FieldCase(
+                sourceNumberField("mv_source_int", NumberFieldMapper.NumberType.INTEGER),
+                checks::mvIntsUnordered,
+                StatusChecks::mvIntsFromSource
+            )
+        );
         r.add(
             new FieldCase(
                 docValuesNumberField("short", NumberFieldMapper.NumberType.SHORT),
@@ -500,12 +511,18 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             )
         );
         r.add(new FieldCase(storedKeywordField("stored_kwd"), checks::strings, StatusChecks::keywordsFromStored));
-        r.add(new FieldCase(storedKeywordField("mv_stored_kwd"), checks::mvStringsUnordered));
+        r.add(new FieldCase(storedKeywordField("mv_stored_kwd"), checks::mvStringsUnordered, StatusChecks::mvKeywordsFromStored));
         // NOCOMMIT source keyword
-        r.add(new FieldCase(new TextFieldMapper.TextFieldType("source_text", false), checks::strings));
-        r.add(new FieldCase(new TextFieldMapper.TextFieldType("mv_source_text", false), checks::mvStringsUnordered));
-        r.add(new FieldCase(storedTextField("stored_text"), checks::strings));
-        r.add(new FieldCase(storedTextField("mv_stored_text"), checks::mvStringsUnordered));
+        r.add(new FieldCase(new TextFieldMapper.TextFieldType("source_text", false), checks::strings, StatusChecks::keywordsFromSource));
+        r.add(
+            new FieldCase(
+                new TextFieldMapper.TextFieldType("mv_source_text", false),
+                checks::mvStringsUnordered,
+                StatusChecks::mvKeywordsFromSource
+            )
+        );
+        r.add(new FieldCase(storedTextField("stored_text"), checks::strings, StatusChecks::textFromStored));
+        r.add(new FieldCase(storedTextField("mv_stored_text"), checks::mvStringsUnordered, StatusChecks::mvTextFromStored));
         r.add(
             new FieldCase(
                 textFieldWithDelegate("text_with_delegate", new KeywordFieldMapper.KeywordFieldType("kwd")),
@@ -704,8 +721,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             docValues("long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
         }
 
+        static void longsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("source_long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
         static void intsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
             docValues("int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void intsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("source_int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
         }
 
         static void shortsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
@@ -729,15 +754,31 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
 
         static void keywordsFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            stored("stored_kwd", "BlockStoredFieldsReader.Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+            stored("stored_kwd", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void keywordsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("source_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void textFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            stored("stored_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
         }
 
         static void mvLongsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
             mvDocValues("mv_long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
         }
 
+        static void mvLongsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("mv_source_long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
         static void mvIntsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
             mvDocValues("mv_int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void mvIntsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("mv_source_int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
         }
 
         static void mvShortsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
@@ -758,6 +799,18 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
         static void mvKeywordsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
             mvDocValues("mv_kwd", "Ordinals", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void mvKeywordsFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            stored("mv_stored_kwd", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void mvKeywordsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("mv_source_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void mvTextFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            stored("mv_stored_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
         }
 
         static void textWithDelegate(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
@@ -856,7 +909,23 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
 
         static void id(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            stored("_id", "BlockStoredFieldsReader.Id", forcedRowByRow, pageCount, segmentCount, readers);
+            stored("_id", "Id", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        private static void source(String name, String type, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            Matcher<Integer> count;
+            if (forcedRowByRow) {
+                count = equalTo(segmentCount);
+            } else {
+                count = lessThanOrEqualTo(pageCount);
+                Integer columnAttempts = (Integer) readers.remove(name + ":column_at_a_time:null");
+                assertThat(columnAttempts, not(nullValue()));
+            }
+            assertMap(
+                readers,
+                matchesMap().entry(name + ":row_stride:BlockSourceReader." + type, count)
+                    .entry("stored_fields[requires_source:true, fields:0]", count)
+            );
         }
 
         private static void stored(String name, String type, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
@@ -870,7 +939,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             }
             assertMap(
                 readers,
-                matchesMap().entry(name + ":row_stride:" + type, count).entry("stored_fields[requires_source:false, fields:1]", count)
+                matchesMap().entry(name + ":row_stride:BlockStoredFieldsReader." + type, count)
+                    .entry("stored_fields[requires_source:false, fields:1]", count)
             );
         }
 

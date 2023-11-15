@@ -43,7 +43,7 @@ public class NodeMetadataTests extends ESTestCase {
     public void testEqualsHashcodeSerialization() {
         final Path tempDir = createTempDir();
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new NodeMetadata(randomAlphaOfLength(10), randomVersion(), randomIndexVersion()),
+            new NodeMetadata(randomAlphaOfLength(10), randomIndexVersion(), randomIndexVersion()),
             nodeMetadata -> {
                 final long generation = NodeMetadata.FORMAT.writeAndCleanup(nodeMetadata, tempDir);
                 final Tuple<NodeMetadata, Long> nodeMetadataLongTuple = NodeMetadata.FORMAT.loadLatestStateWithGeneration(
@@ -57,17 +57,17 @@ public class NodeMetadataTests extends ESTestCase {
             nodeMetadata -> switch (randomInt(3)) {
                 case 0 -> new NodeMetadata(
                     randomAlphaOfLength(21 - nodeMetadata.nodeId().length()),
-                    nodeMetadata.nodeVersion(),
+                    nodeMetadata.nodeIndexVersion(),
                     nodeMetadata.oldestIndexVersion()
                 );
                 case 1 -> new NodeMetadata(
                     nodeMetadata.nodeId(),
-                    randomValueOtherThan(nodeMetadata.nodeVersion(), this::randomVersion),
+                    randomValueOtherThan(nodeMetadata.nodeIndexVersion(), this::randomIndexVersion),
                     nodeMetadata.oldestIndexVersion()
                 );
                 default -> new NodeMetadata(
                     nodeMetadata.nodeId(),
-                    nodeMetadata.nodeVersion(),
+                    nodeMetadata.nodeIndexVersion(),
                     randomValueOtherThan(nodeMetadata.oldestIndexVersion(), this::randomIndexVersion)
                 );
             }
@@ -95,8 +95,8 @@ public class NodeMetadataTests extends ESTestCase {
         final NodeMetadata nodeMetadata = new NodeMetadata(
             nodeId,
             randomValueOtherThanMany(
-                v -> v.after(Version.CURRENT) || v.before(Version.CURRENT.minimumCompatibilityVersion()),
-                this::randomVersion
+                v -> v.after(IndexVersion.current()) || v.before(IndexVersions.MINIMUM_IN_PLACE_UPGRADE_COMPATIBLE),
+                this::randomIndexVersion
             ),
             IndexVersion.current()
         ).upgradeToCurrentVersion();
@@ -109,7 +109,7 @@ public class NodeMetadataTests extends ESTestCase {
 
         final IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> new NodeMetadata(nodeId, Version.V_EMPTY, IndexVersion.current()).upgradeToCurrentVersion()
+            () -> new NodeMetadata(nodeId, IndexVersions.ZERO, IndexVersion.current()).upgradeToCurrentVersion()
         );
         assertThat(
             illegalStateException.getMessage(),
@@ -159,15 +159,15 @@ public class NodeMetadataTests extends ESTestCase {
         assertThat(nodeMetadata.previousNodeVersion(), equalTo(version));
     }
 
-    public static Version tooNewVersion() {
-        return Version.fromId(between(Version.CURRENT.id + 1, 99999999));
+    public static IndexVersion tooNewVersion() {
+        return IndexVersion.fromId(between(IndexVersion.current().id() + 1, 99999999));
     }
 
     public static IndexVersion tooNewIndexVersion() {
         return IndexVersion.fromId(between(IndexVersion.current().id() + 1, 99999999));
     }
 
-    public static Version tooOldVersion() {
-        return Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
+    public static IndexVersion tooOldVersion() {
+        return IndexVersion.fromId(between(1, IndexVersions.MINIMUM_IN_PLACE_UPGRADE_COMPATIBLE.id() - 1));
     }
 }

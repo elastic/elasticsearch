@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.client.internal.Client;
@@ -54,6 +53,7 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
@@ -328,7 +328,7 @@ public class Node implements Closeable {
                     nodeEnvironment.nodeDataPaths()
                 );
                 assert nodeMetadata != null;
-                assert nodeMetadata.nodeVersion().equals(Version.CURRENT);
+                assert nodeMetadata.nodeIndexVersion().equals(IndexVersion.current());
                 assert nodeMetadata.nodeId().equals(localNodeFactory.getNode().getId());
             } catch (IOException e) {
                 assert false : e;

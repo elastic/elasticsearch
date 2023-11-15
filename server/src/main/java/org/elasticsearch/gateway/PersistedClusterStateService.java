@@ -344,7 +344,7 @@ public class PersistedClusterStateService {
     @Nullable
     public static NodeMetadata nodeMetadata(Path... dataPaths) throws IOException {
         String nodeId = null;
-        Version version = null;
+        IndexVersion nodeIndexVersion = null;
         IndexVersion oldestIndexVersion = IndexVersions.ZERO;
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
@@ -361,7 +361,7 @@ public class PersistedClusterStateService {
                         );
                     } else if (nodeId == null) {
                         nodeId = thisNodeId;
-                        version = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
+                        nodeIndexVersion = IndexVersion.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
                         if (userData.containsKey(OLDEST_INDEX_VERSION_KEY)) {
                             oldestIndexVersion = IndexVersion.fromId(Integer.parseInt(userData.get(OLDEST_INDEX_VERSION_KEY)));
                         } else {
@@ -376,13 +376,17 @@ public class PersistedClusterStateService {
         if (nodeId == null) {
             return null;
         }
-        return new NodeMetadata(nodeId, version, oldestIndexVersion);
+        return new NodeMetadata(nodeId, nodeIndexVersion, oldestIndexVersion);
+    }
+
+    public static void overrideVersion(Version version, Path... dataPaths) throws IOException {
+        overrideVersion(IndexVersion.fromId(version.id), dataPaths);
     }
 
     /**
      * Overrides the version field for the metadata in the given data path
      */
-    public static void overrideVersion(Version newVersion, Path... dataPaths) throws IOException {
+    public static void overrideVersion(IndexVersion newVersion, Path... dataPaths) throws IOException {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
@@ -392,7 +396,7 @@ public class PersistedClusterStateService {
 
                     try (IndexWriter indexWriter = createIndexWriter(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)), true)) {
                         final Map<String, String> commitData = new HashMap<>(userData);
-                        commitData.put(NODE_VERSION_KEY, Integer.toString(newVersion.id));
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(newVersion.id()));
                         commitData.put(OVERRIDDEN_NODE_VERSION_KEY, Boolean.toString(true));
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();

@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.index.IndexVersion;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -80,12 +81,13 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
             // ok, means the version change is not supported
         }
 
+        // TODO[wrb]: fix up versions here
         confirm(
             terminal,
-            (nodeMetadata.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE).replace(
+            (nodeMetadata.nodeIndexVersion().before(IndexVersion.current()) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE).replace(
                 "V_OLD",
-                nodeMetadata.nodeVersion().toString()
-            ).replace("V_NEW", nodeMetadata.nodeVersion().toString()).replace("V_CUR", Version.CURRENT.toString())
+                nodeMetadata.nodeIndexVersion().toString()
+            ).replace("V_NEW", nodeMetadata.nodeIndexVersion().toString()).replace("V_CUR", Version.CURRENT.toString())
         );
 
         PersistedClusterStateService.overrideVersion(Version.CURRENT, paths);

@@ -279,6 +279,7 @@ public class QueryRulesIndexService {
             public void onFailure(Exception e) {
                 if (e instanceof IndexNotFoundException) {
                     listener.onFailure(new ResourceNotFoundException(resourceName));
+                    return;
                 }
                 listener.onFailure(e);
             }

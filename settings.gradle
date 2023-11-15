@@ -106,7 +106,8 @@ List projects = [
   'test:logger-usage',
   'test:test-clusters',
   'test:x-content',
-  'test:yaml-rest-runner'
+  'test:yaml-rest-runner',
+  'test:metadata-extractor'
 ]
 
 /**

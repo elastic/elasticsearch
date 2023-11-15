@@ -101,7 +101,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                 addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
-            }, distribution.getArchiveDependencies(), examplePlugin.getDependencies());
+            }, distribution, examplePlugin.getDependencies());
 
             if (distribution.getPlatform() == Platform.WINDOWS) {
                 windowsTestTasks.add(destructiveTask);
@@ -235,6 +235,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 d.setBundledJdk(bundledJdk);
             }
             d.setVersion(version);
+            d.setPreferArchive(true);
         });
 
         // Allow us to gracefully omit building Docker distributions if Docker is not available on the system.

@@ -72,6 +72,7 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -327,8 +328,8 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
-import org.elasticsearch.xpack.ml.inference.rescorer.InferenceRescorerBuilder;
 import org.elasticsearch.xpack.ml.inference.rescorer.InferenceRescorerFeature;
+import org.elasticsearch.xpack.ml.inference.rescorer.LearnToRankRescorerBuilder;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
@@ -731,7 +732,6 @@ public class MachineLearning extends Plugin
 
     private final Settings settings;
     private final boolean enabled;
-
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
     private final SetOnce<DatafeedConfigProvider> datafeedConfigProvider = new SetOnce<>();
     private final SetOnce<DatafeedRunner> datafeedRunner = new SetOnce<>();
@@ -745,7 +745,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
-
+    private final SetOnce<ScriptService> scriptService = new SetOnce<>();
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
 
     public MachineLearning(Settings settings) {
@@ -864,12 +864,13 @@ public class MachineLearning extends Plugin
     @Override
     public List<RescorerSpec<?>> getRescorers() {
         if (enabled && InferenceRescorerFeature.isEnabled()) {
+
             // Inference rescorer requires access to the model loading service
             return List.of(
                 new RescorerSpec<>(
-                    InferenceRescorerBuilder.NAME,
-                    in -> new InferenceRescorerBuilder(in, modelLoadingService::get),
-                    parser -> InferenceRescorerBuilder.fromXContent(parser, modelLoadingService::get)
+                    LearnToRankRescorerBuilder.NAME,
+                    in -> new LearnToRankRescorerBuilder(in, modelLoadingService::get, scriptService::get),
+                    parser -> LearnToRankRescorerBuilder.fromXContent(parser, modelLoadingService::get, scriptService::get)
                 )
             );
         }
@@ -893,6 +894,7 @@ public class MachineLearning extends Plugin
 
         machineLearningExtension.get().configure(environment.settings());
 
+        this.scriptService.set(services.scriptService());
         this.mlUpgradeModeActionFilter.set(new MlUpgradeModeActionFilter(clusterService));
 
         MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(

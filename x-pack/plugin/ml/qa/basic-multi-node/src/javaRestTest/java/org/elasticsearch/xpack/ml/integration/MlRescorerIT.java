@@ -34,12 +34,20 @@ public class MlRescorerIT extends ESRestTestCase {
               "input": { "field_names": ["cost", "product"] },
               "inference_config": {
                 "learn_to_rank": {
-                  "feature_extractors": [{
-                    "query_extractor": {
-                      "feature_name": "two",
-                      "query": { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 2.0;" } } }
+                  "feature_extractors": [
+                    {
+                        "query_extractor": {
+                            "feature_name": "two",
+                            "query": { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 2.0;" } } }
+                        }
+                    },
+                    {
+                        "query_extractor": {
+                            "feature_name": "product_bm25",
+                            "query": { "term": { "product": "{{keyword}}" } }
+                        }
                     }
-                  }]
+                  ]
                 }
               },
               "definition": {
@@ -174,7 +182,8 @@ public class MlRescorerIT extends ESRestTestCase {
                   }
                 }
               }
-            }""");
+            }
+            """);
         createIndex(INDEX_NAME, Settings.builder().put("number_of_shards", randomIntBetween(1, 3)).build(), """
             "properties":{
                 "product":{ "type": "keyword" },
@@ -197,7 +206,7 @@ public class MlRescorerIT extends ESRestTestCase {
                 },
                 "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model"
                     }
                 }
@@ -209,8 +218,6 @@ public class MlRescorerIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLtrSimpleDFS() throws Exception {
-        skipTestUntilParametersAreImplemented();
-
         Response searchResponse = searchDfs("""
             {
                 "query": {
@@ -218,18 +225,11 @@ public class MlRescorerIT extends ESRestTestCase {
                 },
                 "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model",
-                        "inference_config": {
-                            "learn_to_rank": {
-                                "feature_extractors":[
-                                    { "query_extractor": { "feature_name": "product_bm25",  "query": { "term": { "product": "TV" } } } }
-                                ]
-                            }
-                        }
+                        "params": { "keyword": "TV" }
                     }
                 }
-
             }""");
 
         Map<String, Object> response = responseAsMap(searchResponse);
@@ -239,16 +239,9 @@ public class MlRescorerIT extends ESRestTestCase {
             {
             "rescore": {
                 "window_size": 10,
-                "inference": {
+                "learn_to_rank": {
                     "model_id": "basic-ltr-model",
-                        "inference_config": {
-                            "learn_to_rank": {
-                                "feature_extractors":[
-                                    { "query_extractor": { "feature_name": "product_bm25", "query": { "term": { "product": "TV" } } } }
-                                ]
-                            }
-                        }
-                    }
+                    "params": { "keyword": "TV" }
                 }
             }""");
 
@@ -269,7 +262,7 @@ public class MlRescorerIT extends ESRestTestCase {
                 },
                 "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model"
                     }
                 }
@@ -288,7 +281,7 @@ public class MlRescorerIT extends ESRestTestCase {
                 },
                 "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model"
                     }
                 }
@@ -307,7 +300,7 @@ public class MlRescorerIT extends ESRestTestCase {
                 },
                 "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model"
                     }
                 }
@@ -323,7 +316,7 @@ public class MlRescorerIT extends ESRestTestCase {
                 },
                 "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model"
                     }
                 }
@@ -364,9 +357,5 @@ public class MlRescorerIT extends ESRestTestCase {
         Request model = new Request("PUT", "_ml/trained_models/" + modelId);
         model.setJsonEntity(body);
         assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
-    }
-
-    private void skipTestUntilParametersAreImplemented() {
-        // throw new AssumptionViolatedException("Skip the test until parameters are implemented");
     }
 }

@@ -31,9 +31,9 @@ public class QueryProvider implements Writeable, ToXContentObject, Rewriteable<Q
 
     private static final Logger logger = LogManager.getLogger(QueryProvider.class);
 
-    private Exception parsingException;
-    private QueryBuilder parsedQuery;
-    private Map<String, Object> query;
+    private final Exception parsingException;
+    private final QueryBuilder parsedQuery;
+    private final Map<String, Object> query;
 
     public static QueryProvider defaultQuery() {
         return new QueryProvider(
@@ -77,7 +77,7 @@ public class QueryProvider implements Writeable, ToXContentObject, Rewriteable<Q
         return new QueryProvider(in.readMap(), in.readOptionalNamedWriteable(QueryBuilder.class), in.readException());
     }
 
-    QueryProvider(Map<String, Object> query, QueryBuilder parsedQuery, Exception parsingException) {
+    public QueryProvider(Map<String, Object> query, QueryBuilder parsedQuery, Exception parsingException) {
         this.query = Collections.unmodifiableMap(new LinkedHashMap<>(Objects.requireNonNull(query, "[query] must not be null")));
         this.parsedQuery = parsedQuery;
         this.parsingException = parsingException;
@@ -136,7 +136,6 @@ public class QueryProvider implements Writeable, ToXContentObject, Rewriteable<Q
 
     @Override
     public QueryProvider rewrite(QueryRewriteContext ctx) throws IOException {
-        assert parsedQuery != null;
         if (parsedQuery == null) {
             return this;
         }

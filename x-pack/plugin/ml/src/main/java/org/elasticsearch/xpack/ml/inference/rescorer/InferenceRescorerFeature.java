@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.FeatureFlag;
  *
  * Upon removal, ensure transport serialization is all corrected for future BWC.
  *
- * See {@link InferenceRescorerBuilder}
+ * See {@link LearnToRankRescorerBuilder}
  */
 public class InferenceRescorerFeature {
 

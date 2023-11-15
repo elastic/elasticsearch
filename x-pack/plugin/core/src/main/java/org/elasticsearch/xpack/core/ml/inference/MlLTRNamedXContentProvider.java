@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
@@ -59,7 +58,7 @@ public class MlLTRNamedXContentProvider implements NamedXContentProvider {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         // Inference config
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceConfig.class, LearnToRankConfig.NAME.getPreferredName(), LearnToRankConfig::new)
+            new NamedWriteableRegistry.Entry(LearnToRankConfig.class, LearnToRankConfig.NAME.getPreferredName(), LearnToRankConfig::new)
         );
         // LTR Extractors
         namedWriteables.add(

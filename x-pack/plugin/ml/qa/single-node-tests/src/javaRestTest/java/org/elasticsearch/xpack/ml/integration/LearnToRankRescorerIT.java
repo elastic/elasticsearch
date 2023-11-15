@@ -18,7 +18,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class InferenceRescorerIT extends InferenceTestCase {
+public class LearnToRankRescorerIT extends InferenceTestCase {
 
     private static final String MODEL_ID = "ltr-model";
     private static final String INDEX_NAME = "store";
@@ -26,32 +26,38 @@ public class InferenceRescorerIT extends InferenceTestCase {
     @Before
     public void setupModelAndData() throws IOException {
         putRegressionModel(MODEL_ID, """
-             {
-               "description": "super complex model for tests",
-               "input": {"field_names": ["cost", "product"]},
-               "inference_config": {
-                 "learn_to_rank": {
-                   "feature_extractors": [
-                     {
-                       "query_extractor": {
-                         "feature_name": "two",
-                         "query": {"script_score": {"query": {"match_all":{}}, "script": {"source": "return 2.0;"}}}
-                       }
-                     }
-                   ]
-                 }
-               },
-               "definition": {
-                 "preprocessors" : [{
-                   "one_hot_encoding": {
-                     "field": "product",
-                     "hot_map": {
-                       "TV": "type_tv",
-                       "VCR": "type_vcr",
-                       "Laptop": "type_laptop"
-                     }
-                   }
-                 }],
+            {
+              "description": "super complex model for tests",
+              "input": {"field_names": ["cost", "product"]},
+              "inference_config": {
+                "learn_to_rank": {
+                  "feature_extractors": [
+                    {
+                      "query_extractor": {
+                        "feature_name": "two",
+                        "query": {"script_score": {"query": {"match_all":{}}, "script": {"source": "return 2.0;"}}}
+                      }
+                    },
+                    {
+                      "query_extractor": {
+                        "feature_name": "product_bm25",
+                        "query": {"term": {"product": "{{keyword}}"}}
+                      }
+                    }
+                  ]
+                }
+              },
+              "definition": {
+                "preprocessors" : [{
+                  "one_hot_encoding": {
+                    "field": "product",
+                    "hot_map": {
+                      "TV": "type_tv",
+                      "VCR": "type_vcr",
+                      "Laptop": "type_laptop"
+                    }
+                  }
+                }],
                 "trained_model": {
                   "ensemble": {
                     "feature_names": ["cost", "type_tv", "type_vcr", "type_laptop", "two", "product_bm25"],
@@ -171,7 +177,8 @@ public class InferenceRescorerIT extends InferenceTestCase {
                   }
                 }
               }
-            }""");
+            }
+            """);
         createIndex(INDEX_NAME, Settings.EMPTY, """
             "properties":{
               "product":{"type": "keyword"},
@@ -189,16 +196,13 @@ public class InferenceRescorerIT extends InferenceTestCase {
         adminClient().performRequest(new Request("POST", INDEX_NAME + "/_refresh"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98372")
-    public void testInferenceRescore() throws Exception {
-        skipTestUntilParametersAreImplemented();
-
+    public void testLearnToRankRescore() throws Exception {
         Request request = new Request("GET", "store/_search?size=3&error_trace");
         request.setJsonEntity("""
             {
               "rescore": {
                 "window_size": 10,
-                "inference": { "model_id": "ltr-model" }
+                "learn_to_rank": { "model_id": "ltr-model" }
               }
             }""");
         assertHitScores(client().performRequest(request), List.of(20.0, 20.0, 17.0));
@@ -207,14 +211,10 @@ public class InferenceRescorerIT extends InferenceTestCase {
               "query": { "term": { "product": "Laptop" } },
               "rescore": {
                 "window_size": 10,
-                "inference": {
+                "learn_to_rank": {
                   "model_id": "ltr-model",
-                  "inference_config": {
-                    "learn_to_rank": {
-                      "feature_extractors":[
-                        { "query_extractor": { "feature_name": "product_bm25", "query": { "term": { "product": "Laptop"} } } }
-                      ]
-                    }
+                  "params": {
+                    "keyword": "Laptop"
                   }
                 }
               }
@@ -225,27 +225,25 @@ public class InferenceRescorerIT extends InferenceTestCase {
               "query": {"term": { "product": "Laptop" } },
               "rescore": {
                 "window_size": 10,
-                "inference": { "model_id": "ltr-model"}
+                "learn_to_rank": { "model_id": "ltr-model"}
               }
             }""");
         assertHitScores(client().performRequest(request), List.of(9.0, 9.0, 6.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98372")
-    public void testInferenceRescoreSmallWindow() throws Exception {
+    public void testLearnToRankRescoreSmallWindow() throws Exception {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""
             {
               "rescore": {
                 "window_size": 2,
-                "inference": { "model_id": "ltr-model" }
+                "learn_to_rank": { "model_id": "ltr-model" }
               }
             }""");
         assertHitScores(client().performRequest(request), List.of(20.0, 20.0, 1.0, 1.0, 1.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98372")
-    public void testInferenceRescorerWithChainedRescorers() throws IOException {
+    public void testLearnToRankRescorerWithChainedRescorers() throws IOException {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""
             {
@@ -256,7 +254,7 @@ public class InferenceRescorerIT extends InferenceTestCase {
                    },
                    {
                      "window_size": 3,
-                     "inference": { "model_id": "ltr-model" }
+                     "learn_to_rank": { "model_id": "ltr-model" }
                    },
                    {
                      "window_size": 2,
@@ -276,9 +274,5 @@ public class InferenceRescorerIT extends InferenceTestCase {
     @SuppressWarnings("unchecked")
     private static void assertHitScores(Response response, List<Double> expectedScores) throws IOException {
         assertThat((List<Double>) XContentMapValues.extractValue("hits.hits._score", responseAsMap(response)), equalTo(expectedScores));
-    }
-
-    private void skipTestUntilParametersAreImplemented() {
-        // throw new AssumptionViolatedException("Skip the test until parameters are implemented");
     }
 }

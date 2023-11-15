@@ -32,17 +32,17 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
-public class InferenceRescorer implements Rescorer {
+public class LearnToRankRescorer implements Rescorer {
 
-    public static final InferenceRescorer INSTANCE = new InferenceRescorer();
-    private static final Logger logger = LogManager.getLogger(InferenceRescorer.class);
+    public static final LearnToRankRescorer INSTANCE = new LearnToRankRescorer();
+    private static final Logger logger = LogManager.getLogger(LearnToRankRescorer.class);
 
     private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = (o1, o2) -> {
         int cmp = Float.compare(o2.score, o1.score);
         return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
     };
 
-    private InferenceRescorer() {
+    private LearnToRankRescorer() {
 
     }
 
@@ -51,7 +51,7 @@ public class InferenceRescorer implements Rescorer {
         if (topDocs.scoreDocs.length == 0) {
             return topDocs;
         }
-        InferenceRescorerContext ltrRescoreContext = (InferenceRescorerContext) rescoreContext;
+        LearnToRankRescorerContext ltrRescoreContext = (LearnToRankRescorerContext) rescoreContext;
         if (ltrRescoreContext.inferenceDefinition == null) {
             throw new IllegalStateException("local model reference is null, missing rewriteAndFetch before rescore phase?");
         }

@@ -32,6 +32,7 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
     static final TransportVersion MIN_SUPPORTED_TRANSPORT_VERSION = TransportVersion.current();
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
     public static final ParseField FEATURE_EXTRACTORS = new ParseField("feature_extractors");
+
     public static LearnToRankConfig EMPTY_PARAMS = new LearnToRankConfig(null, null);
 
     private static final ObjectParser<LearnToRankConfig.Builder, Boolean> LENIENT_PARSER = createParser(true);

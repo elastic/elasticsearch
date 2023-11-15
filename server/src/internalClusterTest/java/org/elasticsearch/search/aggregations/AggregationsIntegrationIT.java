@@ -38,27 +38,20 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
 
     public void testScroll() {
         final int size = randomIntBetween(1, 4);
-        assertScrollResponses(
-            60,
-            prepareSearch("index").setSize(size).addAggregation(terms("f").field("f")),
-            scrollResponses -> {
-                assertNoFailures(scrollResponses.initialSearchResponse());
-                Aggregations aggregations = scrollResponses.initialSearchResponse().getAggregations();
-                assertNotNull(aggregations);
-                Terms terms = aggregations.get("f");
-                assertEquals(Math.min(numDocs, 3L), terms.getBucketByKey("0").getDocCount());
+        assertScrollResponses(60, prepareSearch("index").setSize(size).addAggregation(terms("f").field("f")), scrollResponses -> {
+            assertNoFailures(scrollResponses.initialSearchResponse());
+            Aggregations aggregations = scrollResponses.initialSearchResponse().getAggregations();
+            assertNotNull(aggregations);
+            Terms terms = aggregations.get("f");
+            assertEquals(Math.min(numDocs, 3L), terms.getBucketByKey("0").getDocCount());
 
-                scrollResponses.scrollResponses().forEach(scrollResponse -> {
-                        assertNoFailures(scrollResponse);
-                        assertNull(scrollResponse.getAggregations());
-                    }
-                );
+            scrollResponses.scrollResponses().forEach(scrollResponse -> {
+                assertNoFailures(scrollResponse);
+                assertNull(scrollResponse.getAggregations());
+            });
 
-                int observedHits = scrollResponses.allResponses().stream()
-                    .map(resp -> resp.getHits().getHits().length)
-                    .reduce(0, Integer::sum);
-                assertEquals(numDocs, observedHits);
-            }
-        );
+            int observedHits = scrollResponses.allResponses().stream().map(resp -> resp.getHits().getHits().length).reduce(0, Integer::sum);
+            assertEquals(numDocs, observedHits);
+        });
     }
 }

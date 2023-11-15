@@ -373,10 +373,13 @@ public class ElasticsearchAssertions {
         SearchResponse initialSearchResponse,
         List<SearchResponse> scrollResponses,
         List<SearchResponse> allResponses
-    ) {
-    }
+    ) {}
 
-    public static void assertScrollResponses(int timoutSeconds, SearchRequestBuilder searchRequestBuilder, Consumer<ScrollResponses> consumer) {
+    public static void assertScrollResponses(
+        int timoutSeconds,
+        SearchRequestBuilder searchRequestBuilder,
+        Consumer<ScrollResponses> consumer
+    ) {
         searchRequestBuilder.setScroll(TimeValue.timeValueSeconds(timoutSeconds));
         List<SearchResponse> responses = new ArrayList<>();
         var scrollResponse = searchRequestBuilder.get();

@@ -1399,7 +1399,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(10L));
                     });
 
-                    var scannedDocs = scrollResponses.allResponses().stream()
+                    var scannedDocs = scrollResponses.allResponses()
+                        .stream()
                         .map(searchResponse -> searchResponse.getHits().getHits().length)
                         .reduce(0, Integer::sum);
                     assertThat(scannedDocs, equalTo(10));

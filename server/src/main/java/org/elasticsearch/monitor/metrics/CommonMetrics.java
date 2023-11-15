@@ -31,85 +31,85 @@ public class CommonMetrics {
 
     private void registerMetrics(MeterRegistry registry) {
         registry.registerLongGauge(
-            "es.indices.get.total",
+            "es.node.stats.indices.get.total",
             "Total number of get operations",
             "operation",
             nodeStatsCache.indicesGetTotalSupplier()
         );
         registry.registerLongGauge(
-            "es.indices.get.time_in_millis",
+            "es.node.stats.indices.get.time_in_millis",
             "Time in milliseconds spent performing get operations.",
             "time",
             nodeStatsCache.indicesGetTimeInMillisSupplier()
         );
         registry.registerLongGauge(
-            "es.indices.search.fetch.total",
+            "es.node.stats.indices.search.fetch.total",
             "Total number of fetch operations.",
             "operation",
             nodeStatsCache.indicesSearchFetchTotalSupplier()
         );
         registry.registerLongGauge(
-            "es.indices.search.fetch.time_in_millis",
+            "es.node.stats.indices.search.fetch.time_in_millis",
             "Time in milliseconds spent performing fetch operations.",
             "time",
             nodeStatsCache.indicesSearchFetchTimeInMillisSupplier()
         );
         registry.registerLongGauge(
-            "es.indices.merge.total",
+            "es.node.stats.indices.merge.total",
             "Total number of merge operations.",
             "operation",
             nodeStatsCache.indicesMergeTotalSupplier()
         );
         registry.registerLongGauge(
-            "es.indices.merge.time_in_millis",
+            "es.node.stats.indices.merge.time_in_millis",
             "Time in milliseconds spent performing merge operations.",
             "time",
             nodeStatsCache.indicesMergeTotalTimeInMillisSupplier()
         );
         registry.registerLongGauge(
-            "es.indices.translog.operations",
+            "es.node.stats.indices.translog.operations",
             "Number of transaction log operations.",
             "operation",
             nodeStatsCache.indicesTranslogOperationSupplier()
         );
         registry.registerLongGauge(
-            "es.indices.translog.size",
+            "es.node.stats.indices.translog.size",
             "Size, in bytes, of the transaction log.",
             "bytes",
             nodeStatsCache.indicesTranslogSizeInBytesSupplier()
         );
         registry.registerLongGauge(
-            "es.indices.translog.uncommitted_operations",
+            "es.node.stats.indices.translog.uncommitted_operations",
             "Number of uncommitted transaction log operations.",
             "operations",
             nodeStatsCache.indicesTranslogUncommittedOperationsSupplier()
         );
         registry.registerLongGauge(
-            "es.indices.translog.uncommitted_size_in_bytes",
+            "es.node.stats.indices.translog.uncommitted_size_in_bytes",
             "Size, in bytes, of uncommitted transaction log operations.",
             "bytes",
             nodeStatsCache.indicesTranslogUncommittedSizeInBytesSupplier()
         );
         registry.registerLongGauge(
-            "es.indices.translog.earliest_last_modified_age",
+            "es.node.stats.indices.translog.earliest_last_modified_age",
             "Earliest last modified age for the transaction log.",
             "time",
             nodeStatsCache.indicesTranslogEariestLastModifiedAgeSupplier()
         );
         registry.registerLongGauge(
-            "es.http.current_open",
+            "es.node.stats.http.current_open",
             "Current number of open HTTP connections for the node.",
             "connections",
             nodeStatsCache.httpCurrentOpenSupplier()
         );
         registry.registerLongGauge(
-            "es.transport.rx_size_in_bytes",
+            "es.node.stats.transport.rx_size_in_bytes",
             "Size, in bytes, of RX packets received by the node during internal cluster communication.",
             "bytes",
             nodeStatsCache.transportRxSizeInBytesSupplier()
         );
         registry.registerLongGauge(
-            "es.transport.tx_size_in_bytes",
+            "es.node.stats.transport.tx_size_in_bytes",
             "Size, in bytes, of TX packets sent by the node during internal cluster communication.",
             "bytes",
             nodeStatsCache.transportTxSizeInBytesSupplier()

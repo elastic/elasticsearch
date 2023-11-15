@@ -71,7 +71,7 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
             nodeMetadata.upgradeToCurrentVersion();
             throw new ElasticsearchException(
                 "found ["
-                    + nodeMetadata
+                    + nodeMetadata.nodeIndexVersion()
                     + "] which is compatible with current version ["
                     + Version.CURRENT
                     + "], so there is no need to override the version checks"

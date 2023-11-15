@@ -628,7 +628,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             assertThat(
                 ex.getMessage(),
                 allOf(
-                    startsWith("cannot upgrade a node from version [" + oldVersion + "] directly"),
+                    startsWith("cannot upgrade a node from version [" + oldVersion.id() + "] directly"),
                     containsString("upgrade to version [" + Build.current().minWireCompatVersion())
                 )
             );

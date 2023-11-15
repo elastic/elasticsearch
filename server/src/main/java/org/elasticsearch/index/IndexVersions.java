@@ -130,7 +130,7 @@ public class IndexVersions {
         Map<Integer, String> versionIdFields = new HashMap<>();
         NavigableMap<Integer, IndexVersion> builder = new TreeMap<>();
 
-        Set<String> ignore = Set.of("ZERO", "MINIMUM_COMPATIBLE");
+        Set<String> ignore = Set.of("ZERO", "MINIMUM_COMPATIBLE", "MINIMUM_IN_PLACE_UPGRADE_COMPATIBLE");
 
         for (Field declaredField : cls.getFields()) {
             if (declaredField.getType().equals(IndexVersion.class)) {

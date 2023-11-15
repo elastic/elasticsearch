@@ -100,7 +100,7 @@ public class NodeMetadataTests extends ESTestCase {
             ),
             IndexVersion.current()
         ).upgradeToCurrentVersion();
-        assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
+        assertThat(nodeMetadata.nodeIndexVersion(), equalTo(IndexVersion.current()));
         assertThat(nodeMetadata.nodeId(), equalTo(nodeId));
     }
 
@@ -114,7 +114,7 @@ public class NodeMetadataTests extends ESTestCase {
         assertThat(
             illegalStateException.getMessage(),
             startsWith(
-                "cannot upgrade a node from version [" + Version.V_EMPTY + "] directly to version [" + Build.current().version() + "]"
+                "cannot upgrade a node from version [" + IndexVersions.ZERO + "] directly to version [" + Build.current().version() + "]"
             )
         );
     }
@@ -155,7 +155,7 @@ public class NodeMetadataTests extends ESTestCase {
         final Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0);
 
         final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, version, IndexVersion.current()).upgradeToCurrentVersion();
-        assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
+        assertThat(nodeMetadata.nodeIndexVersion(), equalTo(IndexVersion.current()));
         assertThat(nodeMetadata.previousNodeVersion(), equalTo(version));
     }
 

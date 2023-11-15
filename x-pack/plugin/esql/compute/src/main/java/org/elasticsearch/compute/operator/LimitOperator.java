@@ -101,7 +101,7 @@ public class LimitOperator implements Operator {
                 success = true;
             } finally {
                 if (success == false) {
-                    Releasables.closeExpectNoException(lastInput::releaseBlocks, Releasables.wrap(Block.releaseByDecRef(blocks)));
+                    Releasables.closeExpectNoException(lastInput::releaseBlocks, Releasables.wrap(blocks));
                 } else {
                     lastInput.releaseBlocks();
                 }

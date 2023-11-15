@@ -295,7 +295,7 @@ public class OrdinalsGroupingOperator implements Operator {
                 return new Page(blocks);
             } finally {
                 if (success == false) {
-                    Releasables.closeExpectNoException(Block.releaseByDecRef(blocks));
+                    Releasables.closeExpectNoException(blocks);
                 }
             }
         } finally {

@@ -225,7 +225,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
                 }
             } finally {
                 if (blocks[blocks.length - 1] == null) {
-                    Releasables.closeExpectNoException(releaseByDecRef(blocks));
+                    Releasables.closeExpectNoException(blocks);
                 }
             }
             return blocks;
@@ -283,21 +283,5 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             BooleanBlock.ENTRY,
             ConstantNullBlock.ENTRY
         );
-    }
-
-    static Releasable releaseByDecRef(Block b) {
-        return () -> {
-            if (b != null) {
-                b.decRef();
-            }
-        };
-    }
-
-    static Releasable[] releaseByDecRef(Block... blocks) {
-        Releasable[] mappedBlocks = new Releasable[blocks.length];
-        for (int i = 0; i < blocks.length; i++) {
-            mappedBlocks[i] = releaseByDecRef(blocks[i]);
-        }
-        return mappedBlocks;
     }
 }

@@ -112,7 +112,7 @@ public class AggregationOperator implements Operator {
             success = true;
         } finally {
             if (success == false && blocks != null) {
-                Releasables.closeExpectNoException(Block.releaseByDecRef(blocks));
+                Releasables.closeExpectNoException(blocks);
             }
         }
     }

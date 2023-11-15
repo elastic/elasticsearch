@@ -98,7 +98,7 @@ public final class BlockUtils {
             return blocks;
         } finally {
             if (success == false) {
-                Releasables.closeExpectNoException(Block.releaseByDecRef(blocks));
+                Releasables.closeExpectNoException(blocks);
             }
         }
     }

@@ -164,7 +164,7 @@ public class HashAggregationOperator implements Operator {
                 selected.asBlock().decRef(); // we always close blocks, not vectors
             }
             if (success == false && blocks != null) {
-                Releasables.closeExpectNoException(Block.releaseByDecRef(blocks));
+                Releasables.closeExpectNoException(blocks);
             }
         }
     }

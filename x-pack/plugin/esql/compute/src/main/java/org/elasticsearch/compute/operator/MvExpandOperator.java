@@ -149,7 +149,7 @@ public class MvExpandOperator implements Operator {
             success = true;
         } finally {
             if (success == false) {
-                Releasables.closeExpectNoException(Block.releaseByDecRef(result));
+                Releasables.closeExpectNoException(result);
             }
         }
         if (nextItemOnExpanded == expandedBlock.getPositionCount()) {

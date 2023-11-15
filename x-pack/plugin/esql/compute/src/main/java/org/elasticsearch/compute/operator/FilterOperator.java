@@ -80,7 +80,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
             } finally {
                 page.releaseBlocks();
                 if (success == false) {
-                    Releasables.closeExpectNoException(Block.releaseByDecRef(filteredBlocks));
+                    Releasables.closeExpectNoException(filteredBlocks);
                 }
             }
             return new Page(filteredBlocks);

@@ -39,7 +39,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class BasicBlockTests extends ESTestCase {
-
     final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
     final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
     final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);

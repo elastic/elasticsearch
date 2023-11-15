@@ -36,8 +36,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.compute.data.Block.releaseByDecRef;
-
 /**
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
  */
@@ -221,7 +219,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             page = new Page(size, new DocVector(shard.asVector(), segments, docs, null).asBlock());
         } finally {
             if (page == null) {
-                Releasables.closeExpectNoException(releaseByDecRef(shard), segments, docs);
+                Releasables.closeExpectNoException(shard, segments, docs);
             }
         }
         pagesEmitted++;

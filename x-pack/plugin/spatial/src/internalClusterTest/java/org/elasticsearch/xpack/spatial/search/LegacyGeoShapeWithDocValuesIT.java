@@ -57,7 +57,6 @@ public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
             indicesAdmin().prepareCreate("test")
                 .setSettings(settings(randomSupportedVersion()).build())
                 .setMapping("shape", "type=geo_shape,strategy=recursive")
-                .get()
         );
         ensureGreen();
 
@@ -85,7 +84,6 @@ public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         assertAcked(
             prepareCreate("test").setSettings(settings(randomSupportedVersion()).build())
                 .setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash")
-                .get()
         );
         ensureGreen();
 

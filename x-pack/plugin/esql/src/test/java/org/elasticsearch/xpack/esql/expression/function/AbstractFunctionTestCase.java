@@ -61,12 +61,14 @@ import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -107,7 +109,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "ip" -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
             case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
-            case "version" -> new Version(randomIdentifier()).toBytesRef();
+            case "version" -> randomVersion().toBytesRef();
             case "null" -> null;
             default -> throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
         }, type);
@@ -456,10 +458,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public final void testEvaluatorToString() {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
-        var supplier = evaluator(buildFieldExpression(testCase));
-        try (ExpressionEvaluator ev = supplier.get(driverContext())) {
+        var factory = evaluator(buildFieldExpression(testCase));
+        try (ExpressionEvaluator ev = factory.get(driverContext())) {
             assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
         }
+    }
+
+    public final void testFactoryToString() {
+        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        var factory = evaluator(buildFieldExpression(testCase));
+        assertThat(factory.toString(), equalTo(testCase.evaluatorToString));
     }
 
     public final void testFold() {
@@ -508,17 +517,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         for (int i = 0; i < args.size(); i++) {
-            Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toSet());
+            Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toCollection(() -> new TreeSet<>()));
             if (annotationTypes.equals(Set.of("?"))) {
                 continue; // TODO remove this eventually, so that all the functions will have to provide signature info
             }
             Set<String> signatureTypes = typesFromSignature.get(i);
+            if (signatureTypes.isEmpty()) {
+                continue;
+            }
             assertEquals(annotationTypes, signatureTypes);
         }
 
-        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toSet());
-        if (returnTypes.equals(Set.of("?")) == false) { // TODO remove this eventually, so that all the functions will have to provide
-                                                        // singature info
+        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(() -> new TreeSet<>()));
+        if (returnTypes.equals(Set.of("?")) == false) {
+            // TODO remove this eventually, so that all the functions will have to provide signature info
             assertEquals(returnTypes, returnFromSignature);
         }
     }
@@ -536,11 +548,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      *                                   on input types like {@link Greatest} or {@link Coalesce}.
      */
     protected static List<TestCaseSupplier> anyNullIsNull(boolean entirelyNullPreservesType, List<TestCaseSupplier> testCaseSuppliers) {
-        for (TestCaseSupplier s : testCaseSuppliers) {
-            if (s.types() == null) {
-                throw new IllegalArgumentException("types required");
-            }
-        }
+        typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
@@ -615,11 +623,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * that they throw type errors.
      */
     protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
-        for (TestCaseSupplier s : testCaseSuppliers) {
-            if (s.types() == null) {
-                throw new IllegalArgumentException("types required");
-            }
-        }
+        typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
@@ -642,6 +646,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types))
             .forEach(suppliers::add);
         return suppliers;
+    }
+
+    private static void typesRequired(List<TestCaseSupplier> suppliers) {
+        String bad = suppliers.stream().filter(s -> s.types() == null).map(s -> s.name()).collect(Collectors.joining("\n"));
+        if (bad.equals("") == false) {
+            throw new IllegalArgumentException("types required but not found for these tests:\n" + bad);
+        }
     }
 
     private static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
@@ -735,7 +746,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
              * don't have a test case covering explicit `null` arguments in
              * this position. Generally you can get that with anyNullIsNull.
              */
-            throw new UnsupportedOperationException("can't guess expected types for " + validTypes);
+            throw new UnsupportedOperationException(
+                "can't guess expected types for " + validTypes.stream().sorted(Comparator.comparing(t -> t.typeName())).toList()
+            );
         }
         return named;
     }
@@ -882,5 +895,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (CircuitBreaker breaker : breakers) {
             assertThat(breaker.getUsed(), equalTo(0L));
         }
+    }
+
+    static Version randomVersion() {
+        // TODO degenerate versions and stuff
+        return switch (between(0, 2)) {
+            case 0 -> new Version(Integer.toString(between(0, 100)));
+            case 1 -> new Version(between(0, 100) + "." + between(0, 100));
+            case 2 -> new Version(between(0, 100) + "." + between(0, 100) + "." + between(0, 100));
+            default -> throw new IllegalArgumentException();
+        };
     }
 }

@@ -466,7 +466,6 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             indicesAdmin().prepareUpdateSettings("non-existent-*")
                 .setSettings(Settings.builder().put("index.number_of_replicas", 1))
                 .setIndicesOptions(options)
-                .get()
         );
         final int numberOfReplicas = Integer.parseInt(
             indicesAdmin().prepareGetSettings("test-index").get().getSetting("test-index", "index.number_of_replicas")

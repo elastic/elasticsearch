@@ -55,7 +55,7 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
     protected List<SearchBlockPlugin> initBlockFactory(boolean searchBlock, boolean fieldCapsBlock) {
         List<SearchBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(SearchBlockPlugin.class));
+            pluginsService.filterPlugins(SearchBlockPlugin.class).forEach(plugins::add);
         }
         for (SearchBlockPlugin plugin : plugins) {
             plugin.reset();

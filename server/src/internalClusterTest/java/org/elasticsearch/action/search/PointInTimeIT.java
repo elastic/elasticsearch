@@ -37,7 +37,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -449,7 +448,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                         .build()
                 )
         );
-        var transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getName());
+        final var transportService = MockTransportService.getInstance(dataNode.getName());
         try {
             CountDownLatch sentLatch = new CountDownLatch(maxConcurrentRequests);
             CountDownLatch readyLatch = new CountDownLatch(1);

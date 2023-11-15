@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.core.CheckedRunnable;
 
 import java.io.IOException;
@@ -35,6 +36,30 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
             run();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    static void doCheckNoMissingShards(String phaseName, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts) {
+        assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
+        if (request.allowPartialSearchResults() == false) {
+            final StringBuilder missingShards = new StringBuilder();
+            // Fail-fast verification of all shards being available
+            for (int index = 0; index < shardsIts.size(); index++) {
+                final SearchShardIterator shardRoutings = shardsIts.get(index);
+                if (shardRoutings.size() == 0) {
+                    if (missingShards.isEmpty() == false) {
+                        missingShards.append(", ");
+                    }
+                    missingShards.append(shardRoutings.shardId());
+                }
+            }
+            if (missingShards.isEmpty() == false) {
+                // Status red - shard is missing all copies and would produce partial results for an index search
+                final String msg = "Search rejected due to missing shards ["
+                    + missingShards
+                    + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
+                throw new SearchPhaseExecutionException(phaseName, msg, null, ShardSearchFailure.EMPTY_ARRAY);
+            }
         }
     }
 }

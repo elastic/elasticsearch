@@ -58,10 +58,7 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
         } finally {
             Settings settings = Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE).build();
             assertAcked(
-                indicesAdmin().prepareUpdateSettings("test")
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                    .setSettings(settings)
-                    .get()
+                indicesAdmin().prepareUpdateSettings("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setSettings(settings)
             );
         }
     }

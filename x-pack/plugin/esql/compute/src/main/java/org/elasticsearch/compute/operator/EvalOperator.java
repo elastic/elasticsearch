@@ -29,8 +29,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            // TODO ThrowingDriverContext blows up when combined with Concat
-            return "EvalOperator[evaluator=" + evaluator.get(new ThrowingDriverContext()) + "]";
+            return "EvalOperator[evaluator=" + evaluator + "]";
         }
     }
 
@@ -65,7 +64,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
     public interface ExpressionEvaluator extends Releasable {
         /** A Factory for creating ExpressionEvaluators. */
         interface Factory {
-            ExpressionEvaluator get(DriverContext driverContext);
+            ExpressionEvaluator get(DriverContext context);
         }
 
         /**
@@ -73,6 +72,18 @@ public class EvalOperator extends AbstractPageMappingOperator {
          */
         Block.Ref eval(Page page);
     }
+
+    public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ExpressionEvaluator.Factory() {
+        @Override
+        public ExpressionEvaluator get(DriverContext driverContext) {
+            return CONSTANT_NULL;
+        }
+
+        @Override
+        public String toString() {
+            return CONSTANT_NULL.toString();
+        }
+    };
 
     public static final ExpressionEvaluator CONSTANT_NULL = new ExpressionEvaluator() {
         @Override

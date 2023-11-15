@@ -19,7 +19,6 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -187,8 +186,7 @@ public class CCSDuelIT extends ESRestTestCase {
         IndexResponse indexResponse = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
         assertEquals(201, indexResponse.status().getStatus());
 
-        CreateIndexResponse response = createIndex(INDEX_NAME + "_empty");
-        assertTrue(response.isAcknowledged());
+        ElasticsearchAssertions.assertAcked(createIndex(INDEX_NAME + "_empty"));
 
         int numShards = randomIntBetween(1, 5);
         Settings settings = indexSettings(numShards, 0).build();
@@ -209,8 +207,7 @@ public class CCSDuelIT extends ESRestTestCase {
                 }
               }
             }""";
-        response = createIndex(INDEX_NAME, settings, mapping);
-        assertTrue(response.isAcknowledged());
+        ElasticsearchAssertions.assertAcked(createIndex(INDEX_NAME, settings, mapping));
 
         BulkProcessor2 bulkProcessor = BulkProcessor2.builder(
             (r, l) -> restHighLevelClient.bulkAsync(r, RequestOptions.DEFAULT, l),
@@ -1053,53 +1050,65 @@ public class CCSDuelIT extends ESRestTestCase {
                 throw new AssertionError("one of the two requests returned an exception", exception2.get());
             }
             SearchResponse minimizeRoundtripsSearchResponse = minimizeRoundtripsResponse.get();
+            SearchResponse fanOutSearchResponse = null;
+            try {
+                responseChecker.accept(minimizeRoundtripsSearchResponse);
 
-            responseChecker.accept(minimizeRoundtripsSearchResponse);
+                // if only the remote cluster was searched, then only one reduce phase is expected
+                int expectedReducePhasesMinRoundTrip = 1;
+                if (searchRequest.indices().length > 1) {
+                    expectedReducePhasesMinRoundTrip = searchRequest.indices().length + 1;
+                }
 
-            // if only the remote cluster was searched, then only one reduce phase is expected
-            int expectedReducePhasesMinRoundTrip = 1;
-            if (searchRequest.indices().length > 1) {
-                expectedReducePhasesMinRoundTrip = searchRequest.indices().length + 1;
+                assertEquals(expectedReducePhasesMinRoundTrip, minimizeRoundtripsSearchResponse.getNumReducePhases());
+                fanOutSearchResponse = fanOutResponse.get();
+                responseChecker.accept(fanOutSearchResponse);
+                assertEquals(1, fanOutSearchResponse.getNumReducePhases());
+
+                // compare Clusters objects
+                SearchResponse.Clusters clustersMRT = minimizeRoundtripsSearchResponse.getClusters();
+                SearchResponse.Clusters clustersMRTFalse = fanOutSearchResponse.getClusters();
+
+                assertEquals(clustersMRT.getTotal(), clustersMRTFalse.getTotal());
+                assertEquals(
+                    clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+                    clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
+                );
+                assertEquals(
+                    clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
+                    clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED)
+                );
+                assertEquals(
+                    clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING),
+                    clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING)
+                );
+                assertEquals(
+                    clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL),
+                    clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL)
+                );
+                assertEquals(
+                    clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.FAILED),
+                    clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.FAILED)
+                );
+
+                Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
+                if (clustersMRT.hasClusterObjects() && clustersMRTFalse.hasClusterObjects()) {
+                    Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
+                    compareResponseMaps(
+                        minimizeRoundtripsResponseMap,
+                        fanOutResponseMap,
+                        "Comparing sync_search minimizeRoundTrip vs. fanOut"
+                    );
+                    assertThat(
+                        minimizeRoundtripsSearchResponse.getSkippedShards(),
+                        lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards())
+                    );
+                }
+                return minimizeRoundtripsResponseMap;
+            } finally {
+                if (fanOutSearchResponse != null) fanOutSearchResponse.decRef();
+                if (minimizeRoundtripsSearchResponse != null) minimizeRoundtripsSearchResponse.decRef();
             }
-
-            assertEquals(expectedReducePhasesMinRoundTrip, minimizeRoundtripsSearchResponse.getNumReducePhases());
-            SearchResponse fanOutSearchResponse = fanOutResponse.get();
-            responseChecker.accept(fanOutSearchResponse);
-            assertEquals(1, fanOutSearchResponse.getNumReducePhases());
-
-            // compare Clusters objects
-            SearchResponse.Clusters clustersMRT = minimizeRoundtripsSearchResponse.getClusters();
-            SearchResponse.Clusters clustersMRTFalse = fanOutSearchResponse.getClusters();
-
-            assertEquals(clustersMRT.getTotal(), clustersMRTFalse.getTotal());
-            assertEquals(
-                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
-                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
-            );
-            assertEquals(
-                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
-                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED)
-            );
-            assertEquals(
-                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING),
-                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING)
-            );
-            assertEquals(
-                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL),
-                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL)
-            );
-            assertEquals(
-                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.FAILED),
-                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.FAILED)
-            );
-
-            Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
-            if (clustersMRT.hasClusterObjects() && clustersMRTFalse.hasClusterObjects()) {
-                Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
-                compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing sync_search minimizeRoundTrip vs. fanOut");
-                assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
-            }
-            return minimizeRoundtripsResponseMap;
         }
     }
 
@@ -1142,54 +1151,65 @@ public class CCSDuelIT extends ESRestTestCase {
         } finally {
             deleteAsyncSearch(fanOutResponse.getId());
         }
-        SearchResponse minimizeRoundtripsSearchResponse = minimizeRoundtripsResponse.getSearchResponse();
-        SearchResponse fanOutSearchResponse = fanOutResponse.getSearchResponse();
+        SearchResponse minimizeRoundtripsSearchResponse = null;
+        SearchResponse fanOutSearchResponse = null;
+        try {
+            fanOutSearchResponse = fanOutResponse.getSearchResponse();
+            minimizeRoundtripsSearchResponse = minimizeRoundtripsResponse.getSearchResponse();
 
-        responseChecker.accept(minimizeRoundtripsSearchResponse);
+            responseChecker.accept(minimizeRoundtripsSearchResponse);
 
-        // if only the remote cluster was searched, then only one reduce phase is expected
-        int expectedReducePhasesMinRoundTrip = 1;
-        if (searchRequest.indices().length > 1) {
-            expectedReducePhasesMinRoundTrip = searchRequest.indices().length + 1;
+            // if only the remote cluster was searched, then only one reduce phase is expected
+            int expectedReducePhasesMinRoundTrip = 1;
+            if (searchRequest.indices().length > 1) {
+                expectedReducePhasesMinRoundTrip = searchRequest.indices().length + 1;
+            }
+            assertEquals(expectedReducePhasesMinRoundTrip, minimizeRoundtripsSearchResponse.getNumReducePhases());
+
+            responseChecker.accept(fanOutSearchResponse);
+            assertEquals(1, fanOutSearchResponse.getNumReducePhases());
+
+            // compare Clusters objects
+            SearchResponse.Clusters clustersMRT = minimizeRoundtripsSearchResponse.getClusters();
+            SearchResponse.Clusters clustersMRTFalse = fanOutSearchResponse.getClusters();
+
+            assertEquals(clustersMRT.getTotal(), clustersMRTFalse.getTotal());
+            assertEquals(
+                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
+            );
+            assertEquals(
+                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
+                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED)
+            );
+            assertEquals(
+                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING),
+                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING)
+            );
+            assertEquals(
+                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL),
+                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL)
+            );
+            assertEquals(
+                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.FAILED),
+                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.FAILED)
+            );
+
+            Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
+            if (clustersMRT.hasClusterObjects() && clustersMRTFalse.hasClusterObjects()) {
+                Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
+                compareResponseMaps(
+                    minimizeRoundtripsResponseMap,
+                    fanOutResponseMap,
+                    "Comparing async_search minimizeRoundTrip vs. fanOut"
+                );
+                assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
+            }
+            return minimizeRoundtripsResponseMap;
+        } finally {
+            if (minimizeRoundtripsSearchResponse != null) minimizeRoundtripsSearchResponse.decRef();
+            if (fanOutSearchResponse != null) fanOutSearchResponse.decRef();
         }
-        assertEquals(expectedReducePhasesMinRoundTrip, minimizeRoundtripsSearchResponse.getNumReducePhases());
-
-        responseChecker.accept(fanOutSearchResponse);
-        assertEquals(1, fanOutSearchResponse.getNumReducePhases());
-
-        // compare Clusters objects
-        SearchResponse.Clusters clustersMRT = minimizeRoundtripsSearchResponse.getClusters();
-        SearchResponse.Clusters clustersMRTFalse = fanOutSearchResponse.getClusters();
-
-        assertEquals(clustersMRT.getTotal(), clustersMRTFalse.getTotal());
-        assertEquals(
-            clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
-            clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
-        );
-        assertEquals(
-            clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
-            clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED)
-        );
-        assertEquals(
-            clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING),
-            clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING)
-        );
-        assertEquals(
-            clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL),
-            clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL)
-        );
-        assertEquals(
-            clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.FAILED),
-            clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.FAILED)
-        );
-
-        Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
-        if (clustersMRT.hasClusterObjects() && clustersMRTFalse.hasClusterObjects()) {
-            Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
-            compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing async_search minimizeRoundTrip vs. fanOut");
-            assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
-        }
-        return minimizeRoundtripsResponseMap;
     }
 
     private static void compareResponseMaps(Map<String, Object> responseMap1, Map<String, Object> responseMap2, String info) {

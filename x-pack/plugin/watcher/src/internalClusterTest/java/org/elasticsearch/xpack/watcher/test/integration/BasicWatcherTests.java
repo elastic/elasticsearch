@@ -236,7 +236,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                     ),
                     XContentType.JSON
                 )
-                .get()
         );
 
         Script template = new Script(ScriptType.STORED, null, "my-template", Collections.emptyMap());
@@ -279,9 +278,13 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         // Check that the input result payload has been filtered
         refresh();
         SearchResponse searchResponse = searchWatchRecords(builder -> builder.setQuery(matchQuery("watch_id", "_name1")));
-        assertHitCount(searchResponse, 1);
-        XContentSource source = xContentSource(searchResponse.getHits().getAt(0).getSourceRef());
-        assertThat(source.getValue("result.input.payload.hits.total"), equalTo((Object) 1));
+        try {
+            assertHitCount(searchResponse, 1);
+            XContentSource source = xContentSource(searchResponse.getHits().getAt(0).getSourceRef());
+            assertThat(source.getValue("result.input.payload.hits.total"), equalTo((Object) 1));
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void testPutWatchWithNegativeSchedule() throws Exception {

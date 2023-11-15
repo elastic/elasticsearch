@@ -1,0 +1,6 @@
+pr: 101066
+summary: Log errors in `RestResponse` regardless of `error_trace` parameter
+area: "Infra/Core"
+type: enhancement
+issues:
+ - 100884

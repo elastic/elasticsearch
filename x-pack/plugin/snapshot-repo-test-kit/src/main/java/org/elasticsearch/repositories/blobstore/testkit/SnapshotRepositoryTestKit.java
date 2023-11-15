@@ -30,13 +30,7 @@ public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(
-            new ActionHandler<>(RepositoryAnalyzeAction.INSTANCE, RepositoryAnalyzeAction.TransportAction.class),
-            new ActionHandler<>(BlobAnalyzeAction.INSTANCE, BlobAnalyzeAction.TransportAction.class),
-            new ActionHandler<>(GetBlobChecksumAction.INSTANCE, GetBlobChecksumAction.TransportAction.class),
-            new ActionHandler<>(ContendedRegisterAnalyzeAction.INSTANCE, ContendedRegisterAnalyzeAction.TransportAction.class),
-            new ActionHandler<>(UncontendedRegisterAnalyzeAction.INSTANCE, UncontendedRegisterAnalyzeAction.TransportAction.class)
-        );
+        return List.of(new ActionHandler<>(RepositoryAnalyzeAction.INSTANCE, RepositoryAnalyzeAction.class));
     }
 
     @Override

@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
@@ -22,7 +21,8 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -41,115 +41,114 @@ import java.util.Map;
 import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.bytesFromLong;
 import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
 
-public class UncontendedRegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
+class UncontendedRegisterAnalyzeAction extends HandledTransportAction<UncontendedRegisterAnalyzeAction.Request, ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(UncontendedRegisterAnalyzeAction.class);
 
-    public static final UncontendedRegisterAnalyzeAction INSTANCE = new UncontendedRegisterAnalyzeAction();
-    public static final String NAME = "cluster:admin/repository/analyze/register/uncontended";
+    static final String NAME = "cluster:admin/repository/analyze/register/uncontended";
 
-    private UncontendedRegisterAnalyzeAction() {
-        super(NAME, in -> ActionResponse.Empty.INSTANCE);
+    private final RepositoriesService repositoriesService;
+
+    UncontendedRegisterAnalyzeAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        RepositoriesService repositoriesService
+    ) {
+        super(NAME, transportService, actionFilters, Request::new, transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT));
+        this.repositoriesService = repositoriesService;
     }
 
-    public static class TransportAction extends HandledTransportAction<Request, ActionResponse.Empty> {
+    @Override
+    protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
+        logger.trace("handling [{}]", request);
+        updateRegister(
+            request,
+            bytesFromLong(request.getExpectedValue() + 1),
+            repositoriesService.repository(request.getRepositoryName()),
+            ActionListener.assertOnce(listener.map(ignored -> ActionResponse.Empty.INSTANCE))
+        );
+    }
 
-        private static final Logger logger = UncontendedRegisterAnalyzeAction.logger;
+    static void verifyFinalValue(Request request, Repository repository, ActionListener<Void> listener) {
+        // ensure that the repo accepts an empty register
+        logger.trace("handling final value [{}]", request);
+        updateRegister(request, BytesArray.EMPTY, repository, ActionListener.assertOnce(listener));
+    }
 
-        private final RepositoriesService repositoriesService;
-
-        @Inject
-        public TransportAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
-            super(
-                NAME,
-                transportService,
-                actionFilters,
-                Request::new,
-                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT)
-            );
-            this.repositoriesService = repositoriesService;
+    private static void updateRegister(Request request, BytesReference newValue, Repository repository, ActionListener<Void> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
+        if (repository instanceof BlobStoreRepository == false) {
+            throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
         }
+        if (repository.isReadOnly()) {
+            throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is read-only");
+        }
+        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+        final BlobPath path = blobStoreRepository.basePath().add(request.getContainerPath());
+        final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(path);
 
-        @Override
-        protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> outerListener) {
-            final ActionListener<Void> listener = ActionListener.assertOnce(outerListener.map(ignored -> ActionResponse.Empty.INSTANCE));
-            final Repository repository = repositoriesService.repository(request.getRepositoryName());
-            if (repository instanceof BlobStoreRepository == false) {
-                throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
-            }
-            if (repository.isReadOnly()) {
-                throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is read-only");
-            }
-            final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-            final BlobPath path = blobStoreRepository.basePath().add(request.getContainerPath());
-            final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(path);
-
-            logger.trace("handling [{}]", request);
-
-            assert task instanceof CancellableTask;
-            blobContainer.compareAndExchangeRegister(
-                OperationPurpose.REPOSITORY_ANALYSIS,
-                request.getRegisterName(),
-                bytesFromLong(request.getExpectedValue()),
-                bytesFromLong(request.getExpectedValue() + 1),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(OptionalBytesReference optionalBytesReference) {
-                        ActionListener.completeWith(listener, () -> {
-                            if (optionalBytesReference.isPresent() == false) {
-                                throw new RepositoryVerificationException(
-                                    repository.getMetadata().name(),
-                                    Strings.format(
-                                        "uncontended register operation failed: expected [%d] but did not observe any value",
-                                        request.getExpectedValue()
-                                    )
-                                );
-                            }
-
-                            final var witness = longFromBytes(optionalBytesReference.bytesReference());
-                            if (witness != request.getExpectedValue()) {
-                                throw new RepositoryVerificationException(
-                                    repository.getMetadata().name(),
-                                    Strings.format(
-                                        "uncontended register operation failed: expected [%d] but observed [%d]",
-                                        request.getExpectedValue(),
-                                        witness
-                                    )
-                                );
-                            }
-
-                            return null;
-                        });
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (e instanceof UnsupportedOperationException) {
-                            // Registers are not supported on all repository types, and that's ok.
-                            listener.onResponse(null);
-                        } else {
-                            listener.onFailure(e);
+        blobContainer.compareAndExchangeRegister(
+            OperationPurpose.REPOSITORY_ANALYSIS,
+            request.getRegisterName(),
+            bytesFromLong(request.getExpectedValue()),
+            newValue,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(OptionalBytesReference optionalBytesReference) {
+                    ActionListener.completeWith(listener, () -> {
+                        if (optionalBytesReference.isPresent() == false) {
+                            throw new RepositoryVerificationException(
+                                repository.getMetadata().name(),
+                                Strings.format(
+                                    "uncontended register operation failed: expected [%d] but did not observe any value",
+                                    request.getExpectedValue()
+                                )
+                            );
                         }
+
+                        final var witness = longFromBytes(optionalBytesReference.bytesReference());
+                        if (witness != request.getExpectedValue()) {
+                            throw new RepositoryVerificationException(
+                                repository.getMetadata().name(),
+                                Strings.format(
+                                    "uncontended register operation failed: expected [%d] but observed [%d]",
+                                    request.getExpectedValue(),
+                                    witness
+                                )
+                            );
+                        }
+
+                        return null;
+                    });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof UnsupportedOperationException) {
+                        // Registers are not supported on all repository types, and that's ok.
+                        listener.onResponse(null);
+                    } else {
+                        listener.onFailure(e);
                     }
                 }
-            );
-        }
+            }
+        );
     }
 
-    public static class Request extends ActionRequest {
+    static class Request extends ActionRequest {
         private final String repositoryName;
         private final String containerPath;
         private final String registerName;
         private final long expectedValue;
 
-        public Request(String repositoryName, String containerPath, String registerName, long expectedValue) {
+        Request(String repositoryName, String containerPath, String registerName, long expectedValue) {
             this.repositoryName = repositoryName;
             this.containerPath = containerPath;
             this.registerName = registerName;
             this.expectedValue = expectedValue;
         }
 
-        public Request(StreamInput in) throws IOException {
+        Request(StreamInput in) throws IOException {
             super(in);
             assert in.getTransportVersion().onOrAfter(TransportVersions.UNCONTENDED_REGISTER_ANALYSIS_ADDED);
             repositoryName = in.readString();
@@ -173,19 +172,19 @@ public class UncontendedRegisterAnalyzeAction extends ActionType<ActionResponse.
             return null;
         }
 
-        public String getRepositoryName() {
+        String getRepositoryName() {
             return repositoryName;
         }
 
-        public String getContainerPath() {
+        String getContainerPath() {
             return containerPath;
         }
 
-        public String getRegisterName() {
+        String getRegisterName() {
             return registerName;
         }
 
-        public long getExpectedValue() {
+        long getExpectedValue() {
             return expectedValue;
         }
 

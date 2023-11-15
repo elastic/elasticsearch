@@ -92,102 +92,100 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  * the results. Tries to fail fast by cancelling everything if any child task fails, or the timeout is reached, to avoid consuming
  * unnecessary resources. On completion, does a best-effort wait until the blob list contains all the expected blobs, then deletes them all.
  */
-public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.Response> {
+public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAnalyzeAction.Request, RepositoryAnalyzeAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(RepositoryAnalyzeAction.class);
 
-    public static final RepositoryAnalyzeAction INSTANCE = new RepositoryAnalyzeAction();
-    public static final String NAME = "cluster:admin/repository/analyze";
+    public static final ActionType<RepositoryAnalyzeAction.Response> INSTANCE = ActionType.localOnly("cluster:admin/repository/analyze");
 
     static final String UNCONTENDED_REGISTER_NAME_PREFIX = "test-register-uncontended-";
     static final String CONTENDED_REGISTER_NAME_PREFIX = "test-register-contended-";
 
-    private RepositoryAnalyzeAction() {
-        super(NAME, Response::new);
+    private final TransportService transportService;
+    private final ClusterService clusterService;
+    private final RepositoriesService repositoriesService;
+
+    @Inject
+    public RepositoryAnalyzeAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        RepositoriesService repositoriesService
+    ) {
+        super(INSTANCE.name(), transportService, actionFilters, RepositoryAnalyzeAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.transportService = transportService;
+        this.clusterService = clusterService;
+        this.repositoriesService = repositoriesService;
+
+        // construct (and therefore implicitly register) the subsidiary actions
+        new BlobAnalyzeAction(transportService, actionFilters, repositoriesService);
+        new GetBlobChecksumAction(transportService, actionFilters, repositoriesService);
+        new ContendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
+        new UncontendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
     }
 
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    @Override
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        final ClusterState state = clusterService.state();
 
-        private final TransportService transportService;
-        private final ClusterService clusterService;
-        private final RepositoriesService repositoriesService;
+        final ThreadPool threadPool = transportService.getThreadPool();
+        request.reseed(threadPool.relativeTimeInMillis());
 
-        @Inject
-        public TransportAction(
-            TransportService transportService,
-            ActionFilters actionFilters,
-            ClusterService clusterService,
-            RepositoriesService repositoriesService
-        ) {
-            super(NAME, transportService, actionFilters, RepositoryAnalyzeAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            this.transportService = transportService;
-            this.clusterService = clusterService;
-            this.repositoriesService = repositoriesService;
+        final DiscoveryNode localNode = transportService.getLocalNode();
+        if (isSnapshotNode(localNode)) {
+            final Repository repository = repositoriesService.repository(request.getRepositoryName());
+            if (repository instanceof BlobStoreRepository == false) {
+                throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
+            }
+            if (repository.isReadOnly()) {
+                throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is read-only");
+            }
+
+            assert task instanceof CancellableTask;
+            new AsyncAction(
+                transportService,
+                (BlobStoreRepository) repository,
+                (CancellableTask) task,
+                request,
+                state.nodes(),
+                state.getMinTransportVersion(),
+                threadPool::relativeTimeInMillis,
+                listener
+            ).run();
+            return;
         }
 
-        @Override
-        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            final ClusterState state = clusterService.state();
+        if (request.getReroutedFrom() != null) {
+            assert false : request.getReroutedFrom();
+            throw new IllegalArgumentException(
+                "analysis of repository ["
+                    + request.getRepositoryName()
+                    + "] rerouted from ["
+                    + request.getReroutedFrom()
+                    + "] to non-snapshot node"
+            );
+        }
 
-            final ThreadPool threadPool = transportService.getThreadPool();
-            request.reseed(threadPool.relativeTimeInMillis());
-
-            final DiscoveryNode localNode = transportService.getLocalNode();
-            if (isSnapshotNode(localNode)) {
-                final Repository repository = repositoriesService.repository(request.getRepositoryName());
-                if (repository instanceof BlobStoreRepository == false) {
-                    throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
-                }
-                if (repository.isReadOnly()) {
-                    throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is read-only");
-                }
-
-                assert task instanceof CancellableTask;
-                new AsyncAction(
-                    transportService,
-                    (BlobStoreRepository) repository,
-                    (CancellableTask) task,
-                    request,
-                    state.nodes(),
-                    state.getMinTransportVersion(),
-                    threadPool::relativeTimeInMillis,
-                    listener
-                ).run();
-                return;
+        request.reroutedFrom(localNode);
+        final List<DiscoveryNode> snapshotNodes = getSnapshotNodes(state.nodes());
+        if (snapshotNodes.isEmpty()) {
+            listener.onFailure(
+                new IllegalArgumentException("no snapshot nodes found for analysis of repository [" + request.getRepositoryName() + "]")
+            );
+        } else {
+            if (snapshotNodes.size() > 1) {
+                snapshotNodes.remove(state.nodes().getMasterNode());
             }
-
-            if (request.getReroutedFrom() != null) {
-                assert false : request.getReroutedFrom();
-                throw new IllegalArgumentException(
-                    "analysis of repository ["
-                        + request.getRepositoryName()
-                        + "] rerouted from ["
-                        + request.getReroutedFrom()
-                        + "] to non-snapshot node"
-                );
-            }
-
-            request.reroutedFrom(localNode);
-            final List<DiscoveryNode> snapshotNodes = getSnapshotNodes(state.nodes());
-            if (snapshotNodes.isEmpty()) {
-                listener.onFailure(
-                    new IllegalArgumentException("no snapshot nodes found for analysis of repository [" + request.getRepositoryName() + "]")
-                );
-            } else {
-                if (snapshotNodes.size() > 1) {
-                    snapshotNodes.remove(state.nodes().getMasterNode());
-                }
-                final DiscoveryNode targetNode = snapshotNodes.get(new Random(request.getSeed()).nextInt(snapshotNodes.size()));
-                RepositoryAnalyzeAction.logger.trace("rerouting analysis [{}] to [{}]", request.getDescription(), targetNode);
-                transportService.sendChildRequest(
-                    targetNode,
-                    NAME,
-                    request,
-                    task,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(listener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
-                );
-            }
+            final DiscoveryNode targetNode = snapshotNodes.get(new Random(request.getSeed()).nextInt(snapshotNodes.size()));
+            RepositoryAnalyzeAction.logger.trace("rerouting analysis [{}] to [{}]", request.getDescription(), targetNode);
+            transportService.sendChildRequest(
+                targetNode,
+                INSTANCE.name(),
+                request,
+                task,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
+            );
         }
     }
 
@@ -437,22 +435,10 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         }
 
         /**
-         * Check that we haven't already failed or been cancelled or timed out; if newly cancelled or timed out then record this as the root
-         * cause of failure.
+         * Check that we haven't already failed (including cancellation and timing out).
          */
         private boolean isRunning() {
-            if (failure.get() != null) {
-                return false;
-            }
-
-            if (task.isCancelled()) {
-                setFirstFailure(new RepositoryVerificationException(request.repositoryName, "verification cancelled"));
-                // if this CAS failed then we're failing for some other reason, nbd; also if the task is cancelled then its descendants are
-                // also cancelled, so no further action is needed either way.
-                return false;
-            }
-
-            return true;
+            return failure.get() == null;
         }
 
         private class CheckForCancelListener implements ActionListener<Void> {
@@ -485,6 +471,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             cancellationListener.addTimeout(request.getTimeout(), repository.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             cancellationListener.addListener(new CheckForCancelListener());
 
+            task.addListener(() -> setFirstFailure(new RepositoryVerificationException(request.repositoryName, "analysis cancelled")));
+
             final Random random = new Random(request.getSeed());
             final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);
 
@@ -500,7 +488,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                         )
                     )
                 ) {
-                    final int registerOperations = Math.max(nodes.size(), request.getConcurrency());
+                    final int registerOperations = Math.max(nodes.size(), request.getRegisterOperationCount());
                     for (int i = 0; i < registerOperations; i++) {
                         final ContendedRegisterAnalyzeAction.Request registerAnalyzeRequest = new ContendedRegisterAnalyzeAction.Request(
                             request.getRepositoryName(),
@@ -742,23 +730,45 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     return;
                 }
 
-                // complete at least request.getConcurrency() steps, but we may as well keep running for longer too
-                if (currentValue > request.getConcurrency() && otherAnalysisComplete.get()) {
-                    return;
+                if (currentValue <= request.getRegisterOperationCount() || otherAnalysisComplete.get() == false) {
+                    // complete at least request.getRegisterOperationCount() steps, but we may as well keep running for longer too
+                    transportService.sendChildRequest(
+                        nodes.get(currentValue < nodes.size() ? currentValue : random.nextInt(nodes.size())),
+                        UncontendedRegisterAnalyzeAction.NAME,
+                        new UncontendedRegisterAnalyzeAction.Request(request.getRepositoryName(), blobPath, registerName, currentValue),
+                        task,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(
+                            ActionListener.releaseAfter(stepListener, requestRefs.acquire()),
+                            in -> ActionResponse.Empty.INSTANCE,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
+                    );
+                } else {
+                    transportService.getThreadPool()
+                        .executor(ThreadPool.Names.SNAPSHOT)
+                        .execute(
+                            ActionRunnable.<Void>wrap(
+                                ActionListener.releaseAfter(
+                                    ActionListener.wrap(
+                                        r -> logger.trace("uncontended register analysis succeeded"),
+                                        AsyncAction.this::fail
+                                    ),
+                                    requestRefs.acquire()
+                                ),
+                                l -> UncontendedRegisterAnalyzeAction.verifyFinalValue(
+                                    new UncontendedRegisterAnalyzeAction.Request(
+                                        request.getRepositoryName(),
+                                        blobPath,
+                                        registerName,
+                                        currentValue
+                                    ),
+                                    repository,
+                                    l
+                                )
+                            )
+                        );
                 }
-
-                transportService.sendChildRequest(
-                    nodes.get(currentValue < nodes.size() ? currentValue : random.nextInt(nodes.size())),
-                    UncontendedRegisterAnalyzeAction.NAME,
-                    new UncontendedRegisterAnalyzeAction.Request(request.getRepositoryName(), blobPath, registerName, currentValue),
-                    task,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(
-                        ActionListener.releaseAfter(stepListener, requestRefs.acquire()),
-                        in -> ActionResponse.Empty.INSTANCE,
-                        TransportResponseHandler.TRANSPORT_WORKER
-                    )
-                );
             }
         }
 
@@ -877,6 +887,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
         private int blobCount = 100;
         private int concurrency = 10;
+        private int registerOperationCount = 10;
         private int readNodeCount = 10;
         private int earlyReadNodeCount = 2;
         private long seed = 0L;
@@ -899,6 +910,11 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             rareActionProbability = in.readDouble();
             blobCount = in.readVInt();
             concurrency = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED)) {
+                registerOperationCount = in.readVInt();
+            } else {
+                registerOperationCount = concurrency;
+            }
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
             timeout = in.readTimeValue();
@@ -926,6 +942,15 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             out.writeDouble(rareActionProbability);
             out.writeVInt(blobCount);
             out.writeVInt(concurrency);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED)) {
+                out.writeVInt(registerOperationCount);
+            } else if (registerOperationCount != concurrency) {
+                throw new IllegalArgumentException(
+                    "cannot send request with registerOperationCount != concurrency on transport version ["
+                        + out.getTransportVersion()
+                        + "]"
+                );
+            }
             out.writeVInt(readNodeCount);
             out.writeVInt(earlyReadNodeCount);
             out.writeTimeValue(timeout);
@@ -936,7 +961,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeBoolean(abortWritePermitted);
             } else if (abortWritePermitted) {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     "cannot send abortWritePermitted request on transport version [" + out.getTransportVersion() + "]"
                 );
             }
@@ -963,6 +988,13 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                 throw new IllegalArgumentException("concurrency must be >0, but was [" + concurrency + "]");
             }
             this.concurrency = concurrency;
+        }
+
+        public void registerOperationCount(int registerOperationCount) {
+            if (registerOperationCount <= 0) {
+                throw new IllegalArgumentException("registerOperationCount must be >0, but was [" + registerOperationCount + "]");
+            }
+            this.registerOperationCount = registerOperationCount;
         }
 
         public void seed(long seed) {
@@ -997,6 +1029,10 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
         public int getConcurrency() {
             return concurrency;
+        }
+
+        public int getRegisterOperationCount() {
+            return registerOperationCount;
         }
 
         public String getRepositoryName() {

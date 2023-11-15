@@ -12,7 +12,9 @@ import java.nio.file.Files
 
 String buildNumber = System.getenv('BUILD_NUMBER') ?: System.getenv('BUILDKITE_BUILD_NUMBER')
 String performanceTest = System.getenv('BUILD_PERFORMANCE_TEST')
-if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(project) == false) {
+Boolean isNested = System.getProperty("scan.tag.NESTED") != null
+
+if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(project) == false && isNested == false) {
   def uploadFilePath = "build/${buildNumber}.tar.bz2"
   File uploadFile = file(uploadFilePath)
   project.gradle.buildFinished { result ->

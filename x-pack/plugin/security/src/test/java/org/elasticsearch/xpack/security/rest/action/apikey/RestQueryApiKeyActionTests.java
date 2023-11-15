@@ -102,7 +102,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             }
         };
 
-        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -127,10 +127,9 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
                 assertThat(((PrefixQueryBuilder) shouldQueryBuilder).fieldName(), equalTo("metadata.environ"));
                 listener.onResponse((Response) new QueryApiKeyResponse(0, List.of()));
             }
-        }) {
-            final RestQueryApiKeyAction restQueryApiKeyAction = new RestQueryApiKeyAction(Settings.EMPTY, mockLicenseState);
-            restQueryApiKeyAction.handleRequest(restRequest, restChannel, client);
-        }
+        };
+        final RestQueryApiKeyAction restQueryApiKeyAction = new RestQueryApiKeyAction(Settings.EMPTY, mockLicenseState);
+        restQueryApiKeyAction.handleRequest(restRequest, restChannel, client);
 
         assertNotNull(responseSetOnce.get());
     }
@@ -160,7 +159,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             }
         };
 
-        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -192,10 +191,10 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
 
                 listener.onResponse((Response) new QueryApiKeyResponse(0, List.of()));
             }
-        }) {
-            final RestQueryApiKeyAction restQueryApiKeyAction = new RestQueryApiKeyAction(Settings.EMPTY, mockLicenseState);
-            restQueryApiKeyAction.handleRequest(restRequest, restChannel, client);
-        }
+        };
+
+        final RestQueryApiKeyAction restQueryApiKeyAction = new RestQueryApiKeyAction(Settings.EMPTY, mockLicenseState);
+        restQueryApiKeyAction.handleRequest(restRequest, restChannel, client);
 
         assertNotNull(responseSetOnce.get());
     }

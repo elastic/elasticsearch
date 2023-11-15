@@ -26,7 +26,6 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
@@ -128,7 +127,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         }
         // Force merge to ensure that there are more than one numeric value to justify doc value.
         client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
-        PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = new PlainActionFuture<>();
         client().execute(
             AnalyzeIndexDiskUsageAction.INSTANCE,
             new AnalyzeIndexDiskUsageRequest(new String[] { index }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true),
@@ -249,23 +248,23 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         final AtomicInteger successfulShards = new AtomicInteger();
         try {
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.addRequestHandlingBehavior(AnalyzeIndexDiskUsageAction.NAME + "[s]", (handler, request, channel, task) -> {
-                    AnalyzeDiskUsageShardRequest shardRequest = (AnalyzeDiskUsageShardRequest) request;
-                    IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-                    logger.info("--> handling shard request {} on node {}", shardRequest.shardId(), node);
-                    ShardId shardId = shardRequest.shardId();
-                    if (failingShards.contains(shardId)) {
-                        IndexShard indexShard = indicesService.getShardOrNull(shardId);
-                        assertNotNull("No shard found for shard " + shardId, indexShard);
-                        logger.info("--> failing shard {} on node {}", shardRequest.shardId(), node);
-                        indexShard.close("test", randomBoolean());
-                        failedShards.incrementAndGet();
-                    } else {
-                        successfulShards.incrementAndGet();
-                    }
-                    handler.messageReceived(request, channel, task);
-                });
+                MockTransportService.getInstance(node)
+                    .addRequestHandlingBehavior(AnalyzeIndexDiskUsageAction.NAME + "[s]", (handler, request, channel, task) -> {
+                        AnalyzeDiskUsageShardRequest shardRequest = (AnalyzeDiskUsageShardRequest) request;
+                        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+                        logger.info("--> handling shard request {} on node {}", shardRequest.shardId(), node);
+                        ShardId shardId = shardRequest.shardId();
+                        if (failingShards.contains(shardId)) {
+                            IndexShard indexShard = indicesService.getShardOrNull(shardId);
+                            assertNotNull("No shard found for shard " + shardId, indexShard);
+                            logger.info("--> failing shard {} on node {}", shardRequest.shardId(), node);
+                            indexShard.close("test", randomBoolean());
+                            failedShards.incrementAndGet();
+                        } else {
+                            successfulShards.incrementAndGet();
+                        }
+                        handler.messageReceived(request, channel, task);
+                    });
             }
             AnalyzeIndexDiskUsageResponse resp = client().execute(
                 AnalyzeIndexDiskUsageAction.INSTANCE,
@@ -279,8 +278,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
             assertThat(resp.getShardFailures(), arrayWithSize(failedShards.get()));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.clearAllRules();
+                MockTransportService.getInstance(node).clearAllRules();
             }
         }
     }

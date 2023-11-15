@@ -239,7 +239,7 @@ public class ReservedClusterStateService {
             @Override
             public void onFailure(Exception e) {
                 // If we encounter an error while runnin the non-state transforms, we avoid saving any cluster state.
-                errorListener.accept(checkAndReportError(namespace, List.of(e.getMessage()), reservedStateVersion));
+                errorListener.accept(checkAndReportError(namespace, List.of(stackTrace(e)), reservedStateVersion));
             }
         });
     }

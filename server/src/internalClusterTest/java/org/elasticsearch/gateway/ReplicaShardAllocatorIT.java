@@ -34,7 +34,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -108,10 +107,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         }
         CountDownLatch blockRecovery = new CountDownLatch(1);
         CountDownLatch recoveryStarted = new CountDownLatch(1);
-        MockTransportService transportServiceOnPrimary = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeWithPrimary
-        );
+        final var transportServiceOnPrimary = MockTransportService.getInstance(nodeWithPrimary);
         transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.FILES_INFO.equals(action)) {
                 recoveryStarted.countDown();
@@ -169,10 +165,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         }
         CountDownLatch blockRecovery = new CountDownLatch(1);
         CountDownLatch recoveryStarted = new CountDownLatch(1);
-        MockTransportService transportServiceOnPrimary = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeWithPrimary
-        );
+        final var transportServiceOnPrimary = MockTransportService.getInstance(nodeWithPrimary);
         transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.FILES_INFO.equals(action)) {
                 recoveryStarted.countDown();
@@ -349,10 +342,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         );
         indicesAdmin().prepareFlush(indexName).get();
         String brokenNode = internalCluster().startDataOnlyNode();
-        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeWithPrimary
-        );
+        final var transportService = MockTransportService.getInstance(nodeWithPrimary);
         CountDownLatch newNodeStarted = new CountDownLatch(1);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.TRANSLOG_OPS)) {

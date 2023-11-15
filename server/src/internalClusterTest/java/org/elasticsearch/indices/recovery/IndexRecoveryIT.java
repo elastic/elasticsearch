@@ -108,6 +108,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.BackgroundIndexer;
@@ -486,7 +487,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         // hold peer recovery on phase 2 after nodeB down
         CountDownLatch phase1ReadyBlocked = new CountDownLatch(1);
         CountDownLatch allowToCompletePhase1Latch = new CountDownLatch(1);
-        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeA);
+        final var transportService = MockTransportService.getInstance(nodeA);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action)) {
                 phase1ReadyBlocked.countDown();
@@ -868,7 +869,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         RecoveryResponse response = indicesAdmin().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
         Repository repository = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
-        final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
+        final RepositoryData repositoryData = AbstractSnapshotIntegTestCase.getRepositoryData(repository);
         for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
 
             assertThat(indexRecoveryStates.getKey(), equalTo(INDEX_NAME));
@@ -1046,17 +1047,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
         Semaphore recoveryBlocked = new Semaphore(1);
         for (DiscoveryNode node : clusterService().state().nodes()) {
-            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                node.getName()
-            );
-            transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            MockTransportService.getInstance(node.getName()).addSendBehavior((connection, requestId, action, request, options) -> {
                 if (action.equals(PeerRecoverySourceService.Actions.START_RECOVERY)) {
                     if (recoveryBlocked.tryAcquire()) {
                         PluginsService pluginService = internalCluster().getInstance(PluginsService.class, node.getName());
-                        for (TestAnalysisPlugin plugin : pluginService.filterPlugins(TestAnalysisPlugin.class)) {
-                            plugin.throwParsingError.set(true);
-                        }
+                        pluginService.filterPlugins(TestAnalysisPlugin.class).forEach(p -> p.throwParsingError.set(true));
                     }
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -1088,11 +1083,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             indicesAdmin().prepareCreate(indexName)
                 .setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", nodeWithPrimary))
         );
-        MockTransportService transport = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
         CountDownLatch phase1ReadyBlocked = new CountDownLatch(1);
         CountDownLatch allowToCompletePhase1Latch = new CountDownLatch(1);
         Semaphore blockRecovery = new Semaphore(1);
-        transport.addSendBehavior((connection, requestId, action, request, options) -> {
+        MockTransportService.getInstance(nodeWithPrimary).addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action) && blockRecovery.tryAcquire()) {
                 phase1ReadyBlocked.countDown();
                 safeAwait(allowToCompletePhase1Latch);
@@ -1159,8 +1153,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         // first try because the local recovery happens once and its stats is reset when the recovery fails.
         SetOnce<Integer> localRecoveredOps = new SetOnce<>();
         for (String node : nodes) {
-            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-            transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            MockTransportService.getInstance(node).addSendBehavior((connection, requestId, action, request, options) -> {
                 if (action.equals(PeerRecoverySourceService.Actions.START_RECOVERY)) {
                     final RecoveryState recoveryState = internalCluster().getInstance(IndicesService.class, failingNode)
                         .getShardOrNull(new ShardId(resolveIndex(indexName), 0))
@@ -1223,8 +1216,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             }
         }
         for (String node : nodes) {
-            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-            transportService.clearAllRules();
+            MockTransportService.getInstance(node).clearAllRules();
         }
     }
 
@@ -1641,7 +1633,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertAcked(
             indicesAdmin().prepareCreate(indexName)
                 .setSettings(indexSettings(1, 1).put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), randomBoolean()))
-                .get()
         );
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
             .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
@@ -1651,9 +1642,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().stopRandomDataNode();
         internalCluster().stopRandomDataNode();
         final String nodeWithoutData = internalCluster().startDataOnlyNode();
-        assertAcked(
-            clusterAdmin().prepareReroute().add(new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeWithoutData, true)).get()
-        );
+        assertAcked(clusterAdmin().prepareReroute().add(new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeWithoutData, true)));
         internalCluster().startDataOnlyNode(randomNodeDataPathSettings);
         ensureGreen();
         for (ShardStats shardStats : indicesAdmin().prepareStats(indexName).get().getIndex(indexName).getShards()) {
@@ -1672,10 +1661,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         DiscoveryNode nodeWithOldPrimary = clusterState.nodes()
             .get(clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId());
-        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeWithOldPrimary.getName()
-        );
+        final var transportService = MockTransportService.getInstance(nodeWithOldPrimary.getName());
         CountDownLatch readyToRestartNode = new CountDownLatch(1);
         AtomicBoolean stopped = new AtomicBoolean();
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
@@ -1748,14 +1734,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         DiscoveryNode nodeWithPrimary = clusterState.nodes()
             .get(clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId());
-        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeWithPrimary.getName()
-        );
 
         final AtomicBoolean fileInfoIntercepted = new AtomicBoolean();
         final AtomicBoolean fileChunkIntercepted = new AtomicBoolean();
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+        MockTransportService.getInstance(nodeWithPrimary.getName()).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
                 if (fileInfoIntercepted.compareAndSet(false, true)) {
                     final NodeIndicesStats nodeIndicesStats = clusterAdmin().prepareNodesStats(connection.getNode().getId())
@@ -1828,10 +1810,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final long initialClusterStateVersion = clusterService().state().version();
 
         try (var recoveryClusterStateDelayListeners = new RecoveryClusterStateDelayListeners(initialClusterStateVersion)) {
-            final var primaryNodeTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                primaryNode
-            );
+            final var primaryNodeTransportService = MockTransportService.getInstance(primaryNode);
             primaryNodeTransportService.addRequestHandlingBehavior(
                 Coordinator.COMMIT_STATE_ACTION_NAME,
                 (handler, request, channel, task) -> {
@@ -2009,7 +1988,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), enableSnapshotPeerRecoveries)
                         .put("compress", false)
                 )
-                .get()
         );
     }
 

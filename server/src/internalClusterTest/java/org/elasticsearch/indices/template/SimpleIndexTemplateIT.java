@@ -811,7 +811,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setVersion(version)
                 .setOrder(order)
                 .setMapping("field", "type=text")
-                .get()
         );
 
         GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates("versioned_template").get();
@@ -913,7 +912,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             indicesAdmin().preparePutTemplate("just_partitions")
                 .setPatterns(Collections.singletonList("te*"))
                 .setSettings(Settings.builder().put("index.routing_partition_size", "6"))
-                .get()
         );
 
         // create an index with too few shards

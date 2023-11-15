@@ -119,7 +119,7 @@ public final class MergePolicyConfig {
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 10;
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
     public static final Setting<ByteSizeValue> DEFAULT_MAX_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
-        "merge.policy.default.max_merged_segment",
+        "indices.merge.policy.max_merged_segment",
         DEFAULT_MAX_MERGED_SEGMENT,
         ByteSizeValue.ofBytes(1L),
         ByteSizeValue.ofBytes(Long.MAX_VALUE),
@@ -132,7 +132,7 @@ public final class MergePolicyConfig {
      */
     public static final ByteSizeValue DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT = new ByteSizeValue(100, ByteSizeUnit.GB);
     public static final Setting<ByteSizeValue> DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
-        "merge.policy.default.max_time_based_merged_segment",
+        "indices.merge.policy.max_time_based_merged_segment",
         DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT,
         ByteSizeValue.ofBytes(1L),
         ByteSizeValue.ofBytes(Long.MAX_VALUE),

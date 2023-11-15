@@ -54,7 +54,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TransportVersionsFixupListener.class);
 
-    static final NodeFeature HAS_TRANSPORT_VERSION = new NodeFeature("transport.has_transport_version");
+    static final NodeFeature FIX_TRANSPORT_VERSION = new NodeFeature("transport.fix_transport_version");
 
     private static final TimeValue RETRY_TIME = TimeValue.timeValueSeconds(30);
 
@@ -153,7 +153,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         // if the min node version > 8.8.0, and the cluster state has some transport versions == 8.8.0,
         // then refresh all inferred transport versions to their real versions
         // now that everything should understand cluster state with transport versions
-        if (featureService.clusterHasFeature(event.state(), HAS_TRANSPORT_VERSION)
+        if (featureService.clusterHasFeature(event.state(), FIX_TRANSPORT_VERSION)
             && event.state().getMinTransportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
 
             // find all the relevant nodes

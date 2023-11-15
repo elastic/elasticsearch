@@ -19,6 +19,6 @@ public class TransportFeatures implements FeatureSpecification {
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         // transport version was introduced in 8.8.0, but we need to wait until all nodes are >8.8.0
         // to properly detect when we need to fix transport versions
-        return Map.of(TransportVersionsFixupListener.HAS_TRANSPORT_VERSION, Version.V_8_8_1);
+        return Map.of(TransportVersionsFixupListener.FIX_TRANSPORT_VERSION, Version.V_8_8_1);
     }
 }

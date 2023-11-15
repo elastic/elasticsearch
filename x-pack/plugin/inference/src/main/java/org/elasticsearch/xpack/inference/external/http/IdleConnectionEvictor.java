@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.http;
 import org.apache.http.nio.conn.NHttpClientConnectionManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,7 +46,7 @@ public class IdleConnectionEvictor implements Closeable {
         ThreadPool threadPool,
         NHttpClientConnectionManager connectionManager,
         TimeValue sleepTime,
-        TimeValue maxIdleTime
+        @Nullable TimeValue maxIdleTime
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.connectionManager = Objects.requireNonNull(connectionManager);

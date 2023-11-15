@@ -1065,7 +1065,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             }
         };
 
-        SearchContext context = new TestSearchContext(null, indexShard, searcher) {
+        try (SearchContext context = new TestSearchContext(null, indexShard, searcher) {
             @Override
             public Query buildFilteredQuery(Query query) {
                 return query;
@@ -1075,37 +1075,38 @@ public class QueryPhaseTests extends IndexShardTestCase {
             public ReaderContext readerContext() {
                 return new ReaderContext(new ShardSearchContextId("test", 1L), null, indexShard, null, 0L, false);
             }
-        };
+        }) {
 
-        List<Query> queries = List.of(new TermQuery(new Term("field0", "term")), new TermQuery(new Term("field1", "term0")));
-        context.parsedQuery(
-            new ParsedQuery(new BooleanQuery.Builder().add(queries.get(0), Occur.SHOULD).add(queries.get(1), Occur.SHOULD).build())
-        );
-        context.rankShardContext(new RankShardContext(queries, 0, 100) {
-            @Override
-            public RankShardResult combine(List<TopDocs> rankResults) {
-                return null;
-            }
-        });
+            List<Query> queries = List.of(new TermQuery(new Term("field0", "term")), new TermQuery(new Term("field1", "term0")));
+            context.parsedQuery(
+                new ParsedQuery(new BooleanQuery.Builder().add(queries.get(0), Occur.SHOULD).add(queries.get(1), Occur.SHOULD).build())
+            );
+            context.rankShardContext(new RankShardContext(queries, 0, 100) {
+                @Override
+                public RankShardResult combine(List<TopDocs> rankResults) {
+                    return null;
+                }
+            });
 
-        context.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
-        context.aggregations(null);
-        QueryPhase.executeRank(context);
-        assertEquals(queries, executed);
+            context.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
+            context.aggregations(null);
+            QueryPhase.executeRank(context);
+            assertEquals(queries, executed);
 
-        executed.clear();
-        context.trackTotalHitsUpTo(100);
-        context.aggregations(null);
-        QueryPhase.executeRank(context);
-        assertEquals(context.rewrittenQuery(), executed.get(0));
-        assertEquals(queries, executed.subList(1, executed.size()));
+            executed.clear();
+            context.trackTotalHitsUpTo(100);
+            context.aggregations(null);
+            QueryPhase.executeRank(context);
+            assertEquals(context.rewrittenQuery(), executed.get(0));
+            assertEquals(queries, executed.subList(1, executed.size()));
 
-        executed.clear();
-        context.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
-        context.aggregations(new SearchContextAggregations(AggregatorFactories.EMPTY, () -> null));
-        QueryPhase.executeRank(context);
-        assertEquals(context.rewrittenQuery(), executed.get(0));
-        assertEquals(queries, executed.subList(1, executed.size()));
+            executed.clear();
+            context.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
+            context.aggregations(new SearchContextAggregations(AggregatorFactories.EMPTY, () -> null));
+            QueryPhase.executeRank(context);
+            assertEquals(context.rewrittenQuery(), executed.get(0));
+            assertEquals(queries, executed.subList(1, executed.size()));
+        }
     }
 
     private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {

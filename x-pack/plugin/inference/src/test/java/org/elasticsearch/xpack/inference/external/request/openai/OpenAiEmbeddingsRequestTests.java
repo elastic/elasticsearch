@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest.buildDefaultUri;
@@ -94,7 +95,7 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         var uri = url == null ? null : new URI(url);
 
         var account = new OpenAiAccount(uri, org, new SecureString(apiKey.toCharArray()));
-        var entity = new OpenAiEmbeddingsRequestEntity(input, model, user);
+        var entity = new OpenAiEmbeddingsRequestEntity(List.of(input), model, user);
 
         return new OpenAiEmbeddingsRequest(account, entity);
     }

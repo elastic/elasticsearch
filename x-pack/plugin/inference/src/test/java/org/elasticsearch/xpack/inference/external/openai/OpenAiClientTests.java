@@ -99,10 +99,10 @@ public class OpenAiClientTests extends ESTestCase {
 
             OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
 
-            PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
             openAiClient.send(createRequest(getUrl(webServer), "org", "secret", "abc", "model", "user"), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT);
+            InferenceResults result = listener.actionGet(TIMEOUT).get(0);
 
             assertThat(
                 result.asMap(),
@@ -158,10 +158,10 @@ public class OpenAiClientTests extends ESTestCase {
 
             OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
 
-            PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
             openAiClient.send(createRequest(getUrl(webServer), "org", "secret", "abc", "model", null), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT);
+            InferenceResults result = listener.actionGet(TIMEOUT).get(0);
 
             assertThat(
                 result.asMap(),
@@ -216,10 +216,10 @@ public class OpenAiClientTests extends ESTestCase {
 
             OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
 
-            PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
             openAiClient.send(createRequest(getUrl(webServer), null, "secret", "abc", "model", null), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT);
+            InferenceResults result = listener.actionGet(TIMEOUT).get(0);
 
             assertThat(
                 result.asMap(),
@@ -282,7 +282,7 @@ public class OpenAiClientTests extends ESTestCase {
                 )
             );
 
-            PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
             openAiClient.send(createRequest(getUrl(webServer), "org", "secret", "abc", "model", "user"), listener);
 
             var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
@@ -307,7 +307,7 @@ public class OpenAiClientTests extends ESTestCase {
         doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any());
 
         OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
-        PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
+        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
         openAiClient.send(createRequest(getUrl(webServer), "org", "secret", "abc", "model", "user"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

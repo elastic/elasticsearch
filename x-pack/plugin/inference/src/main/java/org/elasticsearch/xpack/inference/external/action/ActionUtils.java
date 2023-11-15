@@ -14,11 +14,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.List;
+
 public class ActionUtils {
 
-    public static ActionListener<InferenceResults> wrapFailuresInElasticsearchException(
+    public static ActionListener<List<? extends InferenceResults>> wrapFailuresInElasticsearchException(
         String errorMessage,
-        ActionListener<InferenceResults> listener
+        ActionListener<List<? extends InferenceResults>> listener
     ) {
         return ActionListener.wrap(listener::onResponse, e -> {
             var unwrappedException = ExceptionsHelper.unwrapCause(e);

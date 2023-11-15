@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -87,7 +88,12 @@ public class HuggingFaceElserService implements InferenceService {
     }
 
     @Override
-    public void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener) {
+    public void infer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        ActionListener<List<? extends InferenceResults>> listener
+    ) {
         if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
             listener.onFailure(
                 new ElasticsearchStatusException(

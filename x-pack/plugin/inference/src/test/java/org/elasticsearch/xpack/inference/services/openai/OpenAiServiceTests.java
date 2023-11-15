@@ -523,8 +523,8 @@ public class OpenAiServiceTests extends ESTestCase {
         var mockModel = getInvalidModel("model_id", "service_name");
 
         try (var service = new OpenAiService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
-            PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, "", new HashMap<>(), listener);
+            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            service.infer(mockModel, List.of(""), new HashMap<>(), listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -569,10 +569,10 @@ public class OpenAiServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
-            PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-            service.infer(model, "abc", new HashMap<>(), listener);
+            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            service.infer(model, List.of("abc"), new HashMap<>(), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT);
+            InferenceResults result = listener.actionGet(TIMEOUT).get(0);
 
             assertThat(
                 result.asMap(),

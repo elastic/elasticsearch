@@ -12,9 +12,10 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
-public record OpenAiEmbeddingsRequestEntity(String input, String model, @Nullable String user) implements ToXContentObject {
+public record OpenAiEmbeddingsRequestEntity(List<String> input, String model, @Nullable String user) implements ToXContentObject {
 
     private static final String INPUT_FIELD = "input";
     private static final String MODEL_FIELD = "model";

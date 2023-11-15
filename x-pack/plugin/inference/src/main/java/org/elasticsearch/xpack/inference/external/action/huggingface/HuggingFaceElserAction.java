@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFac
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 
+import java.util.List;
+
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
@@ -35,10 +37,11 @@ public class HuggingFaceElserAction implements ExecutableAction {
         this.errorMessage = format("Failed to send ELSER Hugging Face request to [%s]", model.getServiceSettings().uri().toString());
     }
 
-    public void execute(String input, ActionListener<InferenceResults> listener) {
+    @Override
+    public void execute(List<String> input, ActionListener<List<? extends InferenceResults>> listener) {
         try {
             HuggingFaceElserRequest request = new HuggingFaceElserRequest(account, new HuggingFaceElserRequestEntity(input));
-            ActionListener<InferenceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
+            ActionListener<List<? extends InferenceResults>> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 
             client.send(request, wrappedListener);
         } catch (ElasticsearchException e) {

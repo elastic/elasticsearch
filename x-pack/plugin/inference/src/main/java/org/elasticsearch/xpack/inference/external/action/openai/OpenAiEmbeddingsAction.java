@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
@@ -54,13 +55,13 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
     }
 
     @Override
-    public void execute(String input, ActionListener<InferenceResults> listener) {
+    public void execute(List<String> input, ActionListener<List<? extends InferenceResults>> listener) {
         try {
             OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(
                 account,
                 new OpenAiEmbeddingsRequestEntity(input, model.getTaskSettings().model(), model.getTaskSettings().user())
             );
-            ActionListener<InferenceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
+            ActionListener<List<? extends InferenceResults>> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 
             client.send(request, wrappedListener);
         } catch (ElasticsearchException e) {

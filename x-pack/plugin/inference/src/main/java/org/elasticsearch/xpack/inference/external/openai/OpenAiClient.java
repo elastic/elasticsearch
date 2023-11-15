@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddin
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
+import java.util.List;
 
 public class OpenAiClient {
     private static final Logger logger = LogManager.getLogger(OpenAiClient.class);
@@ -38,11 +39,15 @@ public class OpenAiClient {
         );
     }
 
-    public void send(OpenAiEmbeddingsRequest request, ActionListener<InferenceResults> listener) throws IOException {
+    public void send(OpenAiEmbeddingsRequest request, ActionListener<List<? extends InferenceResults>> listener) throws IOException {
         sender.send(request.createRequest(), EMBEDDINGS_HANDLER, listener);
     }
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new AlwaysRetryingResponseHandler("openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse);
+        return new AlwaysRetryingResponseHandler(
+            "openai text embedding",
+            // TODO this is a hack to get the response to fit within List<InferenceResults> and will be addressed in a follow up PR
+            result -> List.of(OpenAiEmbeddingsResponseEntity.fromResponse(result))
+        );
     }
 }

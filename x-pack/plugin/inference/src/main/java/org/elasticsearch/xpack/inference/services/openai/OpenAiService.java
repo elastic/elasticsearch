@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -118,7 +119,12 @@ public class OpenAiService implements InferenceService {
     }
 
     @Override
-    public void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener) {
+    public void infer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        ActionListener<List<? extends InferenceResults>> listener
+    ) {
         init();
 
         if (model instanceof OpenAiModel == false) {

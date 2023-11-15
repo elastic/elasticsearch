@@ -14,13 +14,14 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 
 public class OpenAiEmbeddingsRequestEntityTests extends ESTestCase {
 
     public void testXContent_WritesUserWhenDefined() throws IOException {
-        var entity = new OpenAiEmbeddingsRequestEntity("abc", "model", "user");
+        var entity = new OpenAiEmbeddingsRequestEntity(List.of("abc"), "model", "user");
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
         entity.toXContent(builder, null);
@@ -28,14 +29,14 @@ public class OpenAiEmbeddingsRequestEntityTests extends ESTestCase {
 
         assertThat(xContentResult, is("""
             {
-              "input" : "abc",
+              "input" : ["abc"],
               "model" : "model",
               "user" : "user"
             }"""));
     }
 
     public void testXContent_DoesNotWriteUserWhenItIsNull() throws IOException {
-        var entity = new OpenAiEmbeddingsRequestEntity("abc", "model", null);
+        var entity = new OpenAiEmbeddingsRequestEntity(List.of("abc"), "model", null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
         entity.toXContent(builder, null);
@@ -43,7 +44,7 @@ public class OpenAiEmbeddingsRequestEntityTests extends ESTestCase {
 
         assertThat(xContentResult, is("""
             {
-              "input" : "abc",
+              "input" : ["abc"],
               "model" : "model"
             }"""));
     }

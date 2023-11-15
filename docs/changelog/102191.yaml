@@ -1,5 +1,0 @@
-pr: 102191
-summary: Exception from consumer must fail `RefCountingListener`
-area: Distributed
-type: bug
-issues: []

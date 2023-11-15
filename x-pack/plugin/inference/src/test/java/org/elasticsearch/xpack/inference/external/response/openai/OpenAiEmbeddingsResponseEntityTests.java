@@ -11,10 +11,12 @@ import org.apache.http.HttpResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.results.TextEmbeddingResults;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -47,14 +49,11 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        OpenAiEmbeddingsResponseEntity parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
+        TextEmbeddingResults parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(
-            parsedResults.embeddings(),
-            is(List.of(new OpenAiEmbeddingsResponseEntity.Embedding(List.of(0.014539449F, -0.015288644F))))
-        );
+        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(List.of(0.014539449F, -0.015288644F)))));
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
@@ -87,7 +86,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        OpenAiEmbeddingsResponseEntity parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
+        TextEmbeddingResults parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -95,8 +94,8 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             parsedResults.embeddings(),
             is(
                 List.of(
-                    new OpenAiEmbeddingsResponseEntity.Embedding(List.of(0.014539449F, -0.015288644F)),
-                    new OpenAiEmbeddingsResponseEntity.Embedding(List.of(0.0123F, -0.0123F))
+                    new TextEmbeddingResults.Embedding(List.of(0.014539449F, -0.015288644F)),
+                    new TextEmbeddingResults.Embedding(List.of(0.0123F, -0.0123F))
                 )
             )
         );
@@ -256,11 +255,11 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        OpenAiEmbeddingsResponseEntity parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
+        TextEmbeddingResults parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.embeddings(), is(List.of(new OpenAiEmbeddingsResponseEntity.Embedding(List.of(1.0F)))));
+        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(List.of(1.0F)))));
     }
 
     public void testFromResponse_SucceedsWhenEmbeddingValueIsLong() throws IOException {
@@ -284,11 +283,11 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        OpenAiEmbeddingsResponseEntity parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
+        TextEmbeddingResults parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.embeddings(), is(List.of(new OpenAiEmbeddingsResponseEntity.Embedding(List.of(4.0294965E10F)))));
+        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(List.of(4.0294965E10F)))));
     }
 
     public void testFromResponse_FailsWhenEmbeddingValueIsAnObject() {
@@ -359,16 +358,11 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
     }
 
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
-        var entity = new OpenAiEmbeddingsResponseEntity(List.of(new OpenAiEmbeddingsResponseEntity.Embedding(List.of(0.1F))));
+        var entity = new TextEmbeddingResults(List.of(new TextEmbeddingResults.Embedding(List.of(0.1F))));
 
         assertThat(
             entity.asMap(),
-            is(
-                Map.of(
-                    OpenAiEmbeddingsResponseEntity.TEXT_EMBEDDING,
-                    List.of(Map.of(OpenAiEmbeddingsResponseEntity.Embedding.EMBEDDING, List.of(0.1F)))
-                )
-            )
+            is(Map.of(TextEmbeddingResults.TEXT_EMBEDDING, List.of(Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.1F)))))
         );
 
         String xContentResult = toJsonString(entity);
@@ -385,11 +379,8 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
     }
 
     public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
-        var entity = new OpenAiEmbeddingsResponseEntity(
-            List.of(
-                new OpenAiEmbeddingsResponseEntity.Embedding(List.of(0.1F)),
-                new OpenAiEmbeddingsResponseEntity.Embedding(List.of(0.2F))
-            )
+        var entity = new TextEmbeddingResults(
+            List.of(new TextEmbeddingResults.Embedding(List.of(0.1F)), new TextEmbeddingResults.Embedding(List.of(0.2F)))
 
         );
 
@@ -397,10 +388,10 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             entity.asMap(),
             is(
                 Map.of(
-                    OpenAiEmbeddingsResponseEntity.TEXT_EMBEDDING,
+                    TextEmbeddingResults.TEXT_EMBEDDING,
                     List.of(
-                        Map.of(OpenAiEmbeddingsResponseEntity.Embedding.EMBEDDING, List.of(0.1F)),
-                        Map.of(OpenAiEmbeddingsResponseEntity.Embedding.EMBEDDING, List.of(0.2F))
+                        Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.1F)),
+                        Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.2F))
                     )
                 )
             )
@@ -424,7 +415,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             }"""));
     }
 
-    private static String toJsonString(OpenAiEmbeddingsResponseEntity entity) throws IOException {
+    private static String toJsonString(ToXContentFragment entity) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
         builder.startObject();
         entity.toXContent(builder, null);

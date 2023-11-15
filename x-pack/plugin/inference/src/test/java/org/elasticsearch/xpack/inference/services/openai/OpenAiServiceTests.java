@@ -26,8 +26,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
 import org.hamcrest.Matchers;
@@ -578,8 +578,8 @@ public class OpenAiServiceTests extends ESTestCase {
                 result.asMap(),
                 Matchers.is(
                     Map.of(
-                        OpenAiEmbeddingsResponseEntity.TEXT_EMBEDDING,
-                        List.of(Map.of(OpenAiEmbeddingsResponseEntity.Embedding.EMBEDDING, List.of(0.0123F, -0.0123F)))
+                        TextEmbeddingResults.TEXT_EMBEDDING,
+                        List.of(Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.0123F, -0.0123F)))
                     )
                 )
             );

@@ -19,8 +19,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
-import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.results.TextEmbeddingResults;
 import org.junit.After;
 import org.junit.Before;
 
@@ -104,8 +104,8 @@ public class OpenAiActionCreatorTests extends ESTestCase {
                 result.asMap(),
                 is(
                     Map.of(
-                        OpenAiEmbeddingsResponseEntity.TEXT_EMBEDDING,
-                        List.of(Map.of(OpenAiEmbeddingsResponseEntity.Embedding.EMBEDDING, List.of(0.0123F, -0.0123F)))
+                        TextEmbeddingResults.TEXT_EMBEDDING,
+                        List.of(Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.0123F, -0.0123F)))
                     )
                 )
             );

@@ -7,33 +7,21 @@
 
 package org.elasticsearch.xpack.inference.external.response.openai;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.results.TextEmbeddingResults;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
-public record OpenAiEmbeddingsResponseEntity(List<Embedding> embeddings) implements InferenceResults {
-
-    public static final String TEXT_EMBEDDING = "text_embedding";
-    public static final String NAME = "openai_embeddings_response_entity";
+public class OpenAiEmbeddingsResponseEntity {
 
     /**
      * Parses the OpenAI json response.
@@ -78,7 +66,7 @@ public record OpenAiEmbeddingsResponseEntity(List<Embedding> embeddings) impleme
      * </code>
      * </pre>
      */
-    public static OpenAiEmbeddingsResponseEntity fromResponse(HttpResult response) throws IOException {
+    public static TextEmbeddingResults fromResponse(HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
@@ -91,9 +79,12 @@ public record OpenAiEmbeddingsResponseEntity(List<Embedding> embeddings) impleme
 
             positionParserAtTokenAfterField(jsonParser, "data");
 
-            List<Embedding> embeddingList = XContentParserUtils.parseList(jsonParser, OpenAiEmbeddingsResponseEntity::parseEmbeddingObject);
+            List<TextEmbeddingResults.Embedding> embeddingList = XContentParserUtils.parseList(
+                jsonParser,
+                OpenAiEmbeddingsResponseEntity::parseEmbeddingObject
+            );
 
-            return new OpenAiEmbeddingsResponseEntity(embeddingList);
+            return new TextEmbeddingResults(embeddingList);
         }
     }
 
@@ -115,7 +106,7 @@ public record OpenAiEmbeddingsResponseEntity(List<Embedding> embeddings) impleme
         throw new IllegalStateException(format("Failed to find required field [%s] in OpenAI embeddings response", field));
     }
 
-    private static Embedding parseEmbeddingObject(XContentParser parser) throws IOException {
+    private static TextEmbeddingResults.Embedding parseEmbeddingObject(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         positionParserAtTokenAfterField(parser, "embedding");
@@ -127,7 +118,7 @@ public record OpenAiEmbeddingsResponseEntity(List<Embedding> embeddings) impleme
         // if there are additional fields within this object, lets skip them, so we can begin parsing the next embedding array
         parser.skipChildren();
 
-        return new Embedding(embeddingValues);
+        return new TextEmbeddingResults.Embedding(embeddingValues);
     }
 
     private static float parseEmbeddingList(XContentParser parser) throws IOException {
@@ -136,75 +127,77 @@ public record OpenAiEmbeddingsResponseEntity(List<Embedding> embeddings) impleme
         return parser.floatValue();
     }
 
-    public record Embedding(List<Float> values) implements Writeable, ToXContentObject {
-        public static final String EMBEDDING = "embedding";
+    private OpenAiEmbeddingsResponseEntity() {}
 
-        public Embedding(StreamInput in) throws IOException {
-            this(in.readCollectionAsImmutableList(StreamInput::readFloat));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(values, StreamOutput::writeFloat);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(EMBEDDING, values);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
-        }
-
-        public Map<String, Object> asMap() {
-            return Map.of(EMBEDDING, values);
-        }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(TEXT_EMBEDDING, embeddings);
-        return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(embeddings);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
-    @Override
-    public String getResultsField() {
-        return TEXT_EMBEDDING;
-    }
-
-    @Override
-    public Map<String, Object> asMap() {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put(getResultsField(), embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
-
-        return map;
-    }
-
-    @Override
-    public Map<String, Object> asMap(String outputField) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put(outputField, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
-
-        return map;
-    }
-
-    @Override
-    public Object predictedValue() {
-        throw new UnsupportedOperationException("[" + NAME + "] does not support a single predicted value");
-    }
+    // public record Embedding(List<Float> values) implements Writeable, ToXContentObject {
+    // public static final String EMBEDDING = "embedding";
+    //
+    // public Embedding(StreamInput in) throws IOException {
+    // this(in.readCollectionAsImmutableList(StreamInput::readFloat));
+    // }
+    //
+    // @Override
+    // public void writeTo(StreamOutput out) throws IOException {
+    // out.writeCollection(values, StreamOutput::writeFloat);
+    // }
+    //
+    // @Override
+    // public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    // builder.startObject();
+    // builder.field(EMBEDDING, values);
+    // builder.endObject();
+    // return builder;
+    // }
+    //
+    // @Override
+    // public String toString() {
+    // return Strings.toString(this);
+    // }
+    //
+    // public Map<String, Object> asMap() {
+    // return Map.of(EMBEDDING, values);
+    // }
+    // }
+    //
+    // @Override
+    // public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    // builder.field(TEXT_EMBEDDING, embeddings);
+    // return builder;
+    // }
+    //
+    // @Override
+    // public void writeTo(StreamOutput out) throws IOException {
+    // out.writeCollection(embeddings);
+    // }
+    //
+    // @Override
+    // public String getWriteableName() {
+    // return NAME;
+    // }
+    //
+    // @Override
+    // public String getResultsField() {
+    // return TEXT_EMBEDDING;
+    // }
+    //
+    // @Override
+    // public Map<String, Object> asMap() {
+    // Map<String, Object> map = new LinkedHashMap<>();
+    // map.put(getResultsField(), embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
+    //
+    // return map;
+    // }
+    //
+    // @Override
+    // public Map<String, Object> asMap(String outputField) {
+    // Map<String, Object> map = new LinkedHashMap<>();
+    // map.put(outputField, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
+    //
+    // return map;
+    // }
+    //
+    // @Override
+    // public Object predictedValue() {
+    // throw new UnsupportedOperationException("[" + NAME + "] does not support a single predicted value");
+    // }
 }

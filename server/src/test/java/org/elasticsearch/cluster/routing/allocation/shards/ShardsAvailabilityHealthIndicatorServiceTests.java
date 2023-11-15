@@ -60,6 +60,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
@@ -85,13 +86,9 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAl
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_CHECK_ALLOCATION_EXPLAIN_API;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_INDEX_ROUTING_ALLOCATION;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_TIERS_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_NODE_CAPACITY;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP;
-import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA;
@@ -118,7 +115,6 @@ import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -836,16 +832,16 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
-        assertThat(result.status(), is(HealthStatus.RED));
-        assertThat(result.diagnosisList().size(), is(1));
+        assertThat(result.status(), Matchers.is(HealthStatus.RED));
+        assertThat(result.diagnosisList().size(), Matchers.is(1));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
-        assertThat("expecting we report a resource of type INDEX and one of type FEATURE_STATE", affectedResources.size(), is(2));
+        assertThat("expecting we report a resource of type INDEX and one of type FEATURE_STATE", affectedResources.size(), Matchers.is(2));
         for (Diagnosis.Resource resource : affectedResources) {
             if (resource.getType() == INDEX) {
                 assertThat(resource.getValues(), hasItems("regular-index"));
             } else {
-                assertThat(resource.getType(), is(FEATURE_STATE));
+                assertThat(resource.getType(), Matchers.is(FEATURE_STATE));
                 assertThat(resource.getValues(), hasItems("feature-with-system-data-stream", "feature-with-system-index"));
             }
         }
@@ -885,12 +881,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 10
             );
 
-            assertThat(affectedResources.size(), is(2));
+            assertThat(affectedResources.size(), Matchers.is(2));
             for (Diagnosis.Resource resource : affectedResources) {
                 if (resource.getType() == INDEX) {
                     assertThat(resource.getValues(), hasItems("regular-index"));
                 } else {
-                    assertThat(resource.getType(), is(FEATURE_STATE));
+                    assertThat(resource.getType(), Matchers.is(FEATURE_STATE));
                     assertThat(resource.getValues(), hasItems("feature-with-system-data-stream", "feature-with-system-index"));
                 }
             }
@@ -904,12 +900,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 0
             );
 
-            assertThat(affectedResources.size(), is(2));
+            assertThat(affectedResources.size(), Matchers.is(2));
             for (Diagnosis.Resource resource : affectedResources) {
                 if (resource.getType() == INDEX) {
                     assertThat(resource.getValues(), emptyCollectionOf(String.class));
                 } else {
-                    assertThat(resource.getType(), is(FEATURE_STATE));
+                    assertThat(resource.getType(), Matchers.is(FEATURE_STATE));
                     assertThat(resource.getValues(), emptyCollectionOf(String.class));
                 }
             }
@@ -1129,7 +1125,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_ENABLE_TIERS_LOOKUP.get(DataTier.DATA_HOT)));
+        assertThat(actions, contains(service.getAddNodesWithRoleAction(DataTier.DATA_HOT)));
     }
 
     public void testDiagnoseIncreaseShardLimitIndexSettingInTier() {
@@ -1188,7 +1184,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(DataTier.DATA_HOT)));
+        assertThat(actions, contains(service.getIncreaseShardLimitIndexSettingAction(DataTier.DATA_HOT)));
     }
 
     public void testDiagnoseIncreaseShardLimitClusterSettingInTier() {
@@ -1252,7 +1248,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(DataTier.DATA_HOT)));
+        assertThat(actions, contains(service.getIncreaseShardLimitClusterSettingAction(DataTier.DATA_HOT)));
     }
 
     public void testDiagnoseIncreaseShardLimitIndexSettingInGeneral() {
@@ -1521,7 +1517,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(DataTier.DATA_HOT)));
+        assertThat(actions, contains(service.getIncreaseNodeWithRoleCapacityAction(DataTier.DATA_HOT)));
     }
 
     public void testDiagnoseIncreaseNodeCapacity() {
@@ -1874,17 +1870,22 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             DIAGNOSIS_WAIT_FOR_INITIALIZATION.getUniqueId(),
             equalTo("elasticsearch:health:shards_availability:diagnosis:initializing_shards")
         );
+        var service = new ShardsAvailabilityHealthIndicatorService(
+            mock(ClusterService.class),
+            mock(AllocationService.class),
+            mock(SystemIndices.class)
+        );
         for (String tier : List.of("data_content", "data_hot", "data_warm", "data_cold", "data_frozen")) {
             assertThat(
-                ACTION_ENABLE_TIERS_LOOKUP.get(tier).getUniqueId(),
+                service.getAddNodesWithRoleAction(tier).getUniqueId(),
                 equalTo("elasticsearch:health:shards_availability:diagnosis:enable_data_tiers:tier:" + tier)
             );
             assertThat(
-                ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(tier).getUniqueId(),
+                service.getIncreaseShardLimitIndexSettingAction(tier).getUniqueId(),
                 equalTo("elasticsearch:health:shards_availability:diagnosis:increase_shard_limit_index_setting:tier:" + tier)
             );
             assertThat(
-                ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(tier).getUniqueId(),
+                service.getIncreaseShardLimitClusterSettingAction(tier).getUniqueId(),
                 equalTo("elasticsearch:health:shards_availability:diagnosis:increase_shard_limit_cluster_setting:tier:" + tier)
             );
             assertThat(
@@ -1896,7 +1897,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 equalTo("elasticsearch:health:shards_availability:diagnosis:migrate_data_tiers_include_data:tier:" + tier)
             );
             assertThat(
-                ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(tier).getUniqueId(),
+                service.getIncreaseNodeWithRoleCapacityAction(tier).getUniqueId(),
                 equalTo("elasticsearch:health:shards_availability:diagnosis:increase_tier_capacity_for_allocations:tier:" + tier)
             );
         }

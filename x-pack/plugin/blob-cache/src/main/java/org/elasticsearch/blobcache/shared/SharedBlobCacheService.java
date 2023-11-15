@@ -1093,16 +1093,22 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         // nothing to read, skip
                         continue;
                     }
-                    final CacheFileRegion fileRegion = get(cacheKey, length, region).chunk;
-                    final long regionStart = getRegionStart(region);
-                    fileRegion.populateAndRead(
-                        mapSubRangeToRegion(rangeToWrite, region),
-                        subRangeToRead,
-                        readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
-                        writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
-                        ioExecutor,
-                        listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)))
-                    );
+                    ActionListener<Integer> listener = listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)));
+                    try {
+                        final CacheFileRegion fileRegion = get(cacheKey, length, region).chunk;
+                        final long regionStart = getRegionStart(region);
+                        fileRegion.populateAndRead(
+                            mapSubRangeToRegion(rangeToWrite, region),
+                            subRangeToRead,
+                            readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
+                            writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                            ioExecutor,
+                            listener
+                        );
+                    } catch (Exception e) {
+                        assert e instanceof AlreadyClosedException : e;
+                        listener.onFailure(e);
+                    }
                 }
             }
             readsComplete.get();

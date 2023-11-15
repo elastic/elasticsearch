@@ -192,7 +192,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         Set<String> autoCreateIndices = Set.of(); // unused
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated = Map.of(); // unused
         long startTime = 0;
-        bulkAction.createMissingIndicesAndindexData(
+        bulkAction.createMissingIndicesAndIndexData(
             task,
             bulkRequest,
             randomAlphaOfLength(10),

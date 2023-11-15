@@ -16,7 +16,6 @@ import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -69,9 +68,6 @@ public class RestSimulateIngestAction extends BaseRestHandler {
     @Override
     @SuppressWarnings("unchecked")
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            request.param("type");
-        }
         String defaultIndex = request.param("index");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         String defaultPipeline = request.param("pipeline");

@@ -17,10 +17,13 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
+import co.elastic.elasticsearch.stateless.recovery.RegisterCommitRequest;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
 import org.apache.logging.log4j.Level;
@@ -127,6 +130,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
@@ -1866,15 +1870,96 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(receivedRegistration.get(), greaterThan(toFailCount));
     }
 
+    public void testNewCommitNotificationOfRecoveringSearchShard() throws Exception {
+        String indexNode = startIndexNode();
+        String searchNode = startSearchNode();
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        int totalDocs = randomIntBetween(1, 10);
+        indexDocs(indexName, totalDocs);
+        IndexShard indexShard = findIndexShard(indexName);
+        long initialGeneration = Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
+        logger.info("--> Indexed {} docs, initial indexing shard generation is {}", totalDocs, initialGeneration);
+
+        // Establishing a handler on the indexing node for receiving the request from the search node to recover the initial commit
+        CountDownLatch initialCommitRegistrationProcessed = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
+                RegisterCommitRequest r = (RegisterCommitRequest) request;
+                handler.messageReceived(request, channel, task);
+                initialCommitRegistrationProcessed.countDown();
+            });
+
+        // Establishing a sender on the search node to block recovery after sending the request to the indexing node to register the commit
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNode);
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+        MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
+                logger.info("--> Blocking recovery on search node before sending request to register recovering commit");
+                repository.setBlockOnAnyFiles();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // Establishing a handler on the search node for receiving the new commit notification request from the indexing node
+        // and tracking the new commit notification response before it is sent to the indexing node.
+        CountDownLatch newCommitNotificationReceived = new CountDownLatch(1);
+        AtomicLong newCommitNotificationResponseGeneration = new AtomicLong(-1L);
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                handler.messageReceived(request, new TestTransportChannel(new ChannelActionListener<>(channel).delegateFailure((l, tr) -> {
+                    var termGens = ((NewCommitNotificationResponse) tr).getUsedPrimaryTermAndGenerations();
+                    assertThat(termGens.size(), equalTo(1));
+                    termGens.forEach(termGen -> newCommitNotificationResponseGeneration.set(termGen.generation()));
+                    l.onResponse(tr);
+                })), task);
+                newCommitNotificationReceived.countDown();
+            });
+
+        logger.info("--> Initiating search shard recovery");
+        setReplicaCount(1, indexName);
+        ensureYellow(indexName);
+
+        logger.info("--> Waiting for index node to process the registration of the initial commit recovery on the search node");
+        safeAwait(initialCommitRegistrationProcessed);
+
+        logger.info("--> Flushing a new commit and send out notification to the search node");
+        client().admin().indices().prepareFlush(indexName).setForce(true).get();
+
+        logger.info("--> Waiting for search node to process new commit notification request");
+        safeAwait(newCommitNotificationReceived);
+        assertThat(newCommitNotificationResponseGeneration.get(), equalTo(-1L));
+        Index index = resolveIndices().entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
+        IndexShard searchShard = internalCluster().getInstance(IndicesService.class, searchNode).indexService(index).getShard(0);
+        assertNull(searchShard.getEngineOrNull());
+
+        logger.info("--> Unblocking the recovery of the search shard");
+        repository.unblock();
+        ensureGreen(indexName);
+
+        logger.info("--> Waiting for the new commit notification success");
+        assertBusy(() -> assertThat(newCommitNotificationResponseGeneration.get(), greaterThan(initialGeneration)));
+
+        // Assert that the search shard is on the new commit generation
+        long searchGeneration = Lucene.readSegmentInfos(searchShard.store().directory()).getGeneration();
+        assertThat(searchGeneration, equalTo(newCommitNotificationResponseGeneration.get()));
+
+        // Assert that a search returns all the documents
+        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertNoFailures(searchResponse);
+        assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
+    }
+
     public void testRefreshOfRecoveringSearchShard() throws Exception {
         startIndexNode();
         var searchNode = startSearchNode();
         final var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
-        int totalDocs = randomIntBetween(1, 100);
-        logger.info("--> Indexed {} docs", totalDocs);
+        int totalDocs = randomIntBetween(1, 10);
         indexDocs(indexName, totalDocs);
+        logger.info("--> Indexed {} docs", totalDocs);
 
         var unpromotableRefreshLatch = new CountDownLatch(1);
         var mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);
@@ -1894,11 +1979,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         safeAwait(unpromotableRefreshLatch);
         repository.unblock();
 
-        int newDocs = randomIntBetween(1, 100);
-        indexDocsAndRefresh(indexName, newDocs); // TODO: can be removed once ES-7163 is handled
-        logger.info("--> Indexed {} more docs", newDocs);
-        totalDocs += newDocs;
-
         var refreshResponse = future.get();
         assertThat("Refresh should have been successful", refreshResponse.getSuccessfulShards(), equalTo(1));
 
@@ -1914,8 +1994,8 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
         int totalDocs = randomIntBetween(1, 10);
-        logger.info("--> Indexed {} docs", totalDocs);
         indexDocs(indexName, totalDocs);
+        logger.info("--> Indexed {} docs", totalDocs);
 
         var unpromotableRefreshLatch = new CountDownLatch(1);
         var mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);

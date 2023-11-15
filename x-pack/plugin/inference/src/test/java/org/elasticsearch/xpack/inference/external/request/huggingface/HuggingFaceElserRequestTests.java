@@ -17,12 +17,15 @@ import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class HuggingFaceElserRequestTests extends ESTestCase {
+    @SuppressWarnings("unchecked")
     public void testCreateRequest() throws URISyntaxException, IOException {
         var huggingFaceRequest = createRequest("www.google.com", "secret", "abc");
         var httpRequest = huggingFaceRequest.createRequest();
@@ -36,12 +39,14 @@ public class HuggingFaceElserRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap.size(), is(1));
-        assertThat(requestMap.get("inputs"), is("abc"));
+        assertThat(requestMap.get("inputs"), instanceOf(List.class));
+        var inputList = (List<String>) requestMap.get("inputs");
+        assertThat(inputList, contains("abc"));
     }
 
     public static HuggingFaceElserRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {
         var account = new HuggingFaceAccount(new URI(url), new SecureString(apiKey.toCharArray()));
-        var entity = new HuggingFaceElserRequestEntity(input);
+        var entity = new HuggingFaceElserRequestEntity(List.of(input));
 
         return new HuggingFaceElserRequest(account, entity);
     }

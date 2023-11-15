@@ -215,7 +215,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
 
         // message field. Show the non-green indicators if they exist.
         List<String> nonGreen = indicatorResults.stream()
-            .filter(p -> p.status().equals(GREEN) == false)
+            .filter(p -> p.status() != GREEN)
             .map(HealthIndicatorResult::name)
             .sorted()
             .toList();

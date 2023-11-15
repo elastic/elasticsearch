@@ -369,8 +369,14 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertScrollResponses(SearchRequestBuilder searchRequestBuilder, Consumer<List<SearchResponse>> consumer) {
-        var timoutSeconds = 30;
+    public record ScrollResponses(
+        SearchResponse initialSearchResponse,
+        List<SearchResponse> scrollResponses,
+        List<SearchResponse> allResponses
+    ) {
+    }
+
+    public static void assertScrollResponses(int timoutSeconds, SearchRequestBuilder searchRequestBuilder, Consumer<ScrollResponses> consumer) {
         searchRequestBuilder.setScroll(TimeValue.timeValueSeconds(timoutSeconds));
         List<SearchResponse> responses = new ArrayList<>();
         var scrollResponse = searchRequestBuilder.get();
@@ -382,7 +388,13 @@ public class ElasticsearchAssertions {
                     .get();
                 responses.add(scrollResponse);
             }
-            consumer.accept(responses);
+            consumer.accept(
+                new ScrollResponses(
+                    responses.isEmpty() ? null : responses.get(0),
+                    responses.isEmpty() ? List.of() : responses.subList(1, responses.size() - 1),
+                    responses
+                )
+            );
             clearScroll(scrollResponse.getScrollId());
         } finally {
             responses.forEach(TransportMessage::decRef);

@@ -1390,15 +1390,16 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         for (QueryBuilder query : queries) {
             assertScrollResponses(
+                60,
                 prepareSearch("test").setScroll(TimeValue.timeValueSeconds(30)).setSize(1).addStoredField("_id").setQuery(query),
-                responses -> {
+                scrollResponses -> {
 
-                    responses.forEach(searchResponse -> {
+                    scrollResponses.allResponses().forEach(searchResponse -> {
                         assertNoFailures(searchResponse);
                         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(10L));
                     });
 
-                    var scannedDocs = responses.stream()
+                    var scannedDocs = scrollResponses.allResponses().stream()
                         .map(searchResponse -> searchResponse.getHits().getHits().length)
                         .reduce(0, Integer::sum);
                     assertThat(scannedDocs, equalTo(10));

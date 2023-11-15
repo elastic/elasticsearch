@@ -71,7 +71,6 @@ public class DesiredBalanceReconciler {
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
 
     // stats
-    private final DesiredBalanceReconcilerStats desiredBalanceReconcilerStats;
     /**
      * Number of unassigned shards during last reconciliation
      */
@@ -92,7 +91,6 @@ public class DesiredBalanceReconciler {
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
         );
-        this.desiredBalanceReconcilerStats = new DesiredBalanceReconcilerStats(threadPool);
     }
 
     public void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
@@ -526,7 +524,6 @@ public class DesiredBalanceReconciler {
             DesiredBalanceReconciler.this.undesiredAllocations.set(undesiredAllocations);
             DesiredBalanceReconciler.this.totalAllocations.set(totalAllocations);
 
-            desiredBalanceReconcilerStats.logUndesiredAllocationsMetrics(totalAllocations, undesiredAllocations);
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocations, routingNodes.size());
         }
 

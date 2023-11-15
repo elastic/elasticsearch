@@ -60,6 +60,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.CommonMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -75,6 +76,7 @@ import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TransportService;
@@ -101,7 +103,6 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-
 import javax.net.ssl.SNIHostName;
 
 /**
@@ -167,6 +168,7 @@ public class Node implements Closeable {
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
     private final TerminationHandler terminationHandler;
+    private final TelemetryProvider telemetryProvider;
     // for testing
     final NamedWriteableRegistry namedWriteableRegistry;
     final NamedXContentRegistry namedXContentRegistry;
@@ -193,6 +195,7 @@ public class Node implements Closeable {
         localNodeFactory = construction.localNodeFactory();
         nodeService = construction.nodeService();
         terminationHandler = construction.terminationHandler();
+        telemetryProvider = construction.telemetryProvider();
         namedWriteableRegistry = construction.namedWriteableRegistry();
         namedXContentRegistry = construction.namedXContentRegistry();
     }
@@ -418,6 +421,8 @@ public class Node implements Closeable {
                 writePortsFile("remote_cluster", transport.boundRemoteAccessAddress());
             }
         }
+
+        new CommonMetrics(telemetryProvider.getMeterRegistry(), nodeService);
 
         logger.info("started {}", transportService.getLocalNode());
 

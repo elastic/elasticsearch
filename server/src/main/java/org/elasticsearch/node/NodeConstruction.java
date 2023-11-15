@@ -128,7 +128,6 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.metrics.CommonMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.node.internal.TerminationHandlerProvider;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -283,6 +282,7 @@ class NodeConstruction {
     private TerminationHandler terminationHandler;
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry xContentRegistry;
+    private TelemetryProvider telemetryProvider;
 
     private NodeConstruction(List<Closeable> resourcesToClose) {
         this.resourcesToClose = resourcesToClose;
@@ -330,6 +330,10 @@ class NodeConstruction {
 
     NamedXContentRegistry namedXContentRegistry() {
         return xContentRegistry;
+    }
+
+    TelemetryProvider telemetryProvider() {
+        return telemetryProvider;
     }
 
     private <T> Optional<T> getSinglePlugin(Class<T> pluginClass) {
@@ -503,6 +507,7 @@ class NodeConstruction {
 
         final TelemetryProvider telemetryProvider = getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings))
             .orElse(TelemetryProvider.NOOP);
+        this.telemetryProvider = telemetryProvider;
 
         final Tracer tracer = telemetryProvider.getTracer();
 
@@ -1094,8 +1099,6 @@ class NodeConstruction {
 
         List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class).toList();
         pluginsService.filterPlugins(ReloadAwarePlugin.class).forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
-
-        new CommonMetrics(telemetryProvider.getMeterRegistry(), nodeService);
 
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);

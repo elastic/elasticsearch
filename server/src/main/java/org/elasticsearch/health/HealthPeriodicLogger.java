@@ -30,14 +30,11 @@ import org.elasticsearch.health.node.selection.HealthNode;
 
 import java.io.Closeable;
 import java.time.Clock;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**

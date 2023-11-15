@@ -35,7 +35,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Stream;
+
+import static org.elasticsearch.health.HealthStatus.GREEN;
 
 /**
  * This class periodically logs the results of the Health API to the standard Elasticsearch server log file.
@@ -214,8 +215,8 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
 
         // message field. Show the non-green indicators if they exist.
         List<String> nonGreen = indicatorResults.stream()
-            .filter(p -> p.status().xContentValue().equals("green") == false)
-            .flatMap(p -> Stream.of(p.name()))
+            .filter(p -> p.status().equals(GREEN) == false)
+            .map(HealthIndicatorResult::name)
             .sorted()
             .toList();
         if (nonGreen.isEmpty()) {

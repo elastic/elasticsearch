@@ -1,0 +1,5 @@
+pr: 102266
+summary: "[DRAFT] Use `IndexVersion` as version value in `NodeMetadata`"
+area: Infra/Core
+type: enhancement
+issues: []

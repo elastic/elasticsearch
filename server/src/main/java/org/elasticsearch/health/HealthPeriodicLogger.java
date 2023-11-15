@@ -30,11 +30,15 @@ import org.elasticsearch.health.node.selection.HealthNode;
 
 import java.io.Closeable;
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This class periodically logs the results of the Health API to the standard Elasticsearch server log file.
@@ -202,15 +206,24 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         // overall status
         final HealthStatus status = HealthStatus.merge(indicatorResults.stream().map(HealthIndicatorResult::status));
         result.put(String.format(Locale.ROOT, "%s.overall.status", HEALTH_FIELD_PREFIX), status.xContentValue());
-        result.put(MESSAGE_FIELD, String.format(Locale.ROOT, "health=%s", status.xContentValue()));
 
         // top-level status for each indicator
         indicatorResults.forEach((indicatorResult) -> {
-            result.put(
-                String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()),
-                indicatorResult.status().xContentValue()
-            );
+            final String indicatorStatus = indicatorResult.status().xContentValue();
+            result.put(String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()), indicatorStatus);
         });
+
+        // message field. Show the non-green indicators if they exist.
+        List<String> nonGreen = indicatorResults.stream()
+            .filter(p -> p.status().xContentValue().equals("green") == false)
+            .flatMap(p -> Stream.of(p.name()))
+            .sorted()
+            .toList();
+        if (nonGreen.isEmpty()) {
+            result.put(MESSAGE_FIELD, String.format(Locale.ROOT, "health=%s", status.xContentValue()));
+        } else {
+            result.put(MESSAGE_FIELD, String.format(Locale.ROOT, "health=%s [%s]", status.xContentValue(), String.join(",", nonGreen)));
+        }
 
         return result;
     }

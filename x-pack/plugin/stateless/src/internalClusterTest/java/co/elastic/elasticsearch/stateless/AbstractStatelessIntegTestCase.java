@@ -436,6 +436,13 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return findShard(index, shardId, DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
     }
 
+    protected static IndexShard findSearchShard(String indexName) {
+        final Map<Index, Integer> indices = resolveIndices();
+        Index index = indices.entrySet().stream().filter(e -> e.getKey().getName().equals(indexName)).findAny().get().getKey();
+        IndexShard indexShard = findSearchShard(index, 0);
+        return indexShard;
+    }
+
     protected static IndexShard findSearchShard(Index index, int shardId) {
         return findShard(index, shardId, DiscoveryNodeRole.SEARCH_ROLE, ShardRouting.Role.SEARCH_ONLY);
     }

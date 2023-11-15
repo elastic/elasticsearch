@@ -93,28 +93,29 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
                 );
             }
             IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
-            shard.readAllowed();
-            if (shard.indexSettings().getIndexMetadata().getState() == IndexMetadata.State.CLOSE) {
-                listener.onFailure(new IndexClosedException(request.shardId().getIndex()));
-                return;
-            }
-            Engine engineOrNull = shard.getEngineOrNull();
-            if (engineOrNull == null) {
-                throw new EngineException(shard.shardId(), "Engine not started.");
-            }
-            if (engineOrNull instanceof SearchEngine searchEngine) {
-                searchEngine.onCommitNotification(
-                    request.getCompoundCommit(),
-                    listener.delegateFailure((l, v) -> ActionListener.completeWith(l, () -> {
-                        shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
-                        shardSizeCollector.collectShardSize(shard.shardId());
-                        return new NewCommitNotificationResponse(searchEngine.getAcquiredPrimaryTermAndGenerations());
-                    }))
-                );
-            } else {
-                assert false : "expecting SearchEngine but got " + engineOrNull;
-                throw new ElasticsearchException("Engine not type SearchEngine.");
-            }
+            shard.waitForEngineOrClosedShard(listener.delegateFailureAndWrap((l, ignored) -> {
+                if (shard.indexSettings().getIndexMetadata().getState() == IndexMetadata.State.CLOSE) {
+                    l.onFailure(new IndexClosedException(request.shardId().getIndex()));
+                    return;
+                }
+                Engine engineOrNull = shard.getEngineOrNull();
+                if (engineOrNull == null) {
+                    throw new EngineException(shard.shardId(), "Engine not started.");
+                }
+                if (engineOrNull instanceof SearchEngine searchEngine) {
+                    searchEngine.onCommitNotification(
+                        request.getCompoundCommit(),
+                        l.delegateFailure((dl, v) -> ActionListener.completeWith(dl, () -> {
+                            shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
+                            shardSizeCollector.collectShardSize(shard.shardId());
+                            return new NewCommitNotificationResponse(searchEngine.getAcquiredPrimaryTermAndGenerations());
+                        }))
+                    );
+                } else {
+                    assert false : "expecting SearchEngine but got " + engineOrNull;
+                    throw new ElasticsearchException("Engine not type SearchEngine.");
+                }
+            }));
         });
     }
 

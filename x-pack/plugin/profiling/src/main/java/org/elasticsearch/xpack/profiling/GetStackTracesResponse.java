@@ -30,7 +30,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     @Nullable
     private final Map<String, String> executables;
     @Nullable
-    private final Map<String, Integer> stackTraceEvents;
+    private final Map<String, Long> stackTraceEvents;
     private final int totalFrames;
     private final double samplingRate;
     private final long totalSamples;
@@ -57,7 +57,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
             )
             : null;
         this.executables = in.readBoolean() ? in.readMap(StreamInput::readString) : null;
-        this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readInt) : null;
+        this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readLong) : null;
         this.totalFrames = in.readInt();
         this.samplingRate = in.readDouble();
         this.totalSamples = in.readLong();
@@ -67,7 +67,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         Map<String, StackTrace> stackTraces,
         Map<String, StackFrame> stackFrames,
         Map<String, String> executables,
-        Map<String, Integer> stackTraceEvents,
+        Map<String, Long> stackTraceEvents,
         int totalFrames,
         double samplingRate,
         long totalSamples
@@ -113,7 +113,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         }
         if (stackTraceEvents != null) {
             out.writeBoolean(true);
-            out.writeMap(stackTraceEvents, StreamOutput::writeInt);
+            out.writeMap(stackTraceEvents, StreamOutput::writeLong);
         } else {
             out.writeBoolean(false);
         }
@@ -134,7 +134,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         return executables;
     }
 
-    public Map<String, Integer> getStackTraceEvents() {
+    public Map<String, Long> getStackTraceEvents() {
         return stackTraceEvents;
     }
 

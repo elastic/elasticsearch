@@ -49,8 +49,7 @@ import static org.mockito.hamcrest.MockitoHamcrest.argThat;
 
 public class TransportVersionsFixupListenerTests extends ESTestCase {
 
-    // TODO: replace with real constants when 8.8.0 is released
-    private static final Version NEXT_VERSION = Version.fromString("8.8.1");
+    private static final Version NEXT_VERSION = Version.V_8_8_1;
     private static final TransportVersion NEXT_TRANSPORT_VERSION = TransportVersion.fromId(NEXT_VERSION.id);
 
     @SuppressWarnings("unchecked")

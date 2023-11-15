@@ -12,6 +12,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -80,17 +81,21 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         assertModelsAreEqual(putModel, readModel);
 
         // The response is randomly generated, the input can be anything
-        inferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, randomAlphaOfLength(10));
+        inferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomAlphaOfLength(10)));
     }
 
-    public void testMockInClusterService() {
-        String modelId = "test-mock-in-cluster";
-        ModelConfigurations putModel = putMockService(modelId, "test_service_in_cluster_service", TaskType.SPARSE_EMBEDDING);
+    public void testMockServiceWithMultipleInputs() {
+        String modelId = "test-mock-with-multi-inputs";
+        ModelConfigurations putModel = putMockService(modelId, "test_service", TaskType.SPARSE_EMBEDDING);
         ModelConfigurations readModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
         assertModelsAreEqual(putModel, readModel);
 
         // The response is randomly generated, the input can be anything
-        inferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, randomAlphaOfLength(10));
+        inferOnMockService(
+            modelId,
+            TaskType.SPARSE_EMBEDDING,
+            List.of(randomAlphaOfLength(5), randomAlphaOfLength(10), randomAlphaOfLength(15))
+        );
     }
 
     public void testMockService_DoesNotReturnSecretsInGetResponse() throws IOException {
@@ -164,16 +169,21 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         return response.getModel();
     }
 
-    private void inferOnMockService(String modelId, TaskType taskType, String input) {
+    private List<? extends InferenceResults> inferOnMockService(String modelId, TaskType taskType, List<String> input) {
         var response = client().execute(InferenceAction.INSTANCE, new InferenceAction.Request(taskType, modelId, input, Map.of()))
             .actionGet();
         if (taskType == TaskType.SPARSE_EMBEDDING) {
-            assertThat(response.getResult(), instanceOf(TextExpansionResults.class));
-            var teResult = (TextExpansionResults) response.getResult();
-            assertThat(teResult.getWeightedTokens(), not(empty()));
+            response.getResults().forEach(result -> {
+                assertThat(result, instanceOf(TextExpansionResults.class));
+                var teResult = (TextExpansionResults) result;
+                assertThat(teResult.getWeightedTokens(), not(empty()));
+            });
+
         } else {
             fail("test with task type [" + taskType + "] are not supported yet");
         }
+
+        return response.getResults();
     }
 
     private void assertModelsAreEqual(ModelConfigurations model1, ModelConfigurations model2) {

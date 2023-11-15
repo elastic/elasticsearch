@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.elasticsearch.gradle.internal.snyk.SnykDependencyMonitoringGradlePlugin;
+import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -61,6 +62,7 @@ public class BuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchJavadocPlugin.class);
         project.getPluginManager().apply(DependenciesInfoPlugin.class);
         project.getPluginManager().apply(SnykDependencyMonitoringGradlePlugin.class);
+        project.getPluginManager().apply(HistoricalFeaturesMetadataPlugin.class);
         InternalPrecommitTasks.create(project, true);
         configureLicenseAndNotice(project);
     }

@@ -166,6 +166,7 @@ public class TransportVersions {
     public static final TransportVersion ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED = def(8_535_00_0);
     public static final TransportVersion COUNTED_KEYWORD_ADDED = def(8_536_00_0);
 
+    public static final TransportVersion SHAPE_VALUE_SERIALIZATION_ADDED = def(8_537_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

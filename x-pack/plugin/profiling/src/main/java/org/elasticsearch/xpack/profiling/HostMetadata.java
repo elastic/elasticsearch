@@ -30,7 +30,7 @@ final class HostMetadata implements ToXContentObject {
     }
 
     public boolean isEmpty() {
-        return dci == null;
+        return hostID == null || dci == null;
     }
 
     @Override
@@ -50,11 +50,11 @@ final class HostMetadata implements ToXContentObject {
             return false;
         }
         HostMetadata that = (HostMetadata) o;
-        return Objects.equals(dci, that.dci);
+        return Objects.equals(hostID, that.hostID);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dci);
+        return Objects.hash(hostID);
     }
 }

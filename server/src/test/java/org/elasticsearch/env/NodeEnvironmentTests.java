@@ -17,7 +17,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -583,9 +582,11 @@ public class NodeEnvironmentTests extends ESTestCase {
                 );
             }
 
-            Version oldVersion = Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
+            IndexVersion oldVersion = IndexVersion.fromId(between(1, IndexVersions.MINIMUM_IN_PLACE_UPGRADE_COMPATIBLE.id() - 1));
             IndexVersion oldIndexVersion = IndexVersion.fromId(between(1, IndexVersions.MINIMUM_COMPATIBLE.id() - 1));
-            Version previousNodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id - 1));
+            IndexVersion previousNodeVersion = IndexVersion.fromId(
+                between(IndexVersions.MINIMUM_IN_PLACE_UPGRADE_COMPATIBLE.id(), IndexVersion.current().id() - 1)
+            );
             overrideOldestIndexVersion(oldIndexVersion, previousNodeVersion, env.nodeDataPaths());
 
             IllegalStateException ex = expectThrows(
@@ -594,15 +595,14 @@ public class NodeEnvironmentTests extends ESTestCase {
                 () -> checkForIndexCompatibility(logger, env.dataPaths())
             );
 
-            // TODO[wrb]: got to get rid of Version in this test if we can
             assertThat(
                 ex.getMessage(),
                 allOf(
                     containsString("Cannot start this node"),
                     containsString("it holds metadata for indices with version [" + oldIndexVersion + "]"),
                     containsString(
-                        "Revert this node to version ["
-                            + (previousNodeVersion.major == Version.V_8_0_0.major ? Version.V_7_17_0 : previousNodeVersion).id()
+                        "Revert this node to one with index versions ["
+                            + (previousNodeVersion.onOrAfter(IndexVersions.V_8_0_0) ? IndexVersions.V_7_17_0 : previousNodeVersion)
                             + "]"
                     )
                 )
@@ -728,7 +728,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
-    private static void overrideOldestIndexVersion(IndexVersion oldestIndexVersion, Version previousNodeVersion, Path... dataPaths)
+    private static void overrideOldestIndexVersion(IndexVersion oldestIndexVersion, IndexVersion previousNodeVersion, Path... dataPaths)
         throws IOException {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
@@ -744,7 +744,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                         )
                     ) {
                         final Map<String, String> commitData = new HashMap<>(userData);
-                        commitData.put(NODE_VERSION_KEY, Integer.toString(previousNodeVersion.id));
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(previousNodeVersion.id()));
                         commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id()));
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();
@@ -754,7 +754,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    private static void removeOldestIndexVersion(Version oldVersion, Path... dataPaths) throws IOException {
+    private static void removeOldestIndexVersion(IndexVersion oldVersion, Path... dataPaths) throws IOException {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
@@ -769,7 +769,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                         )
                     ) {
                         final Map<String, String> commitData = new HashMap<>(userData);
-                        commitData.put(NODE_VERSION_KEY, Integer.toString(oldVersion.id));
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(oldVersion.id()));
                         commitData.remove(OLDEST_INDEX_VERSION_KEY);
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();

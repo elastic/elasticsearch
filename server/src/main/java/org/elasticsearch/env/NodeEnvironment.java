@@ -525,19 +525,18 @@ public final class NodeEnvironment implements Closeable {
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
 
-            // TODO[wrb]: update message
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion()
                     + "] with which this node of version ["
                     + Build.current().version()
-                    + "] is incompatible. Revert this node to version ["
+                    + "] is incompatible. Revert this node to one with index versions ["
                     + metadata.previousNodeIndexVersion()
                     + "] and delete any indices with versions earlier than ["
                     + IndexVersions.MINIMUM_COMPATIBLE
                     + "] before upgrading to version ["
                     + Build.current().version()
-                    + "]. If all such indices have already been deleted, revert this node to version ["
+                    + "]. If all such indices have already been deleted, revert this node to one with index version ["
                     + metadata.previousNodeIndexVersion()
                     + "] and wait for it to join the cluster to clean up any older indices from its metadata."
             );

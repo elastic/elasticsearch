@@ -806,9 +806,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var node1Usage = new DiskUsage("node-1", "node-1", "/data", 1000, 100);
         var node2Usage = new DiskUsage("node-2", "node-2", "/data", 1000, 1000);
 
-        var clusterInfo = new ClusterInfo(
-            Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage, node2Usage.getNodeId(), node2Usage),
-            Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage, node2Usage.getNodeId(), node2Usage),
+        var clusterInfo = createClusterInfo(
+            List.of(node0Usage, node1Usage, node2Usage),
             Map.ofEntries(
                 // node-0 & node-1
                 indexSize(clusterState, "index-0", 500, true),
@@ -824,10 +823,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 indexSize(clusterState, "index-7", 50, true),
                 indexSize(clusterState, "index-8", 50, true),
                 indexSize(clusterState, "index-9", 50, true)
-            ),
-            Map.of(),
-            Map.of(),
-            Map.of()
+            )
         );
 
         var settings = Settings.builder()

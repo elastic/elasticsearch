@@ -193,6 +193,12 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 }
                 XContentBuilder source = JsonXContent.contentBuilder();
                 source.startObject();
+                source.field("source_kwd", Integer.toString(d));
+                source.startArray("mv_source_kwd");
+                for (int v = 0; v <= d % 3; v++) {
+                    source.value(PREFIX[v] + d);
+                }
+                source.endArray();
                 source.field("source_text", Integer.toString(d));
                 source.startArray("mv_source_text");
                 for (int v = 0; v <= d % 3; v++) {
@@ -512,13 +518,14 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         r.add(new FieldCase(storedKeywordField("stored_kwd"), checks::strings, StatusChecks::keywordsFromStored));
         r.add(new FieldCase(storedKeywordField("mv_stored_kwd"), checks::mvStringsUnordered, StatusChecks::mvKeywordsFromStored));
-        // NOCOMMIT source keyword
-        r.add(new FieldCase(new TextFieldMapper.TextFieldType("source_text", false), checks::strings, StatusChecks::keywordsFromSource));
+        r.add(new FieldCase(sourceKeywordField("source_kwd"), checks::strings, StatusChecks::keywordsFromSource));
+        r.add(new FieldCase(sourceKeywordField("mv_source_kwd"), checks::mvStringsUnordered, StatusChecks::mvKeywordsFromSource));
+        r.add(new FieldCase(new TextFieldMapper.TextFieldType("source_text", false), checks::strings, StatusChecks::textFromSource));
         r.add(
             new FieldCase(
                 new TextFieldMapper.TextFieldType("mv_source_text", false),
                 checks::mvStringsUnordered,
-                StatusChecks::mvKeywordsFromSource
+                StatusChecks::mvTextFromSource
             )
         );
         r.add(new FieldCase(storedTextField("stored_text"), checks::strings, StatusChecks::textFromStored));
@@ -758,6 +765,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
 
         static void keywordsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("source_kwd", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void textFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
             source("source_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
         }
 
@@ -806,11 +817,15 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
 
         static void mvKeywordsFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-            source("mv_source_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+            source("mv_source_kwd", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
         }
 
         static void mvTextFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
             stored("mv_stored_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void mvTextFromSource(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            source("mv_source_text", "Bytes", forcedRowByRow, pageCount, segmentCount, readers);
         }
 
         static void textWithDelegate(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
@@ -1075,6 +1090,22 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Lucene.KEYWORD_ANALYZER,
             new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(false),
             true // TODO randomize - load from stored keyword fields if stored even in synthetic source
+        );
+    }
+
+    private KeywordFieldMapper.KeywordFieldType sourceKeywordField(String name) {
+        FieldType ft = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
+        ft.setDocValuesType(DocValuesType.NONE);
+        ft.setStored(false);
+        ft.freeze();
+        return new KeywordFieldMapper.KeywordFieldType(
+            name,
+            ft,
+            Lucene.KEYWORD_ANALYZER,
+            Lucene.KEYWORD_ANALYZER,
+            Lucene.KEYWORD_ANALYZER,
+            new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(false),
+            false
         );
     }
 

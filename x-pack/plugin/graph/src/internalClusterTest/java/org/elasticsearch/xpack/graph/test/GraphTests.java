@@ -44,7 +44,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.mockito.ArgumentMatchers.contains;
 
 public class GraphTests extends ESSingleNodeTestCase {
 

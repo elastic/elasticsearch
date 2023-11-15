@@ -22,6 +22,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Writes a text embedding result in the follow json format
+ * {
+ *     "text_embedding": [
+ *         {
+ *             "embedding": [
+ *                 0.1
+ *             ]
+ *         },
+ *         {
+ *             "embedding": [
+ *                 0.2
+ *             ]
+ *         }
+ *     ]
+ * }
+ */
 public record TextEmbeddingResults(List<Embedding> embeddings) implements InferenceResults {
     public static final String NAME = "text_embedding_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();

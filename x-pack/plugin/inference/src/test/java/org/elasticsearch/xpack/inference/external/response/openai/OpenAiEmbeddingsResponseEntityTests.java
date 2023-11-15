@@ -9,19 +9,13 @@ package org.elasticsearch.xpack.inference.external.response.openai;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResults;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -355,72 +349,5 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             thrownException.getMessage(),
             is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]")
         );
-    }
-
-    public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
-        var entity = new TextEmbeddingResults(List.of(new TextEmbeddingResults.Embedding(List.of(0.1F))));
-
-        assertThat(
-            entity.asMap(),
-            is(Map.of(TextEmbeddingResults.TEXT_EMBEDDING, List.of(Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.1F)))))
-        );
-
-        String xContentResult = toJsonString(entity);
-        assertThat(xContentResult, is("""
-            {
-              "text_embedding" : [
-                {
-                  "embedding" : [
-                    0.1
-                  ]
-                }
-              ]
-            }"""));
-    }
-
-    public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
-        var entity = new TextEmbeddingResults(
-            List.of(new TextEmbeddingResults.Embedding(List.of(0.1F)), new TextEmbeddingResults.Embedding(List.of(0.2F)))
-
-        );
-
-        assertThat(
-            entity.asMap(),
-            is(
-                Map.of(
-                    TextEmbeddingResults.TEXT_EMBEDDING,
-                    List.of(
-                        Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.1F)),
-                        Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.2F))
-                    )
-                )
-            )
-        );
-
-        String xContentResult = toJsonString(entity);
-        assertThat(xContentResult, is("""
-            {
-              "text_embedding" : [
-                {
-                  "embedding" : [
-                    0.1
-                  ]
-                },
-                {
-                  "embedding" : [
-                    0.2
-                  ]
-                }
-              ]
-            }"""));
-    }
-
-    private static String toJsonString(ToXContentFragment entity) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
-        builder.startObject();
-        entity.toXContent(builder, null);
-        builder.endObject();
-
-        return Strings.toString(builder);
     }
 }

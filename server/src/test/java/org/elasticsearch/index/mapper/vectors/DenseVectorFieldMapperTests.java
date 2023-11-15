@@ -1002,6 +1002,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testKnnVectorsFormat() throws IOException {
         final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
+        boolean setM = randomBoolean();
+        boolean setEfConstruction = randomBoolean();
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", 4);
@@ -1009,8 +1011,12 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.field("similarity", "dot_product");
             b.startObject("index_options");
             b.field("type", "hnsw");
-            b.field("m", m);
-            b.field("ef_construction", efConstruction);
+            if (setM) {
+                b.field("m", m);
+            }
+            if (setEfConstruction) {
+                b.field("ef_construction", efConstruction);
+            }
             b.endObject();
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
@@ -1018,9 +1024,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         String expectedString = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn="
-            + m
+            + (setM ? m : DEFAULT_MAX_CONN)
             + ", beamWidth="
-            + efConstruction
+            + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
             + ", flatVectorFormat=Lucene99FlatVectorsFormat()"
             + ")";
         assertEquals(expectedString, knnVectorsFormat.toString());
@@ -1029,6 +1035,8 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     public void testKnnQuantizedHNSWVectorsFormat() throws IOException {
         final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
+        boolean setConfidenceInterval = randomBoolean();
+        float confidenceInterval = (float) randomDoubleBetween(0.90f, 1.0f, true);
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", 4);
@@ -1040,6 +1048,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.field("ef_construction", efConstruction);
             b.startObject("quantization_options");
             b.field("type", "byte");
+            if (setConfidenceInterval) {
+                b.field("confidence_interval", confidenceInterval);
+            }
             b.endObject();
             b.endObject();
         }));
@@ -1052,7 +1063,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             + ", beamWidth="
             + efConstruction
             + ", flatVectorFormat=Lucene99ScalarQuantizedVectorsFormat("
-            + "name=Lucene99ScalarQuantizedVectorsFormat, quantile=null, rawVectorFormat=Lucene99FlatVectorsFormat()"
+            + "name=Lucene99ScalarQuantizedVectorsFormat, quantile="
+            + (setConfidenceInterval ? confidenceInterval : null)
+            + ", rawVectorFormat=Lucene99FlatVectorsFormat()"
             + "))";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }

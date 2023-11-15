@@ -74,7 +74,7 @@ quality is still acceptable.
 [discrete]
 === Reduce vector memory foot-print
 
-As of 8.12 the default <<dense-vector-element-type,`element_type`>> is `float`. But this can be
+The default <<dense-vector-element-type,`element_type`>> is `float`. But this can be
 automatically quantized during index time through the <<dense-vector-quantization,`quantization`>>. Quantization will
 reduce the required memory by 4x, but it will also reduce the precision of the vectors. For `float` vectors with
 `dim` greater than or equal to `384`, using <<dense-vector-quantization,`quantization`>> is highly recommended.

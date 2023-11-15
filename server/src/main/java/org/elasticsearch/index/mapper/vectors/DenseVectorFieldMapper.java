@@ -823,7 +823,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 + m
                 + ", ef_construction="
                 + efConstruction
-                + ", quantization_params="
+                + ", quantization_options="
                 + quantizationOptions
                 + "}";
         }

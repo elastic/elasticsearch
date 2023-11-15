@@ -252,7 +252,7 @@ internally they are indexed as `byte` vectors. Additionally, the original `float
 in the index. This allows you to use the original `float` vectors for re-scoring, but the `byte` vectors for
 indexing.
 
-To use quantization, you must provide a `quantization_params` object in the `dense_vector` mapping.
+To use quantization, you must provide a `quantization_options` object in the `dense_vector` mapping.
 
 [source,console]
 ----
@@ -265,7 +265,7 @@ PUT quantized-image-index
         "element_type": "float",
         "dims": 2,
         "index": true,
-        "quantization_params": {
+        "quantization_options": {
           "type": "byte"
         }
       },
@@ -1011,7 +1011,7 @@ the global top `k` matches across shards. You cannot set the
 To run an exact kNN search, use a `script_score` query with a vector function.
 
 . Explicitly map one or more `dense_vector` fields. If you don't intend to use
-the field for approximate kNN, set the `index` mapping option to `false`. This 
+the field for approximate kNN, set the `index` mapping option to `false`. This
 can significantly improve indexing speed.
 +
 [source,console]

@@ -59,6 +59,7 @@ public class RankSearchContext extends SearchContext {
     private final int windowSize;
     private final QuerySearchResult querySearchResult;
 
+    @SuppressWarnings("this-escape")
     public RankSearchContext(SearchContext parent, Query rankQuery, int windowSize) {
         this.parent = parent;
         this.rankQuery = parent.buildFilteredQuery(rankQuery);

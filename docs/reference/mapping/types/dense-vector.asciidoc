@@ -115,7 +115,8 @@ that sacrifices result accuracy for improved speed.
 ==== Automatically quantize vectors for kNN search
 
 The `dense_vector` type supports quantization to reduce the memory footprint required when searching `float` vectors.
-Currently the only quantization method supported is `byte` and provided vectors `element_type` must be `float`.
+Currently the only quantization method supported is `byte` and provided vectors `element_type` must be `float` and
+indexed in `hnsw`.
 
 When `byte` quantization is enabled, each of the `float` vectors' dimensions are quantized to 1-byte integers. This can
 reduce the memory footprint by as much as 75% at the cost of some accuracy.
@@ -259,7 +260,7 @@ neighbors for each new node. Defaults to `100`.
 An optional section that configures the quantization configuration. The
 quantization configuration is used to reduce the memory footprint of the
 index. Only `byte` quantization is currently supported and can only be configured if
-`element_type` is `float`.
+`element_type` is `float` and `index: true`.
 .Properties of `quantization_options`
 [%collapsible%open]
 =====
@@ -271,7 +272,9 @@ The type of quantization. Currently only `byte` is supported.
 `confidence_interval`:::
 (Optional, float)
 The confidence interval to use when quantizing the vectors, can be any value between and including `0.90` and `1.0`.
-Defaults to `1/(dims + 1)`.
+This value restricts the values used when calculating the quantization thresholds. For example, a value of `0.95` will
+only use the middle 95% of the values when calculating the quantization thresholds
+(e.g. the highest and lowest 2.5% of values will be ignored). Defaults to `1/(dims + 1)`.
 =====
 ====
 

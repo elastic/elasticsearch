@@ -148,6 +148,11 @@ public interface BlockLoader {
         public boolean canReuse(int startingDocID) {
             return true;
         }
+
+        @Override
+        public String toString() {
+            return "constant_nulls";
+        }
     }
 
     /**
@@ -172,6 +177,11 @@ public interface BlockLoader {
                     public boolean canReuse(int startingDocID) {
                         return true;
                     }
+
+                    @Override
+                    public String toString() {
+                        return "constant[" + value + "]";
+                    }
                 };
             }
 
@@ -186,6 +196,11 @@ public interface BlockLoader {
                     @Override
                     public boolean canReuse(int startingDocID) {
                         return true;
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "constant[" + value + "]";
                     }
                 };
             }
@@ -210,6 +225,89 @@ public interface BlockLoader {
                 return "ConstantBytes[" + value + "]";
             }
         };
+    }
+
+    abstract class Delegating implements BlockLoader {
+        protected final BlockLoader delegate;
+
+        protected Delegating(BlockLoader delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return delegate.builder(factory, expectedCount);
+        }
+
+        @Override
+        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+            ColumnAtATimeReader reader = delegate.columnAtATimeReader(context);
+            if (reader == null) {
+                return null;
+            }
+            return new ColumnAtATimeReader() {
+                @Override
+                public Block read(BlockFactory factory, Docs docs) throws IOException {
+                    return reader.read(factory, docs);
+                }
+
+                @Override
+                public boolean canReuse(int startingDocID) {
+                    return reader.canReuse(startingDocID);
+                }
+
+                @Override
+                public String toString() {
+                    return "Delegating[to=" + delegatingTo() + ", impl=" + reader + "]";
+                }
+            };
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+            RowStrideReader reader = delegate.rowStrideReader(context);
+            if (reader == null) {
+                return null;
+            }
+            return new RowStrideReader() {
+                @Override
+                public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                    reader.read(docId, storedFields, builder);
+                }
+
+                @Override
+                public boolean canReuse(int startingDocID) {
+                    return reader.canReuse(startingDocID);
+                }
+
+                @Override
+                public String toString() {
+                    return "Delegating[to=" + delegatingTo() + ", impl=" + reader + "]";
+                }
+            };
+        }
+
+        @Override
+        public StoredFieldsSpec rowStrideStoredFieldSpec() {
+            return delegate.rowStrideStoredFieldSpec();
+        }
+
+        @Override
+        public boolean supportsOrdinals() {
+            return delegate.supportsOrdinals();
+        }
+
+        @Override
+        public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
+            return delegate.ordinals(context);
+        }
+
+        protected abstract String delegatingTo();
+
+        @Override
+        public final String toString() {
+            return "Delegating[to=" + delegatingTo() + ", impl=" + delegate + "]";
+        }
     }
 
     /**

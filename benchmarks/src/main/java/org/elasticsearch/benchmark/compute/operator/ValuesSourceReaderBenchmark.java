@@ -108,9 +108,9 @@ public class ValuesSourceReaderBenchmark {
     private static List<ValuesSourceReaderOperator.FieldInfo> fields(String name) {
         return switch (name) {
             case "3_stored_keywords" -> List.of(
-                new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader("stored_keyword_1"))),
-                new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader("stored_keyword_2"))),
-                new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader("stored_keyword_3")))
+                new ValuesSourceReaderOperator.FieldInfo("keyword_1", List.of(blockLoader("stored_keyword_1"))),
+                new ValuesSourceReaderOperator.FieldInfo("keyword_2", List.of(blockLoader("stored_keyword_2"))),
+                new ValuesSourceReaderOperator.FieldInfo("keyword_3", List.of(blockLoader("stored_keyword_3")))
             );
             default -> List.of(new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader(name))));
         };
@@ -313,6 +313,22 @@ public class ValuesSourceReaderBenchmark {
         }
         if (expected != sum) {
             throw new AssertionError("[" + layout + "][" + name + "] expected [" + expected + "] but was [" + sum + "]");
+        }
+        boolean foundStoredFieldLoader = false;
+        ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) op.status();
+        for (Map.Entry<String, Integer> e : status.readersBuilt().entrySet()) {
+            if (e.getKey().indexOf("stored_fields") >= 0) {
+                foundStoredFieldLoader = true;
+            }
+        }
+        if (name.indexOf("stored") >= 0) {
+            if (foundStoredFieldLoader == false) {
+                throw new AssertionError("expected to use a stored field loader but only had: " + status.readersBuilt());
+            }
+        } else {
+            if (foundStoredFieldLoader) {
+                throw new AssertionError("expected not to use a stored field loader but only had: " + status.readersBuilt());
+            }
         }
     }
 

@@ -163,6 +163,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                     StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx(shard, segment), null),
                     storedFieldsSpec.requiresSource()
                 );
+                trackStoredFields(storedFieldsSpec); // TODO when optimization is enabled add it to tracking
             }
             for (int p = 0; p < docs.getPositionCount(); p++) {
                 int doc = docs.getInt(p);
@@ -205,13 +206,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 if (shard != lastShard || segment != lastSegment) {
                     lastShard = shard;
                     lastSegment = segment;
-                    if (false == storedFieldsSpecForShard(shard).equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-                        StoredFieldsSpec storedFieldsSpec = storedFieldsSpecForShard(shard);
+                    StoredFieldsSpec storedFieldsSpec = storedFieldsSpecForShard(shard);
+                    if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
                         storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                             StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx(shard, segment), null),
                             storedFieldsSpec.requiresSource()
                         );
-                        // TODO track the number of times we build the stored fields reader
+                        trackStoredFields(storedFieldsSpec);
                     }
                 }
                 if (storedFields != null) {
@@ -229,6 +230,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         } finally {
             Releasables.closeExpectNoException(builders);
         }
+    }
+
+    private void trackStoredFields(StoredFieldsSpec spec) {
+        readersBuilt.merge(
+            "stored_fields[" + "requires_source:" + spec.requiresSource() + ", fields:" + spec.requiredStoredFields().size() + "]",
+            1,
+            (prev, one) -> prev + one
+        );
     }
 
     /**
@@ -261,12 +270,22 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             BlockLoader.ColumnAtATimeReader build(BlockLoader loader, LeafReaderContext ctx) throws IOException {
                 return loader.columnAtATimeReader(ctx);
             }
+
+            @Override
+            String type() {
+                return "column_at_a_time";
+            }
         };
 
         final GuardedReader<BlockLoader.RowStrideReader> rowStride = new GuardedReader<>() {
             @Override
             BlockLoader.RowStrideReader build(BlockLoader loader, LeafReaderContext ctx) throws IOException {
                 return loader.rowStrideReader(ctx);
+            }
+
+            @Override
+            String type() {
+                return "row_stride";
             }
         };
 
@@ -280,17 +299,24 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             V lastReader;
 
             V reader(int shard, int segment, int startingDocId) throws IOException {
-                if (lastShard == shard && lastSegment == segment && lastReader != null && lastReader.canReuse(startingDocId)) {
-                    return lastReader;
+                if (lastShard == shard && lastSegment == segment) {
+                    if (lastReader == null) {
+                        return null;
+                    }
+                    if (lastReader.canReuse(startingDocId)) {
+                        return lastReader;
+                    }
                 }
                 lastShard = shard;
                 lastSegment = segment;
                 lastReader = build(info.blockLoaders.get(shard), ctx(shard, segment));
-                readersBuilt.merge(info.name + ":" + lastReader, 1, (prev, one) -> prev + one);
+                readersBuilt.merge(info.name + ":" + type() + ":" + lastReader, 1, (prev, one) -> prev + one);
                 return lastReader;
             }
 
             abstract V build(BlockLoader loader, LeafReaderContext ctx) throws IOException;
+
+            abstract String type();
         }
     }
 

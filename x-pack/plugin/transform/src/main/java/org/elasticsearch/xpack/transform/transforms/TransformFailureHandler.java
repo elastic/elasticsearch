@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.script.ScriptException;
@@ -51,28 +52,32 @@ class TransformFailureHandler {
     /**
      * Handle a search or indexing failure
      *
-     * @param e the exception caught
+     * @param exception the exception caught
      * @param settingsConfig The settings
      */
-    void handleIndexerFailure(Exception e, SettingsConfig settingsConfig) {
+    void handleIndexerFailure(Exception exception, SettingsConfig settingsConfig) {
         // more detailed reporting in the handlers and below
-        logger.debug(() -> "[" + transformId + "] transform encountered an exception: ", e);
-        Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
+        logger.debug(() -> "[" + transformId + "] transform encountered an exception: ", exception);
+        Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(exception);
         boolean unattended = Boolean.TRUE.equals(settingsConfig.getUnattended());
 
-        if (unwrappedException instanceof CircuitBreakingException circuitBreakingException) {
-            handleCircuitBreakingException(circuitBreakingException, unattended);
-        } else if (unwrappedException instanceof ScriptException scriptException) {
-            handleScriptException(scriptException, unattended);
-        } else if (unwrappedException instanceof BulkIndexingException bulkIndexingException) {
-            handleBulkIndexingException(bulkIndexingException, unattended, getNumFailureRetries(settingsConfig));
-        } else if (unwrappedException instanceof ClusterBlockException clusterBlockException) {
+        if (unwrappedException instanceof CircuitBreakingException e) {
+            handleCircuitBreakingException(e, unattended);
+        } else if (unwrappedException instanceof ScriptException e) {
+            handleScriptException(e, unattended);
+        } else if (unwrappedException instanceof BulkIndexingException e) {
+            handleBulkIndexingException(e, unattended, getNumFailureRetries(settingsConfig));
+        } else if (unwrappedException instanceof ClusterBlockException e) {
             // gh#89802 always retry for a cluster block exception, because a cluster block should be temporary.
-            retry(clusterBlockException, clusterBlockException.getDetailedMessage(), unattended, getNumFailureRetries(settingsConfig));
-        } else if (unwrappedException instanceof ElasticsearchException elasticsearchException) {
-            handleElasticsearchException(elasticsearchException, unattended, getNumFailureRetries(settingsConfig));
-        } else if (unwrappedException instanceof IllegalArgumentException illegalArgumentException) {
-            handleIllegalArgumentException(illegalArgumentException, unattended);
+            retry(e, e.getDetailedMessage(), unattended, getNumFailureRetries(settingsConfig));
+        } else if (unwrappedException instanceof SearchPhaseExecutionException e) {
+            // The reason of a SearchPhaseExecutionException unfortunately contains a full stack trace.
+            // Instead of displaying that to the user, the get cause's message instead.
+            retry(e, e.getCause().getMessage(), unattended, getNumFailureRetries(settingsConfig));
+        } else if (unwrappedException instanceof ElasticsearchException e) {
+            handleElasticsearchException(e, unattended, getNumFailureRetries(settingsConfig));
+        } else if (unwrappedException instanceof IllegalArgumentException e) {
+            handleIllegalArgumentException(e, unattended);
         } else {
             retry(
                 unwrappedException,

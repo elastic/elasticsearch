@@ -1,0 +1,5 @@
+pr: 102200
+summary: Fix `ShardSearchFailure` reason
+area: Machine Learning
+type: bug
+issues: []

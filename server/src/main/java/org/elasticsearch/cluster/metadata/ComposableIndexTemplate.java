@@ -111,59 +111,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return new Builder();
     }
 
-    /**
-     * @deprecated use {@link Builder} instead
-     */
-    @Deprecated(forRemoval = true)
-    public ComposableIndexTemplate(
-        List<String> indexPatterns,
-        @Nullable Template template,
-        @Nullable List<String> componentTemplates,
-        @Nullable Long priority,
-        @Nullable Long version,
-        @Nullable Map<String, Object> metadata
-    ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, null, null, null, null);
-    }
-
-    /**
-     * @deprecated use {@link Builder} instead
-     */
-    @Deprecated(forRemoval = true)
-    public ComposableIndexTemplate(
-        List<String> indexPatterns,
-        @Nullable Template template,
-        @Nullable List<String> componentTemplates,
-        @Nullable Long priority,
-        @Nullable Long version,
-        @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamTemplate dataStreamTemplate
-    ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null, null, null);
-    }
-
-    /**
-     * @deprecated use {@link Builder} instead
-     */
-    @Deprecated(forRemoval = true)
-    public ComposableIndexTemplate(
-        List<String> indexPatterns,
-        @Nullable Template template,
-        @Nullable List<String> componentTemplates,
-        @Nullable Long priority,
-        @Nullable Long version,
-        @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamTemplate dataStreamTemplate,
-        @Nullable Boolean allowAutoCreate
-    ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, allowAutoCreate, null, null);
-    }
-
-    /**
-     * @deprecated use {@link Builder} instead
-     */
-    @Deprecated(forRemoval = true)
-    public ComposableIndexTemplate(
+    private ComposableIndexTemplate(
         List<String> indexPatterns,
         @Nullable Template template,
         @Nullable List<String> componentTemplates,

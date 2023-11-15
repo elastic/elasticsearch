@@ -74,6 +74,8 @@
 
 ---
 "Search byte indices created in old cluster":
+  - skip:
+      features: close_to
   - do:
       search:
         index: test-byte-index

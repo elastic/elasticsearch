@@ -116,6 +116,8 @@
 
 ---
 "Create indexed byte vectors and search":
+  - skip:
+      features: close_to
   - do:
       indices.create:
         index: test-byte-index

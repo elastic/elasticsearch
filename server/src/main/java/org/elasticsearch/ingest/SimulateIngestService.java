@@ -65,9 +65,7 @@ public class SimulateIngestService extends IngestService {
 
     /**
      * This method returns the Pipeline for the given pipelineId. If a substitute definition of the pipeline has been defined for the
-     * cuurent simulate, then that pipeline is returned. Otherwise the pipeline stored in the cluster state is returned.
-     * @param pipelineId
-     * @return
+     * current simulate, then that pipeline is returned. Otherwise, the pipeline stored in the cluster state is returned.
      */
     @Override
     public Pipeline getPipeline(String pipelineId) {

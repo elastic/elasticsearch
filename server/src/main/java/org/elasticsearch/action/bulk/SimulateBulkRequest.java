@@ -58,10 +58,6 @@ public class SimulateBulkRequest extends BulkRequest {
      *                              the same pipelineId. The key of the map is the pipelineId, and the value the pipeline definition as
      *                              parsed by XContentHelper.convertToMap().
      */
-    /**
-     *
-     * @param pipelineSubstitutions
-     */
     public SimulateBulkRequest(@Nullable Map<String, Map<String, Object>> pipelineSubstitutions) {
         super();
         this.pipelineSubstitutions = pipelineSubstitutions;

@@ -239,6 +239,10 @@ public class EnrichLookupService {
     ) {
         Block inputBlock = inputPage.getBlock(0);
         try {
+            if (inputBlock.areAllValuesNull()) {
+                listener.onResponse(createNullResponse(inputPage.getPositionCount(), extractFields));
+                return;
+            }
             ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
             SearchContext searchContext = searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT);
             listener = ActionListener.runBefore(listener, searchContext::close);

@@ -60,7 +60,7 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.metrics.CommonMetrics;
+import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -103,7 +103,6 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-
 import javax.net.ssl.SNIHostName;
 
 /**
@@ -423,7 +422,7 @@ public class Node implements Closeable {
             }
         }
 
-        new CommonMetrics(telemetryProvider.getMeterRegistry(), nodeService);
+        new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService);
 
         logger.info("started {}", transportService.getLocalNode());
 

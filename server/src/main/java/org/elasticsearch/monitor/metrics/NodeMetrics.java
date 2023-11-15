@@ -19,11 +19,11 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class CommonMetrics {
+public class NodeMetrics {
     private final NodeService nodeService;
     private final NodeStatsCache nodeStatsCache;
 
-    public CommonMetrics(MeterRegistry meterRegistry, NodeService nodeService) {
+    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService) {
         this.nodeService = nodeService;
         this.nodeStatsCache = new NodeStatsCache(TimeValue.timeValueSeconds(1));
         registerMetrics(meterRegistry);

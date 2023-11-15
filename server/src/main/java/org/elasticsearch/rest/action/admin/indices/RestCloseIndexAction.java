@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -24,6 +25,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -44,7 +46,9 @@ public class RestCloseIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        String[] indices = getIndicesFromRequest(request);
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indices);
+
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
@@ -67,6 +71,26 @@ public class RestCloseIndexAction extends BaseRestHandler {
             closeIndexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
         return channel -> client.admin().indices().close(closeIndexRequest, new RestToXContentListener<>(channel));
+    }
+
+    private String[] getIndicesFromRequest(final RestRequest request) throws IOException {
+        if (request.hasContent()) {
+            Map<String, Object> bodyMap = request.contentParser().map();
+            Object indicesObject = bodyMap.get("index");
+
+            if (indicesObject != null && request.hasParam("index")) {
+                throw new IllegalArgumentException("[index] specified both in path and in body. Specify it only once.");
+            } else if (indicesObject != null) {
+                return XContentMapValues.nodeStringArrayValue(indicesObject);
+            }
+        }
+
+        if (request.hasParam("index")) {
+            String indicesString = request.param("index");
+            return Strings.splitStringByCommaToArray(indicesString);
+        }
+
+        throw new IllegalArgumentException("_close should contain [index]. Specify it either in the path or in the body");
     }
 
 }

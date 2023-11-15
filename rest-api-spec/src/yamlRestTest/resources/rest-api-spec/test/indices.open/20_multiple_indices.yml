@@ -114,4 +114,112 @@ setup:
       search:
         rest_total_hits_as_int: true
         index: test_index3
+---
+"Close multiple indices in request body":
+  - skip:
+      features: ["allowed_warnings"]
 
+  - do:
+      indices.close:
+        body:
+          index:
+            - "test_index1"
+            - "test_index2"
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+  - match: { indices.test_index1.closed: true }
+  - match: { indices.test_index2.closed: true }
+
+---
+"Open multiple indices in request body":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.close:
+        body:
+          index:
+            - "test_index2"
+            - "test_index3"
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_index2
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_index3
+
+  - do:
+      indices.open:
+        body:
+          index:
+            - "test_index2"
+            - "test_index3"
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index2
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index3
+
+---
+"Open indices with trailing wildcard in request body":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.close:
+        body:
+          index:
+            - "test_*"
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_index1
+
+  - do:
+      indices.open:
+        body:
+          index:
+            - "test_*"
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index1

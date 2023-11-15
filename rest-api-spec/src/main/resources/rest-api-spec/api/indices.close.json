@@ -22,6 +22,12 @@
               "description":"A comma separated list of indices to close"
             }
           }
+        },
+        {
+          "path":"/_close",
+          "methods":[
+            "POST"
+          ]
         }
       ]
     },
@@ -58,6 +64,9 @@
         "type":"string",
         "description":"Sets the number of active shards to wait for before the operation returns."
       }
+    },
+    "body":{
+      "description":"A comma separated list of indices to close"
     }
   }
 }

@@ -57,7 +57,7 @@ class TransformFailureHandler {
      */
     void handleIndexerFailure(Exception exception, SettingsConfig settingsConfig) {
         // more detailed reporting in the handlers and below
-        logger.debug(() -> "[" + transformId + "] transform encountered an exception: ", exception);
+        logger.atDebug().withThrowable(exception).log("[{}] transform encountered an exception", transformId);
         Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(exception);
         boolean unattended = Boolean.TRUE.equals(settingsConfig.getUnattended());
 
@@ -253,7 +253,9 @@ class TransformFailureHandler {
                 numFailureRetries
             );
 
-            logger.log(unattended ? Level.INFO : Level.WARN, () -> "[" + transformId + "] " + retryMessage, unwrappedException);
+            logger.atLevel(unattended ? Level.INFO : Level.WARN)
+                .withThrowable(unwrappedException)
+                .log("[{}] {}", transformId, retryMessage);
             auditor.audit(unattended ? INFO : WARNING, transformId, retryMessage);
         }
     }

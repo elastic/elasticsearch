@@ -219,10 +219,10 @@ public class CoordinationState {
     public boolean handleJoin(Join join) {
         assert join.masterCandidateMatches(localNode) : "handling join " + join + " for the wrong node " + localNode;
 
-        if (join.getTerm() != getCurrentTerm()) {
-            logger.debug("handleJoin: ignored join due to term mismatch (expected: [{}], actual: [{}])", getCurrentTerm(), join.getTerm());
+        if (join.term() != getCurrentTerm()) {
+            logger.debug("handleJoin: ignored join due to term mismatch (expected: [{}], actual: [{}])", getCurrentTerm(), join.term());
             throw new CoordinationStateRejectedException(
-                "incoming term " + join.getTerm() + " does not match current term " + getCurrentTerm()
+                "incoming term " + join.term() + " does not match current term " + getCurrentTerm()
             );
         }
 
@@ -232,30 +232,30 @@ public class CoordinationState {
         }
 
         final long lastAcceptedTerm = getLastAcceptedTerm();
-        if (join.getLastAcceptedTerm() > lastAcceptedTerm) {
+        if (join.lastAcceptedTerm() > lastAcceptedTerm) {
             logger.debug(
                 "handleJoin: ignored join as joiner has a better last accepted term (expected: <=[{}], actual: [{}])",
                 lastAcceptedTerm,
-                join.getLastAcceptedTerm()
+                join.lastAcceptedTerm()
             );
             throw new CoordinationStateRejectedException(
                 "incoming last accepted term "
-                    + join.getLastAcceptedTerm()
+                    + join.lastAcceptedTerm()
                     + " of join higher than current last accepted term "
                     + lastAcceptedTerm
             );
         }
 
-        if (join.getLastAcceptedTerm() == lastAcceptedTerm && join.getLastAcceptedVersion() > getLastAcceptedVersion()) {
+        if (join.lastAcceptedTerm() == lastAcceptedTerm && join.lastAcceptedVersion() > getLastAcceptedVersion()) {
             logger.debug(
                 "handleJoin: ignored join as joiner has a better last accepted version (expected: <=[{}], actual: [{}]) in term {}",
                 getLastAcceptedVersion(),
-                join.getLastAcceptedVersion(),
+                join.lastAcceptedVersion(),
                 lastAcceptedTerm
             );
             throw new CoordinationStateRejectedException(
                 "incoming last accepted version "
-                    + join.getLastAcceptedVersion()
+                    + join.lastAcceptedVersion()
                     + " of join higher than current last accepted version "
                     + getLastAcceptedVersion()
                     + " in term "
@@ -280,7 +280,7 @@ public class CoordinationState {
         logger.debug(
             "handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}",
             join,
-            join.getVotingNode(),
+            join.votingNode(),
             electionWon,
             lastAcceptedTerm,
             getLastAcceptedVersion()
@@ -598,7 +598,7 @@ public class CoordinationState {
         }
 
         public boolean addJoinVote(Join join) {
-            final boolean added = addVote(join.getVotingNode());
+            final boolean added = addVote(join.votingNode());
             if (added) {
                 joins.add(join);
             }

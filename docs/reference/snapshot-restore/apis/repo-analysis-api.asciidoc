@@ -181,14 +181,13 @@ compare-and-exchange operation. This operation ensures correct and
 strongly-consistent behavior even when the blob is accessed by multiple nodes
 at the same time. The detailed implementation of the compare-and-exchange
 operation on linearizable registers varies by repository type. Repository
-analysis verifies that that uncontended compare-and-exchange operations on a
-linearizable register blob always succeed. Repository analysis also verifies
-that contended operations either succeed or report the contention but do not
-return incorrect results. If an operation fails due to contention, {es} retries
-the operation until it succeeds. Most of the compare-and-exchange operations
-performed by repository analysis atomically increment a counter which is
-represented as an 8-byte blob. Some operations also verify the behavior on
-small blobs with sizes other than 8 bytes.
+analysis verifies that contended operations on linearizable registers either
+succeed or report the contention but do not return incorrect results. If an
+operation fails due to contention, {es} retries the operation until it
+succeeds. Most of the compare-and-exchange operations performed by repository
+analysis atomically increment a counter which is represented as an 8-byte blob.
+Some operations also verify the behavior on small blobs with sizes other than 8
+bytes.
 
 [[repo-analysis-api-path-params]]
 ==== {api-path-parms-title}

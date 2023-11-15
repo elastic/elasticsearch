@@ -39,6 +39,7 @@ public class DataStreamLifecycleStatsIT extends DisabledSecurityDataStreamTestCa
 
     @SuppressWarnings("unchecked")
     public void testStats() throws Exception {
+        // Check empty stats and wait until we have 2 executions
         assertBusy(() -> {
             Request request = new Request("GET", "/_lifecycle/stats");
             Map<String, Object> response = entityAsMap(client().performRequest(request));
@@ -47,6 +48,7 @@ public class DataStreamLifecycleStatsIT extends DisabledSecurityDataStreamTestCa
             assertThat(response.containsKey("last_run_duration_in_millis"), is(true));
             assertThat(response.containsKey("time_between_starts_in_millis"), is(true));
         });
+
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
         putComposableIndexTemplateRequest.setJsonEntity("""
@@ -60,13 +62,14 @@ public class DataStreamLifecycleStatsIT extends DisabledSecurityDataStreamTestCa
             """);
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
+        // Create two data streams with one doc each
         Request createDocRequest = new Request("POST", "/my-data-stream-1/_doc?refresh=true");
         createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
         assertOK(client().performRequest(createDocRequest));
-
         createDocRequest = new Request("POST", "/my-data-stream-2/_doc?refresh=true");
         createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
         assertOK(client().performRequest(createDocRequest));
+
         Request request = new Request("GET", "/_lifecycle/stats");
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response.get("data_stream_count"), is(2));

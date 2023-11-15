@@ -22,8 +22,8 @@ Gets stats about the execution of data stream lifecycle.
 [[data-streams-get-lifecycle-stats-desc]]
 ==== {api-description-title}
 
-Gets stats about the execution of the data stream lifecycle. The data stream level stats include only stats managed by the
-data stream lifecycle.
+Gets stats about the execution of the data stream lifecycle. The data stream level stats include only stats about data streams
+managed by the data stream lifecycle.
 
 [[get-lifecycle-stats-api-response-body]]
 ==== {api-response-body-title}
@@ -40,7 +40,7 @@ The time passed between the start of the last two data stream lifecycle executio
 The count of data streams currently being managed by the data stream lifecycle.
 `data_streams`::
 (array of objects)
-Contains information about retrieved data stream lifecycles.
+Contains information about the retrieved data stream lifecycles.
 +
 .Properties of objects in `data_streams`
 [%collapsible%open]

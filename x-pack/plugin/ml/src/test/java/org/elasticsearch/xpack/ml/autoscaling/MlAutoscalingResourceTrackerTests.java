@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.net.InetAddress;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -178,7 +179,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                         1,
                         AWAITING_LAZY_ASSIGNMENT
                     ),
-                    new JobTaskState(JobState.FAILED, 1, "a nasty bug")
+                    new JobTaskState(JobState.FAILED, 1, "a nasty bug", Instant.now())
                 )
             ),
             List.of(),

@@ -11,22 +11,18 @@ package org.elasticsearch.reservedstate.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.file.AbstractFileWatchingService;
+import org.elasticsearch.common.file.MasterNodeFileWatchingService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.attribute.FileTime;
-import java.time.Instant;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
@@ -42,16 +38,14 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  * the service as a listener to cluster state changes, so that we can enable the file watcher thread when this
  * node becomes a master node.
  */
-public class FileSettingsService extends AbstractFileWatchingService implements ClusterStateListener {
+public class FileSettingsService extends MasterNodeFileWatchingService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
     public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings";
     public static final String OPERATOR_DIRECTORY = "operator";
-    private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
-    private volatile boolean active = false;
 
     /**
      * Constructs the {@link FileSettingsService}
@@ -61,68 +55,8 @@ public class FileSettingsService extends AbstractFileWatchingService implements 
      * @param environment we need the environment to pull the location of the config and operator directories
      */
     public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
-        super(environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME));
-        this.clusterService = clusterService;
+        super(clusterService, environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME));
         this.stateService = stateService;
-    }
-
-    @Override
-    protected void doStart() {
-        // We start the file watcher when we know we are master from a cluster state change notification.
-        // We need the additional active flag, since cluster state can change after we've shutdown the service
-        // causing the watcher to start again.
-        this.active = Files.exists(watchedFileDir().getParent());
-        if (active == false) {
-            // we don't have a config directory, we can't possibly launch the file settings service
-            return;
-        }
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
-            clusterService.addListener(this);
-        }
-    }
-
-    @Override
-    protected void doStop() {
-        this.active = false;
-        super.doStop();
-    }
-
-    @Override
-    public final void clusterChanged(ClusterChangedEvent event) {
-        ClusterState clusterState = event.state();
-        if (clusterState.nodes().isLocalNodeElectedMaster()) {
-            synchronized (this) {
-                if (watching() || active == false) {
-                    refreshExistingFileStateIfNeeded(clusterState);
-                    return;
-                }
-                startWatcher();
-            }
-        } else if (event.previousState().nodes().isLocalNodeElectedMaster()) {
-            stopWatcher();
-        }
-    }
-
-    /**
-     * 'Touches' the settings file so the file watcher will re-processes it.
-     * <p>
-     * The file processing is asynchronous, the cluster state or the file must be already updated such that
-     * the version information in the file is newer than what's already saved as processed in the
-     * cluster state.
-     *
-     * For snapshot restores we first must restore the snapshot and then force a refresh, since the cluster state
-     * metadata version must be reset to 0 and saved in the cluster state.
-     */
-    private void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
-        if (watching()) {
-            if (shouldRefreshFileState(clusterState) && Files.exists(watchedFile())) {
-                try {
-                    Files.setLastModifiedTime(watchedFile(), FileTime.from(Instant.now()));
-                } catch (IOException e) {
-                    logger.warn("encountered I/O error trying to update file settings timestamp", e);
-                }
-            }
-        }
     }
 
     /**
@@ -162,7 +96,8 @@ public class FileSettingsService extends AbstractFileWatchingService implements 
      * @param clusterState State of the cluster
      * @return true if file settings metadata version is exactly 0, false otherwise.
      */
-    private boolean shouldRefreshFileState(ClusterState clusterState) {
+    @Override
+    protected boolean shouldRefreshFileState(ClusterState clusterState) {
         // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
         // like snapshot restores.
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
@@ -178,7 +113,7 @@ public class FileSettingsService extends AbstractFileWatchingService implements 
      */
     @Override
     protected void processFileChanges() throws ExecutionException, InterruptedException, IOException {
-        PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> completion = new PlainActionFuture<>();
         logger.info("processing path [{}] for [{}]", watchedFile(), NAMESPACE);
         try (
             var fis = Files.newInputStream(watchedFile());

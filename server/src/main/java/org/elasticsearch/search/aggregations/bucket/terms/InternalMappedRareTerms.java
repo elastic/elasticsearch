@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,8 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>, B extends InternalRareTerms.Bucket<B>> extends
     InternalRareTerms<A, B> {
@@ -41,8 +37,6 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     protected Map<String, B> bucketMap;
 
     final SetBackedScalingCuckooFilter filter;
-
-    protected final Logger logger = LogManager.getLogger(getClass());
 
     InternalMappedRareTerms(
         String name,
@@ -57,10 +51,6 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         this.format = format;
         this.buckets = buckets;
         this.filter = filter;
-    }
-
-    public long getMaxDocCount() {
-        return maxDocCount;
     }
 
     SetBackedScalingCuckooFilter getFilter() {
@@ -107,7 +97,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
                 && terms.getClass().equals(UnmappedRareTerms.class) == false) {
                 // control gets into this loop when the same field name against which the query is executed
                 // is of different types in different indices.
-                throw AggregationErrors.reduceTypeMissmatch(referenceTerms.getName(), Optional.empty());
+                throw AggregationErrors.reduceTypeMismatch(referenceTerms.getName(), Optional.empty());
             }
             for (B bucket : terms.getBuckets()) {
                 List<B> bucketList = buckets.computeIfAbsent(bucket.getKey(), k -> new ArrayList<>());
@@ -162,14 +152,6 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     @Override
     public List<B> getBuckets() {
         return buckets;
-    }
-
-    @Override
-    public B getBucketByKey(String term) {
-        if (bucketMap == null) {
-            bucketMap = buckets.stream().collect(Collectors.toMap(InternalRareTerms.Bucket::getKeyAsString, Function.identity()));
-        }
-        return bucketMap.get(term);
     }
 
     @Override

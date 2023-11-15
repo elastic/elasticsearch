@@ -229,7 +229,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             .actionGet(ccrSettings.getRecoveryActionTimeout());
 
         // Validates whether the leader cluster has been configured properly:
-        PlainActionFuture<String[]> future = PlainActionFuture.newFuture();
+        PlainActionFuture<String[]> future = new PlainActionFuture<>();
         IndexMetadata leaderIndexMetadata = clusterState.getState().metadata().index(leaderIndex);
         CcrLicenseChecker.fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetadata, future::onFailure, future::onResponse);
         String[] leaderHistoryUUIDs = future.actionGet(ccrSettings.getRecoveryActionTimeout());
@@ -504,7 +504,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private static final ShardGeneration DUMMY_GENERATION = new ShardGeneration("");
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId index, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId index, ShardId shardId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";
         final String leaderIndex = index.getName();
         final IndicesStatsResponse response = getRemoteClusterClient().admin()

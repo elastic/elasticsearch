@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -83,6 +84,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -133,6 +135,7 @@ public class ClusterStateChanges {
     private final TransportService transportService;
     private final AllocationService allocationService;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
     private final ShardStateAction.ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
 
@@ -215,6 +218,8 @@ public class ClusterStateChanges {
         }
 
         // services
+        featureService = new FeatureService(List.of());
+
         transportService = new TransportService(
             SETTINGS,
             transport,
@@ -405,7 +410,7 @@ public class ClusterStateChanges {
 
     public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode, TransportVersion transportVersion) {
         return runTasks(
-            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}, featureService),
             clusterState,
             List.of(
                 JoinTask.singleNode(
@@ -413,9 +418,7 @@ public class ClusterStateChanges {
                     new CompatibilityVersions(transportVersion, Map.of()),
                     Set.of(),
                     DUMMY_REASON,
-                    ActionListener.running(() -> {
-                        throw new AssertionError("should not complete publication");
-                    }),
+                    createTestListener(),
                     clusterState.term()
                 )
             )
@@ -424,7 +427,7 @@ public class ClusterStateChanges {
 
     public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes, TransportVersion transportVersion) {
         return runTasks(
-            new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
+            new NodeJoinExecutor(allocationService, (s, p, r) -> {}, featureService),
             clusterState,
             List.of(
                 JoinTask.completingElection(
@@ -435,9 +438,7 @@ public class ClusterStateChanges {
                                 new CompatibilityVersions(transportVersion, Map.of()),
                                 Set.of(),
                                 DUMMY_REASON,
-                                ActionListener.running(() -> {
-                                    throw new AssertionError("should not complete publication");
-                                })
+                                createTestListener()
                             )
                         ),
                     clusterState.term() + between(1, 10)
@@ -552,7 +553,7 @@ public class ClusterStateChanges {
         }
     }
 
-    private ActionListener<Void> createTestListener() {
-        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
+    private static ActionListener<Void> createTestListener() {
+        return ActionTestUtils.assertNoFailureListener(t -> {});
     }
 }

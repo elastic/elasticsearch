@@ -137,7 +137,7 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         throw createCreationException();
     }
 

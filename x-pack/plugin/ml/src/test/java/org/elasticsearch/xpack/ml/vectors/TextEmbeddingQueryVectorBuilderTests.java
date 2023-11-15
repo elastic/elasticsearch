@@ -15,6 +15,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.test.AbstractQueryVectorBuilderTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
@@ -38,6 +39,8 @@ public class TextEmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBui
         assertThat(inferRequest.getTextInput(), hasSize(1));
         assertEquals(builder.getModelText(), inferRequest.getTextInput().get(0));
         assertEquals(builder.getModelId(), inferRequest.getId());
+        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API, inferRequest.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, inferRequest.getPrefixType());
     }
 
     public ActionResponse createResponse(float[] array, TextEmbeddingQueryVectorBuilder builder) {

@@ -163,13 +163,6 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     /**
-     * Get the current false positive rate for individual cuckoo filters.
-     */
-    public double getPrecision() {
-        return precision;
-    }
-
-    /**
      * Set's the false-positive rate for individual cuckoo filters.  Does not dictate the overall fpp rate
      * since we use a "scaling" cuckoo filter which adds more filters as required, and the overall
      * error rate grows differently than individual filters
@@ -242,11 +235,6 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     @Override
     public String getType() {
         return NAME;
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
     }
 
     @Override

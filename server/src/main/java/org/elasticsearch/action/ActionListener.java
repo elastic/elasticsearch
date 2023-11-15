@@ -327,7 +327,12 @@ public interface ActionListener<Response> {
                 @Override
                 public void onResponse(Response response) {
                     assertFirstRun();
-                    delegate.onResponse(response);
+                    try {
+                        delegate.onResponse(response);
+                    } catch (Exception e) {
+                        assert false : new AssertionError("listener [" + delegate + "] must handle its own exceptions", e);
+                        throw e;
+                    }
                 }
 
                 @Override

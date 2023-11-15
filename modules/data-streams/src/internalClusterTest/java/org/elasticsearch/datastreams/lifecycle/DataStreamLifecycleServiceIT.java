@@ -90,10 +90,6 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         return List.of(DataStreamsPlugin.class, MockTransportService.TestPlugin.class);
     }
 
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
@@ -186,16 +182,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             }""";
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id2");
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("index_*"),
-                new Template(null, CompressedXContent.fromJSON(mapping), null, null),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("index_*"))
+                .template(new Template(null, CompressedXContent.fromJSON(mapping), null, null))
+                .build()
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
 
@@ -720,16 +710,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                patterns,
-                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle),
-                null,
-                null,
-                null,
-                metadata,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
+                .metadata(metadata)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }

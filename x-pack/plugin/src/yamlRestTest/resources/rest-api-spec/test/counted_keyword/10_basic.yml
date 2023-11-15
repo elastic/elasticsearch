@@ -1,0 +1,51 @@
+setup:
+
+  - skip:
+      version: " - 8.11.99"
+      reason: "counted_keyword was added in 8.12"
+
+  - do:
+      indices.create:
+        index: test-events
+        body:
+          mappings:
+            properties:
+              events:
+                type: counted_keyword
+
+
+  - do:
+      index:
+        index: test-events
+        id: "1"
+        body: { "events": [ "a", "a", "b", "c" ] }
+
+  - do:
+      index:
+        index: test-events
+        id: "2"
+        body: { "events": [ "a", "b", "b", "b", "c" ] }
+
+  - do:
+      indices.refresh: { }
+
+---
+"Counted Terms agg":
+
+  - do:
+      search:
+        index: test-events
+        body:
+          size: 0
+          aggs:
+            event_terms:
+              counted_terms:
+                field: events
+
+  - match: { aggregations.event_terms.buckets.0.key: "b" }
+  - match: { aggregations.event_terms.buckets.0.doc_count: 4 }
+  - match: { aggregations.event_terms.buckets.1.key: "a" }
+  - match: { aggregations.event_terms.buckets.1.doc_count: 3 }
+  - match: { aggregations.event_terms.buckets.2.key: "c" }
+  - match: { aggregations.event_terms.buckets.2.doc_count: 2 }
+  - length: { aggregations.event_terms.buckets: 3 }

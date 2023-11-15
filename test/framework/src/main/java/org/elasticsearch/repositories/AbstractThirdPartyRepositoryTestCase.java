@@ -68,7 +68,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
     private void deleteAndAssertEmpty(BlobPath path) {
         final BlobStoreRepository repo = getRepository();
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         repo.threadPool()
             .generic()
             .execute(ActionRunnable.run(future, () -> repo.blobStore().blobContainer(path).delete(OperationPurpose.SNAPSHOT)));
@@ -118,7 +118,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
     public void testListChildren() throws Exception {
         final BlobStoreRepository repo = getRepository();
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final Executor genericExec = repo.threadPool().generic();
         final int testBlobLen = randomIntBetween(1, 100);
         genericExec.execute(ActionRunnable.run(future, () -> {
@@ -224,7 +224,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     }
 
     private static void createDanglingIndex(final BlobStoreRepository repo, final Executor genericExec) throws Exception {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         genericExec.execute(ActionRunnable.run(future, () -> {
             final BlobStore blobStore = repo.blobStore();
             blobStore.blobContainer(repo.basePath().add("indices").add("foo"))
@@ -236,7 +236,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         }));
         future.get();
 
-        final PlainActionFuture<Boolean> corruptionFuture = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> corruptionFuture = new PlainActionFuture<>();
         genericExec.execute(ActionRunnable.supply(corruptionFuture, () -> {
             final BlobStore blobStore = repo.blobStore();
             return blobStore.blobContainer(repo.basePath().add("indices")).children(OperationPurpose.SNAPSHOT).containsKey("foo")
@@ -258,7 +258,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     }
 
     private Set<String> listChildren(BlobPath path) {
-        final PlainActionFuture<Set<String>> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
         final BlobStoreRepository repository = getRepository();
         repository.threadPool()
             .generic()

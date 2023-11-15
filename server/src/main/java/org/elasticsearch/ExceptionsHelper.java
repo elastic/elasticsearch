@@ -257,15 +257,20 @@ public final class ExceptionsHelper {
                 final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
                 logger.error("fatal error {}: {}\n{}", error.getClass().getCanonicalName(), error.getMessage(), formatted);
             } finally {
-                new Thread(() -> { throw error; }).start();
+                new Thread(() -> { throw error; }, "elasticsearch-error-rethrower").start();
             }
         });
     }
 
     /**
      * Deduplicate the failures by exception message and index.
+     * @param failures array to deduplicate
+     * @return deduplicated array; if failures is null or empty, it will be returned without modification
      */
     public static ShardOperationFailedException[] groupBy(ShardOperationFailedException[] failures) {
+        if (failures == null || failures.length == 0) {
+            return failures;
+        }
         List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
         Set<GroupBy> reasons = new HashSet<>();
         for (ShardOperationFailedException failure : failures) {

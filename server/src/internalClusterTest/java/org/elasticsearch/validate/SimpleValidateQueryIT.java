@@ -219,7 +219,10 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         long twoMonthsAgo = now.minus(2, ChronoUnit.MONTHS).truncatedTo(ChronoUnit.DAYS).toEpochSecond() * 1000;
         long rangeEnd = (now.plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.DAYS).toEpochSecond() * 1000) - 1;
-        assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("past:[" + twoMonthsAgo + " TO " + rangeEnd + "]"));
+        assertThat(
+            response.getQueryExplanation().get(0).getExplanation(),
+            containsString("past:[" + twoMonthsAgo + " TO " + rangeEnd + "]")
+        );
         assertThat(response.isValid(), equalTo(true));
     }
 

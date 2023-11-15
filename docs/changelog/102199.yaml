@@ -1,0 +1,6 @@
+pr: 102199
+summary: "ES|QL: Fix layout management for duplicate stats + `mv_expand`"
+area: ES|QL
+type: bug
+issues:
+ - 102120

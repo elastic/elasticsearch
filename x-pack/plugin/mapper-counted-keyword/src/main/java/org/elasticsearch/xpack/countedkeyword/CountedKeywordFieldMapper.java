@@ -156,7 +156,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
                 @Override
                 public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) {
-                    return loadDirect(context);
+                    return load(context);
                 }
 
                 @Override

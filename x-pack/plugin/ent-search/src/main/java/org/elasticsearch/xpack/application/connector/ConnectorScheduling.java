@@ -7,15 +7,20 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -68,6 +73,14 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         );
         PARSER.declareField(constructorArg(), (p, c) -> ScheduleConfig.fromXContent(p), FULL_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(constructorArg(), (p, c) -> ScheduleConfig.fromXContent(p), INCREMENTAL_FIELD, ObjectParser.ValueType.OBJECT);
+    }
+
+    public static ConnectorScheduling fromXContentBytes(BytesReference source, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            return ConnectorScheduling.fromXContent(parser);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
+        }
     }
 
     public static ConnectorScheduling fromXContent(XContentParser parser) throws IOException {

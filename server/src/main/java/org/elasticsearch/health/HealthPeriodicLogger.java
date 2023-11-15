@@ -209,8 +209,10 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
 
         // top-level status for each indicator
         indicatorResults.forEach((indicatorResult) -> {
-            final String indicatorStatus = indicatorResult.status().xContentValue();
-            result.put(String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()), indicatorStatus);
+            result.put(
+                String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()),
+                indicatorResult.status().xContentValue()
+            );
         });
 
         // message field. Show the non-green indicators if they exist.

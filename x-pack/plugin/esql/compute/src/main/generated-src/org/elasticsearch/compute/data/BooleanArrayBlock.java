@@ -135,8 +135,7 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
     }
 
     @Override
-    public void close() {
-        super.close();
+    public void closeInternal() {
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

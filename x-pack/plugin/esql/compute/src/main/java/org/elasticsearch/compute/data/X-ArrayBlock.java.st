@@ -168,8 +168,7 @@ $endif$
     }
 
     @Override
-    public void close() {
-        super.close();
+    public void closeInternal() {
     $if(BytesRef)$
         blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);

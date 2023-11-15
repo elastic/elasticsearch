@@ -126,8 +126,7 @@ public final class ConstantNullBlock extends AbstractBlock implements BooleanBlo
     }
 
     @Override
-    public void close() {
-        super.close();
+    public void closeInternal() {
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 

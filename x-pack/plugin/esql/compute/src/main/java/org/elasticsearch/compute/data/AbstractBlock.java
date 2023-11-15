@@ -13,7 +13,6 @@ import java.util.BitSet;
 
 abstract class AbstractBlock implements Block {
     private int references = 1;
-    private boolean released = false;
     private final int positionCount;
 
     @Nullable
@@ -98,7 +97,7 @@ abstract class AbstractBlock implements Block {
 
     @Override
     public boolean isReleased() {
-        return released;
+        return hasReferences() == false;
     }
 
     @Override
@@ -127,7 +126,7 @@ abstract class AbstractBlock implements Block {
         references--;
 
         if (references <= 0) {
-            close();
+            closeInternal();
             return true;
         }
         return false;
@@ -139,15 +138,13 @@ abstract class AbstractBlock implements Block {
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        if (references > 1) {
-            throw new IllegalStateException("can't close block that is still referenced elsewhere [" + this + "]");
-        }
-        released = true;
-        // In case that there is only 1 reference, allow closing without having to call decRef.
-        references = 0;
+    public final void close() {
+        decRef();
     }
+
+    /**
+     * This is called when the number of references reaches zero.
+     * It must release any resources held by the block (adjusting circuit breakers if needed).
+     */
+    protected abstract void closeInternal();
 }

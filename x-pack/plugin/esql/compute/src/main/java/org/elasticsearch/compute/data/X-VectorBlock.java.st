@@ -87,8 +87,7 @@ $endif$
     }
 
     @Override
-    public void close() {
-        super.close();
+    public void closeInternal() {
         if (vector.isReleased()) {
             throw new IllegalStateException("cannot release block [" + this + "] containing already released vector");
         }

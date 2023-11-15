@@ -22,9 +22,9 @@ import java.util.Map;
 public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature FEATURE_STATE_RESET_SUPPORTED = new NodeFeature("system_indices.feature_state_reset_supported");
     public static final NodeFeature SYSTEM_INDICES_REST_ACCESS_ENFORCED = new NodeFeature("system_indices.rest_access_enforced");
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(FEATURE_STATE_RESET_SUPPORTED, Version.V_7_13_0,
-            SYSTEM_INDICES_REST_ACCESS_ENFORCED, Version.V_8_0_0);
+        return Map.of(FEATURE_STATE_RESET_SUPPORTED, Version.V_7_13_0, SYSTEM_INDICES_REST_ACCESS_ENFORCED, Version.V_8_0_0);
     }
 }

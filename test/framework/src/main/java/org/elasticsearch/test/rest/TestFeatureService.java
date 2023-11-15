@@ -22,16 +22,12 @@ class TestFeatureService extends FeatureService {
     private final Predicate<String> historicalFeaturesPredicate;
     private final Set<String> clusterStateFeatures;
 
-    TestFeatureService(
-        List<? extends FeatureSpecification> specs,
-        Collection<Version> nodeVersions,
-        Set<String> clusterStateFeatures
-    ) {
+    TestFeatureService(List<? extends FeatureSpecification> specs, Collection<Version> nodeVersions, Set<String> clusterStateFeatures) {
         super(specs);
         var minNodeVersion = nodeVersions.stream().min(Version::compareTo);
-        this.historicalFeaturesPredicate = minNodeVersion
-            .map(v -> (Predicate<String>) featureId -> clusterHasHistoricalFeature(v, featureId))
-            .orElse(f -> false);
+        this.historicalFeaturesPredicate = minNodeVersion.map(
+            v -> (Predicate<String>) featureId -> clusterHasHistoricalFeature(v, featureId)
+        ).orElse(f -> false);
         this.clusterStateFeatures = clusterStateFeatures;
     }
 

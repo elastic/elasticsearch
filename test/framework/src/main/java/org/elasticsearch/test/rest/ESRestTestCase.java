@@ -284,7 +284,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             testFeatureService = new TestFeatureService(
                 List.of(new RestTestLegacyFeatures()), // TODO: add new ESRestTestCaseHistoricalFeatures() too
                 nodeVersions,
-                Set.of()); // TODO: GET and pass cluster state
+                Set.of()
+            ); // TODO: GET and pass cluster state
         }
 
         assert testFeatureService != null;
@@ -2091,7 +2092,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             // fallback on version if index version is not there
             IndexVersion indexVersion = versionStr != null
                 ? IndexVersion.fromId(Integer.parseInt(versionStr))
-                : IndexVersion.fromId(parseLegacyVersion((String) nodeData.get("version")).map(Version::id).orElse(IndexVersions.MINIMUM_COMPATIBLE.id()));
+                : IndexVersion.fromId(
+                    parseLegacyVersion((String) nodeData.get("version")).map(Version::id).orElse(IndexVersions.MINIMUM_COMPATIBLE.id())
+                );
             if (minVersion == null || minVersion.after(indexVersion)) {
                 minVersion = indexVersion;
             }
@@ -2246,13 +2249,16 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static class ESRestTestCaseHistoricalFeatures implements FeatureSpecification {
         private static Map<NodeFeature, Version> historicalFeatures;
+
         @Override
         public Map<NodeFeature, Version> getHistoricalFeatures() {
             if (historicalFeatures == null) {
                 Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
                 String metadataPath = System.getProperty("tests.features.metadata.path");
                 if (metadataPath == null) {
-                    throw new UnsupportedOperationException("Historical features information is unavailable when using legacy test plugins.");
+                    throw new UnsupportedOperationException(
+                        "Historical features information is unavailable when using legacy test plugins."
+                    );
                 }
 
                 String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));

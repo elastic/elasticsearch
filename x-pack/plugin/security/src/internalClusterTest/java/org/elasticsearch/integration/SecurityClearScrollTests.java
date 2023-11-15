@@ -128,7 +128,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
                 SearchPhaseExecutionException.class,
                 () -> client().prepareSearchScroll(scrollId).get()
             );
-            assertThat(expectedException.toString(), containsString("SearchContextMissingException"));
+            assertThat(expectedException.toString(), containsString("No search context found"));
         }
     }
 

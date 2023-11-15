@@ -458,6 +458,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                     }
                 } catch (IOException e) {
                     logger.error("failure writing out history", e);
+                    fail(e);
                 }
             }
             assertTrue("Must be linearizable", linearizable);

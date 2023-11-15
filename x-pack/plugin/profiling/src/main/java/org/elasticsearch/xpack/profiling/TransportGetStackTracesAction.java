@@ -452,7 +452,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             SearchHit[] hits = searchResponse.getHits().getHits();
             for (SearchHit hit : hits) {
                 HostMetadata host = HostMetadata.fromSource(hit.getSourceAsMap());
-                hostsTable.putIfAbsent(host.hostID, host);
+                if (host != null) {
+                    hostsTable.putIfAbsent(host.hostID, host);
+                }
             }
             log.debug(hostsWatch::report);
             log.debug("Got [{}] host metadata items", hostsTable.size());
@@ -576,7 +578,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             this.submitListener = submitListener;
             this.executables = new ConcurrentHashMap<>(executableCount);
             this.stackFrames = new ConcurrentHashMap<>(stackFrameCount);
-            // for deciding when we're finished it is irrelevant where a slice originated so we can
+            // for deciding when we're finished it is irrelevant where a slice originated, so we can
             // simplify state handling by treating them equally.
             this.expectedSlices = new AtomicInteger(expectedExecutableSlices + expectedStackFrameSlices);
         }

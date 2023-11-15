@@ -61,7 +61,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         super(
             shardTarget == null ? null : shardTarget.getFullyQualifiedIndexName(),
             shardTarget == null ? -1 : shardTarget.getShardId().getId(),
-            ExceptionsHelper.stackTrace(e),
+            e.getMessage(),
             ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)),
             ExceptionsHelper.unwrapCause(e)
         );

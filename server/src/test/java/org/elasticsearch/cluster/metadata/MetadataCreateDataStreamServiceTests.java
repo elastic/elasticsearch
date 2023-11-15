@@ -60,6 +60,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
             cs,
+            true,
             req,
             ActionListener.noop()
         );
@@ -68,6 +69,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isSystem(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).getLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
         assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
         assertThat(
             newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
@@ -97,6 +99,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
             cs,
+            randomBoolean(),
             req,
             ActionListener.noop()
         );
@@ -172,6 +175,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
             cs,
+            randomBoolean(),
             req,
             ActionListener.noop()
         );
@@ -224,6 +228,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
             cs,
+            randomBoolean(),
             req,
             ActionListener.noop()
         );
@@ -252,7 +257,13 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
         ResourceAlreadyExistsException e = expectThrows(
             ResourceAlreadyExistsException.class,
-            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, ActionListener.noop())
+            () -> MetadataCreateDataStreamService.createDataStream(
+                metadataCreateIndexService,
+                cs,
+                randomBoolean(),
+                req,
+                ActionListener.noop()
+            )
         );
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] already exists"));
     }
@@ -264,7 +275,13 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, ActionListener.noop())
+            () -> MetadataCreateDataStreamService.createDataStream(
+                metadataCreateIndexService,
+                cs,
+                randomBoolean(),
+                req,
+                ActionListener.noop()
+            )
         );
         assertThat(e.getMessage(), containsString("must not contain the following characters"));
     }
@@ -276,7 +293,13 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, ActionListener.noop())
+            () -> MetadataCreateDataStreamService.createDataStream(
+                metadataCreateIndexService,
+                cs,
+                randomBoolean(),
+                req,
+                ActionListener.noop()
+            )
         );
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must be lowercase"));
     }
@@ -288,7 +311,13 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, ActionListener.noop())
+            () -> MetadataCreateDataStreamService.createDataStream(
+                metadataCreateIndexService,
+                cs,
+                randomBoolean(),
+                req,
+                ActionListener.noop()
+            )
         );
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must not start with '.ds-'"));
     }
@@ -300,7 +329,13 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, ActionListener.noop())
+            () -> MetadataCreateDataStreamService.createDataStream(
+                metadataCreateIndexService,
+                cs,
+                randomBoolean(),
+                req,
+                ActionListener.noop()
+            )
         );
         assertThat(e.getMessage(), equalTo("no matching index template found for data stream [my-data-stream]"));
     }
@@ -315,7 +350,13 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, ActionListener.noop())
+            () -> MetadataCreateDataStreamService.createDataStream(
+                metadataCreateIndexService,
+                cs,
+                randomBoolean(),
+                req,
+                ActionListener.noop()
+            )
         );
         assertThat(
             e.getMessage(),
@@ -333,7 +374,13 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             .metadata(Metadata.builder().put("template", template).build())
             .build();
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
-        return MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req, ActionListener.noop());
+        return MetadataCreateDataStreamService.createDataStream(
+            metadataCreateIndexService,
+            cs,
+            randomBoolean(),
+            req,
+            ActionListener.noop()
+        );
     }
 
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
@@ -379,7 +426,10 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             ".system-data-stream",
             "test system datastream",
             Type.EXTERNAL,
-            new ComposableIndexTemplate(List.of(".system-data-stream"), null, null, null, null, null, new DataStreamTemplate()),
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(".system-data-stream"))
+                .dataStreamTemplate(new DataStreamTemplate())
+                .build(),
             Map.of(),
             List.of("stack"),
             ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS

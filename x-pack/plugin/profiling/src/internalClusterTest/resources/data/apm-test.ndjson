@@ -1,0 +1,2 @@
+{"create": {"_index": "apm-test-001"}}
+{"@timestamp": "1698624000", "transaction.name":  "encodeSha1", "transaction.profiler_stack_trace_ids": "Ce77w10WeIDow3kd1jowlA"}

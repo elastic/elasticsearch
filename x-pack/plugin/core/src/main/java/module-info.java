@@ -57,6 +57,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.common.validation;
     exports org.elasticsearch.xpack.core.common;
     exports org.elasticsearch.xpack.core.datastreams;
+    exports org.elasticsearch.xpack.core.datatiers;
     exports org.elasticsearch.xpack.core.deprecation;
     exports org.elasticsearch.xpack.core.downsample;
     exports org.elasticsearch.xpack.core.enrich.action;
@@ -226,4 +227,6 @@ module org.elasticsearch.xcore {
         with
             org.elasticsearch.xpack.core.ml.MlConfigVersionComponent,
             org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.core.XPackFeatures;
 }

@@ -54,11 +54,6 @@ public final class NodeMetadata {
         this.oldestIndexVersion = Objects.requireNonNull(oldestIndexVersion);
     }
 
-    @Deprecated
-    public NodeMetadata(final String nodeId, final Version nodeVersion, final IndexVersion oldestIndexVersion) {
-        this(nodeId, IndexVersion.fromId(nodeVersion.id()), oldestIndexVersion);
-    }
-
     public NodeMetadata(final String nodeId, final IndexVersion nodeIndexVersion, final IndexVersion oldestIndexVersion) {
         this(nodeId, nodeIndexVersion, nodeIndexVersion, oldestIndexVersion);
     }

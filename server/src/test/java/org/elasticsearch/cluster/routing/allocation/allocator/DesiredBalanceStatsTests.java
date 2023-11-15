@@ -37,9 +37,9 @@ public class DesiredBalanceStatsTests extends AbstractWireSerializingTestCase<De
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeInt(),
-            randomNonNegativeInt(),
-            randomNonNegativeInt()
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 

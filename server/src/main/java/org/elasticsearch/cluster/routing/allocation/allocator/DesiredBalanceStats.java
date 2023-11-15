@@ -31,9 +31,9 @@ public record DesiredBalanceStats(
     long computedShardMovements,
     long cumulativeComputationTime,
     long cumulativeReconciliationTime,
-    int unassignedShards,
-    int totalAllocations,
-    int undesiredAllocations
+    long unassignedShards,
+    long totalAllocations,
+    long undesiredAllocations
 ) implements Writeable, ToXContentObject {
 
     private static final TransportVersion COMPUTED_SHARD_MOVEMENTS_VERSION = TransportVersions.V_8_8_0;
@@ -56,9 +56,9 @@ public record DesiredBalanceStats(
             in.getTransportVersion().onOrAfter(COMPUTED_SHARD_MOVEMENTS_VERSION) ? in.readVLong() : -1,
             in.readVLong(),
             in.readVLong(),
-            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVInt() : -1,
-            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVInt() : -1,
-            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVInt() : -1
+            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVLong() : -1,
+            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVLong() : -1,
+            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVLong() : -1
         );
     }
 
@@ -76,9 +76,9 @@ public record DesiredBalanceStats(
         out.writeVLong(cumulativeComputationTime);
         out.writeVLong(cumulativeReconciliationTime);
         if (out.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS)) {
-            out.writeVInt(unassignedShards);
-            out.writeVInt(totalAllocations);
-            out.writeVInt(undesiredAllocations);
+            out.writeVLong(unassignedShards);
+            out.writeVLong(totalAllocations);
+            out.writeVLong(undesiredAllocations);
         }
     }
 

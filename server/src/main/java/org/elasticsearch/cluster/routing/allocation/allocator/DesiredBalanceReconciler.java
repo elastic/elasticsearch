@@ -34,7 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -74,15 +74,15 @@ public class DesiredBalanceReconciler {
     /**
      * Number of unassigned shards during last reconciliation
      */
-    protected final AtomicInteger unassignedShards = new AtomicInteger();
+    protected final AtomicLong unassignedShards = new AtomicLong();
     /**
      * Total number of assigned shards during last reconciliation
      */
-    protected final AtomicInteger totalAllocations = new AtomicInteger();
+    protected final AtomicLong totalAllocations = new AtomicLong();
     /**
      * Number of assigned shards during last reconciliation that are not allocated on desired node and need to be moved
      */
-    protected final AtomicInteger undesiredAllocations = new AtomicInteger();
+    protected final AtomicLong undesiredAllocations = new AtomicLong();
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(threadPool);

@@ -46,7 +46,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
                     i.readCollectionAsList(StreamInput::readInt),
                     i.readDouble(),
                     i.readDouble(),
-                    i.readInt()
+                    i.readLong()
                 )
             )
             : null;

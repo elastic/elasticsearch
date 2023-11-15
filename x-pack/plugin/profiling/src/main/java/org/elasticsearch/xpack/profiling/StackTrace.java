@@ -35,7 +35,7 @@ final class StackTrace implements ToXContentObject {
         List<Integer> typeIds,
         double annualCO2Tons,
         double annualCostsUSD,
-        int count
+        long count
     ) {
         this.addressOrLines = addressOrLines;
         this.fileIds = fileIds;

@@ -697,7 +697,8 @@ class NodeConstruction {
             clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client));
             clusterService.addListener(new TransportVersionsFixupListener(clusterService, client.admin().cluster(), threadPool));
         }
-        clusterService.addListener(new CommonMetrics(telemetryProvider.getMeterRegistry(), client.admin().cluster()));
+        CommonMetrics commonMetrics = new CommonMetrics(telemetryProvider.getMeterRegistry(), client.admin().cluster());
+        clusterService.addListener(commonMetrics.getClusterStateListener());
 
         final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
         rerouteServiceReference.set(rerouteService);

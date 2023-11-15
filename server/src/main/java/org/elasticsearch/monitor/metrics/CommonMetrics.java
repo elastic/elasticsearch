@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -33,67 +34,75 @@ public class CommonMetrics {
         this.client = client;
         this.actionListener = new NodeStatsResponseActionListener();
         this.commonStatsCache = new CommonStatsCache(TimeValue.timeValueSeconds(10)); // TODO change this maybe?
-        meterRegistry.registerLongGauge(
+        registerMetrics(meterRegistry);
+    }
+
+    public ClusterStateListener getClusterStateListener() {
+        return commonStatsCache;
+    }
+
+    private void registerMetrics(MeterRegistry registry) {
+        registry.registerLongGauge(
             "es.indices.get.total",
             "Total number of get operations",
             "operation",
             commonStatsCache.indicesGetTotalSupplier()
         );
-        meterRegistry.registerLongGauge(
+        registry.registerLongGauge(
             "es.indices.get.time_in_millis",
             "Time in milliseconds spent performing get operations.",
             "time",
             commonStatsCache.indicesGetTimeInMillisSupplier()
         );
-        meterRegistry.registerLongGauge(
+        registry.registerLongGauge(
             "es.indices.search.fetch.total",
             "Total number of fetch operations.",
             "operation",
             commonStatsCache.indicesSearchFetchTotalSupplier()
         );
-        meterRegistry.registerLongGauge(
+        registry.registerLongGauge(
             "es.indices.search.fetch.time_in_millis",
             "Time in milliseconds spent performing fetch operations.",
             "time",
             commonStatsCache.indicesSearchFetchTimeInMillisSupplier()
         );
-        meterRegistry.registerLongGauge(
+        registry.registerLongGauge(
             "es.indices.merge.total",
             "Total number of merge operations.",
             "operation",
             commonStatsCache.indicesMergeTotalSupplier()
         );
-        LongGauge lg = meterRegistry.registerLongGauge(
+        LongGauge lg = registry.registerLongGauge(
             "es.indices.merge.time_in_millis",
             "Time in milliseconds spent performing merge operations.",
             "time",
             commonStatsCache.indicesMergeTotalTimeInMillisSupplier()
         );
-        meterRegistry.registerLongGauge(
+        registry.registerLongGauge(
             "es.indices.translog.operations",
             "Number of transaction log operations.",
             "operation",
             commonStatsCache.indicesTranslogOperationSupplier()
         );
-        meterRegistry.registerLongGauge(
+        registry.registerLongGauge(
             "es.indices.translog.size",
             "Size, in bytes, of the transaction log.",
             "bytes",
             commonStatsCache.indicesTranslogSizeInBytesSupplier()
         );
-        meterRegistry.registerLongGauge(
+        registry.registerLongGauge(
             "es.indices.translog.uncommitted_operations",
             " Number of uncommitted transaction log operations.",
             "operations",
             commonStatsCache.indicesTranslogUncommittedOperationsSupplier()
         );
-        meterRegistry.registerLongGauge(
+        registry.registerLongGauge(
             "es.indices.translog.uncommitted_size_in_bytes",
             "Size, in bytes, of uncommitted transaction log operations.",
             "bytes",
             commonStatsCache.indicesTranslogUncommittedSizeInBytesSupplier()
         );
-        meterRegistry.registerLongGauge(
+        registry.registerLongGauge(
             "es.indices.translog.earliest_last_modified_age",
             "Earliest last modified age for the transaction log.",
             "time",
@@ -101,17 +110,33 @@ public class CommonMetrics {
         );
     }
 
+    private void refreshCommonStats(String localNodeId) {
+        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(localNodeId);
+        this.client.nodesStats(nodesStatsRequest, this.actionListener);
+    }
+
+    private static CommonStats createEmptyCommonStats() {
+        return new CommonStats(
+            new CommonStatsFlags(
+                CommonStatsFlags.Flag.Get,
+                CommonStatsFlags.Flag.Search,
+                CommonStatsFlags.Flag.Merge,
+                CommonStatsFlags.Flag.Translog
+            )
+        );
+    }
+
     private class CommonStatsCache extends SingleObjectCache<CommonStats> implements ClusterStateListener {
         private String localNodeId;
 
         CommonStatsCache(TimeValue interval) {
-            super(interval, new CommonStats());
+            super(interval, createEmptyCommonStats());
         }
 
         @Override
         protected CommonStats refresh() {
             if (localNodeId.isEmpty()) {
-                return new CommonStats();
+                return createEmptyCommonStats();
             }
             refreshCommonStats(localNodeId);
             return actionListener.commonStats();
@@ -169,17 +194,12 @@ public class CommonMetrics {
 
     }
 
-    private void refreshCommonStats(String localNodeId) {
-        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(localNodeId);
-        this.client.nodesStats(nodesStatsRequest, this.actionListener);
-    }
-
     private static class NodeStatsResponseActionListener implements ActionListener<NodesStatsResponse> {
-        private CommonStats commonStats = new CommonStats();
+        private CommonStats commonStats = createEmptyCommonStats();
 
         @Override
         public void onResponse(NodesStatsResponse nodesStatsResponse) {
-            CommonStats cs = new CommonStats();
+            CommonStats cs = createEmptyCommonStats();
             nodesStatsResponse.getNodes().forEach(nodeStats -> {
                 cs.getGet().add(nodeStats.getIndices().getGet());
                 cs.getSearch().getTotal().add(nodeStats.getIndices().getSearch().getTotal());
@@ -192,6 +212,7 @@ public class CommonMetrics {
         @Override
         public void onFailure(Exception e) {
             // TODO: schedule retry
+            System.out.println(e);
         }
 
         public CommonStats commonStats() {

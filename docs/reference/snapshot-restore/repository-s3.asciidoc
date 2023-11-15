@@ -528,7 +528,6 @@ by the `elasticsearch` user. By default, {es} runs as user `elasticsearch` using
 If the symlink exists, it will be used by default by all S3 repositories that don't have explicit `client` credentials.
 
 [[repository-s3-linearizable-registers]]
-[discrete]
 ==== Linearizable register implementation
 
 The linearizable register implementation for S3 repositories is based on the

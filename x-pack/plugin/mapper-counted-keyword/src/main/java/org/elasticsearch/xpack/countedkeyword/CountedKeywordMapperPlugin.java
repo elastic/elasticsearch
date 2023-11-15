@@ -18,6 +18,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * <p>This plugin adds two associated features:</p>
+ * <ol>
+ *    <li>The mapping type <code>counted_keyword</code> that behaves like <code>keyword</code> except that it counts duplicate values.</li>
+ *    <li>The <code>counted_terms</code> aggregation that operates on fields mapped as <code>counted_keyword</code> and considers
+ *    duplicate values in the <code>doc_count</code> that it returns.</li>
+ * </ol>
+ *
+ * <p>Both features are considered a tech preview and are thus intentionally undocumented.</p>
+ */
 public class CountedKeywordMapperPlugin extends Plugin implements MapperPlugin, SearchPlugin {
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {

@@ -63,6 +63,10 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
         return docId;
     }
 
+    public float magnitude() {
+        return magnitude;
+    }
+
     private float[] vectorValue(int docId) throws IOException {
         if (docId != this.docId) {
             this.docId = docId;

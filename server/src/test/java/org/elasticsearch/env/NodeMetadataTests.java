@@ -87,7 +87,7 @@ public class NodeMetadataTests extends ESTestCase {
         Files.copy(resource, stateDir.resolve(NodeMetadata.FORMAT.getStateFileName(between(0, Integer.MAX_VALUE))));
         final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempDir);
         assertThat(nodeMetadata.nodeId(), equalTo("y6VUVMSaStO4Tz-B5BxcOw"));
-        assertThat(nodeMetadata.nodeVersion(), equalTo(Version.V_EMPTY));
+        assertThat(nodeMetadata.nodeIndexVersion(), equalTo(IndexVersions.ZERO));
     }
 
     public void testUpgradesLegitimateVersions() {
@@ -152,11 +152,15 @@ public class NodeMetadataTests extends ESTestCase {
 
     public void testUpgradeMarksPreviousVersion() {
         final String nodeId = randomAlphaOfLength(10);
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0);
+        final IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.MINIMUM_IN_PLACE_UPGRADE_COMPATIBLE,
+            IndexVersions.V_8_0_0
+        );
 
         final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, version, IndexVersion.current()).upgradeToCurrentVersion();
         assertThat(nodeMetadata.nodeIndexVersion(), equalTo(IndexVersion.current()));
-        assertThat(nodeMetadata.previousNodeVersion(), equalTo(version));
+        assertThat(nodeMetadata.previousNodeIndexVersion(), equalTo(version));
     }
 
     public static IndexVersion tooNewVersion() {

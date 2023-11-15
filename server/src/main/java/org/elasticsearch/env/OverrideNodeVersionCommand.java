@@ -90,7 +90,7 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
             ).replace("V_NEW", nodeMetadata.nodeIndexVersion().toString()).replace("V_CUR", Version.CURRENT.toString())
         );
 
-        PersistedClusterStateService.overrideVersion(Version.CURRENT, paths);
+        PersistedClusterStateService.overrideVersion(IndexVersion.current(), paths);
 
         terminal.println(SUCCESS_MESSAGE);
     }

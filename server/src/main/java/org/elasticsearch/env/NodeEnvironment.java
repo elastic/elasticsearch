@@ -22,7 +22,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -88,8 +87,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -528,20 +525,20 @@ public final class NodeEnvironment implements Closeable {
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
 
-            String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousNodeVersion().toString());
+            // TODO[wrb]: update message
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion()
                     + "] with which this node of version ["
                     + Build.current().version()
                     + "] is incompatible. Revert this node to version ["
-                    + bestDowngradeVersion
+                    + metadata.previousNodeIndexVersion()
                     + "] and delete any indices with versions earlier than ["
                     + IndexVersions.MINIMUM_COMPATIBLE
                     + "] before upgrading to version ["
                     + Build.current().version()
                     + "]. If all such indices have already been deleted, revert this node to version ["
-                    + bestDowngradeVersion
+                    + metadata.previousNodeIndexVersion()
                     + "] and wait for it to join the cluster to clean up any older indices from its metadata."
             );
         }
@@ -638,7 +635,7 @@ public final class NodeEnvironment implements Closeable {
         }
 
         metadata = metadata.upgradeToCurrentVersion();
-        assert metadata.nodeIndexVersion().equals(IndexVersion.current()) : metadata.nodeVersion() + " != " + Version.CURRENT;
+        assert metadata.nodeIndexVersion().equals(IndexVersion.current()) : metadata.nodeIndexVersion() + " != " + IndexVersion.current();
 
         return metadata;
     }
@@ -1509,32 +1506,4 @@ public final class NodeEnvironment implements Closeable {
             }
         }
     }
-
-    /**
-     * Get a useful version string to direct a user's downgrade operation
-     *
-     * <p>If a user is trying to install 8.0 but has incompatible indices, the user should
-     * downgrade to 7.17.x. We return 7.17.0, unless the user is trying to upgrade from
-     * a 7.17.x release, in which case we return the last installed version.
-     * @return Version to downgrade to
-     */
-    // visible for testing
-    static String getBestDowngradeVersion(String previousNodeVersion) {
-        // this method should only be called in the context of an upgrade to 8.x
-        assert Build.current().version().startsWith("9.") == false;
-        Pattern pattern = Pattern.compile("^7\\.(\\d+)\\.\\d+$");
-        Matcher matcher = pattern.matcher(previousNodeVersion);
-        if (matcher.matches()) {
-            try {
-                int minorVersion = Integer.parseInt(matcher.group(1));
-                if (minorVersion >= 17) {
-                    return previousNodeVersion;
-                }
-            } catch (NumberFormatException e) {
-                // continue and return default
-            }
-        }
-        return "7.17.0";
-    }
-
 }

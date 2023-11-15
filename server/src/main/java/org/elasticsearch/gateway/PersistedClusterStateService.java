@@ -379,10 +379,6 @@ public class PersistedClusterStateService {
         return new NodeMetadata(nodeId, nodeIndexVersion, oldestIndexVersion);
     }
 
-    public static void overrideVersion(Version version, Path... dataPaths) throws IOException {
-        overrideVersion(IndexVersion.fromId(version.id), dataPaths);
-    }
-
     /**
      * Overrides the version field for the metadata in the given data path
      */
@@ -851,7 +847,7 @@ public class PersistedClusterStateService {
             final Map<String, String> commitData = Maps.newMapWithExpectedSize(COMMIT_DATA_SIZE);
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
-            commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.id));
+            commitData.put(NODE_VERSION_KEY, Integer.toString(IndexVersion.current().id()));
             commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id()));
             commitData.put(NODE_ID_KEY, nodeId);
             commitData.put(CLUSTER_UUID_KEY, clusterUUID);

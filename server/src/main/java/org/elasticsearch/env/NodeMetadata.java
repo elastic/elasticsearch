@@ -98,11 +98,6 @@ public final class NodeMetadata {
         return nodeId;
     }
 
-    @Deprecated
-    public Version nodeVersion() {
-        return Version.fromId(nodeIndexVersion.id());
-    }
-
     public IndexVersion nodeIndexVersion() {
         return nodeIndexVersion;
     }
@@ -113,10 +108,6 @@ public final class NodeMetadata {
      * the current version of the node ({@link NodeMetadata#upgradeToCurrentVersion()} before storing the node metadata again on disk.
      * In doing so, {@code previousNodeVersion} refers to the previously last known version that this node was started on.
      */
-    public Version previousNodeVersion() {
-        return Version.fromId(previousNodeIndexVersion.id());
-    }
-
     public IndexVersion previousNodeIndexVersion() {
         return previousNodeIndexVersion;
     }

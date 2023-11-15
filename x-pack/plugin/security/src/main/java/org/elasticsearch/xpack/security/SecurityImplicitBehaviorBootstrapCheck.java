@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
@@ -34,9 +35,9 @@ public class SecurityImplicitBehaviorBootstrapCheck implements BootstrapCheck {
         }
         if (licenseService instanceof ClusterStateLicenseService clusterStateLicenseService) {
             final License license = clusterStateLicenseService.getLicense(context.metadata());
-            final Version lastKnownVersion = nodeMetadata.previousNodeVersion();
+            final IndexVersion lastKnownVersion = nodeMetadata.previousNodeIndexVersion();
             // pre v7.2.0 nodes have Version.EMPTY and its id is 0, so Version#before handles this successfully
-            if (lastKnownVersion.before(Version.V_8_0_0)
+            if (lastKnownVersion.before(IndexVersions.V_8_0_0)
                 && XPackSettings.SECURITY_ENABLED.exists(context.settings()) == false
                 && (license.operationMode() == License.OperationMode.BASIC || license.operationMode() == License.OperationMode.TRIAL)) {
                 return BootstrapCheckResult.failure(

@@ -187,10 +187,12 @@ public final class RefCountingListener implements Releasable {
                     if (acquiredConsumer == null) {
                         assert false : "already closed";
                     } else {
-                        acquiredConsumer.accept(response);
+                        try {
+                            acquiredConsumer.accept(response);
+                        } catch (Exception e) {
+                            addException(e);
+                        }
                     }
-                } catch (Exception e) {
-                    addException(e);
                 }
             }
 

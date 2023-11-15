@@ -33,6 +33,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -106,12 +107,12 @@ public class JoinHelper {
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection,
         ObjLongConsumer<ActionListener<ClusterState>> latestStoredStateSupplier,
         CompatibilityVersions compatibilityVersions,
-        Set<String> features
+        FeatureService featureService
     ) {
         this.joinTaskQueue = masterService.createTaskQueue(
             "node-join",
             Priority.URGENT,
-            new NodeJoinExecutor(allocationService, rerouteService, maybeReconfigureAfterMasterElection)
+            new NodeJoinExecutor(allocationService, rerouteService, featureService, maybeReconfigureAfterMasterElection)
         );
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
@@ -121,7 +122,7 @@ public class JoinHelper {
         this.joinReasonService = joinReasonService;
         this.latestStoredStateSupplier = latestStoredStateSupplier;
         this.compatibilityVersions = compatibilityVersions;
-        this.features = features;
+        this.features = featureService.getNodeFeatures().keySet();
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,

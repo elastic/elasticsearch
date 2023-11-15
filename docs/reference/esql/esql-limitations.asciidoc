@@ -57,6 +57,7 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 ** `completion`
 ** `dense_vector`
 ** `double_range`
+** `flattened`
 ** `float_range`
 ** `histogram`
 ** `integer_range`
@@ -156,6 +157,12 @@ include::esql-process-data-with-dissect-grok.asciidoc[tag=grok-limitations]
 return `null` when applied to a multivalued field, unless documented otherwise.
 Work around this limitation by converting the field to single value with one of
 the <<esql-mv-functions,multivalue functions>>.
+
+[discrete]
+[[esql-limitations-timezone]]
+=== Timezone support
+
+{esql} only supports the UTC timezone.
 
 [discrete]
 [[esql-limitations-kibana]]

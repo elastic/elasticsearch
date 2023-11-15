@@ -10,6 +10,7 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
 
@@ -185,6 +186,7 @@ public class RefCountingListenerTests extends ESTestCase {
 
     public void testConsumerFailure() {
         final var executed = new AtomicBoolean();
+        final Runnable completeAcquiredRunOnce;
         try (var refs = new RefCountingListener(new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
@@ -197,8 +199,13 @@ public class RefCountingListenerTests extends ESTestCase {
                 executed.set(true);
             }
         })) {
-            refs.acquire(ignored -> { throw new ElasticsearchException("simulated"); }).onResponse(null);
+            final var listener = refs.acquire(ignored -> { throw new ElasticsearchException("simulated"); });
+            completeAcquiredRunOnce = new RunOnce(() -> listener.onResponse(null));
+            if (randomBoolean()) {
+                completeAcquiredRunOnce.run();
+            }
         }
+        completeAcquiredRunOnce.run();
         assertTrue(executed.get());
     }
 

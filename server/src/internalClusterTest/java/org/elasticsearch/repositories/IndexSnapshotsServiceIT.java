@@ -338,7 +338,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         boolean useAllRepositoriesRequest
     ) {
         ShardId shardId = new ShardId(new Index(indexName, "__na__"), shard);
-        PlainActionFuture<GetShardSnapshotResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<GetShardSnapshotResponse> future = new PlainActionFuture<>();
         final GetShardSnapshotRequest request;
         if (useAllRepositoriesRequest && randomBoolean()) {
             request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);

@@ -40,7 +40,8 @@ final class CostCalculator {
         return annualCoreHours * costs.costFactor * customCostFactor;
     }
 
-    private static double annualCoreHours(double duration, double samples, double samplingFreq) {
+    public static double annualCoreHours(double duration, double samples, double samplingFreq) {
+        // samplingFreq will a variable value when we start supporting probabilistic profiling (soon).
         return (secondsPerYear / duration * samples / samplingFreq) / (60 * 60); // unit: core * hour
     }
 }

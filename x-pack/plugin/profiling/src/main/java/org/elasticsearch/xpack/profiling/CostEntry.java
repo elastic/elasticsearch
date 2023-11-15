@@ -29,8 +29,8 @@ final class CostEntry implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("co2Factor", this.co2Factor);
-        builder.field("costFactor", this.costFactor);
+        builder.field("co2_factor", this.co2Factor);
+        builder.field("cost_factor", this.costFactor);
         builder.endObject();
         return builder;
     }

@@ -46,7 +46,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private String stackTraceIds;
     private Double requestedDuration;
 
-    // We intentionally don't expose this field via the REST API but we can control behavior within Elasticsearch.
+    // We intentionally don't expose this field via the REST API, but we can control behavior within Elasticsearch.
     // Once we have migrated all client-side code to dedicated APIs (such as the flamegraph API), we can adjust
     // sample counts by default and remove this flag.
     private Boolean adjustSampleCount;

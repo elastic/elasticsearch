@@ -123,6 +123,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -3832,6 +3833,10 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/101008",
+        value = "org.elasticsearch.index.shard.IndexShard:TRACE"
+    )
     public void testScheduledRefresh() throws Exception {
         // Setup and make shard search idle:
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
@@ -3893,13 +3898,18 @@ public class IndexShardTests extends IndexShardTestCase {
         latch.await();
 
         // Index a document while shard is search active and ensure scheduleRefresh(...) makes documen visible:
+        logger.info("--> index doc while shard search active");
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
+        logger.info("--> scheduledRefresh(future4)");
         PlainActionFuture<Boolean> future4 = new PlainActionFuture<>();
         primary.scheduledRefresh(future4);
         assertFalse(future4.actionGet());
+
+        logger.info("--> ensure search idle");
         assertTrue(primary.isSearchIdle());
         assertTrue(primary.searchIdleTime() >= TimeValue.ZERO.millis());
         primary.flushOnIdle(0);
+        logger.info("--> scheduledRefresh(future5)");
         PlainActionFuture<Boolean> future5 = new PlainActionFuture<>();
         primary.scheduledRefresh(future5);
         assertTrue(future5.actionGet()); // make sure we refresh once the shard is inactive

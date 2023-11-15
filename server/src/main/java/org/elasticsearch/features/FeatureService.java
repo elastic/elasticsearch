@@ -116,8 +116,15 @@ public class FeatureService {
         if (state.clusterFeatures().clusterHasFeature(feature)) {
             return true;
         }
+        return clusterHasHistoricalFeature(state.getNodes().getMinNodeVersion(), feature.id());
+    }
 
-        var features = historicalFeatures.floorEntry(state.getNodes().getMinNodeVersion());
-        return features != null && features.getValue().contains(feature.id());
+    /**
+     * Returns {@code true} if nodes of the given {@code version} support feature with id {@code featureId}.
+     * Protected access for test purposes.
+     */
+    protected boolean clusterHasHistoricalFeature(Version version, String featureId) {
+        var features = historicalFeatures.floorEntry(version);
+        return features != null && features.getValue().contains(featureId);
     }
 }

@@ -63,7 +63,6 @@ public class IndexNameExpressionResolver {
     private static final Predicate<String> ALWAYS_TRUE = s -> true;
 
     public static final String EXCLUDED_DATA_STREAMS_KEY = "es.excluded_ds";
-    public static final Version SYSTEM_INDEX_ENFORCEMENT_VERSION = Version.V_8_0_0;
     public static final IndexVersion SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION = IndexVersions.V_8_0_0;
 
     private final ThreadContext threadContext;

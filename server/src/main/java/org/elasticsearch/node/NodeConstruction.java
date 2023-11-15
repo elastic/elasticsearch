@@ -280,9 +280,9 @@ class NodeConstruction {
     private Node.LocalNodeFactory localNodeFactory;
     private NodeService nodeService;
     private TerminationHandler terminationHandler;
+    private final SetOnce<TelemetryProvider> telemetryProvider = new SetOnce<>();
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry xContentRegistry;
-    private TelemetryProvider telemetryProvider;
 
     private NodeConstruction(List<Closeable> resourcesToClose) {
         this.resourcesToClose = resourcesToClose;
@@ -324,16 +324,16 @@ class NodeConstruction {
         return terminationHandler;
     }
 
+    TelemetryProvider telemetryProvider() {
+        return telemetryProvider.get();
+    }
+
     NamedWriteableRegistry namedWriteableRegistry() {
         return namedWriteableRegistry;
     }
 
     NamedXContentRegistry namedXContentRegistry() {
         return xContentRegistry;
-    }
-
-    TelemetryProvider telemetryProvider() {
-        return telemetryProvider;
     }
 
     private <T> Optional<T> getSinglePlugin(Class<T> pluginClass) {
@@ -505,11 +505,11 @@ class NodeConstruction {
             Task.HEADERS_TO_COPY.stream()
         ).collect(Collectors.toSet());
 
-        final TelemetryProvider telemetryProvider = getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings))
-            .orElse(TelemetryProvider.NOOP);
-        this.telemetryProvider = telemetryProvider;
+        telemetryProvider.set(
+            getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings)).orElse(TelemetryProvider.NOOP)
+        );
 
-        final Tracer tracer = telemetryProvider.getTracer();
+        final Tracer tracer = telemetryProvider.get().getTracer();
 
         final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
 
@@ -804,7 +804,7 @@ class NodeConstruction {
             namedWriteableRegistry,
             clusterModule.getIndexNameExpressionResolver(),
             repositoriesServiceReference::get,
-            telemetryProvider,
+            telemetryProvider.get(),
             clusterModule.getAllocationService(),
             indicesService,
             featureService,
@@ -921,7 +921,7 @@ class NodeConstruction {
             bigArrays,
             xContentRegistry,
             recoverySettings,
-            telemetryProvider
+            telemetryProvider.get()
         );
         RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
         repositoriesServiceReference.set(repositoryService);

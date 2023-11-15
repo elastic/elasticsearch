@@ -422,5 +422,4 @@ module org.elasticsearch.server {
     provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
 
     exports org.elasticsearch.cluster.routing.allocation.shards to org.elasticsearch.shardhealth, org.elasticsearch.serverless.shardhealth;
-    exports org.elasticsearch.monitor.metrics;
 }

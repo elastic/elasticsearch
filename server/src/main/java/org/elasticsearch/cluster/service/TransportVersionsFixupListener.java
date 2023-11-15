@@ -51,7 +51,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TransportVersionsFixupListener.class);
 
-    private static final TimeValue RETRY_TIME = TimeValue.timeValueSeconds(1);
+    private static final TimeValue RETRY_TIME = TimeValue.timeValueSeconds(30);
 
     private final MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue;
     private final ClusterAdminClient client;
@@ -93,7 +93,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
 
         @Override
         public void onFailure(Exception e) {
-            logger.info("Could not apply transport version for nodes {} to cluster state", results.keySet(), e);
+            logger.warn("Could not apply transport version for nodes {} to cluster state", results.keySet(), e);
             scheduleRetry(results.keySet(), retryNum);
         }
 
@@ -186,7 +186,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             @Override
             public void onFailure(Exception e) {
                 pendingNodes.removeAll(outstandingNodes);
-                logger.info("Could not read transport versions for nodes {}", outstandingNodes, e);
+                logger.warn("Could not read transport versions for nodes {}", outstandingNodes, e);
                 scheduleRetry(outstandingNodes, retryNum);
             }
         });
@@ -196,7 +196,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         if (response.hasFailures()) {
             Set<String> failedNodes = new HashSet<>();
             for (FailedNodeException fne : response.failures()) {
-                logger.info("Failed to read transport version info from node {}", fne.nodeId(), fne);
+                logger.warn("Failed to read transport version info from node {}", fne.nodeId(), fne);
                 failedNodes.add(fne.nodeId());
             }
             scheduleRetry(failedNodes, retryNum);

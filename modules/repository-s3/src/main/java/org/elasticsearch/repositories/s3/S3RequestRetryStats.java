@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicLongArray;
  * This class emit aws s3 metrics as logs until we have a proper apm integration
  */
 public class S3RequestRetryStats {
+    public static final String MESSAGE_FIELD = "message";
 
     private static final Logger logger = LogManager.getLogger(S3RequestRetryStats.class);
 
@@ -65,7 +66,8 @@ public class S3RequestRetryStats {
 
     public void emitMetrics() {
         if (logger.isDebugEnabled()) {
-            var metrics = Maps.<String, Object>newMapWithExpectedSize(3);
+            var metrics = Maps.<String, Object>newMapWithExpectedSize(4);
+            metrics.put(MESSAGE_FIELD, "S3 Request Retry Stats");
             metrics.put("elasticsearch.metrics.s3.requests", requests.get());
             metrics.put("elasticsearch.metrics.s3.exceptions", exceptions.get());
             metrics.put("elasticsearch.metrics.s3.throttles", throttles.get());

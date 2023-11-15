@@ -92,7 +92,6 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             testHealthPeriodicLogger.close();
         }
         threadPool.shutdownNow();
-        client.close();
     }
 
     public void testConvertToLoggedFields() {
@@ -101,7 +100,8 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         Map<String, Object> loggerResults = HealthPeriodicLogger.convertToLoggedFields(results);
 
-        assertThat(loggerResults.size(), equalTo(results.size() + 1));
+        // verify that the number of fields is the number of indicators + 2 (for overall and for message)
+        assertThat(loggerResults.size(), equalTo(results.size() + 2));
 
         // test indicator status
         assertThat(loggerResults.get(makeHealthStatusString("network_latency")), equalTo("green"));
@@ -110,6 +110,12 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         // test calculated overall status
         assertThat(loggerResults.get(makeHealthStatusString("overall")), equalTo(overallStatus.xContentValue()));
+
+        // test calculated message
+        assertThat(
+            loggerResults.get(HealthPeriodicLogger.MESSAGE_FIELD),
+            equalTo(String.format(Locale.ROOT, "health=%s", overallStatus.xContentValue()))
+        );
 
         // test empty results
         {
@@ -440,8 +446,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         HealthService testHealthService,
         boolean enabled
     ) {
-        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, this.client, testHealthService);
-        testHealthPeriodicLogger.init();
+        testHealthPeriodicLogger = HealthPeriodicLogger.create(Settings.EMPTY, clusterService, this.client, testHealthService);
         if (enabled) {
             clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
         }

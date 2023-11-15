@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
@@ -345,8 +344,8 @@ class AuthenticatorChain {
      * <ul>
      *     <li>The service has anonymous authentication enabled (see {@link #isAnonymousUserEnabled})</li>
      *     <li>Anonymous access is accepted for this request ({@code allowAnonymousOnThisRequest} parameter)
-     *     <li>The {@link ThreadContext} does not provide API Key or Bearer Token credentials. If these are present, we
-     *     treat the request as though it attempted to authenticate (even if that failed), and will not fall back to anonymous.</li>
+     *     <li>The request does NOT provide API Key or Bearer Token credentials. If any of these are present,
+     *     we consider the request as failed to authenticate, and will not fall back to anonymous.</li>
      * </ul>
      */
     private boolean shouldFallbackToAnonymous(Authenticator.Context context) {
@@ -356,10 +355,7 @@ class AuthenticatorChain {
         if (context.isAllowAnonymous() == false) {
             return false;
         }
-        String header = context.getThreadContext().getHeader("Authorization");
-        if (Strings.hasText(header)
-            && ((header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()) && header.length() > "Bearer ".length())
-                || (header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length()) && header.length() > "ApiKey ".length()))) {
+        if (context.getBearerString() != null || context.getApiKeyString() != null) {
             return false;
         }
         return true;

@@ -90,7 +90,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         final BlobStoreRepository repository = getRepositoryOnMaster(repoName);
 
         logger.info("--> creating a garbage data blob");
-        final PlainActionFuture<Void> garbageFuture = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> garbageFuture = new PlainActionFuture<>();
         repository.threadPool()
             .generic()
             .execute(
@@ -137,7 +137,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         final BlobStoreRepository repository = getRepositoryOnMaster(repoName);
         logger.info("--> write two outdated index-N blobs");
         for (int i = 0; i < 2; ++i) {
-            final PlainActionFuture<Void> createOldIndexNFuture = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> createOldIndexNFuture = new PlainActionFuture<>();
             final int generation = i;
             repository.threadPool()
                 .generic()

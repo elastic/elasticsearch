@@ -1,6 +1,0 @@
-pr: 101456
-summary: "ESQL: adds Enrich implicit `match_fields` to `field_caps` call"
-area: ES|QL
-type: bug
-issues:
- - 101328

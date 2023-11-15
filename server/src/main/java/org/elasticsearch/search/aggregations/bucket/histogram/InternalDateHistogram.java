@@ -269,10 +269,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         return Collections.unmodifiableList(buckets);
     }
 
-    DocValueFormat getFormatter() {
-        return format;
-    }
-
     long getMinDocCount() {
         return minDocCount;
     }
@@ -376,18 +372,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return createBucket(buckets.get(0).key, docCount, aggs);
     }
-
-    /**
-     * When we pre-count the empty buckets we report them periodically
-     * because you can configure the date_histogram to create an astounding
-     * number of buckets. It'd take a while to count that high only to abort.
-     * So we report every couple thousand buckets. It's be simpler to report
-     * every single bucket we plan to allocate one at a time but that'd cause
-     * needless overhead on the circuit breakers. Counting a couple thousand
-     * buckets is plenty fast to fail this quickly in pathological cases and
-     * plenty large to keep the overhead minimal.
-     */
-    private static final int REPORT_EMPTY_EVERY = 10_000;
 
     private void addEmptyBuckets(List<Bucket> list, AggregationReduceContext reduceContext) {
         /*

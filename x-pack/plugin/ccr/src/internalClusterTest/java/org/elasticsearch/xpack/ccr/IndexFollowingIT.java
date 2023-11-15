@@ -1754,7 +1754,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     private void putFollowerTemplate(String setting, String settingValue) {
         Template template = new Template(Settings.builder().put(setting, settingValue).build(), null, null);
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(List.of("follower"), template, null, null, null, null);
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder().indexPatterns(List.of("follower")).template(template).build();
         assertAcked(
             followerClient().execute(
                 PutComposableIndexTemplateAction.INSTANCE,

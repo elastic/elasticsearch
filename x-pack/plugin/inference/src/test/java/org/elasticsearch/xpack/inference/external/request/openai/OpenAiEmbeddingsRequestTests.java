@@ -42,7 +42,7 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(3));
-        assertThat(requestMap.get("input"), is("abc"));
+        assertThat(requestMap.get("input"), is(List.of("abc")));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("user"), is("user"));
     }
@@ -61,7 +61,7 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(3));
-        assertThat(requestMap.get("input"), is("abc"));
+        assertThat(requestMap.get("input"), is(List.of("abc")));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("user"), is("user"));
     }
@@ -80,7 +80,7 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(2));
-        assertThat(requestMap.get("input"), is("abc"));
+        assertThat(requestMap.get("input"), is(List.of("abc")));
         assertThat(requestMap.get("model"), is("model"));
     }
 

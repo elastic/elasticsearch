@@ -23,29 +23,22 @@ public class OpenAiEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesUserWhenDefined() throws IOException {
         var entity = new OpenAiEmbeddingsRequestEntity(List.of("abc"), "model", "user");
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {
-              "input" : ["abc"],
-              "model" : "model",
-              "user" : "user"
-            }"""));
+            {"input":["abc"],"model":"model","user":"user"}"""));
     }
 
     public void testXContent_DoesNotWriteUserWhenItIsNull() throws IOException {
         var entity = new OpenAiEmbeddingsRequestEntity(List.of("abc"), "model", null);
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {
-              "input" : ["abc"],
-              "model" : "model"
-            }"""));
+            {"input":["abc"],"model":"model"}"""));
     }
 }

@@ -95,10 +95,10 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var overriddenTaskSettings = getRequestTaskSettingsMap(null, "overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
-            PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-            action.execute("abc", listener);
+            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            action.execute(List.of("abc"), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT);
+            InferenceResults result = listener.actionGet(TIMEOUT).get(0);
 
             assertThat(
                 result.asMap(),
@@ -117,7 +117,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(3));
-            assertThat(requestMap.get("input"), is("abc"));
+            assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("overridden_user"));
         }

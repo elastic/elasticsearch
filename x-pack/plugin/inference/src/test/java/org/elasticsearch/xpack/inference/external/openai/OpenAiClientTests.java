@@ -122,7 +122,7 @@ public class OpenAiClientTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(3));
-            assertThat(requestMap.get("input"), is("abc"));
+            assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("user"));
         }
@@ -181,7 +181,7 @@ public class OpenAiClientTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(2));
-            assertThat(requestMap.get("input"), is("abc"));
+            assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
         }
     }
@@ -239,7 +239,7 @@ public class OpenAiClientTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(2));
-            assertThat(requestMap.get("input"), is("abc"));
+            assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
         }
     }
@@ -296,7 +296,7 @@ public class OpenAiClientTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(3));
-            assertThat(requestMap.get("input"), is("abc"));
+            assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("user"));
         }

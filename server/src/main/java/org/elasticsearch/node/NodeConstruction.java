@@ -697,8 +697,6 @@ class NodeConstruction {
             clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client));
             clusterService.addListener(new TransportVersionsFixupListener(clusterService, client.admin().cluster(), threadPool));
         }
-        CommonMetrics commonMetrics = new CommonMetrics(telemetryProvider.getMeterRegistry(), client.admin().cluster());
-        clusterService.addListener(commonMetrics.getClusterStateListener());
 
         final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
         rerouteServiceReference.set(rerouteService);
@@ -1096,6 +1094,8 @@ class NodeConstruction {
 
         List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class).toList();
         pluginsService.filterPlugins(ReloadAwarePlugin.class).forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
+
+        new CommonMetrics(telemetryProvider.getMeterRegistry(), nodeService);
 
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);

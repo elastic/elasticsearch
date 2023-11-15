@@ -8,17 +8,11 @@
 
 package org.elasticsearch.monitor.metrics;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.client.internal.ClusterAdminClient;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.node.NodeService;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -26,19 +20,13 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public class CommonMetrics {
-    private final ClusterAdminClient client;
-    private final NodeStatsResponseActionListener actionListener;
-    private final CommonStatsCache commonStatsCache;
+    private final NodeService nodeService;
+    private final NodeStatsCache nodeStatsCache;
 
-    public CommonMetrics(MeterRegistry meterRegistry, ClusterAdminClient client) {
-        this.client = client;
-        this.actionListener = new NodeStatsResponseActionListener();
-        this.commonStatsCache = new CommonStatsCache(TimeValue.timeValueSeconds(10)); // TODO change this maybe?
+    public CommonMetrics(MeterRegistry meterRegistry, NodeService nodeService) {
+        this.nodeService = nodeService;
+        this.nodeStatsCache = new NodeStatsCache(TimeValue.timeValueSeconds(1));
         registerMetrics(meterRegistry);
-    }
-
-    public ClusterStateListener getClusterStateListener() {
-        return commonStatsCache;
     }
 
     private void registerMetrics(MeterRegistry registry) {
@@ -46,177 +34,181 @@ public class CommonMetrics {
             "es.indices.get.total",
             "Total number of get operations",
             "operation",
-            commonStatsCache.indicesGetTotalSupplier()
+            nodeStatsCache.indicesGetTotalSupplier()
         );
         registry.registerLongGauge(
             "es.indices.get.time_in_millis",
             "Time in milliseconds spent performing get operations.",
             "time",
-            commonStatsCache.indicesGetTimeInMillisSupplier()
+            nodeStatsCache.indicesGetTimeInMillisSupplier()
         );
         registry.registerLongGauge(
             "es.indices.search.fetch.total",
             "Total number of fetch operations.",
             "operation",
-            commonStatsCache.indicesSearchFetchTotalSupplier()
+            nodeStatsCache.indicesSearchFetchTotalSupplier()
         );
         registry.registerLongGauge(
             "es.indices.search.fetch.time_in_millis",
             "Time in milliseconds spent performing fetch operations.",
             "time",
-            commonStatsCache.indicesSearchFetchTimeInMillisSupplier()
+            nodeStatsCache.indicesSearchFetchTimeInMillisSupplier()
         );
         registry.registerLongGauge(
             "es.indices.merge.total",
             "Total number of merge operations.",
             "operation",
-            commonStatsCache.indicesMergeTotalSupplier()
+            nodeStatsCache.indicesMergeTotalSupplier()
         );
-        LongGauge lg = registry.registerLongGauge(
+        registry.registerLongGauge(
             "es.indices.merge.time_in_millis",
             "Time in milliseconds spent performing merge operations.",
             "time",
-            commonStatsCache.indicesMergeTotalTimeInMillisSupplier()
+            nodeStatsCache.indicesMergeTotalTimeInMillisSupplier()
         );
         registry.registerLongGauge(
             "es.indices.translog.operations",
             "Number of transaction log operations.",
             "operation",
-            commonStatsCache.indicesTranslogOperationSupplier()
+            nodeStatsCache.indicesTranslogOperationSupplier()
         );
         registry.registerLongGauge(
             "es.indices.translog.size",
             "Size, in bytes, of the transaction log.",
             "bytes",
-            commonStatsCache.indicesTranslogSizeInBytesSupplier()
+            nodeStatsCache.indicesTranslogSizeInBytesSupplier()
         );
         registry.registerLongGauge(
             "es.indices.translog.uncommitted_operations",
-            " Number of uncommitted transaction log operations.",
+            "Number of uncommitted transaction log operations.",
             "operations",
-            commonStatsCache.indicesTranslogUncommittedOperationsSupplier()
+            nodeStatsCache.indicesTranslogUncommittedOperationsSupplier()
         );
         registry.registerLongGauge(
             "es.indices.translog.uncommitted_size_in_bytes",
             "Size, in bytes, of uncommitted transaction log operations.",
             "bytes",
-            commonStatsCache.indicesTranslogUncommittedSizeInBytesSupplier()
+            nodeStatsCache.indicesTranslogUncommittedSizeInBytesSupplier()
         );
         registry.registerLongGauge(
             "es.indices.translog.earliest_last_modified_age",
             "Earliest last modified age for the transaction log.",
             "time",
-            commonStatsCache.indicesTranslogEariestLastModifiedAgeSupplier()
+            nodeStatsCache.indicesTranslogEariestLastModifiedAgeSupplier()
+        );
+        registry.registerLongGauge(
+            "es.http.current_open",
+            "Current number of open HTTP connections for the node.",
+            "connections",
+            nodeStatsCache.httpCurrentOpenSupplier()
+        );
+        registry.registerLongGauge(
+            "es.transport.rx_size_in_bytes",
+            "Size, in bytes, of RX packets received by the node during internal cluster communication.",
+            "bytes",
+            nodeStatsCache.transportRxSizeInBytesSupplier()
+        );
+        registry.registerLongGauge(
+            "es.transport.tx_size_in_bytes",
+            "Size, in bytes, of TX packets sent by the node during internal cluster communication.",
+            "bytes",
+            nodeStatsCache.transportTxSizeInBytesSupplier()
         );
     }
 
-    private void refreshCommonStats(String localNodeId) {
-        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(localNodeId);
-        this.client.nodesStats(nodesStatsRequest, this.actionListener);
-    }
-
-    private static CommonStats createEmptyCommonStats() {
-        return new CommonStats(
-            new CommonStatsFlags(
-                CommonStatsFlags.Flag.Get,
-                CommonStatsFlags.Flag.Search,
-                CommonStatsFlags.Flag.Merge,
-                CommonStatsFlags.Flag.Translog
-            )
+    private NodeStats getNodeStats() {
+        CommonStatsFlags flags = new CommonStatsFlags(
+            CommonStatsFlags.Flag.Get,
+            CommonStatsFlags.Flag.Search,
+            CommonStatsFlags.Flag.Merge,
+            CommonStatsFlags.Flag.Translog
+        );
+        return nodeService.stats(
+            flags,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
         );
     }
 
-    private class CommonStatsCache extends SingleObjectCache<CommonStats> implements ClusterStateListener {
-        private String localNodeId;
+    private class NodeStatsCache extends SingleObjectCache<NodeStats> {
 
-        CommonStatsCache(TimeValue interval) {
-            super(interval, createEmptyCommonStats());
+        NodeStatsCache(TimeValue interval) {
+            super(interval, getNodeStats());
         }
 
         @Override
-        protected CommonStats refresh() {
-            if (localNodeId.isEmpty()) {
-                return createEmptyCommonStats();
-            }
-            refreshCommonStats(localNodeId);
-            return actionListener.commonStats();
-        }
-
-        @Override
-        public void clusterChanged(ClusterChangedEvent event) {
-            this.localNodeId = event.state().nodes().getLocalNodeId();
-            refreshCommonStats(localNodeId);
+        protected NodeStats refresh() {
+            return getNodeStats();
         }
 
         public Supplier<LongWithAttributes> indicesGetTotalSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getGet().getCount(), Map.of());
+            return () -> new LongWithAttributes(getOrRefresh().getIndices().getGet().getCount(), Map.of());
         }
 
         public Supplier<LongWithAttributes> indicesGetTimeInMillisSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getGet().getTimeInMillis(), Map.of());
+            return () -> new LongWithAttributes(getOrRefresh().getIndices().getGet().getTimeInMillis(), Map.of());
         }
 
         public Supplier<LongWithAttributes> indicesSearchFetchTotalSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getSearch().getTotal().getFetchCount(), Map.of());
+            return () -> new LongWithAttributes(getOrRefresh().getIndices().getSearch().getTotal().getFetchCount(), Map.of());
         }
 
         public Supplier<LongWithAttributes> indicesSearchFetchTimeInMillisSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getSearch().getTotal().getFetchTimeInMillis(), Map.of());
+            return () -> new LongWithAttributes(getOrRefresh().getIndices().getSearch().getTotal().getFetchTimeInMillis(), Map.of());
         }
 
         public Supplier<LongWithAttributes> indicesMergeTotalSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getMerge().getTotal(), Map.of());
+            return () -> new LongWithAttributes(getOrRefresh().getIndices().getMerge().getTotal(), Map.of());
         }
 
         public Supplier<LongWithAttributes> indicesMergeTotalTimeInMillisSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getMerge().getTotalTimeInMillis(), Map.of());
+            return () -> new LongWithAttributes(getOrRefresh().getIndices().getMerge().getTotalTimeInMillis(), Map.of());
         }
 
         public Supplier<LongWithAttributes> indicesTranslogOperationSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getTranslog().estimatedNumberOfOperations(), Map.of());
+            return () -> new LongWithAttributes(getOrRefresh().getIndices().getTranslog().estimatedNumberOfOperations(), Map.of());
         }
 
         public Supplier<LongWithAttributes> indicesTranslogSizeInBytesSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getTranslog().getTranslogSizeInBytes(), Map.of());
+            return () -> new LongWithAttributes(getOrRefresh().getIndices().getTranslog().getTranslogSizeInBytes(), Map.of());
         }
 
         public Supplier<LongWithAttributes> indicesTranslogUncommittedOperationsSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getTranslog().getUncommittedOperations(), Map.of());
+            return () -> new LongWithAttributes(getOrRefresh().getIndices().getTranslog().getUncommittedOperations(), Map.of());
         }
 
         public Supplier<LongWithAttributes> indicesTranslogUncommittedSizeInBytesSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getTranslog().getUncommittedSizeInBytes(), Map.of());
+            return () -> new LongWithAttributes(getOrRefresh().getIndices().getTranslog().getUncommittedSizeInBytes(), Map.of());
         }
 
         public Supplier<LongWithAttributes> indicesTranslogEariestLastModifiedAgeSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getTranslog().getEarliestLastModifiedAge(), Map.of());
+            return () -> new LongWithAttributes(getOrRefresh().getIndices().getTranslog().getEarliestLastModifiedAge(), Map.of());
         }
 
-    }
-
-    private static class NodeStatsResponseActionListener implements ActionListener<NodesStatsResponse> {
-        private CommonStats commonStats = createEmptyCommonStats();
-
-        @Override
-        public void onResponse(NodesStatsResponse nodesStatsResponse) {
-            CommonStats cs = createEmptyCommonStats();
-            nodesStatsResponse.getNodes().forEach(nodeStats -> {
-                cs.getGet().add(nodeStats.getIndices().getGet());
-                cs.getSearch().getTotal().add(nodeStats.getIndices().getSearch().getTotal());
-                cs.getMerge().add(nodeStats.getIndices().getMerge());
-                cs.getTranslog().add(nodeStats.getIndices().getTranslog());
-            });
-            commonStats = cs;
+        public Supplier<LongWithAttributes> httpCurrentOpenSupplier() {
+            return () -> new LongWithAttributes(getOrRefresh().getHttp().getServerOpen(), Map.of());
         }
 
-        @Override
-        public void onFailure(Exception e) {
-            // TODO: schedule retry
-            System.out.println(e);
+        public Supplier<LongWithAttributes> transportRxSizeInBytesSupplier() {
+            return () -> new LongWithAttributes(getOrRefresh().getTransport().getRxSize().getBytes(), Map.of());
         }
 
-        public CommonStats commonStats() {
-            return commonStats;
+        public Supplier<LongWithAttributes> transportTxSizeInBytesSupplier() {
+            return () -> new LongWithAttributes(getOrRefresh().getTransport().getTxSize().getBytes(), Map.of());
         }
     }
 }

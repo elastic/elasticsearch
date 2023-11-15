@@ -51,6 +51,7 @@ public class DesiredBalanceComputer {
     private final ThreadPool threadPool;
     private final ShardsAllocator delegateAllocator;
 
+    // stats
     protected final MeanMetric iterations = new MeanMetric();
 
     public static final Setting<TimeValue> PROGRESS_LOG_INTERVAL_SETTING = Setting.timeSetting(

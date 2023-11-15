@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
@@ -22,9 +23,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.versionfield.Version;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -42,6 +43,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -57,8 +60,51 @@ public final class CsvTestUtils {
 
     private CsvTestUtils() {}
 
-    public static boolean isEnabled(String testName) {
-        return testName.endsWith("-Ignore") == false;
+    public static boolean isEnabled(String testName, Version version) {
+        if (testName.endsWith("-Ignore")) {
+            return false;
+        }
+        Tuple<Version, Version> skipRange = skipVersionRange(testName);
+        if (skipRange != null && version.onOrAfter(skipRange.v1()) && version.onOrBefore(skipRange.v2())) {
+            return false;
+        }
+        return true;
+    }
+
+    private static final Pattern INSTRUCTION_PATTERN = Pattern.compile("#\\[(.*?)]");
+
+    public static Map<String, String> extractInstructions(String testName) {
+        Matcher matcher = INSTRUCTION_PATTERN.matcher(testName);
+        Map<String, String> pairs = new HashMap<>();
+        if (matcher.find()) {
+            String[] groups = matcher.group(1).split(",");
+            for (String group : groups) {
+                String[] kv = group.split(":");
+                if (kv.length != 2) {
+                    throw new IllegalArgumentException("expected instruction in [k1:v1,k2:v2] format; got " + matcher.group(1));
+                }
+                pairs.put(kv[0].trim(), kv[1].trim());
+            }
+        }
+        return pairs;
+    }
+
+    public static Tuple<Version, Version> skipVersionRange(String testName) {
+        Map<String, String> pairs = extractInstructions(testName);
+        String versionRange = pairs.get("skip");
+        if (versionRange != null) {
+            String[] skipVersions = versionRange.split("-");
+            if (skipVersions.length != 2) {
+                throw new IllegalArgumentException("malformed version range : " + versionRange);
+            }
+            String lower = skipVersions[0].trim();
+            String upper = skipVersions[1].trim();
+            return Tuple.tuple(
+                lower.isEmpty() ? VersionUtils.getFirstVersion() : Version.fromString(lower),
+                upper.isEmpty() ? Version.CURRENT : Version.fromString(upper)
+            );
+        }
+        return null;
     }
 
     public static Tuple<Page, List<String>> loadPageFromCsv(URL source) throws Exception {
@@ -333,7 +379,7 @@ public final class CsvTestUtils {
                 : ((BytesRef) l).compareTo((BytesRef) r),
             BytesRef.class
         ),
-        VERSION(v -> new Version(v).toBytesRef(), BytesRef.class),
+        VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> null, Void.class),
         DATETIME(
             x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli(),

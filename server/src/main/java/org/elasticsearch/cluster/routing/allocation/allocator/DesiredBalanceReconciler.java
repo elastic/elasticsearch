@@ -29,6 +29,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.metric.DoubleGauge;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
@@ -74,22 +77,49 @@ public class DesiredBalanceReconciler {
     /**
      * Number of unassigned shards during last reconciliation
      */
-    protected final AtomicLong unassignedShards = new AtomicLong();
+    protected final LongGaugeMetric unassignedShards;
     /**
      * Total number of assigned shards during last reconciliation
      */
-    protected final AtomicLong totalAllocations = new AtomicLong();
+    protected final LongGaugeMetric totalAllocations;
     /**
      * Number of assigned shards during last reconciliation that are not allocated on desired node and need to be moved
      */
-    protected final AtomicLong undesiredAllocations = new AtomicLong();
+    protected final LongGaugeMetric undesiredAllocations;
+    private final DoubleGauge undesiredAllocationsFraction;
 
-    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, MeterRegistry meterRegistry) {
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(threadPool);
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
+        );
+
+        unassignedShards = LongGaugeMetric.create(
+            meterRegistry,
+            "elasticsearch.allocator.desired_balance_reconciliation.unassigned_shards",
+            "Current unassigned shards count"
+        );
+        totalAllocations = LongGaugeMetric.create(
+            meterRegistry,
+            "elasticsearch.allocator.desired_balance_reconciliation.total_allocations",
+            "Current total shards count in cluster"
+        );
+        undesiredAllocations = LongGaugeMetric.create(
+            meterRegistry,
+            "elasticsearch.allocator.desired_balance_reconciliation.undesired_allocations",
+            "Current number of shards allocated on undesired nodes"
+        );
+        undesiredAllocationsFraction = meterRegistry.registerDoubleGauge(
+            "elasticsearch.allocator.desired_balance_reconciliation.undesired_allocations_fraction",
+            "Current undesired_allocations / total_allocations fraction",
+            "",
+            () -> {
+                var total = totalAllocations.get();
+                var undesired = undesiredAllocations.get();
+                return new DoubleWithAttributes(total != 0 ? (double) undesired / total : 0.0);
+            }
         );
     }
 

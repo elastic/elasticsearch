@@ -42,7 +42,9 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.mockito.ArgumentMatchers.contains;
 
 public class GraphTests extends ESSingleNodeTestCase {
 
@@ -280,7 +282,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         }
         assertNotNull(expectedError);
         String message = expectedError.toString();
-        assertTrue(message.contains("Sample diversifying key must be a single valued-field"));
+        assertThat(message, containsString("Sample diversifying key must be a single valued-field"));
     }
 
     public void testMappedAndUnmappedQueryCrawl() {

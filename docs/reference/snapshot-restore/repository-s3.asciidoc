@@ -558,7 +558,6 @@ collecting the logs needed by your supplier, set the logger settings back to
 and <<cluster-update-settings>> for more information.
 
 [[repository-s3-linearizable-registers]]
-[discrete]
 ==== Linearizable register implementation
 
 The linearizable register implementation for S3 repositories is based on the

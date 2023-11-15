@@ -262,7 +262,14 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     private static BytesReference readIndexLatest(BlobStoreRepository repository) throws IOException {
         try (var baos = new BytesStreamOutput()) {
             Streams.copy(
-                repository.blobStore().blobContainer(repository.basePath()).readBlob(OperationPurpose.SNAPSHOT, "index.latest"),
+                repository.blobStore()
+                    .blobContainer(repository.basePath())
+                    .readBlob(
+                        OperationPurpose.SNAPSHOT,
+                        // Deliberately not using BlobStoreRepository#INDEX_LATEST_BLOB here, it's important for external systems that a
+                        // blob with literally this name is updated on each write:
+                        "index.latest"
+                    ),
                 baos
             );
             return baos.bytes();

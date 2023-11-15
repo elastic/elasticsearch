@@ -1,0 +1,5 @@
+pr: 101802
+summary: Correctly logging watcher history write failures
+area: Watcher
+type: bug
+issues: []

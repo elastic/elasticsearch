@@ -101,7 +101,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
         logger.trace("Preparing search");
 
-        final PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Response> future = new PlainActionFuture<>();
         Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
         logger.trace("Waiting for block to be established");
@@ -139,8 +139,4 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         expectThrows(CancellationException.class, future::actionGet);
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 }

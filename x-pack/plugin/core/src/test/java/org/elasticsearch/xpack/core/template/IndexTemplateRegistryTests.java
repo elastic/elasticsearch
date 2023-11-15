@@ -344,15 +344,15 @@ public class IndexTemplateRegistryTests extends ESTestCase {
                     Metadata.builder(Objects.requireNonNull(state).metadata())
                         .put(
                             entry.getKey(),
-                            new ComposableIndexTemplate(
-                                template.indexPatterns(),
-                                template.template(),
-                                template.composedOf(),
-                                template.priority(),
-                                2L,
-                                template.metadata(),
-                                template.getDataStreamTemplate()
-                            )
+                            ComposableIndexTemplate.builder()
+                                .indexPatterns(template.indexPatterns())
+                                .template(template.template())
+                                .componentTemplates(template.composedOf())
+                                .priority(template.priority())
+                                .version(2L)
+                                .metadata(template.metadata())
+                                .dataStreamTemplate(template.getDataStreamTemplate())
+                                .build()
                         )
                 )
                 .build();
@@ -831,38 +831,23 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             )
             .build();
 
-        ComposableIndexTemplate it1 = new ComposableIndexTemplate(
-            List.of("ds1*", "ds2*", "ds3*"),
-            null,
-            null,
-            100L,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(),
-            null
-        );
+        ComposableIndexTemplate it1 = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("ds1*", "ds2*", "ds3*"))
+            .priority(100L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
 
-        ComposableIndexTemplate it2 = new ComposableIndexTemplate(
-            List.of("ds2*"),
-            null,
-            null,
-            200L,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(),
-            null
-        );
+        ComposableIndexTemplate it2 = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("ds2*"))
+            .priority(200L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
 
-        ComposableIndexTemplate it5 = new ComposableIndexTemplate(
-            List.of("ds5*"),
-            null,
-            null,
-            200L,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(),
-            null
-        );
+        ComposableIndexTemplate it5 = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("ds5*"))
+            .priority(200L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
 
         state = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).put("it1", it1).put("it2", it2).put("it5", it5))

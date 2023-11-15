@@ -24,10 +24,9 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
     /**
      * Read an address for Elasticsearch suitable for the CLI from the system properties.
      */
-    public static String elasticsearchAddress() {
-        String cluster = System.getProperty("tests.rest.cluster");
+    public String elasticsearchAddress() {
         // CLI only supports a single node at a time so we just give it one.
-        return cluster.split(",")[0];
+        return getTestRestCluster().split(",")[0];
     }
 
     private EmbeddedCli cli;
@@ -37,7 +36,7 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
      */
     @Before
     public void startCli() throws IOException {
-        cli = new EmbeddedCli(CliIntegrationTestCase.elasticsearchAddress(), true, securityConfig());
+        cli = new EmbeddedCli(elasticsearchAddress(), true, securityConfig());
     }
 
     @After

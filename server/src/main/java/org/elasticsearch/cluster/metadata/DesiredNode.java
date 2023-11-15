@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -33,6 +34,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 import static java.lang.String.format;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
@@ -40,7 +42,10 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public final class DesiredNode implements Writeable, ToXContentObject, Comparable<DesiredNode> {
-    public static final Version RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION = Version.V_8_3_0;
+
+    public static final NodeFeature RANGE_FLOAT_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.range_float_processors");
+    public static final NodeFeature DOUBLE_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.double_processors");
+
     public static final TransportVersion RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
@@ -299,12 +304,8 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         return roles;
     }
 
-    public boolean isCompatibleWithVersion(Version version) {
-        if (version.onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
-            return true;
-        }
-
-        return processorsRange == null && processors.isCompatibleWithVersion(version);
+    public boolean clusterHasRequiredFeatures(Predicate<NodeFeature> clusterHasFeature) {
+        return (processorsRange == null && processors.hasDecimals() == false) || clusterHasFeature.test(RANGE_FLOAT_PROCESSORS_SUPPORTED);
     }
 
     @Override

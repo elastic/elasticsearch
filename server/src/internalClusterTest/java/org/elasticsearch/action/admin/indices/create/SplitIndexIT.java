@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -60,7 +60,8 @@ import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -243,27 +244,28 @@ public class SplitIndexIT extends ESIntegTestCase {
             assertNested("first_split", numDocs);
             assertNested("second_split", numDocs);
         }
-        assertAllUniqueDocs(prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
-        assertAllUniqueDocs(prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
-        assertAllUniqueDocs(prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertAllUniqueDocs(prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
+        assertAllUniqueDocs(prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
+        assertAllUniqueDocs(prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
     }
 
     public void assertNested(String index, int numDocs) {
         // now, do a nested query
-        SearchResponse searchResponse = prepareSearch(index).setQuery(
-            nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)
-        ).get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocs));
+        assertNoFailuresAndResponse(
+            prepareSearch(index).setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)),
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocs))
+        );
     }
 
-    public void assertAllUniqueDocs(SearchResponse response, int numDocs) {
-        Set<String> ids = new HashSet<>();
-        for (int i = 0; i < response.getHits().getHits().length; i++) {
-            String id = response.getHits().getHits()[i].getId();
-            assertTrue("found ID " + id + " more than once", ids.add(id));
-        }
-        assertEquals(numDocs, ids.size());
+    public void assertAllUniqueDocs(SearchRequestBuilder request, int numDocs) {
+        assertResponse(request, response -> {
+            Set<String> ids = new HashSet<>();
+            for (int i = 0; i < response.getHits().getHits().length; i++) {
+                String id = response.getHits().getHits()[i].getId();
+                assertTrue("found ID " + id + " more than once", ids.add(id));
+            }
+            assertEquals(numDocs, ids.size());
+        });
     }
 
     public void testSplitIndexPrimaryTerm() throws Exception {

@@ -1,0 +1,5 @@
+pr: 101846
+summary: Set `ActiveProcessorCount` when `node.processors` is set
+area: Infra/CLI
+type: enhancement
+issues: []

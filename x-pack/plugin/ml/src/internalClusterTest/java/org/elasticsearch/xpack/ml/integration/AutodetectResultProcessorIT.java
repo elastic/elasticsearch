@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -99,6 +98,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
 import static org.hamcrest.Matchers.closeTo;
@@ -781,11 +781,12 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .actionGet();
 
         SearchRequest searchRequest = new SearchRequest(AnnotationIndex.READ_ALIAS_NAME);
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
         List<Annotation> annotations = new ArrayList<>();
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            annotations.add(parseAnnotation(hit.getSourceRef()));
-        }
+        assertCheckedResponse(client().search(searchRequest), searchResponse -> {
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                annotations.add(parseAnnotation(hit.getSourceRef()));
+            }
+        });
         return annotations;
     }
 

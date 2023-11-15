@@ -302,7 +302,15 @@ public class SearchResponseTests extends ESTestCase {
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), mutated)) {
             SearchResponse parsed = SearchResponse.fromXContent(parser);
-            assertToXContentEquivalent(originalBytes, XContentHelper.toXContent(parsed, xcontentType, params, humanReadable), xcontentType);
+            try {
+                assertToXContentEquivalent(
+                    originalBytes,
+                    XContentHelper.toXContent(parsed, xcontentType, params, humanReadable),
+                    xcontentType
+                );
+            } finally {
+                parsed.decRef();
+            }
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -331,25 +339,29 @@ public class SearchResponseTests extends ESTestCase {
         );
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponse.fromXContent(parser);
-            for (int i = 0; i < parsed.getShardFailures().length; i++) {
-                ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
-                ShardSearchFailure originalFailure = failures[i];
-                assertEquals(originalFailure.index(), parsedFailure.index());
-                assertEquals(originalFailure.shard(), parsedFailure.shard());
-                assertEquals(originalFailure.shardId(), parsedFailure.shardId());
-                String originalMsg = originalFailure.getCause().getMessage();
-                assertEquals(
-                    parsedFailure.getCause().getMessage(),
-                    "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]"
-                );
-                String nestedMsg = originalFailure.getCause().getCause().getMessage();
-                assertEquals(
-                    parsedFailure.getCause().getCause().getMessage(),
-                    "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
-                );
+            try {
+                for (int i = 0; i < parsed.getShardFailures().length; i++) {
+                    ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
+                    ShardSearchFailure originalFailure = failures[i];
+                    assertEquals(originalFailure.index(), parsedFailure.index());
+                    assertEquals(originalFailure.shard(), parsedFailure.shard());
+                    assertEquals(originalFailure.shardId(), parsedFailure.shardId());
+                    String originalMsg = originalFailure.getCause().getMessage();
+                    assertEquals(
+                        parsedFailure.getCause().getMessage(),
+                        "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]"
+                    );
+                    String nestedMsg = originalFailure.getCause().getCause().getMessage();
+                    assertEquals(
+                        parsedFailure.getCause().getCause().getMessage(),
+                        "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
+                    );
+                }
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            } finally {
+                parsed.decRef();
             }
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertNull(parser.nextToken());
         }
     }
 

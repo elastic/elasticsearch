@@ -218,16 +218,12 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                patterns,
-                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle),
-                null,
-                null,
-                null,
-                metadata,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
+                .metadata(metadata)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }
@@ -261,15 +257,11 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                     SYSTEM_DATA_STREAM_NAME,
                     "a system data stream for testing",
                     SystemDataStreamDescriptor.Type.EXTERNAL,
-                    new ComposableIndexTemplate(
-                        List.of(SYSTEM_DATA_STREAM_NAME),
-                        new Template(Settings.EMPTY, null, null, DataStreamLifecycle.newBuilder().dataRetention(0).build()),
-                        null,
-                        null,
-                        null,
-                        null,
-                        new ComposableIndexTemplate.DataStreamTemplate()
-                    ),
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
+                        .template(new Template(Settings.EMPTY, null, null, DataStreamLifecycle.newBuilder().dataRetention(0).build()))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build(),
                     Map.of(),
                     Collections.singletonList("test"),
                     new ExecutorNames(ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE)

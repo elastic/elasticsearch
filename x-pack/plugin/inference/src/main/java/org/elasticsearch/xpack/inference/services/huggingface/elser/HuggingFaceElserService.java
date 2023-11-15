@@ -24,7 +24,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceElserAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,15 +39,15 @@ public class HuggingFaceElserService implements InferenceService {
     public static final String NAME = "hugging_face_elser";
 
     private final SetOnce<HttpRequestSenderFactory> factory;
-    private final SetOnce<ThrottlerManager> throttlerManager;
+    private final SetOnce<ServiceComponents> serviceComponents;
     private final AtomicReference<Sender> sender = new AtomicReference<>();
     // This is initialized once which assumes that the settings will not change. To change the service, it
     // should be deleted and then added again
     private final AtomicReference<HuggingFaceElserAction> action = new AtomicReference<>();
 
-    public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ThrottlerManager> throttlerManager) {
+    public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
         this.factory = Objects.requireNonNull(factory);
-        this.throttlerManager = Objects.requireNonNull(throttlerManager);
+        this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
     @Override
@@ -115,7 +115,6 @@ public class HuggingFaceElserService implements InferenceService {
     public void start(Model model, ActionListener<Boolean> listener) {
         try {
             init(model);
-            sender.get().start();
             listener.onResponse(true);
         } catch (Exception e) {
             listener.onFailure(new ElasticsearchException("Failed to start service", e));
@@ -133,12 +132,13 @@ public class HuggingFaceElserService implements InferenceService {
         }
 
         sender.updateAndGet(current -> Objects.requireNonNullElseGet(current, () -> factory.get().createSender(name())));
+        sender.get().start();
 
         HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
         action.updateAndGet(
             current -> Objects.requireNonNullElseGet(
                 current,
-                () -> new HuggingFaceElserAction(sender.get(), huggingFaceElserModel, throttlerManager.get())
+                () -> new HuggingFaceElserAction(sender.get(), huggingFaceElserModel, serviceComponents.get())
             )
         );
     }

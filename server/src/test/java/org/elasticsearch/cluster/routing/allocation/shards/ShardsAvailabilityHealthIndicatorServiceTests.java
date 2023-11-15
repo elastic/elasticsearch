@@ -1808,15 +1808,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             featureDataStreamName,
                             "description",
                             SystemDataStreamDescriptor.Type.EXTERNAL,
-                            new ComposableIndexTemplate(
-                                List.of(systemDataStreamPattern),
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                new ComposableIndexTemplate.DataStreamTemplate()
-                            ),
+                            ComposableIndexTemplate.builder()
+                                .indexPatterns(List.of(systemDataStreamPattern))
+                                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                                .build(),
                             Map.of(),
                             List.of("test"),
                             new ExecutorNames(

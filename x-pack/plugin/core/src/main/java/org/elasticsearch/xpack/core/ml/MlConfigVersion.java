@@ -150,13 +150,14 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
 
     public static final MlConfigVersion V_10 = registerMlConfigVersion(10_00_00_99, "4B940FD9-BEDD-4589-8E08-02D9B480B22D");
     // V_11 is used in ELSER v2 package configs
-    public static final MlConfigVersion V_11 = registerMlConfigVersion(11_00_00_99, "79CB2950-57C7-11EE-AE5D-0800200C9A66");
+    public static final MlConfigVersion V_11 = registerMlConfigVersion(11_00_0_0_99, "79CB2950-57C7-11EE-AE5D-0800200C9A66");
+    public static final MlConfigVersion V_12 = registerMlConfigVersion(12_00_0_0_99, "Trained model config prefix strings added");
 
     /**
      * Reference to the most recent Ml config version.
      * This should be the Ml config version with the highest id.
      */
-    public static final MlConfigVersion CURRENT = V_11;
+    public static final MlConfigVersion CURRENT = V_12;
 
     /**
      * Reference to the first MlConfigVersion that is detached from the

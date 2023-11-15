@@ -34,7 +34,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
                 id 'elasticsearch.testclusters'
             }
 
-            class SomeClusterAwareTask extends DefaultTask implements TestClustersAware {
+            abstract class SomeClusterAwareTask extends DefaultTask implements TestClustersAware {
 
                 private Collection<ElasticsearchCluster> clusters = new HashSet<>();
 

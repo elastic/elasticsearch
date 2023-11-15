@@ -246,7 +246,7 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
 
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(
             new SearchResponse(
                 InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
@@ -270,7 +270,7 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
 
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(
             new SearchResponse(
                 InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
@@ -305,7 +305,7 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
 
-        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         searchFuture.onResponse(
             new SearchResponse(
                 InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,

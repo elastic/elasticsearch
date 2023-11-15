@@ -27,6 +27,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -889,7 +890,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         if (isRunningAgainstOldCluster()) {
             count = between(200, 300);
             Settings.Builder settings = Settings.builder();
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
@@ -941,7 +942,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             // Create the index
             count = between(200, 300);
             Settings.Builder settings = Settings.builder();
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
@@ -1435,7 +1436,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     public void testOperationBasedRecovery() throws Exception {
         if (isRunningAgainstOldCluster()) {
             Settings.Builder settings = indexSettings(1, 1);
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
@@ -1498,7 +1499,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;

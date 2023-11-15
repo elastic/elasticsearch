@@ -11,7 +11,6 @@ package org.elasticsearch.search.stats;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageShardResponse;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,6 +29,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class FieldUsageStatsIT extends ESIntegTestCase {
 
@@ -73,16 +73,18 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         assertFalse(stats.hasField("field2"));
         assertFalse(stats.hasField("date_field"));
 
-        SearchResponse searchResponse = prepareSearch().setSearchType(SearchType.DEFAULT)
-            .setQuery(QueryBuilders.termQuery("field", "value"))
-            .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
-            .addAggregation(AggregationBuilders.filter("agg2", QueryBuilders.spanTermQuery("field2", "value2")))
-            .setSize(between(5, 100))
-            .setPreference("fixed")
-            .get();
-
-        assertHitCount(searchResponse, 30);
-        assertAllSuccessful(searchResponse);
+        assertResponse(
+            prepareSearch().setSearchType(SearchType.DEFAULT)
+                .setQuery(QueryBuilders.termQuery("field", "value"))
+                .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
+                .addAggregation(AggregationBuilders.filter("agg2", QueryBuilders.spanTermQuery("field2", "value2")))
+                .setSize(between(5, 100))
+                .setPreference("fixed"),
+            response -> {
+                assertHitCount(response, 30);
+                assertAllSuccessful(response);
+            }
+        );
 
         stats = aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
         logger.info("Stats after first query: {}", stats);

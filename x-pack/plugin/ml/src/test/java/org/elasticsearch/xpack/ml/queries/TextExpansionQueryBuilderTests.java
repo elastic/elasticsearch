@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
@@ -78,6 +79,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     protected Object simulateMethod(Method method, Object[] args) {
         InferModelAction.Request request = (InferModelAction.Request) args[1];
         assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API, request.getInferenceTimeout());
+        assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, request.getPrefixType());
 
         // Randomisation cannot be used here as {@code #doAssertLuceneQuery}
         // asserts that 2 rewritten queries are the same

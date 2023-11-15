@@ -77,8 +77,8 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                     throw e;
                 }
             }
+            assertNotNull(searchResponse);
             try {
-                assertNotNull(searchResponse);
                 assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
             } finally {
                 searchResponse.decRef();

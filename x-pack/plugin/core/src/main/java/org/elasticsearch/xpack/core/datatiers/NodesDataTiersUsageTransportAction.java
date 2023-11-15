@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.NodeIndicesStats;
@@ -55,6 +56,8 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
     NodeDataTiersUsage> {
 
     public static final ActionType<NodesResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/data_tier_usage");
+    public static final NodeFeature LOCALLY_PRECALCULATED_STATS_FEATURE = new NodeFeature("usage.data_tiers.precalculate_stats");
+
     private static final CommonStatsFlags STATS_FLAGS = new CommonStatsFlags().clear()
         .set(CommonStatsFlags.Flag.Docs, true)
         .set(CommonStatsFlags.Flag.Store, true);
@@ -107,7 +110,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
         return new NodeDataTiersUsage(clusterService.localNode(), usageStatsByTier);
     }
 
-    // For testing
+    // For bwc & testing purposes
     static Map<String, NodeDataTiersUsage.UsageStats> aggregateStats(
         RoutingNode routingNode,
         Metadata metadata,
@@ -122,6 +125,9 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
             .collect(Collectors.toSet());
         for (String indexName : localIndices) {
             IndexMetadata indexMetadata = metadata.index(indexName);
+            if (indexMetadata == null) {
+                continue;
+            }
             String tier = indexMetadata.getTierPreference().isEmpty() ? null : indexMetadata.getTierPreference().get(0);
             if (tier != null) {
                 NodeDataTiersUsage.UsageStats usageStats = usageStatsByTier.computeIfAbsent(

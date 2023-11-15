@@ -9,7 +9,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -57,7 +56,9 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.signific
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -130,71 +131,70 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             );
         }
 
-        SearchResponse response = request.get();
-
-        assertNoFailures(response);
-        StringTerms classes = response.getAggregations().get("class");
-        assertThat(classes.getBuckets().size(), equalTo(2));
-        for (Terms.Bucket classBucket : classes.getBuckets()) {
-            Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
-            assertTrue(aggs.containsKey("sig_terms"));
-            SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
-            assertThat(agg.getBuckets().size(), equalTo(1));
-            String term = agg.iterator().next().getKeyAsString();
-            String classTerm = classBucket.getKeyAsString();
-            assertTrue(term.equals(classTerm));
-        }
-
-        XContentBuilder responseBuilder = XContentFactory.jsonBuilder();
-        responseBuilder.startObject();
-        classes.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
-        responseBuilder.endObject();
-
-        Object[] args = new Object[] { type.equals("long") ? "0" : "\"0\"", type.equals("long") ? "1" : "\"1\"" };
-        String result = Strings.format("""
-            {
-              "class": {
-                "doc_count_error_upper_bound": 0,
-                "sum_other_doc_count": 0,
-                "buckets": [
-                  {
-                    "key": "0",
-                    "doc_count": 4,
-                    "sig_terms": {
-                      "doc_count": 4,
-                      "bg_count": 7,
-                      "buckets": [
-                        {
-                          "key": %s,
-                          "doc_count": 4,
-                          "score": 0.39999999999999997,
-                          "bg_count": 5
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "key": "1",
-                    "doc_count": 3,
-                    "sig_terms": {
-                      "doc_count": 3,
-                      "bg_count": 7,
-                      "buckets": [
-                        {
-                          "key":%s,
-                          "doc_count": 3,
-                          "score": 0.75,
-                          "bg_count": 4
-                        }
-                      ]
-                    }
-                  }
-                ]
-              }
+        assertCheckedResponse(request, response -> {
+            assertNoFailures(response);
+            StringTerms classes = response.getAggregations().get("class");
+            assertThat(classes.getBuckets().size(), equalTo(2));
+            for (Terms.Bucket classBucket : classes.getBuckets()) {
+                Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
+                assertTrue(aggs.containsKey("sig_terms"));
+                SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
+                assertThat(agg.getBuckets().size(), equalTo(1));
+                String term = agg.iterator().next().getKeyAsString();
+                String classTerm = classBucket.getKeyAsString();
+                assertTrue(term.equals(classTerm));
             }
-            """, args);
-        assertThat(Strings.toString(responseBuilder), equalTo(XContentHelper.stripWhitespace(result)));
 
+            XContentBuilder responseBuilder = XContentFactory.jsonBuilder();
+            responseBuilder.startObject();
+            classes.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
+            responseBuilder.endObject();
+
+            Object[] args = new Object[] { type.equals("long") ? "0" : "\"0\"", type.equals("long") ? "1" : "\"1\"" };
+            String result = Strings.format("""
+                {
+                  "class": {
+                    "doc_count_error_upper_bound": 0,
+                    "sum_other_doc_count": 0,
+                    "buckets": [
+                      {
+                        "key": "0",
+                        "doc_count": 4,
+                        "sig_terms": {
+                          "doc_count": 4,
+                          "bg_count": 7,
+                          "buckets": [
+                            {
+                              "key": %s,
+                              "doc_count": 4,
+                              "score": 0.39999999999999997,
+                              "bg_count": 5
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "key": "1",
+                        "doc_count": 3,
+                        "sig_terms": {
+                          "doc_count": 3,
+                          "bg_count": 7,
+                          "buckets": [
+                            {
+                              "key":%s,
+                              "doc_count": 3,
+                              "score": 0.75,
+                              "bg_count": 4
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+                """, args);
+            assertThat(Strings.toString(responseBuilder), equalTo(XContentHelper.stripWhitespace(result)));
+        });
     }
 
     public void testPopularTermManyDeletedDocs() throws Exception {
@@ -286,9 +286,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             );
         }
 
-        SearchResponse response1 = request1.get();
-        assertNoFailures(response1);
-
         SearchRequestBuilder request2;
         if (useSigText) {
             request2 = prepareSearch(INDEX_NAME).addAggregation(
@@ -324,32 +321,32 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 );
         }
 
-        SearchResponse response2 = request2.get();
+        assertNoFailuresAndResponse(request1, response1 -> assertNoFailuresAndResponse(request2, response2 -> {
+            StringTerms classes = response1.getAggregations().get("class");
 
-        StringTerms classes = response1.getAggregations().get("class");
+            SignificantTerms sigTerms0 = ((SignificantTerms) (classes.getBucketByKey("0").getAggregations().asMap().get("sig_terms")));
+            assertThat(sigTerms0.getBuckets().size(), equalTo(2));
+            double score00Background = sigTerms0.getBucketByKey("0").getSignificanceScore();
+            double score01Background = sigTerms0.getBucketByKey("1").getSignificanceScore();
+            SignificantTerms sigTerms1 = ((SignificantTerms) (classes.getBucketByKey("1").getAggregations().asMap().get("sig_terms")));
+            double score10Background = sigTerms1.getBucketByKey("0").getSignificanceScore();
+            double score11Background = sigTerms1.getBucketByKey("1").getSignificanceScore();
 
-        SignificantTerms sigTerms0 = ((SignificantTerms) (classes.getBucketByKey("0").getAggregations().asMap().get("sig_terms")));
-        assertThat(sigTerms0.getBuckets().size(), equalTo(2));
-        double score00Background = sigTerms0.getBucketByKey("0").getSignificanceScore();
-        double score01Background = sigTerms0.getBucketByKey("1").getSignificanceScore();
-        SignificantTerms sigTerms1 = ((SignificantTerms) (classes.getBucketByKey("1").getAggregations().asMap().get("sig_terms")));
-        double score10Background = sigTerms1.getBucketByKey("0").getSignificanceScore();
-        double score11Background = sigTerms1.getBucketByKey("1").getSignificanceScore();
+            Aggregations aggs = response2.getAggregations();
 
-        Aggregations aggs = response2.getAggregations();
+            sigTerms0 = (SignificantTerms) ((InternalFilter) aggs.get("0")).getAggregations().getAsMap().get("sig_terms");
+            double score00SeparateSets = sigTerms0.getBucketByKey("0").getSignificanceScore();
+            double score01SeparateSets = sigTerms0.getBucketByKey("1").getSignificanceScore();
 
-        sigTerms0 = (SignificantTerms) ((InternalFilter) aggs.get("0")).getAggregations().getAsMap().get("sig_terms");
-        double score00SeparateSets = sigTerms0.getBucketByKey("0").getSignificanceScore();
-        double score01SeparateSets = sigTerms0.getBucketByKey("1").getSignificanceScore();
+            sigTerms1 = (SignificantTerms) ((InternalFilter) aggs.get("1")).getAggregations().getAsMap().get("sig_terms");
+            double score10SeparateSets = sigTerms1.getBucketByKey("0").getSignificanceScore();
+            double score11SeparateSets = sigTerms1.getBucketByKey("1").getSignificanceScore();
 
-        sigTerms1 = (SignificantTerms) ((InternalFilter) aggs.get("1")).getAggregations().getAsMap().get("sig_terms");
-        double score10SeparateSets = sigTerms1.getBucketByKey("0").getSignificanceScore();
-        double score11SeparateSets = sigTerms1.getBucketByKey("1").getSignificanceScore();
-
-        assertThat(score00Background, equalTo(score00SeparateSets));
-        assertThat(score01Background, equalTo(score01SeparateSets));
-        assertThat(score10Background, equalTo(score10SeparateSets));
-        assertThat(score11Background, equalTo(score11SeparateSets));
+            assertThat(score00Background, equalTo(score00SeparateSets));
+            assertThat(score01Background, equalTo(score01SeparateSets));
+            assertThat(score10Background, equalTo(score10SeparateSets));
+            assertThat(score11Background, equalTo(score11SeparateSets));
+        }));
     }
 
     public void testScoresEqualForPositiveAndNegative() throws Exception {
@@ -385,25 +382,23 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                     )
             );
         }
-        SearchResponse response = request.get();
-        assertNoFailures(response);
+        assertNoFailuresAndResponse(request, response -> {
+            StringTerms classes = response.getAggregations().get("class");
+            assertThat(classes.getBuckets().size(), equalTo(2));
+            Iterator<? extends Terms.Bucket> classBuckets = classes.getBuckets().iterator();
 
-        assertNoFailures(response);
-        StringTerms classes = response.getAggregations().get("class");
-        assertThat(classes.getBuckets().size(), equalTo(2));
-        Iterator<? extends Terms.Bucket> classBuckets = classes.getBuckets().iterator();
+            Aggregations aggregations = classBuckets.next().getAggregations();
+            SignificantTerms sigTerms = aggregations.get("mySignificantTerms");
 
-        Aggregations aggregations = classBuckets.next().getAggregations();
-        SignificantTerms sigTerms = aggregations.get("mySignificantTerms");
-
-        List<? extends SignificantTerms.Bucket> classA = sigTerms.getBuckets();
-        Iterator<SignificantTerms.Bucket> classBBucketIterator = sigTerms.iterator();
-        assertThat(classA.size(), greaterThan(0));
-        for (SignificantTerms.Bucket classABucket : classA) {
-            SignificantTerms.Bucket classBBucket = classBBucketIterator.next();
-            assertThat(classABucket.getKey(), equalTo(classBBucket.getKey()));
-            assertThat(classABucket.getSignificanceScore(), closeTo(classBBucket.getSignificanceScore(), 1.e-5));
-        }
+            List<? extends SignificantTerms.Bucket> classA = sigTerms.getBuckets();
+            Iterator<SignificantTerms.Bucket> classBBucketIterator = sigTerms.iterator();
+            assertThat(classA.size(), greaterThan(0));
+            for (SignificantTerms.Bucket classABucket : classA) {
+                SignificantTerms.Bucket classBBucket = classBBucketIterator.next();
+                assertThat(classABucket.getKey(), equalTo(classBBucket.getKey()));
+                assertThat(classABucket.getSignificanceScore(), closeTo(classBBucket.getSignificanceScore(), 1.e-5));
+            }
+        });
     }
 
     /**
@@ -423,16 +418,15 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             .size(1000)
             .subAggregation(subAgg);
 
-        SearchResponse response = prepareSearch("test").setQuery(query).addAggregation(agg).get();
-        assertNoFailures(response);
+        assertNoFailuresAndResponse(prepareSearch("test").setQuery(query).addAggregation(agg), response -> {
+            SignificantTerms sigTerms = response.getAggregations().get("significant_terms");
+            assertThat(sigTerms.getBuckets().size(), equalTo(2));
 
-        SignificantTerms sigTerms = response.getAggregations().get("significant_terms");
-        assertThat(sigTerms.getBuckets().size(), equalTo(2));
-
-        for (SignificantTerms.Bucket bucket : sigTerms) {
-            StringTerms terms = bucket.getAggregations().get("class");
-            assertThat(terms.getBuckets().size(), equalTo(2));
-        }
+            for (SignificantTerms.Bucket bucket : sigTerms) {
+                StringTerms terms = bucket.getAggregations().get("class");
+                assertThat(terms.getBuckets().size(), equalTo(2));
+            }
+        });
     }
 
     private void indexEqualTestData() throws ExecutionException, InterruptedException {
@@ -497,17 +491,17 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                     )
             );
         }
-        SearchResponse response = request.get();
-        assertNoFailures(response);
-        for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("class")).getBuckets()) {
-            SignificantTerms sigTerms = classBucket.getAggregations().get("mySignificantTerms");
-            for (SignificantTerms.Bucket bucket : sigTerms.getBuckets()) {
-                assertThat(
-                    bucket.getSignificanceScore(),
-                    is((double) bucket.getSubsetDf() + bucket.getSubsetSize() + bucket.getSupersetDf() + bucket.getSupersetSize())
-                );
+        assertNoFailuresAndResponse(request, response -> {
+            for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("class")).getBuckets()) {
+                SignificantTerms sigTerms = classBucket.getAggregations().get("mySignificantTerms");
+                for (SignificantTerms.Bucket bucket : sigTerms.getBuckets()) {
+                    assertThat(
+                        bucket.getSignificanceScore(),
+                        is((double) bucket.getSubsetDf() + bucket.getSubsetSize() + bucket.getSupersetDf() + bucket.getSupersetSize())
+                    );
+                }
             }
-        }
+        });
     }
 
     private ScriptHeuristic getScriptSignificanceHeuristic() throws IOException {
@@ -579,17 +573,15 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             new Script(ScriptType.INLINE, "mockscript", "Math.random()", Collections.emptyMap())
         );
         boolean useSigText = randomBoolean();
-        SearchResponse r;
+        SearchRequestBuilder request;
         if (useSigText) {
-            r = prepareSearch("cache_test_idx").setSize(0)
-                .addAggregation(significantText("foo", "t").significanceHeuristic(scriptHeuristic))
-                .get();
+            request = prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(significantText("foo", "t").significanceHeuristic(scriptHeuristic));
         } else {
-            r = prepareSearch("cache_test_idx").setSize(0)
-                .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic))
-                .get();
+            request = prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic));
         }
-        assertNoFailures(r);
+        assertNoFailures(request);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -604,15 +596,13 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         scriptHeuristic = getScriptSignificanceHeuristic();
         useSigText = randomBoolean();
         if (useSigText) {
-            r = prepareSearch("cache_test_idx").setSize(0)
-                .addAggregation(significantText("foo", "t").significanceHeuristic(scriptHeuristic))
-                .get();
+            request = prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(significantText("foo", "t").significanceHeuristic(scriptHeuristic));
         } else {
-            r = prepareSearch("cache_test_idx").setSize(0)
-                .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic))
-                .get();
+            request = prepareSearch("cache_test_idx").setSize(0)
+                .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic));
         }
-        assertNoFailures(r);
+        assertNoFailures(request);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -625,11 +615,11 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
         // Ensure that non-scripted requests are cached as normal
         if (useSigText) {
-            r = prepareSearch("cache_test_idx").setSize(0).addAggregation(significantText("foo", "t")).get();
+            request = prepareSearch("cache_test_idx").setSize(0).addAggregation(significantText("foo", "t"));
         } else {
-            r = prepareSearch("cache_test_idx").setSize(0).addAggregation(significantTerms("foo").field("s")).get();
+            request = prepareSearch("cache_test_idx").setSize(0).addAggregation(significantTerms("foo").field("s"));
         }
-        assertNoFailures(r);
+        assertNoFailures(request);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

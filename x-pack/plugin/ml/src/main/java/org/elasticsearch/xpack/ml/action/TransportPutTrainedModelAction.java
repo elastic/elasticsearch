@@ -577,6 +577,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             )
         );
         trainedModelConfig.setTags(resolvedModelPackageConfig.getTags());
+        trainedModelConfig.setPrefixStrings(resolvedModelPackageConfig.getPrefixStrings());
         trainedModelConfig.setModelPackageConfig(
             new ModelPackageConfig.Builder(resolvedModelPackageConfig).resetPackageOnlyFields().build()
         );

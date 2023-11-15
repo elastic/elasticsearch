@@ -114,6 +114,7 @@ public class IndexVersions {
      */
 
     public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
+    public static final IndexVersion MINIMUM_IN_PLACE_UPGRADE_COMPATIBLE = V_7_17_0;
 
     static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);
     static final IndexVersion LATEST_DEFINED;

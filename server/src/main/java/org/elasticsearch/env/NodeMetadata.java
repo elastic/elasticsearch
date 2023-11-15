@@ -36,26 +36,31 @@ public final class NodeMetadata {
 
     private final String nodeId;
 
-    private final Version nodeVersion;
+    private final IndexVersion nodeIndexVersion;
 
-    private final Version previousNodeVersion;
+    private final IndexVersion previousNodeIndexVersion;
 
     private final IndexVersion oldestIndexVersion;
 
     private NodeMetadata(
         final String nodeId,
-        final Version nodeVersion,
-        final Version previousNodeVersion,
+        final IndexVersion nodeIndexVersion,
+        final IndexVersion previousNodeIndexVersion,
         final IndexVersion oldestIndexVersion
     ) {
         this.nodeId = Objects.requireNonNull(nodeId);
-        this.nodeVersion = Objects.requireNonNull(nodeVersion);
-        this.previousNodeVersion = Objects.requireNonNull(previousNodeVersion);
+        this.nodeIndexVersion = Objects.requireNonNull(nodeIndexVersion);
+        this.previousNodeIndexVersion = Objects.requireNonNull(previousNodeIndexVersion);
         this.oldestIndexVersion = Objects.requireNonNull(oldestIndexVersion);
     }
 
+    @Deprecated
     public NodeMetadata(final String nodeId, final Version nodeVersion, final IndexVersion oldestIndexVersion) {
-        this(nodeId, nodeVersion, nodeVersion, oldestIndexVersion);
+        this(nodeId, IndexVersion.fromId(nodeVersion.id()), oldestIndexVersion);
+    }
+
+    public NodeMetadata(final String nodeId, final IndexVersion nodeIndexVersion, final IndexVersion oldestIndexVersion) {
+        this(nodeId, nodeIndexVersion, nodeIndexVersion, oldestIndexVersion);
     }
 
     @Override
@@ -64,14 +69,14 @@ public final class NodeMetadata {
         if (o == null || getClass() != o.getClass()) return false;
         NodeMetadata that = (NodeMetadata) o;
         return nodeId.equals(that.nodeId)
-            && nodeVersion.equals(that.nodeVersion)
+            && nodeIndexVersion.equals(that.nodeIndexVersion)
             && oldestIndexVersion.equals(that.oldestIndexVersion)
-            && Objects.equals(previousNodeVersion, that.previousNodeVersion);
+            && Objects.equals(previousNodeIndexVersion, that.previousNodeIndexVersion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeId, nodeVersion, previousNodeVersion, oldestIndexVersion);
+        return Objects.hash(nodeId, nodeIndexVersion, previousNodeIndexVersion, oldestIndexVersion);
     }
 
     @Override
@@ -81,9 +86,9 @@ public final class NodeMetadata {
             + nodeId
             + '\''
             + ", nodeVersion="
-            + nodeVersion
+            + nodeIndexVersion
             + ", previousNodeVersion="
-            + previousNodeVersion
+            + previousNodeIndexVersion
             + ", oldestIndexVersion="
             + oldestIndexVersion
             + '}';
@@ -93,8 +98,13 @@ public final class NodeMetadata {
         return nodeId;
     }
 
+    @Deprecated
     public Version nodeVersion() {
-        return nodeVersion;
+        return Version.fromId(nodeIndexVersion.id());
+    }
+
+    public IndexVersion nodeIndexVersion() {
+        return nodeIndexVersion;
     }
 
     /**
@@ -104,7 +114,11 @@ public final class NodeMetadata {
      * In doing so, {@code previousNodeVersion} refers to the previously last known version that this node was started on.
      */
     public Version previousNodeVersion() {
-        return previousNodeVersion;
+        return Version.fromId(previousNodeIndexVersion.id());
+    }
+
+    public IndexVersion previousNodeIndexVersion() {
+        return previousNodeIndexVersion;
     }
 
     public IndexVersion oldestIndexVersion() {
@@ -112,13 +126,14 @@ public final class NodeMetadata {
     }
 
     public void verifyUpgradeToCurrentVersion() {
-        assert (nodeVersion.equals(Version.V_EMPTY) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
+        assert (nodeIndexVersion.equals(Version.V_EMPTY) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
             : "version is required in the node metadata from v9 onwards";
 
-        if (nodeVersion.before(Version.CURRENT.minimumCompatibilityVersion())) {
+        if (nodeIndexVersion.before(IndexVersions.MINIMUM_IN_PLACE_UPGRADE_COMPATIBLE)) {
+            // TODO[wrb]: fix message
             throw new IllegalStateException(
                 "cannot upgrade a node from version ["
-                    + nodeVersion
+                    + nodeIndexVersion
                     + "] directly to version ["
                     + Build.current().version()
                     + "], "
@@ -128,9 +143,10 @@ public final class NodeMetadata {
             );
         }
 
-        if (nodeVersion.after(Version.CURRENT)) {
+        if (nodeIndexVersion.after(IndexVersion.current())) {
+            // TODO[wrb]: fix message
             throw new IllegalStateException(
-                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Build.current().version() + "]"
+                "cannot downgrade a node from version [" + nodeIndexVersion + "] to version [" + Build.current().version() + "]"
             );
         }
     }
@@ -138,13 +154,15 @@ public final class NodeMetadata {
     public NodeMetadata upgradeToCurrentVersion() {
         verifyUpgradeToCurrentVersion();
 
-        return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetadata(nodeId, Version.CURRENT, nodeVersion, oldestIndexVersion);
+        return nodeIndexVersion.equals(IndexVersion.current())
+            ? this
+            : new NodeMetadata(nodeId, IndexVersion.current(), nodeIndexVersion, oldestIndexVersion);
     }
 
     private static class Builder {
         String nodeId;
-        Version nodeVersion;
-        Version previousNodeVersion;
+        IndexVersion nodeVersion;
+        IndexVersion previousNodeVersion;
         IndexVersion oldestIndexVersion;
 
         public void setNodeId(String nodeId) {
@@ -152,24 +170,24 @@ public final class NodeMetadata {
         }
 
         public void setNodeVersionId(int nodeVersionId) {
-            this.nodeVersion = Version.fromId(nodeVersionId);
+            this.nodeVersion = IndexVersion.fromId(nodeVersionId);
         }
 
         public void setPreviousNodeVersionId(int previousNodeVersionId) {
-            this.previousNodeVersion = Version.fromId(previousNodeVersionId);
+            this.previousNodeVersion = IndexVersion.fromId(previousNodeVersionId);
         }
 
         public void setOldestIndexVersion(int oldestIndexVersion) {
             this.oldestIndexVersion = IndexVersion.fromId(oldestIndexVersion);
         }
 
-        private Version getVersionOrFallbackToEmpty() {
-            return Objects.requireNonNullElse(this.nodeVersion, Version.V_EMPTY);
+        private IndexVersion getVersionOrFallbackToEmpty() {
+            return Objects.requireNonNullElse(this.nodeVersion, IndexVersions.ZERO);
         }
 
         public NodeMetadata build() {
             @UpdateForV9 // version is required in the node metadata from v9 onwards
-            final Version nodeVersion = getVersionOrFallbackToEmpty();
+            final IndexVersion nodeVersion = getVersionOrFallbackToEmpty();
             final IndexVersion oldestIndexVersion;
 
             if (this.previousNodeVersion == null) {
@@ -211,7 +229,7 @@ public final class NodeMetadata {
         @Override
         public void toXContent(XContentBuilder builder, NodeMetadata nodeMetadata) throws IOException {
             builder.field(NODE_ID_KEY, nodeMetadata.nodeId);
-            builder.field(NODE_VERSION_KEY, nodeMetadata.nodeVersion.id);
+            builder.field(NODE_VERSION_KEY, nodeMetadata.nodeIndexVersion.id());
             builder.field(OLDEST_INDEX_VERSION_KEY, nodeMetadata.oldestIndexVersion.id());
         }
 

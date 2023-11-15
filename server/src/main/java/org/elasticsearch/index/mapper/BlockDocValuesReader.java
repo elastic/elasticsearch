@@ -148,7 +148,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "SingletonLongs";
+            return "BlockDocValuesReader.SingletonLongs";
         }
     }
 
@@ -205,7 +205,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "Longs";
+            return "BlockDocValuesReader.Longs";
         }
     }
 
@@ -276,7 +276,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "SingletonInts";
+            return "BlockDocValuesReader.SingletonInts";
         }
     }
 
@@ -327,13 +327,13 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public int docId() {
-            // There is a .docID on on the numericDocValues but it is often not implemented.
+            // There is a .docID on the numericDocValues but it is often not implemented.
             return docID;
         }
 
         @Override
         public String toString() {
-            return "Ints";
+            return "BlockDocValuesReader.Ints";
         }
     }
 
@@ -420,7 +420,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "SingletonDoubles";
+            return "BlockDocValuesReader.SingletonDoubles";
         }
     }
 
@@ -478,7 +478,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "Doubles";
+            return "BlockDocValuesReader.Doubles";
         }
     }
 
@@ -556,7 +556,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "SingletonOrdinals";
+            return "BlockDocValuesReader.SingletonOrdinals";
         }
     }
 
@@ -610,7 +610,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "Ordinals";
+            return "BlockDocValuesReader.Ordinals";
         }
     }
 
@@ -701,7 +701,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "Bytes";
+            return "BlockDocValuesReader.Bytes";
         }
     }
 
@@ -772,7 +772,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "SingletonBooleans";
+            return "BlockDocValuesReader.SingletonBooleans";
         }
     }
 
@@ -829,7 +829,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public String toString() {
-            return "Booleans";
+            return "BlockDocValuesReader.Booleans";
         }
     }
 }

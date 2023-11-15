@@ -425,310 +425,83 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private List<FieldCase> infoAndChecksForEachType(Block.MvOrdering docValuesMvOrdering) {
-        class Checks {
-            void longs(Block block, int position, int key) {
-                LongVector longs = ((LongBlock) block).asVector();
-                assertThat(longs.getLong(position), equalTo((long) key));
-            }
-
-            void ints(Block block, int position, int key) {
-                IntVector ints = ((IntBlock) block).asVector();
-                assertThat(ints.getInt(position), equalTo(key));
-            }
-
-            void shorts(Block block, int position, int key) {
-                IntVector ints = ((IntBlock) block).asVector();
-                assertThat(ints.getInt(position), equalTo((int) (short) key));
-            }
-
-            void bytes(Block block, int position, int key) {
-                IntVector ints = ((IntBlock) block).asVector();
-                assertThat(ints.getInt(position), equalTo((int) (byte) key));
-            }
-
-            void doubles(Block block, int position, int key) {
-                DoubleVector doubles = ((DoubleBlock) block).asVector();
-                assertThat(doubles.getDouble(position), equalTo(key / 123_456d));
-            }
-
-            void strings(Block block, int position, int key) {
-                BytesRefVector keywords = ((BytesRefBlock) block).asVector();
-                assertThat(keywords.getBytesRef(position, new BytesRef()).utf8ToString(), equalTo(Integer.toString(key)));
-            }
-
-            void bools(Block block, int position, int key) {
-                BooleanVector bools = ((BooleanBlock) block).asVector();
-                assertThat(bools.getBoolean(position), equalTo(key % 2 == 0));
-            }
-
-            void ids(Block block, int position, int key) {
-                BytesRefVector ids = ((BytesRefBlock) block).asVector();
-                assertThat(ids.getBytesRef(position, new BytesRef()).utf8ToString(), equalTo("id"));
-            }
-
-            void constantBytes(Block block, int position, int key) {
-                BytesRefVector keywords = ((BytesRefBlock) block).asVector();
-                assertThat(keywords.getBytesRef(position, new BytesRef()).utf8ToString(), equalTo("foo"));
-            }
-
-            void constantNulls(Block block, int position, int key) {
-                assertTrue(block.areAllValuesNull());
-                assertTrue(block.isNull(position));
-            }
-
-            void mvLongsFromDocValues(Block block, int position, int key) {
-                mvLongs(block, position, key, docValuesMvOrdering);
-            }
-
-            void mvLongsUnordered(Block block, int position, int key) {
-                mvLongs(block, position, key, Block.MvOrdering.UNORDERED);
-            }
-
-            private void mvLongs(Block block, int position, int key, Block.MvOrdering expectedMv) {
-                LongBlock longs = (LongBlock) block;
-                assertThat(longs.getValueCount(position), equalTo(key % 3 + 1));
-                int offset = longs.getFirstValueIndex(position);
-                for (int v = 0; v <= key % 3; v++) {
-                    assertThat(longs.getLong(offset + v), equalTo(-1_000L * key + v));
-                }
-                if (key % 3 > 0) {
-                    assertThat(longs.mvOrdering(), equalTo(expectedMv));
-                }
-            }
-
-            void mvIntsFromDocValues(Block block, int position, int key) {
-                mvInts(block, position, key, docValuesMvOrdering);
-            }
-
-            void mvIntsUnordered(Block block, int position, int key) {
-                mvInts(block, position, key, Block.MvOrdering.UNORDERED);
-            }
-
-            private void mvInts(Block block, int position, int key, Block.MvOrdering expectedMv) {
-                IntBlock ints = (IntBlock) block;
-                assertThat(ints.getValueCount(position), equalTo(key % 3 + 1));
-                int offset = ints.getFirstValueIndex(position);
-                for (int v = 0; v <= key % 3; v++) {
-                    assertThat(ints.getInt(offset + v), equalTo(1_000 * key + v));
-                }
-                if (key % 3 > 0) {
-                    assertThat(ints.mvOrdering(), equalTo(expectedMv));
-                }
-            }
-
-            void mvShorts(Block block, int position, int key) {
-                IntBlock ints = (IntBlock) block;
-                assertThat(ints.getValueCount(position), equalTo(key % 3 + 1));
-                int offset = ints.getFirstValueIndex(position);
-                for (int v = 0; v <= key % 3; v++) {
-                    assertThat(ints.getInt(offset + v), equalTo((int) (short) (2_000 * key + v)));
-                }
-                if (key % 3 > 0) {
-                    assertThat(ints.mvOrdering(), equalTo(docValuesMvOrdering));
-                }
-            }
-
-            void mvBytes(Block block, int position, int key) {
-                IntBlock ints = (IntBlock) block;
-                assertThat(ints.getValueCount(position), equalTo(key % 3 + 1));
-                int offset = ints.getFirstValueIndex(position);
-                for (int v = 0; v <= key % 3; v++) {
-                    assertThat(ints.getInt(offset + v), equalTo((int) (byte) (3_000 * key + v)));
-                }
-                if (key % 3 > 0) {
-                    assertThat(ints.mvOrdering(), equalTo(docValuesMvOrdering));
-                }
-            }
-
-            void mvDoubles(Block block, int position, int key) {
-                DoubleBlock doubles = (DoubleBlock) block;
-                int offset = doubles.getFirstValueIndex(position);
-                for (int v = 0; v <= key % 3; v++) {
-                    assertThat(doubles.getDouble(offset + v), equalTo(key / 123_456d + v));
-                }
-                if (key % 3 > 0) {
-                    assertThat(doubles.mvOrdering(), equalTo(docValuesMvOrdering));
-                }
-            }
-
-            void mvStringsFromDocValues(Block block, int position, int key) {
-                mvStrings(block, position, key, docValuesMvOrdering);
-            }
-
-            void mvStringsUnordered(Block block, int position, int key) {
-                mvStrings(block, position, key, Block.MvOrdering.UNORDERED);
-            }
-
-            void mvStrings(Block block, int position, int key, Block.MvOrdering expectedMv) {
-                BytesRefBlock text = (BytesRefBlock) block;
-                assertThat(text.getValueCount(position), equalTo(key % 3 + 1));
-                int offset = text.getFirstValueIndex(position);
-                for (int v = 0; v <= key % 3; v++) {
-                    assertThat(text.getBytesRef(offset + v, new BytesRef()).utf8ToString(), equalTo(PREFIX[v] + key));
-                }
-                if (key % 3 > 0) {
-                    assertThat(text.mvOrdering(), equalTo(expectedMv));
-                }
-            }
-
-            void mvBools(Block block, int position, int key) {
-                BooleanBlock bools = (BooleanBlock) block;
-                assertThat(bools.getValueCount(position), equalTo(key % 3 + 1));
-                int offset = bools.getFirstValueIndex(position);
-                for (int v = 0; v <= key % 3; v++) {
-                    assertThat(bools.getBoolean(offset + v), equalTo(BOOLEANS[key % 3][v]));
-                }
-                if (key % 3 > 0) {
-                    assertThat(bools.mvOrdering(), equalTo(docValuesMvOrdering));
-                }
-            }
-        }
-        Checks checks = new Checks();
-        class StatusChecks {
-            static void longs(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-                if (forcedRowByRow) {
-                    assertMap(readers, matchesMap().entry("long:row_stride:SingletonLongs", lessThanOrEqualTo(segmentCount)));
-                } else {
-                    assertMap(readers, matchesMap().entry("long:column_at_a_time:SingletonLongs", lessThanOrEqualTo(pageCount)));
-                }
-            }
-
-            static void textWithDelegate(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-                if (forcedRowByRow) {
-                    assertMap(
-                        readers,
-                        matchesMap().entry("text_with_delegate:row_stride:Delegating[to=kwd, impl=SingletonOrdinals]", segmentCount)
-                    );
-                } else {
-                    assertMap(
-                        readers,
-                        matchesMap().entry(
-                            "text_with_delegate:column_at_a_time:Delegating[to=kwd, impl=SingletonOrdinals]",
-                            lessThanOrEqualTo(pageCount)
-                        )
-                    );
-                }
-            }
-
-            static void bool(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-                if (forcedRowByRow) {
-                    assertMap(readers, matchesMap().entry("bool:row_stride:SingletonBooleans", segmentCount));
-                } else {
-                    assertMap(readers, matchesMap().entry("bool:column_at_a_time:SingletonBooleans", lessThanOrEqualTo(pageCount)));
-                }
-            }
-
-            static void mvLongs(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-                mvDocValues("mv_long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
-            }
-
-            static void mvBool(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-                mvDocValues("mv_bool", "Booleans", forcedRowByRow, pageCount, segmentCount, readers);
-            }
-
-            static void mvTextWithDelegate(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-                if (forcedRowByRow) {
-                    assertMap(
-                        readers,
-                        matchesMap().entry(
-                            "mv_text_with_delegate:row_stride:Delegating[to=mv_kwd, impl=SingletonOrdinals]",
-                            lessThanOrEqualTo(segmentCount)
-                        ).entry("mv_text_with_delegate:row_stride:Delegating[to=mv_kwd, impl=Ordinals]", lessThanOrEqualTo(segmentCount))
-                    );
-                } else {
-                    assertMap(
-                        readers,
-                        matchesMap().entry(
-                            "mv_text_with_delegate:column_at_a_time:Delegating[to=mv_kwd, impl=SingletonOrdinals]",
-                            lessThanOrEqualTo(pageCount)
-                        ).entry("mv_text_with_delegate:column_at_a_time:Delegating[to=mv_kwd, impl=Ordinals]", lessThanOrEqualTo(pageCount))
-                    );
-                }
-            }
-
-            private static void mvDocValues(
-                String name,
-                String type,
-                boolean forcedRowByRow,
-                int pageCount,
-                int segmentCount,
-                Map<?, ?> readers
-            ) {
-                if (forcedRowByRow) {
-                    Integer singletons = (Integer) readers.remove(name + ":row_stride:Singleton" + type);
-                    if (singletons != null) {
-                        segmentCount -= singletons;
-                    }
-                    assertMap(readers, matchesMap().entry(name + ":row_stride:" + type, segmentCount));
-                } else {
-                    Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:Singleton" + type);
-                    if (singletons != null) {
-                        pageCount -= singletons;
-                    }
-                    assertMap(readers, matchesMap().entry(name + ":column_at_a_time:" + type, lessThanOrEqualTo(pageCount)));
-                }
-            }
-
-            static void id(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-                Matcher<Integer> count;
-                if (forcedRowByRow) {
-                    count = equalTo(segmentCount);
-                } else {
-                    count = lessThanOrEqualTo(pageCount);
-                    Integer columnAttempts = (Integer) readers.remove("_id:column_at_a_time:null");
-                    assertThat(columnAttempts, not(nullValue()));
-                }
-                assertMap(
-                    readers,
-                    matchesMap().entry("_id:row_stride:BlockStoredFieldsReader.Id", count)
-                        .entry("stored_fields[requires_source:false, fields:1]", count)
-                );
-            }
-
-            static void constantBytes(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-                if (forcedRowByRow) {
-                    assertMap(readers, matchesMap().entry("constant_bytes:row_stride:constant[[66 6f 6f]]", segmentCount));
-                } else {
-                    assertMap(
-                        readers,
-                        matchesMap().entry("constant_bytes:column_at_a_time:constant[[66 6f 6f]]", lessThanOrEqualTo(pageCount))
-                    );
-                }
-            }
-
-            static void constantNulls(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
-                if (forcedRowByRow) {
-                    assertMap(readers, matchesMap().entry("null:row_stride:constant_nulls", segmentCount));
-                } else {
-                    assertMap(readers, matchesMap().entry("null:column_at_a_time:constant_nulls", lessThanOrEqualTo(pageCount)));
-                }
-            }
-        }
+        Checks checks = new Checks(docValuesMvOrdering);
         List<FieldCase> r = new ArrayList<>();
-        r.add(new FieldCase(docValuesNumberField("long", NumberFieldMapper.NumberType.LONG), checks::longs, StatusChecks::longs));
+        r.add(
+            new FieldCase(docValuesNumberField("long", NumberFieldMapper.NumberType.LONG), checks::longs, StatusChecks::longsFromDocValues)
+        );
         r.add(
             new FieldCase(
                 docValuesNumberField("mv_long", NumberFieldMapper.NumberType.LONG),
                 checks::mvLongsFromDocValues,
-                StatusChecks::mvLongs
+                StatusChecks::mvLongsFromDocValues
             )
         );
         r.add(new FieldCase(sourceNumberField("source_long", NumberFieldMapper.NumberType.LONG), checks::longs));
         r.add(new FieldCase(sourceNumberField("mv_source_long", NumberFieldMapper.NumberType.LONG), checks::mvLongsUnordered));
-        r.add(new FieldCase(docValuesNumberField("int", NumberFieldMapper.NumberType.INTEGER), checks::ints));
-        r.add(new FieldCase(docValuesNumberField("mv_int", NumberFieldMapper.NumberType.INTEGER), checks::mvIntsFromDocValues));
+        r.add(
+            new FieldCase(docValuesNumberField("int", NumberFieldMapper.NumberType.INTEGER), checks::ints, StatusChecks::intsFromDocValues)
+        );
+        r.add(
+            new FieldCase(
+                docValuesNumberField("mv_int", NumberFieldMapper.NumberType.INTEGER),
+                checks::mvIntsFromDocValues,
+                StatusChecks::mvIntsFromDocValues
+            )
+        );
         r.add(new FieldCase(sourceNumberField("source_int", NumberFieldMapper.NumberType.INTEGER), checks::ints));
         r.add(new FieldCase(sourceNumberField("mv_source_int", NumberFieldMapper.NumberType.INTEGER), checks::mvIntsUnordered));
-        r.add(new FieldCase(docValuesNumberField("short", NumberFieldMapper.NumberType.SHORT), checks::shorts));
-        r.add(new FieldCase(docValuesNumberField("mv_short", NumberFieldMapper.NumberType.SHORT), checks::mvShorts));
-        r.add(new FieldCase(docValuesNumberField("byte", NumberFieldMapper.NumberType.BYTE), checks::bytes));
-        r.add(new FieldCase(docValuesNumberField("mv_byte", NumberFieldMapper.NumberType.BYTE), checks::mvBytes));
-        r.add(new FieldCase(docValuesNumberField("double", NumberFieldMapper.NumberType.DOUBLE), checks::doubles));
-        r.add(new FieldCase(docValuesNumberField("mv_double", NumberFieldMapper.NumberType.DOUBLE), checks::mvDoubles));
-        r.add(new FieldCase(new KeywordFieldMapper.KeywordFieldType("kwd"), checks::strings));
-        r.add(new FieldCase(new KeywordFieldMapper.KeywordFieldType("mv_kwd"), checks::mvStringsFromDocValues));
-        r.add(new FieldCase(storedKeywordField("stored_kwd"), checks::strings));
+        r.add(
+            new FieldCase(
+                docValuesNumberField("short", NumberFieldMapper.NumberType.SHORT),
+                checks::shorts,
+                StatusChecks::shortsFromDocValues
+            )
+        );
+        r.add(
+            new FieldCase(
+                docValuesNumberField("mv_short", NumberFieldMapper.NumberType.SHORT),
+                checks::mvShorts,
+                StatusChecks::mvShortsFromDocValues
+            )
+        );
+        r.add(
+            new FieldCase(docValuesNumberField("byte", NumberFieldMapper.NumberType.BYTE), checks::bytes, StatusChecks::bytesFromDocValues)
+        );
+        r.add(
+            new FieldCase(
+                docValuesNumberField("mv_byte", NumberFieldMapper.NumberType.BYTE),
+                checks::mvBytes,
+                StatusChecks::mvBytesFromDocValues
+            )
+        );
+        r.add(
+            new FieldCase(
+                docValuesNumberField("double", NumberFieldMapper.NumberType.DOUBLE),
+                checks::doubles,
+                StatusChecks::doublesFromDocValues
+            )
+        );
+        r.add(
+            new FieldCase(
+                docValuesNumberField("mv_double", NumberFieldMapper.NumberType.DOUBLE),
+                checks::mvDoubles,
+                StatusChecks::mvDoublesFromDocValues
+            )
+        );
+        r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("bool"), checks::bools, StatusChecks::boolFromDocValues));
+        r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("mv_bool"), checks::mvBools, StatusChecks::mvBoolFromDocValues));
+        r.add(new FieldCase(new KeywordFieldMapper.KeywordFieldType("kwd"), checks::strings, StatusChecks::keywordsFromDocValues));
+        r.add(
+            new FieldCase(
+                new KeywordFieldMapper.KeywordFieldType("mv_kwd"),
+                checks::mvStringsFromDocValues,
+                StatusChecks::mvKeywordsFromDocValues
+            )
+        );
+        r.add(new FieldCase(storedKeywordField("stored_kwd"), checks::strings, StatusChecks::keywordsFromStored));
         r.add(new FieldCase(storedKeywordField("mv_stored_kwd"), checks::mvStringsUnordered));
+        // NOCOMMIT source keyword
         r.add(new FieldCase(new TextFieldMapper.TextFieldType("source_text", false), checks::strings));
         r.add(new FieldCase(new TextFieldMapper.TextFieldType("mv_source_text", false), checks::mvStringsUnordered));
         r.add(new FieldCase(storedTextField("stored_text"), checks::strings));
@@ -747,8 +520,6 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 StatusChecks::mvTextWithDelegate
             )
         );
-        r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("bool"), checks::bools, StatusChecks::bool));
-        r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("mv_bool"), checks::mvBools, StatusChecks::mvBool));
         r.add(new FieldCase(new ProvidedIdFieldMapper(() -> false).fieldType(), checks::ids, StatusChecks::id));
         r.add(new FieldCase(TsidExtractingIdFieldMapper.INSTANCE.fieldType(), checks::ids, StatusChecks::id));
         r.add(
@@ -767,6 +538,360 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
         Collections.shuffle(r, random());
         return r;
+    }
+
+    record Checks(Block.MvOrdering docValuesMvOrdering) {
+        void longs(Block block, int position, int key) {
+            LongVector longs = ((LongBlock) block).asVector();
+            assertThat(longs.getLong(position), equalTo((long) key));
+        }
+
+        void ints(Block block, int position, int key) {
+            IntVector ints = ((IntBlock) block).asVector();
+            assertThat(ints.getInt(position), equalTo(key));
+        }
+
+        void shorts(Block block, int position, int key) {
+            IntVector ints = ((IntBlock) block).asVector();
+            assertThat(ints.getInt(position), equalTo((int) (short) key));
+        }
+
+        void bytes(Block block, int position, int key) {
+            IntVector ints = ((IntBlock) block).asVector();
+            assertThat(ints.getInt(position), equalTo((int) (byte) key));
+        }
+
+        void doubles(Block block, int position, int key) {
+            DoubleVector doubles = ((DoubleBlock) block).asVector();
+            assertThat(doubles.getDouble(position), equalTo(key / 123_456d));
+        }
+
+        void strings(Block block, int position, int key) {
+            BytesRefVector keywords = ((BytesRefBlock) block).asVector();
+            assertThat(keywords.getBytesRef(position, new BytesRef()).utf8ToString(), equalTo(Integer.toString(key)));
+        }
+
+        void bools(Block block, int position, int key) {
+            BooleanVector bools = ((BooleanBlock) block).asVector();
+            assertThat(bools.getBoolean(position), equalTo(key % 2 == 0));
+        }
+
+        void ids(Block block, int position, int key) {
+            BytesRefVector ids = ((BytesRefBlock) block).asVector();
+            assertThat(ids.getBytesRef(position, new BytesRef()).utf8ToString(), equalTo("id"));
+        }
+
+        void constantBytes(Block block, int position, int key) {
+            BytesRefVector keywords = ((BytesRefBlock) block).asVector();
+            assertThat(keywords.getBytesRef(position, new BytesRef()).utf8ToString(), equalTo("foo"));
+        }
+
+        void constantNulls(Block block, int position, int key) {
+            assertTrue(block.areAllValuesNull());
+            assertTrue(block.isNull(position));
+        }
+
+        void mvLongsFromDocValues(Block block, int position, int key) {
+            mvLongs(block, position, key, docValuesMvOrdering);
+        }
+
+        void mvLongsUnordered(Block block, int position, int key) {
+            mvLongs(block, position, key, Block.MvOrdering.UNORDERED);
+        }
+
+        private void mvLongs(Block block, int position, int key, Block.MvOrdering expectedMv) {
+            LongBlock longs = (LongBlock) block;
+            assertThat(longs.getValueCount(position), equalTo(key % 3 + 1));
+            int offset = longs.getFirstValueIndex(position);
+            for (int v = 0; v <= key % 3; v++) {
+                assertThat(longs.getLong(offset + v), equalTo(-1_000L * key + v));
+            }
+            if (key % 3 > 0) {
+                assertThat(longs.mvOrdering(), equalTo(expectedMv));
+            }
+        }
+
+        void mvIntsFromDocValues(Block block, int position, int key) {
+            mvInts(block, position, key, docValuesMvOrdering);
+        }
+
+        void mvIntsUnordered(Block block, int position, int key) {
+            mvInts(block, position, key, Block.MvOrdering.UNORDERED);
+        }
+
+        private void mvInts(Block block, int position, int key, Block.MvOrdering expectedMv) {
+            IntBlock ints = (IntBlock) block;
+            assertThat(ints.getValueCount(position), equalTo(key % 3 + 1));
+            int offset = ints.getFirstValueIndex(position);
+            for (int v = 0; v <= key % 3; v++) {
+                assertThat(ints.getInt(offset + v), equalTo(1_000 * key + v));
+            }
+            if (key % 3 > 0) {
+                assertThat(ints.mvOrdering(), equalTo(expectedMv));
+            }
+        }
+
+        void mvShorts(Block block, int position, int key) {
+            IntBlock ints = (IntBlock) block;
+            assertThat(ints.getValueCount(position), equalTo(key % 3 + 1));
+            int offset = ints.getFirstValueIndex(position);
+            for (int v = 0; v <= key % 3; v++) {
+                assertThat(ints.getInt(offset + v), equalTo((int) (short) (2_000 * key + v)));
+            }
+            if (key % 3 > 0) {
+                assertThat(ints.mvOrdering(), equalTo(docValuesMvOrdering));
+            }
+        }
+
+        void mvBytes(Block block, int position, int key) {
+            IntBlock ints = (IntBlock) block;
+            assertThat(ints.getValueCount(position), equalTo(key % 3 + 1));
+            int offset = ints.getFirstValueIndex(position);
+            for (int v = 0; v <= key % 3; v++) {
+                assertThat(ints.getInt(offset + v), equalTo((int) (byte) (3_000 * key + v)));
+            }
+            if (key % 3 > 0) {
+                assertThat(ints.mvOrdering(), equalTo(docValuesMvOrdering));
+            }
+        }
+
+        void mvDoubles(Block block, int position, int key) {
+            DoubleBlock doubles = (DoubleBlock) block;
+            int offset = doubles.getFirstValueIndex(position);
+            for (int v = 0; v <= key % 3; v++) {
+                assertThat(doubles.getDouble(offset + v), equalTo(key / 123_456d + v));
+            }
+            if (key % 3 > 0) {
+                assertThat(doubles.mvOrdering(), equalTo(docValuesMvOrdering));
+            }
+        }
+
+        void mvStringsFromDocValues(Block block, int position, int key) {
+            mvStrings(block, position, key, docValuesMvOrdering);
+        }
+
+        void mvStringsUnordered(Block block, int position, int key) {
+            mvStrings(block, position, key, Block.MvOrdering.UNORDERED);
+        }
+
+        void mvStrings(Block block, int position, int key, Block.MvOrdering expectedMv) {
+            BytesRefBlock text = (BytesRefBlock) block;
+            assertThat(text.getValueCount(position), equalTo(key % 3 + 1));
+            int offset = text.getFirstValueIndex(position);
+            for (int v = 0; v <= key % 3; v++) {
+                assertThat(text.getBytesRef(offset + v, new BytesRef()).utf8ToString(), equalTo(PREFIX[v] + key));
+            }
+            if (key % 3 > 0) {
+                assertThat(text.mvOrdering(), equalTo(expectedMv));
+            }
+        }
+
+        void mvBools(Block block, int position, int key) {
+            BooleanBlock bools = (BooleanBlock) block;
+            assertThat(bools.getValueCount(position), equalTo(key % 3 + 1));
+            int offset = bools.getFirstValueIndex(position);
+            for (int v = 0; v <= key % 3; v++) {
+                assertThat(bools.getBoolean(offset + v), equalTo(BOOLEANS[key % 3][v]));
+            }
+            if (key % 3 > 0) {
+                assertThat(bools.mvOrdering(), equalTo(docValuesMvOrdering));
+            }
+        }
+    }
+
+    class StatusChecks {
+        static void longsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void intsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void shortsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("short", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void bytesFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("byte", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void doublesFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("double", "Doubles", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void boolFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("bool", "Booleans", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void keywordsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            docValues("kwd", "Ordinals", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void keywordsFromStored(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            stored("stored_kwd", "BlockStoredFieldsReader.Bytes", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void mvLongsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_long", "Longs", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void mvIntsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_int", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void mvShortsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_short", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void mvBytesFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_byte", "Ints", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void mvDoublesFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_double", "Doubles", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void mvBoolFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_bool", "Booleans", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void mvKeywordsFromDocValues(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            mvDocValues("mv_kwd", "Ordinals", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        static void textWithDelegate(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            if (forcedRowByRow) {
+                assertMap(
+                    readers,
+                    matchesMap().entry(
+                        "text_with_delegate:row_stride:Delegating[to=kwd, impl=BlockDocValuesReader.SingletonOrdinals]",
+                        segmentCount
+                    )
+                );
+            } else {
+                assertMap(
+                    readers,
+                    matchesMap().entry(
+                        "text_with_delegate:column_at_a_time:Delegating[to=kwd, impl=BlockDocValuesReader.SingletonOrdinals]",
+                        lessThanOrEqualTo(pageCount)
+                    )
+                );
+            }
+        }
+
+        static void mvTextWithDelegate(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            if (forcedRowByRow) {
+                assertMap(
+                    readers,
+                    matchesMap().entry(
+                        "mv_text_with_delegate:row_stride:Delegating[to=mv_kwd, impl=BlockDocValuesReader.SingletonOrdinals]",
+                        lessThanOrEqualTo(segmentCount)
+                    )
+                        .entry(
+                            "mv_text_with_delegate:row_stride:Delegating[to=mv_kwd, impl=BlockDocValuesReader.Ordinals]",
+                            lessThanOrEqualTo(segmentCount)
+                        )
+                );
+            } else {
+                assertMap(
+                    readers,
+                    matchesMap().entry(
+                        "mv_text_with_delegate:column_at_a_time:Delegating[to=mv_kwd, impl=BlockDocValuesReader.SingletonOrdinals]",
+                        lessThanOrEqualTo(pageCount)
+                    )
+                        .entry(
+                            "mv_text_with_delegate:column_at_a_time:Delegating[to=mv_kwd, impl=BlockDocValuesReader.Ordinals]",
+                            lessThanOrEqualTo(pageCount)
+                        )
+                );
+            }
+        }
+
+        private static void docValues(
+            String name,
+            String type,
+            boolean forcedRowByRow,
+            int pageCount,
+            int segmentCount,
+            Map<?, ?> readers
+        ) {
+            if (forcedRowByRow) {
+                assertMap(
+                    readers,
+                    matchesMap().entry(name + ":row_stride:BlockDocValuesReader.Singleton" + type, lessThanOrEqualTo(segmentCount))
+                );
+            } else {
+                assertMap(
+                    readers,
+                    matchesMap().entry(name + ":column_at_a_time:BlockDocValuesReader.Singleton" + type, lessThanOrEqualTo(pageCount))
+                );
+            }
+        }
+
+        private static void mvDocValues(
+            String name,
+            String type,
+            boolean forcedRowByRow,
+            int pageCount,
+            int segmentCount,
+            Map<?, ?> readers
+        ) {
+            if (forcedRowByRow) {
+                Integer singletons = (Integer) readers.remove(name + ":row_stride:BlockDocValuesReader.Singleton" + type);
+                if (singletons != null) {
+                    segmentCount -= singletons;
+                }
+                assertMap(readers, matchesMap().entry(name + ":row_stride:BlockDocValuesReader." + type, segmentCount));
+            } else {
+                Integer singletons = (Integer) readers.remove(name + ":column_at_a_time:BlockDocValuesReader.Singleton" + type);
+                if (singletons != null) {
+                    pageCount -= singletons;
+                }
+                assertMap(
+                    readers,
+                    matchesMap().entry(name + ":column_at_a_time:BlockDocValuesReader." + type, lessThanOrEqualTo(pageCount))
+                );
+            }
+        }
+
+        static void id(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            stored("_id", "BlockStoredFieldsReader.Id", forcedRowByRow, pageCount, segmentCount, readers);
+        }
+
+        private static void stored(String name, String type, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            Matcher<Integer> count;
+            if (forcedRowByRow) {
+                count = equalTo(segmentCount);
+            } else {
+                count = lessThanOrEqualTo(pageCount);
+                Integer columnAttempts = (Integer) readers.remove(name + ":column_at_a_time:null");
+                assertThat(columnAttempts, not(nullValue()));
+            }
+            assertMap(
+                readers,
+                matchesMap().entry(name + ":row_stride:" + type, count).entry("stored_fields[requires_source:false, fields:1]", count)
+            );
+        }
+
+        static void constantBytes(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            if (forcedRowByRow) {
+                assertMap(readers, matchesMap().entry("constant_bytes:row_stride:constant[[66 6f 6f]]", segmentCount));
+            } else {
+                assertMap(
+                    readers,
+                    matchesMap().entry("constant_bytes:column_at_a_time:constant[[66 6f 6f]]", lessThanOrEqualTo(pageCount))
+                );
+            }
+        }
+
+        static void constantNulls(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            if (forcedRowByRow) {
+                assertMap(readers, matchesMap().entry("null:row_stride:constant_nulls", segmentCount));
+            } else {
+                assertMap(readers, matchesMap().entry("null:column_at_a_time:constant_nulls", lessThanOrEqualTo(pageCount)));
+            }
+        }
     }
 
     public void testWithNulls() throws IOException {

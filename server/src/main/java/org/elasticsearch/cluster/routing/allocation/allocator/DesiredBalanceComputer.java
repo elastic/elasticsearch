@@ -40,6 +40,7 @@ import java.util.TreeSet;
 import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 
 /**
  * Holds the desired balance and updates it as the cluster evolves.
@@ -202,7 +203,8 @@ public class DesiredBalanceComputer {
                         && routingAllocation.deciders()
                             .canAllocate(shardRouting, routingNode, routingAllocation)
                             .type() != Decision.Type.NO) {
-                        final var shardToInitialize = unassignedPrimaryIterator.initialize(nodeId, null, 0L, changes);
+                        final long expectedShardSize = getExpectedShardSize(shardRouting, 0L, routingAllocation);
+                        final var shardToInitialize = unassignedPrimaryIterator.initialize(nodeId, null, expectedShardSize, changes);
                         clusterInfoSimulator.simulateShardStarted(shardToInitialize);
                         routingNodes.startShard(logger, shardToInitialize, changes, 0L);
                     }
@@ -222,7 +224,8 @@ public class DesiredBalanceComputer {
                         && routingAllocation.deciders()
                             .canAllocate(shardRouting, routingNode, routingAllocation)
                             .type() != Decision.Type.NO) {
-                        final var shardToInitialize = unassignedReplicaIterator.initialize(nodeId, null, 0L, changes);
+                        final long expectedShardSize = getExpectedShardSize(shardRouting, 0L, routingAllocation);
+                        final var shardToInitialize = unassignedReplicaIterator.initialize(nodeId, null, expectedShardSize, changes);
                         clusterInfoSimulator.simulateShardStarted(shardToInitialize);
                         routingNodes.startShard(logger, shardToInitialize, changes, 0L);
                     }

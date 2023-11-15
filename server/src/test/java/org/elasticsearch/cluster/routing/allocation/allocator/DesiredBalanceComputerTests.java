@@ -11,11 +11,11 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -38,11 +38,16 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
+import org.elasticsearch.snapshots.InternalSnapshotsInfoService.SnapshotShard;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,8 +63,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -622,7 +629,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 var thisShardSize = smallShardSizeDeviation(shardSize);
 
                 var primaryNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
-                shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shardId, true), thisShardSize);
+                shardSizes.put(shardIdentifierFromRouting(shardId, true), thisShardSize);
                 totalShardsSize += thisShardSize;
                 if (primaryNodeId != null) {
                     dataPath.put(new NodeAndShard(primaryNodeId, shardId), "/data");
@@ -641,7 +648,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 );
                 for (int replica = 0; replica < replicas; replica++) {
                     var replicaNodeId = primaryNodeId == null ? null : pickAndRemoveRandomValueFrom(remainingNodeIds);
-                    shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shardId, false), thisShardSize);
+                    shardSizes.put(shardIdentifierFromRouting(shardId, false), thisShardSize);
                     totalShardsSize += thisShardSize;
                     if (replicaNodeId != null) {
                         dataPath.put(new NodeAndShard(replicaNodeId, shardId), "/data");
@@ -859,11 +866,171 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static Map.Entry<String, Long> indexSize(ClusterState clusterState, String name, long size, boolean primary) {
-        return Map.entry(ClusterInfo.shardIdentifierFromRouting(findShardId(clusterState, name), primary), size);
+        return Map.entry(shardIdentifierFromRouting(findShardId(clusterState, name), primary), size);
     }
 
     private static ShardId findShardId(ClusterState clusterState, String name) {
         return clusterState.getRoutingTable().index(name).shard(0).shardId();
+    }
+
+    public void testAccountForSizeOfMisplacedShardsDuringNewComputation() {
+
+        var snapshot = new Snapshot("repository", new SnapshotId("snapshot", randomUUID()));
+
+        var shardSizeInfo = Maps.<String, Long>newHashMapWithExpectedSize(5);
+        var snapshotShardSizes = Maps.<InternalSnapshotsInfoService.SnapshotShard, Long>newHashMapWithExpectedSize(5);
+        var remainingNode2DiskBytes = ByteSizeValue.ofGb(2).getBytes();
+
+        var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        // index-1 is allocated according to the desired balance
+        var indexMetadata1 = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        routingTableBuilder.add(
+            IndexRoutingTable.builder(indexMetadata1.getIndex())
+                .addShard(newShardRouting(shardIdFrom(indexMetadata1, 0), "node-1", true, STARTED))
+                .addShard(newShardRouting(shardIdFrom(indexMetadata1, 1), "node-2", true, STARTED))
+        );
+        shardSizeInfo.put(shardIdentifierFromRouting(shardIdFrom(indexMetadata1, 0), true), ByteSizeValue.ofGb(8).getBytes());
+        shardSizeInfo.put(shardIdentifierFromRouting(shardIdFrom(indexMetadata1, 1), true), ByteSizeValue.ofGb(8).getBytes());
+
+        // index-2 is restored earlier, has desired balance computed, but not allocated accordingly
+        var indexMetadata2 = IndexMetadata.builder("index-2").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        switch (randomInt(3)) {
+            // index is still unassigned
+            case 0 -> {
+                routingTableBuilder.addAsNewRestore(
+                    indexMetadata2,
+                    new RecoverySource.SnapshotRecoverySource("restore", snapshot, IndexVersion.current(), indexIdFrom(indexMetadata2)),
+                    Set.of()
+                );
+                snapshotShardSizes.put(
+                    new SnapshotShard(snapshot, indexIdFrom(indexMetadata2), shardIdFrom(indexMetadata2, 0)),
+                    ByteSizeValue.ofGb(1).getBytes()
+                );
+            }
+            // index is initializing on desired node
+            case 1 -> routingTableBuilder.add(
+                IndexRoutingTable.builder(indexMetadata2.getIndex())
+                    .addShard(
+                        newShardRouting(shardIdFrom(indexMetadata2, 0), "node-1", true, INITIALIZING, ByteSizeValue.ofGb(1).getBytes())
+                    )
+            );
+            // index is initializing on undesired node
+            case 2 -> routingTableBuilder.add(
+                IndexRoutingTable.builder(indexMetadata2.getIndex())
+                    .addShard(
+                        newShardRouting(shardIdFrom(indexMetadata2, 0), "node-2", true, INITIALIZING, ByteSizeValue.ofGb(1).getBytes())
+                    )
+            );
+            // index is started on undesired node
+            case 3 -> {
+                routingTableBuilder.add(
+                    IndexRoutingTable.builder(indexMetadata2.getIndex())
+                        .addShard(newShardRouting(shardIdFrom(indexMetadata2, 0), "node-2", true, STARTED))
+                );
+                shardSizeInfo.put(shardIdentifierFromRouting(shardIdFrom(indexMetadata2, 0), true), ByteSizeValue.ofGb(1).getBytes());
+                remainingNode2DiskBytes -= ByteSizeValue.ofGb(1).getBytes();
+            }
+            default -> throw new AssertionError("unexpected randomization");
+        }
+
+        // index-3 is restored as new from snapshot
+        var indexMetadata3 = IndexMetadata.builder("index-3").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        routingTableBuilder.addAsNewRestore(
+            indexMetadata3,
+            new RecoverySource.SnapshotRecoverySource("restore", snapshot, IndexVersion.current(), indexIdFrom(indexMetadata3)),
+            Set.of()
+        );
+        snapshotShardSizes.put(
+            new SnapshotShard(snapshot, indexIdFrom(indexMetadata3), shardIdFrom(indexMetadata3, 0)),
+            ByteSizeValue.ofMb(512).getBytes()
+        );
+        snapshotShardSizes.put(
+            new SnapshotShard(snapshot, indexIdFrom(indexMetadata3), shardIdFrom(indexMetadata3, 1)),
+            ByteSizeValue.ofMb(512).getBytes()
+        );
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).put(indexMetadata3, false).build())
+            .routingTable(routingTableBuilder)
+            .customs(
+                Map.of(
+                    RestoreInProgress.TYPE,
+                    new RestoreInProgress.Builder().add(
+                        new RestoreInProgress.Entry(
+                            "restore",
+                            snapshot,
+                            RestoreInProgress.State.STARTED,
+                            randomBoolean(),
+                            List.of(indexMetadata2.getIndex().getName(), indexMetadata3.getIndex().getName()),
+                            Map.ofEntries(
+                                Map.entry(shardIdFrom(indexMetadata2, 0), new RestoreInProgress.ShardRestoreStatus(randomUUID())),
+                                Map.entry(shardIdFrom(indexMetadata3, 0), new RestoreInProgress.ShardRestoreStatus(randomUUID())),
+                                Map.entry(shardIdFrom(indexMetadata3, 1), new RestoreInProgress.ShardRestoreStatus(randomUUID()))
+                            )
+                        )
+                    ).build()
+                )
+            )
+            .build();
+
+        var clusterInfo = createClusterInfo(
+            List.of(
+                // node-1 has enough space to only allocate the only [index-2] shard
+                new DiskUsage("node-1", "data-1", "/data", ByteSizeValue.ofGb(10).getBytes(), ByteSizeValue.ofGb(2).getBytes()),
+                // node-2 has enough space to only allocate both shards of [index-3]
+                new DiskUsage("node-2", "data-2", "/data", ByteSizeValue.ofGb(10).getBytes(), remainingNode2DiskBytes)
+            ),
+            shardSizeInfo
+        );
+        var snapshotShardSizeInfo = new SnapshotShardSizeInfo(snapshotShardSizes);
+
+        var settings = Settings.EMPTY;
+        var allocation = new RoutingAllocation(
+            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
+            clusterState,
+            clusterInfo,
+            snapshotShardSizeInfo,
+            0L
+        );
+        var initialDesiredBalance = new DesiredBalance(
+            1,
+            Map.ofEntries(
+                Map.entry(shardIdFrom(indexMetadata1, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(shardIdFrom(indexMetadata1, 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(shardIdFrom(indexMetadata2, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
+            )
+        );
+        var nextDesiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator()).compute(
+            initialDesiredBalance,
+            new DesiredBalanceInput(2, allocation, List.of()),
+            queue(),
+            input -> true
+        );
+
+        assertDesiredAssignments(
+            nextDesiredBalance,
+            Map.ofEntries(
+                Map.entry(shardIdFrom(indexMetadata1, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(shardIdFrom(indexMetadata1, 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(shardIdFrom(indexMetadata2, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(shardIdFrom(indexMetadata3, 0), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(shardIdFrom(indexMetadata3, 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0))
+            )
+        );
+    }
+
+    private static ClusterInfo createClusterInfo(List<DiskUsage> diskUsages, Map<String, Long> shardSizes) {
+        var diskUsage = diskUsages.stream().collect(toMap(DiskUsage::getNodeId, Function.identity()));
+        return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of());
+    }
+
+    private static IndexId indexIdFrom(IndexMetadata indexMetadata) {
+        return new IndexId(indexMetadata.getIndex().getName(), indexMetadata.getIndex().getUUID());
+    }
+
+    private static ShardId shardIdFrom(IndexMetadata indexMetadata, int shardId) {
+        return new ShardId(indexMetadata.getIndex(), shardId);
     }
 
     public void testShouldLogComputationIteration() {
@@ -1058,13 +1225,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         Settings settings
     ) {
         return new RoutingAllocation(
-            new AllocationDeciders(
-                ClusterModule.createAllocationDeciders(
-                    settings,
-                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    List.of()
-                )
-            ),
+            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
             clusterState,
             clusterInfo,
             SnapshotShardSizeInfo.EMPTY,

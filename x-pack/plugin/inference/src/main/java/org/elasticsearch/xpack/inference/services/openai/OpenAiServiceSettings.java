@@ -29,25 +29,27 @@ import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extract
  * Defines the base settings for interacting with OpenAI.
  * @param uri an optional uri to override the openai url. This should only be used for testing.
  */
-public record OpenAiServiceSettings(@Nullable URI uri) implements ServiceSettings {
+public record OpenAiServiceSettings(@Nullable URI uri, @Nullable String organizationId) implements ServiceSettings {
 
     public static final String NAME = "openai_service_settings";
 
     public static final String URL = "url";
+    public static final String ORGANIZATION = "organization_id";
 
     public static OpenAiServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String organizationId = extractOptionalString(map, ORGANIZATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        // If the url was empty, throw to indicate that it must be non-empty if defined
+        // Throw if any of the settings were empty strings
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
         // the url is optional and only for testing
         if (url == null) {
-            return new OpenAiServiceSettings((String) null);
+            return new OpenAiServiceSettings((URI) null, organizationId);
         }
 
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -56,11 +58,11 @@ public record OpenAiServiceSettings(@Nullable URI uri) implements ServiceSetting
             throw validationException;
         }
 
-        return new OpenAiServiceSettings(uri);
+        return new OpenAiServiceSettings(uri, organizationId);
     }
 
-    public OpenAiServiceSettings(@Nullable String url) {
-        this(createOptionalUri(url));
+    public OpenAiServiceSettings(@Nullable String url, @Nullable String organizationId) {
+        this(createOptionalUri(url), organizationId);
     }
 
     private static URI createOptionalUri(String url) {
@@ -72,7 +74,7 @@ public record OpenAiServiceSettings(@Nullable URI uri) implements ServiceSetting
     }
 
     public OpenAiServiceSettings(StreamInput in) throws IOException {
-        this(in.readOptionalString());
+        this(in.readOptionalString(), in.readOptionalString());
     }
 
     @Override
@@ -88,6 +90,10 @@ public record OpenAiServiceSettings(@Nullable URI uri) implements ServiceSetting
             builder.field(URL, uri.toString());
         }
 
+        if (organizationId != null) {
+            builder.field(ORGANIZATION, organizationId);
+        }
+
         builder.endObject();
         return builder;
     }
@@ -101,5 +107,6 @@ public record OpenAiServiceSettings(@Nullable URI uri) implements ServiceSetting
     public void writeTo(StreamOutput out) throws IOException {
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
+        out.writeOptionalString(organizationId);
     }
 }

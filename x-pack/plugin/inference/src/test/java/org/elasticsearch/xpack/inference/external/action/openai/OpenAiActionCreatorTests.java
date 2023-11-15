@@ -33,6 +33,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests.createModel;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettingsTests.getRequestTaskSettingsMap;
@@ -89,7 +90,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createModel(getUrl(webServer), "secret", "model", "user");
+            var model = createModel(getUrl(webServer), "org", "secret", "model", "user");
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = getRequestTaskSettingsMap(null, "overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
@@ -112,6 +113,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(3));

@@ -7,10 +7,18 @@
 
 package org.elasticsearch.xpack.inference.external.request.openai;
 
-public class OpenAiConstants {
+import org.apache.http.Header;
+import org.apache.http.message.BasicHeader;
+
+public class OpenAiUtils {
     public static final String HOST = "api.openai.com";
     public static final String VERSION_1 = "v1";
     public static final String EMBEDDINGS_PATH = "embeddings";
+    public static final String ORGANIZATION_HEADER = "OpenAI-Organization";
 
-    private OpenAiConstants() {}
+    public static Header createOrgHeader(String org) {
+        return new BasicHeader(ORGANIZATION_HEADER, org);
+    }
+
+    private OpenAiUtils() {}
 }

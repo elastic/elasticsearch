@@ -27,16 +27,26 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         Map<String, Object> taskSettings,
         Map<String, Object> secrets
     ) {
-        super(
-            new ModelConfigurations(
-                modelId,
-                taskType,
-                service,
-                OpenAiServiceSettings.fromMap(serviceSettings),
-                OpenAiEmbeddingsTaskSettings.fromMap(taskSettings)
-            ),
-            new ModelSecrets(DefaultSecretSettings.fromMap(secrets))
+        this(
+            modelId,
+            taskType,
+            service,
+            OpenAiServiceSettings.fromMap(serviceSettings),
+            OpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
+            DefaultSecretSettings.fromMap(secrets)
         );
+    }
+
+    // Should only be used directly for testing
+    OpenAiEmbeddingsModel(
+        String modelId,
+        TaskType taskType,
+        String service,
+        OpenAiServiceSettings serviceSettings,
+        OpenAiEmbeddingsTaskSettings taskSettings,
+        DefaultSecretSettings secrets
+    ) {
+        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
     }
 
     private OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiEmbeddingsTaskSettings taskSettings) {

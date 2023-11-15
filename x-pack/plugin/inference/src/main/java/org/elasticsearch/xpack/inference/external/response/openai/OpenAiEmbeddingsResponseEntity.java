@@ -136,7 +136,6 @@ public record OpenAiEmbeddingsResponseEntity(List<Embedding> embeddings) impleme
         return parser.floatValue();
     }
 
-    // TODO should this be floats or doubles?
     public record Embedding(List<Float> values) implements Writeable, ToXContentObject {
         public static final String EMBEDDING = "embedding";
 

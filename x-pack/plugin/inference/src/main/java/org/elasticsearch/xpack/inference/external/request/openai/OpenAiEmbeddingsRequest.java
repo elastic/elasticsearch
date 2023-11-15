@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
+import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.createOrgHeader;
 
 public class OpenAiEmbeddingsRequest implements Request {
 
@@ -48,6 +49,11 @@ public class OpenAiEmbeddingsRequest implements Request {
             httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
             httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
 
+            var org = account.organizationId();
+            if (org != null) {
+                httpPost.setHeader(createOrgHeader(org));
+            }
+
             return httpPost;
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException("Failed to construct OpenAI URL", RestStatus.INTERNAL_SERVER_ERROR, e);
@@ -57,8 +63,8 @@ public class OpenAiEmbeddingsRequest implements Request {
     // default for testing
     static URI buildDefaultUri() throws URISyntaxException {
         return new URIBuilder().setScheme("https")
-            .setHost(OpenAiConstants.HOST)
-            .setPathSegments(OpenAiConstants.VERSION_1, OpenAiConstants.EMBEDDINGS_PATH)
+            .setHost(OpenAiUtils.HOST)
+            .setPathSegments(OpenAiUtils.VERSION_1, OpenAiUtils.EMBEDDINGS_PATH)
             .build();
     }
 }

@@ -21,13 +21,14 @@ import java.net.URISyntaxException;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest.buildDefaultUri;
+import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiEmbeddingsRequestTests extends ESTestCase {
-    public void testCreateRequest_WithUrlAndUserDefined() throws URISyntaxException, IOException {
-        var request = createRequest("www.google.com", "secret", "abc", "model", "user");
+    public void testCreateRequest_WithUrlOrganizationUserDefined() throws URISyntaxException, IOException {
+        var request = createRequest("www.google.com", "org", "secret", "abc", "model", "user");
         var httpRequest = request.createRequest();
 
         assertThat(httpRequest, instanceOf(HttpPost.class));
@@ -36,6 +37,7 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getURI().toString(), is("www.google.com"));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(3));
@@ -45,7 +47,7 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_WithDefaultUrl() throws URISyntaxException, IOException {
-        var request = createRequest(null, "secret", "abc", "model", "user");
+        var request = createRequest(null, "org", "secret", "abc", "model", "user");
         var httpRequest = request.createRequest();
 
         assertThat(httpRequest, instanceOf(HttpPost.class));
@@ -54,6 +56,7 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getURI().toString(), is(buildDefaultUri().toString()));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(3));
@@ -62,8 +65,8 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.get("user"), is("user"));
     }
 
-    public void testCreateRequest_WithDefaultUrlAndWithoutUser() throws URISyntaxException, IOException {
-        var request = createRequest(null, "secret", "abc", "model", null);
+    public void testCreateRequest_WithDefaultUrlAndWithoutUserOrganization() throws URISyntaxException, IOException {
+        var request = createRequest(null, null, "secret", "abc", "model", null);
         var httpRequest = request.createRequest();
 
         assertThat(httpRequest, instanceOf(HttpPost.class));
@@ -72,6 +75,7 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getURI().toString(), is(buildDefaultUri().toString()));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        assertNull(httpPost.getLastHeader(ORGANIZATION_HEADER));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(2));
@@ -81,6 +85,7 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
 
     public static OpenAiEmbeddingsRequest createRequest(
         @Nullable String url,
+        @Nullable String org,
         String apiKey,
         String input,
         String model,
@@ -88,7 +93,7 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
     ) throws URISyntaxException {
         var uri = url == null ? null : new URI(url);
 
-        var account = new OpenAiAccount(uri, new SecureString(apiKey.toCharArray()));
+        var account = new OpenAiAccount(uri, org, new SecureString(apiKey.toCharArray()));
         var entity = new OpenAiEmbeddingsRequestEntity(input, model, user);
 
         return new OpenAiEmbeddingsRequest(account, entity);

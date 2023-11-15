@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
@@ -90,7 +91,11 @@ public class OpenAiServiceTests extends ESTestCase {
             var model = service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap("url"), getTaskSettingsMap("model", "user"), getSecretSettingsMap("secret")),
+                getRequestConfigMap(
+                    getServiceSettingsMap("url", "org"),
+                    getTaskSettingsMap("model", "user"),
+                    getSecretSettingsMap("secret")
+                ),
                 Set.of()
             );
 
@@ -98,6 +103,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
             assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -116,7 +122,11 @@ public class OpenAiServiceTests extends ESTestCase {
                 () -> service.parseRequestConfig(
                     "id",
                     TaskType.SPARSE_EMBEDDING,
-                    getRequestConfigMap(getServiceSettingsMap("url"), getTaskSettingsMap("model", "user"), getSecretSettingsMap("secret")),
+                    getRequestConfigMap(
+                        getServiceSettingsMap("url", "org"),
+                        getTaskSettingsMap("model", "user"),
+                        getSecretSettingsMap("secret")
+                    ),
                     Set.of()
                 )
             );
@@ -133,7 +143,7 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var config = getRequestConfigMap(
-                getServiceSettingsMap("url"),
+                getServiceSettingsMap("url", "org"),
                 getTaskSettingsMap("model", "user"),
                 getSecretSettingsMap("secret")
             );
@@ -158,7 +168,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var serviceSettings = getServiceSettingsMap("url");
+            var serviceSettings = getServiceSettingsMap("url", "org");
             serviceSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(serviceSettings, getTaskSettingsMap("model", "user"), getSecretSettingsMap("secret"));
@@ -185,7 +195,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var taskSettingsMap = getTaskSettingsMap("model", "user");
             taskSettingsMap.put("extra_key", "value");
 
-            var config = getRequestConfigMap(getServiceSettingsMap("url"), taskSettingsMap, getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(getServiceSettingsMap("url", "org"), taskSettingsMap, getSecretSettingsMap("secret"));
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -209,7 +219,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var secretSettingsMap = getSecretSettingsMap("secret");
             secretSettingsMap.put("extra_key", "value");
 
-            var config = getRequestConfigMap(getServiceSettingsMap("url"), getTaskSettingsMap("model", "user"), secretSettingsMap);
+            var config = getRequestConfigMap(getServiceSettingsMap("url", "org"), getTaskSettingsMap("model", "user"), secretSettingsMap);
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -223,7 +233,7 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserAndUrl() throws IOException {
+    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -233,7 +243,7 @@ public class OpenAiServiceTests extends ESTestCase {
             var model = service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap(null), getTaskSettingsMap("model", null), getSecretSettingsMap("secret")),
+                getRequestConfigMap(getServiceSettingsMap(null, null), getTaskSettingsMap("model", null), getSecretSettingsMap("secret")),
                 Set.of()
             );
 
@@ -241,6 +251,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
             assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
             assertNull(embeddingsModel.getTaskSettings().user());
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -255,7 +266,7 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url"),
+                getServiceSettingsMap("url", "org"),
                 getTaskSettingsMap("model", "user"),
                 getSecretSettingsMap("secret")
             );
@@ -266,6 +277,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertThat(embeddingsModel.getServiceSettings().organizationId(), is("org"));
             assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -280,7 +292,7 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url"),
+                getServiceSettingsMap("url", "org"),
                 getTaskSettingsMap("model", "user"),
                 getSecretSettingsMap("secret")
             );
@@ -297,7 +309,7 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserAndUrl() throws IOException {
+    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWithoutUserUrlOrganization() throws IOException {
         try (
             var service = new OpenAiService(
                 new SetOnce<>(mock(HttpRequestSenderFactory.class)),
@@ -305,7 +317,7 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap(null),
+                getServiceSettingsMap(null, null),
                 getTaskSettingsMap("model", null),
                 getSecretSettingsMap("secret")
             );
@@ -316,6 +328,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var embeddingsModel = (OpenAiEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
             assertThat(embeddingsModel.getTaskSettings().model(), is("model"));
             assertNull(embeddingsModel.getTaskSettings().user());
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -330,7 +343,7 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url"),
+                getServiceSettingsMap("url", "org"),
                 getTaskSettingsMap("model", "user"),
                 getSecretSettingsMap("secret")
             );
@@ -359,7 +372,7 @@ public class OpenAiServiceTests extends ESTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url"),
+                getServiceSettingsMap("url", "org"),
                 getTaskSettingsMap("model", "user"),
                 secretSettingsMap
             );
@@ -384,7 +397,7 @@ public class OpenAiServiceTests extends ESTestCase {
             )
         ) {
             var persistedConfig = getPersistedConfigMap(
-                getServiceSettingsMap("url"),
+                getServiceSettingsMap("url", "org"),
                 getTaskSettingsMap("model", "user"),
                 getSecretSettingsMap("secret")
             );
@@ -409,7 +422,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 new SetOnce<>(createWithEmptySettings(threadPool))
             )
         ) {
-            var serviceSettingsMap = getServiceSettingsMap("url");
+            var serviceSettingsMap = getServiceSettingsMap("url", "org");
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
@@ -440,7 +453,11 @@ public class OpenAiServiceTests extends ESTestCase {
             var taskSettingsMap = getTaskSettingsMap("model", "user");
             taskSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), taskSettingsMap, getSecretSettingsMap("secret"));
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("url", "org"),
+                taskSettingsMap,
+                getSecretSettingsMap("secret")
+            );
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -551,7 +568,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "secret", "model", "user");
+            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
             service.infer(model, "abc", new HashMap<>(), listener);
 
@@ -570,6 +587,7 @@ public class OpenAiServiceTests extends ESTestCase {
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), Matchers.is(3));

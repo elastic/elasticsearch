@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.action.openai;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbedding
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
+import java.net.URI;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
@@ -34,9 +36,21 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
 
     public OpenAiEmbeddingsAction(Sender sender, OpenAiEmbeddingsModel model, ServiceComponents serviceComponents) {
         this.model = Objects.requireNonNull(model);
-        this.account = new OpenAiAccount(this.model.getServiceSettings().uri(), this.model.getSecretSettings().apiKey());
+        this.account = new OpenAiAccount(
+            this.model.getServiceSettings().uri(),
+            this.model.getServiceSettings().organizationId(),
+            this.model.getSecretSettings().apiKey()
+        );
         this.client = new OpenAiClient(Objects.requireNonNull(sender), Objects.requireNonNull(serviceComponents));
-        this.errorMessage = format("Failed to send OpenAI embeddings request to [%s]", this.model.getServiceSettings().uri().toString());
+        this.errorMessage = getErrorMessage(this.model.getServiceSettings().uri());
+    }
+
+    private static String getErrorMessage(@Nullable URI uri) {
+        if (uri != null) {
+            return format("Failed to send OpenAI embeddings request to [%s]", uri.toString());
+        }
+
+        return "Failed to send OpenAI embeddings request";
     }
 
     @Override

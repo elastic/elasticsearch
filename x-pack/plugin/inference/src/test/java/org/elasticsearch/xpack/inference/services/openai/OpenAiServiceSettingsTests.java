@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<OpenAiServiceSettings> {
 
     public static OpenAiServiceSettings createRandomWithNonNullUrl() {
-        return new OpenAiServiceSettings(randomAlphaOfLength(15));
+        return new OpenAiServiceSettings(randomAlphaOfLength(15), randomAlphaOfLength(15));
     }
 
     /**
@@ -31,19 +31,24 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
      */
     public static OpenAiServiceSettings createRandom() {
         var url = randomBoolean() ? randomAlphaOfLength(15) : null;
-        return new OpenAiServiceSettings(url);
+        var organizationId = randomBoolean() ? randomAlphaOfLength(15) : null;
+        return new OpenAiServiceSettings(url, organizationId);
     }
 
     public void testFromMap() {
         var url = "https://www.abc.com";
-        var serviceSettings = OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceSettings.URL, url)));
+        var org = "organization";
+        var serviceSettings = OpenAiServiceSettings.fromMap(
+            new HashMap<>(Map.of(OpenAiServiceSettings.URL, url, OpenAiServiceSettings.ORGANIZATION, org))
+        );
 
-        assertThat(new OpenAiServiceSettings(url), is(serviceSettings));
+        assertThat(serviceSettings, is(new OpenAiServiceSettings(url, org)));
     }
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {
-        var serviceSettings = OpenAiServiceSettings.fromMap(new HashMap<>());
+        var serviceSettings = OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceSettings.ORGANIZATION, "org")));
         assertNull(serviceSettings.uri());
+        assertThat(serviceSettings.organizationId(), is("org"));
     }
 
     public void testFromMap_EmptyUrl_ThrowsError() {
@@ -58,6 +63,29 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
                     OpenAiServiceSettings.URL
+                )
+            )
+        );
+    }
+
+    public void testFromMap_MissingOrganization_DoesNotThrowException() {
+        var serviceSettings = OpenAiServiceSettings.fromMap(new HashMap<>());
+        assertNull(serviceSettings.uri());
+        assertNull(serviceSettings.organizationId());
+    }
+
+    public void testFromMap_EmptyOrganization_ThrowsError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> OpenAiServiceSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceSettings.ORGANIZATION, "")))
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
+                    OpenAiServiceSettings.ORGANIZATION
                 )
             )
         );
@@ -97,7 +125,17 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
         return createRandomWithNonNullUrl();
     }
 
-    public static Map<String, Object> getServiceSettingsMap(@Nullable String url) {
-        return url == null ? new HashMap<>() : new HashMap<>(Map.of(OpenAiServiceSettings.URL, url));
+    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String org) {
+
+        var map = new HashMap<String, Object>();
+
+        if (url != null) {
+            map.put(OpenAiServiceSettings.URL, url);
+        }
+
+        if (org != null) {
+            map.put(OpenAiServiceSettings.ORGANIZATION, org);
+        }
+        return map;
     }
 }

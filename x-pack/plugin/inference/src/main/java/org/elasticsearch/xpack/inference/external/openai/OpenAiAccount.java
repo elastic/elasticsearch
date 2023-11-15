@@ -13,7 +13,7 @@ import org.elasticsearch.core.Nullable;
 import java.net.URI;
 import java.util.Objects;
 
-public record OpenAiAccount(@Nullable URI url, SecureString apiKey) {
+public record OpenAiAccount(@Nullable URI url, @Nullable String organizationId, SecureString apiKey) {
 
     public OpenAiAccount {
         Objects.requireNonNull(apiKey);

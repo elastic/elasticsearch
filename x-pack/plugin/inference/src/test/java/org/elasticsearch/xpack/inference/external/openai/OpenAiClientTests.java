@@ -39,6 +39,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUti
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequestTests.createRequest;
+import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.equalTo;
@@ -99,7 +100,7 @@ public class OpenAiClientTests extends ESTestCase {
             OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
 
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-            openAiClient.send(createRequest(getUrl(webServer), "secret", "abc", "model", "user"), listener);
+            openAiClient.send(createRequest(getUrl(webServer), "org", "secret", "abc", "model", "user"), listener);
 
             InferenceResults result = listener.actionGet(TIMEOUT);
 
@@ -117,6 +118,7 @@ public class OpenAiClientTests extends ESTestCase {
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(3));
@@ -157,7 +159,7 @@ public class OpenAiClientTests extends ESTestCase {
             OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
 
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-            openAiClient.send(createRequest(getUrl(webServer), "secret", "abc", "model", null), listener);
+            openAiClient.send(createRequest(getUrl(webServer), "org", "secret", "abc", "model", null), listener);
 
             InferenceResults result = listener.actionGet(TIMEOUT);
 
@@ -175,6 +177,65 @@ public class OpenAiClientTests extends ESTestCase {
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), is("abc"));
+            assertThat(requestMap.get("model"), is("model"));
+        }
+    }
+
+    public void testSend_SuccessfulResponse_WithoutOrganization() throws IOException, URISyntaxException {
+        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
+
+            String responseJson = """
+                {
+                  "object": "list",
+                  "data": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.0123,
+                              -0.0123
+                          ]
+                      }
+                  ],
+                  "model": "text-embedding-ada-002-v2",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
+
+            PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
+            openAiClient.send(createRequest(getUrl(webServer), null, "secret", "abc", "model", null), listener);
+
+            InferenceResults result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                is(
+                    Map.of(
+                        OpenAiEmbeddingsResponseEntity.TEXT_EMBEDDING,
+                        List.of(Map.of(OpenAiEmbeddingsResponseEntity.Embedding.EMBEDDING, List.of(0.0123F, -0.0123F)))
+                    )
+                )
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertNull(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(2));
@@ -222,7 +283,7 @@ public class OpenAiClientTests extends ESTestCase {
             );
 
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-            openAiClient.send(createRequest(getUrl(webServer), "secret", "abc", "model", "user"), listener);
+            openAiClient.send(createRequest(getUrl(webServer), "org", "secret", "abc", "model", "user"), listener);
 
             var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(thrownException.getMessage(), is(format("Failed to find required field [data] in OpenAI embeddings response")));
@@ -231,6 +292,7 @@ public class OpenAiClientTests extends ESTestCase {
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(3));
@@ -246,7 +308,7 @@ public class OpenAiClientTests extends ESTestCase {
 
         OpenAiClient openAiClient = new OpenAiClient(sender, createWithEmptySettings(threadPool));
         PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-        openAiClient.send(createRequest(getUrl(webServer), "secret", "abc", "model", "user"), listener);
+        openAiClient.send(createRequest(getUrl(webServer), "org", "secret", "abc", "model", "user"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("failed"));

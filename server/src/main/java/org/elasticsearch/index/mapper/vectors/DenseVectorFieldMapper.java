@@ -1235,7 +1235,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 return docId -> {
                     hasValue = docId == values.advance(docId);
-                    hasMagnitude = hasValue && magnitudeReader != null && magnitudeReader.advance(docId) == docId;
+                    hasMagnitude = hasValue && magnitudeReader != null && magnitudeReader.advanceExact(docId);
                     return hasValue;
                 };
             }

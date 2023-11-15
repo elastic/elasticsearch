@@ -19,6 +19,8 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
     private final NumericDocValues magnitudeIn;
     private final float[] vector;
     private float magnitude = 1f;
+    private boolean hasMagnitude;
+    private int docId = -1;
 
     public NormalizedCosineFloatVectorValues(FloatVectorValues in, NumericDocValues magnitudeIn) {
         this.in = in;
@@ -38,7 +40,8 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
 
     @Override
     public float[] vectorValue() throws IOException {
-        return vector;
+        // Lazy load vectors as we may iterate but not actually require the vector
+        return vectorValue(in.docID());
     }
 
     @Override
@@ -48,34 +51,34 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
 
     @Override
     public int nextDoc() throws IOException {
-        int next = in.nextDoc();
-        if (next != NO_MORE_DOCS) {
-            System.arraycopy(in.vectorValue(), 0, vector, 0, vector.length);
-            if (decodedMagnitude(next)) {
-                for (int i = 0; i < vector.length; i++) {
-                    vector[i] *= magnitude;
-                }
-            }
-        }
-        return next;
+        int docId = in.nextDoc();
+        hasMagnitude = decodedMagnitude(docId);
+        return docId;
     }
 
     @Override
     public int advance(int target) throws IOException {
-        int next = in.advance(target);
-        if (next != NO_MORE_DOCS) {
-            System.arraycopy(in.vectorValue(), 0, vector, 0, dimension());
-            if (decodedMagnitude(next)) {
+        int docId = in.advance(target);
+        hasMagnitude = decodedMagnitude(docId);
+        return docId;
+    }
+
+    private float[] vectorValue(int docId) throws IOException {
+        if (docId != this.docId) {
+            this.docId = docId;
+            // We should only copy and transform if we have a stored magnitude
+            if (hasMagnitude) {
+                System.arraycopy(in.vectorValue(), 0, vector, 0, dimension());
                 for (int i = 0; i < vector.length; i++) {
                     vector[i] *= magnitude;
                 }
+                return vector;
+            } else {
+                return in.vectorValue();
             }
+        } else {
+            return hasMagnitude ? vector : in.vectorValue();
         }
-        return next;
-    }
-
-    public float magnitude() {
-        return magnitude;
     }
 
     private boolean decodedMagnitude(int docId) throws IOException {
@@ -89,8 +92,7 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
         } else if (docId == currentDoc) {
             return true;
         } else {
-            currentDoc = magnitudeIn.advance(docId);
-            if (currentDoc == docId) {
+            if (magnitudeIn.advanceExact(docId)) {
                 magnitude = Float.intBitsToFloat((int) magnitudeIn.longValue());
                 return true;
             } else {

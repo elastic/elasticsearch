@@ -148,8 +148,8 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
         var action = createAction(getUrl(webServer), sender);
 
-        PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-        action.execute("abc", listener);
+        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+        action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

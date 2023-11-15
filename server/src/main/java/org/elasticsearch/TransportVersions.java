@@ -164,7 +164,12 @@ public class TransportVersions {
     public static final TransportVersion UPDATE_NON_DYNAMIC_SETTINGS_ADDED = def(8_533_00_0);
     public static final TransportVersion REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED = def(8_534_00_0);
     public static final TransportVersion ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED = def(8_535_00_0);
-    public static final TransportVersion DATA_STREAM_FAILURE_STORE_ADDED = def(8_536_00_0);
+    public static final TransportVersion COUNTED_KEYWORD_ADDED = def(8_536_00_0);
+    public static final TransportVersion SHAPE_VALUE_SERIALIZATION_ADDED = def(8_537_00_0);
+    public static final TransportVersion INFERENCE_MULTIPLE_INPUTS = def(8_538_00_0);
+    public static final TransportVersion ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS = def(8_539_00_0);
+    public static final TransportVersion ML_STATE_CHANGE_TIMESTAMPS = def(8_540_00_0);
+    public static final TransportVersion DATA_STREAM_FAILURE_STORE_ADDED = def(8_541_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

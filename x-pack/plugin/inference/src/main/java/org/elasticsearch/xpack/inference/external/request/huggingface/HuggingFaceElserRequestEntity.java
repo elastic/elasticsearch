@@ -11,9 +11,10 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
-public record HuggingFaceElserRequestEntity(String inputs) implements ToXContentObject {
+public record HuggingFaceElserRequestEntity(List<String> inputs) implements ToXContentObject {
 
     private static final String INPUTS_FIELD = "inputs";
 

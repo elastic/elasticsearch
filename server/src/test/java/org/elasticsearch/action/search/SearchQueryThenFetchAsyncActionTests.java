@@ -118,38 +118,55 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     new SearchShardTarget("node1", new ShardId("idx", "na", shardId), null),
                     null
                 );
-                SortField sortField = new SortField("timestamp", SortField.Type.LONG);
-                if (withCollapse) {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldGroups(
-                                "collapse_field",
-                                new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
-                                new SortField[] { sortField },
-                                new Object[] { 0L }
+                try {
+                    SortField sortField = new SortField("timestamp", SortField.Type.LONG);
+                    if (withCollapse) {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldGroups(
+                                    "collapse_field",
+                                    new TotalHits(
+                                        1,
+                                        withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                                    ),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
+                                    new SortField[] { sortField },
+                                    new Object[] { 0L }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
-                } else {
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopFieldDocs(
-                                new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                                new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
-                                new SortField[] { sortField }
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
+                    } else {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopFieldDocs(
+                                    new TotalHits(
+                                        1,
+                                        withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                                    ),
+                                    new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
+                                    new SortField[] { sortField }
+                                ),
+                                Float.NaN
                             ),
-                            Float.NaN
-                        ),
-                        new DocValueFormat[] { DocValueFormat.RAW }
-                    );
+                            new DocValueFormat[] { DocValueFormat.RAW }
+                        );
+                    }
+                    queryResult.from(0);
+                    queryResult.size(1);
+                    successfulOps.incrementAndGet();
+                    queryResult.incRef();
+                    new Thread(() -> {
+                        try {
+                            listener.onResponse(queryResult);
+                        } finally {
+                            queryResult.decRef();
+                        }
+                    }).start();
+                } finally {
+                    queryResult.decRef();
                 }
-                queryResult.from(0);
-                queryResult.size(1);
-                successfulOps.incrementAndGet();
-                new Thread(() -> listener.onResponse(queryResult)).start();
             }
         };
         CountDownLatch latch = new CountDownLatch(1);

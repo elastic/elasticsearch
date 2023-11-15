@@ -16,7 +16,7 @@ import java.util.Objects;
 /**
  * {@link Vector} where each entry references a lucene document.
  */
-public class DocVector extends AbstractVector implements Vector {
+public final class DocVector extends AbstractVector implements Vector {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
 
@@ -48,7 +48,6 @@ public class DocVector extends AbstractVector implements Vector {
 
     final DocBlock block;
 
-    @SuppressWarnings("this-escape")
     public DocVector(IntVector shards, IntVector segments, IntVector docs, Boolean singleSegmentNonDecreasing) {
         super(shards.getPositionCount(), null);
         this.shards = shards;

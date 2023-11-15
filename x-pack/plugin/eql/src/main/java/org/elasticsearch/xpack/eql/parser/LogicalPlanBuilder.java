@@ -340,7 +340,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         if (queries.stream().allMatch(KeyedFilter::isMissingEventFilter)) {
-            throw new IllegalStateException("A sequence requires at least one positive event query; found none");
+            throw new ParsingException(source, "A sequence requires at least one positive event query; found none");
         }
 
         return new Sequence(source, queries, until, maxSpan, fieldTimestamp(), fieldTiebreaker(), resultPosition());

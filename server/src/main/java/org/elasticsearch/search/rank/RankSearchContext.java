@@ -64,6 +64,7 @@ public class RankSearchContext extends SearchContext {
         this.rankQuery = parent.buildFilteredQuery(rankQuery);
         this.windowSize = windowSize;
         this.querySearchResult = new QuerySearchResult(parent.readerContext().id(), parent.shardTarget(), parent.request());
+        this.addReleasable(querySearchResult::decRef);
     }
 
     @Override
@@ -317,11 +318,6 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public boolean sourceRequested() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean hasFetchSourceContext() {
         throw new UnsupportedOperationException();
     }
 

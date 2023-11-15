@@ -60,7 +60,7 @@ public class JoinRequest extends TransportRequest {
         long minimumTerm,
         Optional<Join> optionalJoin
     ) {
-        assert optionalJoin.isPresent() == false || optionalJoin.get().getSourceNode().equals(sourceNode);
+        assert optionalJoin.isPresent() == false || optionalJoin.get().votingNode().equals(sourceNode);
         this.sourceNode = sourceNode;
         this.compatibilityVersions = compatibilityVersions;
         this.features = features;
@@ -121,7 +121,7 @@ public class JoinRequest extends TransportRequest {
         // If the join is also present then its term will normally equal the corresponding term, but we do not require callers to
         // obtain the term and the join in a synchronized fashion so it's possible that they disagree. Also older nodes do not share the
         // minimum term, so for BWC we can take it from the join if present.
-        return Math.max(minimumTerm, optionalJoin.map(Join::getTerm).orElse(0L));
+        return Math.max(minimumTerm, optionalJoin.map(Join::term).orElse(0L));
     }
 
     public Optional<Join> getOptionalJoin() {

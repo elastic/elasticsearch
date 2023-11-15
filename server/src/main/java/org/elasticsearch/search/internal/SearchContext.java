@@ -182,8 +182,6 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract boolean sourceRequested();
 
-    public abstract boolean hasFetchSourceContext();
-
     public abstract FetchSourceContext fetchSourceContext();
 
     public abstract SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext);

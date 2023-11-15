@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.health.HealthFeature;
+import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -156,7 +156,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     // visible for testing
     void startTask(ClusterChangedEvent event) {
         // Wait until every node in the cluster supports health checks
-        if (event.state().clusterRecovered() && featureService.clusterHasFeature(event.state(), HealthFeature.SUPPORTS_HEALTH)) {
+        if (event.state().clusterRecovered() && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)) {
             boolean healthNodeTaskExists = HealthNode.findTask(event.state()) != null;
             boolean isElectedMaster = event.localNodeMaster();
             if (isElectedMaster || healthNodeTaskExists) {

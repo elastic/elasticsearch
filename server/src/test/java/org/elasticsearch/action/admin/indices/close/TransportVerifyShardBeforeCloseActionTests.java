@@ -154,7 +154,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
             phase1,
             taskId
         );
-        final PlainActionFuture<Void> res = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> res = new PlainActionFuture<>();
         action.shardOperationOnPrimary(request, indexShard, res.delegateFailureAndWrap((l, r) -> {
             assertNotNull(r);
             l.onResponse(null);

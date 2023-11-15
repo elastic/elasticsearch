@@ -24,7 +24,7 @@ import java.util.EnumSet;
  * The SHARD_LEVEL flags are for stat fields that can be calculated at the shard level and then may be later aggregated at the index level
  * along with index-level flag stat fields (e.g., Mappings).
  */
-public class CommonStatsFlags implements Writeable, Cloneable {
+public final class CommonStatsFlags implements Writeable, Cloneable {
 
     public static final CommonStatsFlags ALL = new CommonStatsFlags().all();
     public static final CommonStatsFlags SHARD_LEVEL = new CommonStatsFlags().all().set(Flag.Mappings, false);
@@ -40,7 +40,6 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
      */
-    @SuppressWarnings("this-escape")
     public CommonStatsFlags(Flag... flags) {
         if (flags.length > 0) {
             clear();

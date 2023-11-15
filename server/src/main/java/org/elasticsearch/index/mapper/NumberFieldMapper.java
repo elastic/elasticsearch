@@ -89,7 +89,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -143,7 +143,6 @@ public class NumberFieldMapper extends FieldMapper {
             return builder;
         }
 
-        @SuppressWarnings("this-escape")
         public Builder(
             String name,
             NumberType type,

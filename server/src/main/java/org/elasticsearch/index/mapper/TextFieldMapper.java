@@ -87,7 +87,7 @@ import java.util.function.IntPredicate;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** A {@link FieldMapper} for full-text fields. */
-public class TextFieldMapper extends FieldMapper {
+public final class TextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
@@ -954,7 +954,7 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(
                     "fetching values from a text field ["
                         + name()
-                        + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
+                        + "] is not supported because synthetic _source is enabled and we don't have a way to load the fields"
                 );
             }
             return BlockSourceReader.bytesRefs(SourceValueFetcher.toString(blContext.sourcePaths(name())));
@@ -1019,7 +1019,7 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(
                     "fetching values from a text field ["
                         + name()
-                        + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
+                        + "] is not supported because synthetic _source is enabled and we don't have a way to load the fields"
                 );
             }
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
@@ -1155,8 +1155,7 @@ public class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
-    @SuppressWarnings("this-escape")
-    protected TextFieldMapper(
+    private TextFieldMapper(
         String simpleName,
         FieldType fieldType,
         TextFieldType mappedFieldType,

@@ -889,6 +889,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         assertThat(
             HierarchyCircuitBreakerService.buildParentTripMessage(
+                "parent",
                 1L,
                 "test",
                 new HierarchyCircuitBreakerService.MemoryUsage(2L, 3L, 4L, 5L),
@@ -906,6 +907,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         assertThat(
             HierarchyCircuitBreakerService.buildParentTripMessage(
+                "parent",
                 1L,
                 "test",
                 new HierarchyCircuitBreakerService.MemoryUsage(2L, 3L, 4L, 5L),
@@ -923,6 +925,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             HierarchyCircuitBreakerService.permitNegativeValues = true;
             assertThat(
                 HierarchyCircuitBreakerService.buildParentTripMessage(
+                    "parent",
                     -1L,
                     "test",
                     new HierarchyCircuitBreakerService.MemoryUsage(-2L, -3L, -4L, -5L),

@@ -266,7 +266,7 @@ public class JoinHelper {
             // to this node. We try and keep the problem local to this node by checking that we can at least allocate one byte:
             final var breaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
             try {
-                breaker.addEstimateBytesAndMaybeBreak(1L, "pre-flight join request");
+                breaker.addEstimateBytesAndMaybeBreak(1L, joinRequest.getDescription());
             } catch (Exception e) {
                 pendingJoinInfo.message = PENDING_JOIN_FAILED;
                 pendingOutgoingJoins.remove(dedupKey);

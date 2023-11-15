@@ -1364,7 +1364,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
             }
             CircuitBreakingException exc = expectThrows(CircuitBreakingException.class, () -> consumer.reduce());
             assertEquals(shouldFailPartial, hasConsumedFailure.get());
-            assertThat(exc.getMessage(), containsString("<reduce_aggs>"));
+            assertThat(
+                exc.getMessage(),
+                containsString("indices[], search_type[QUERY_THEN_FETCH], source[{\"size\":0,\"aggregations\":{\"test\":{\"max\":{}}}}]")
+            );
             circuitBreaker.shouldBreak.set(false);
         } else {
             consumer.reduce();

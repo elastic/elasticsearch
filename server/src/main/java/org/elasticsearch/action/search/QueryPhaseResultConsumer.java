@@ -68,6 +68,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final PendingMerges pendingMerges;
     private final Consumer<Exception> onPartialMergeFailure;
 
+    private final String label;
+
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
      * as shard results are consumed.
@@ -89,6 +91,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.topNSize = getTopDocsSize(request);
         this.performFinalReduce = request.isFinalReduce();
         this.onPartialMergeFailure = onPartialMergeFailure;
+        this.label = request.buildDescription();
 
         SearchSourceBuilder source = request.source();
         int size = source == null || source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
@@ -304,7 +307,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
 
         synchronized long addEstimateAndMaybeBreak(long estimatedSize) {
-            circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedSize, "<reduce_aggs>");
+            circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedSize, label);
             circuitBreakerBytes += estimatedSize;
             maxAggsCurrentBufferSize = Math.max(maxAggsCurrentBufferSize, circuitBreakerBytes);
             return circuitBreakerBytes;

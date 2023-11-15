@@ -31,7 +31,7 @@ import java.util.Objects;
 public class GetDataStreamLifecycleStatsAction extends ActionType<GetDataStreamLifecycleStatsAction.Response> {
 
     public static final GetDataStreamLifecycleStatsAction INSTANCE = new GetDataStreamLifecycleStatsAction();
-    public static final String NAME = "indices:monitor/data_stream/lifecycle/stats";
+    public static final String NAME = "cluster:monitor/data_stream/lifecycle/stats";
 
     private GetDataStreamLifecycleStatsAction() {
         super(NAME, Response::new);

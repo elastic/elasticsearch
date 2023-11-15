@@ -11,7 +11,8 @@ Gets stats about the execution of data stream lifecycle.
 [[get-lifecycle-stats-api-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have // TODO figure this out
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[data-streams-get-lifecycle-stats-request]]
 ==== {api-request-title}

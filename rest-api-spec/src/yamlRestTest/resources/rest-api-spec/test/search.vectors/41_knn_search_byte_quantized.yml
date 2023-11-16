@@ -188,7 +188,7 @@ setup:
             num_candidates: 3
             k: 3
             field: vector
-            similarity: 11
+            similarity: 10.3
             query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
 
   - length: {hits.hits: 1}

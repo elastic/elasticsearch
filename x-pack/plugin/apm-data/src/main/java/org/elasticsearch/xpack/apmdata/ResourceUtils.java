@@ -13,15 +13,20 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 public class ResourceUtils {
 
     public static final String APM_TEMPLATE_VERSION_VARIABLE = "xpack.apmdata.template.version";
 
     static byte[] loadVersionedResourceUTF8(String name, int version) {
+        return loadVersionedResourceUTF8(name, version, Map.of());
+    }
+
+    static byte[] loadVersionedResourceUTF8(String name, int version, Map<String, String> variables) {
         try {
             String content = loadResource(name);
-            content = TemplateUtils.replaceVariable(content, APM_TEMPLATE_VERSION_VARIABLE, String.valueOf(version));
+            content = TemplateUtils.replaceVariables(content, String.valueOf(version), APM_TEMPLATE_VERSION_VARIABLE, variables);
             return content.getBytes(StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new RuntimeException(e);

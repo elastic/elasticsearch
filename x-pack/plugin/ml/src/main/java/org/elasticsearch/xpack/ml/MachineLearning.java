@@ -73,7 +73,6 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -358,6 +357,7 @@ import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecu
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.ltr.InferenceRescorerFeature;
 import org.elasticsearch.xpack.ml.ltr.LearnToRankRescorerBuilder;
+import org.elasticsearch.xpack.ml.ltr.LearnToRankService;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -748,7 +748,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
-    private final SetOnce<ScriptService> scriptService = new SetOnce<>();
+    private final SetOnce<LearnToRankService> learnToRankService = new SetOnce<>();
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
 
     public MachineLearning(Settings settings) {
@@ -872,8 +872,8 @@ public class MachineLearning extends Plugin
             return List.of(
                 new RescorerSpec<>(
                     LearnToRankRescorerBuilder.NAME,
-                    in -> new LearnToRankRescorerBuilder(in, modelLoadingService.get(), scriptService.get()),
-                    parser -> LearnToRankRescorerBuilder.fromXContent(parser, modelLoadingService.get(), scriptService.get())
+                    in -> new LearnToRankRescorerBuilder(in, learnToRankService.get()),
+                    parser -> LearnToRankRescorerBuilder.fromXContent(parser, learnToRankService.get())
                 )
             );
         }
@@ -897,7 +897,6 @@ public class MachineLearning extends Plugin
 
         machineLearningExtension.get().configure(environment.settings());
 
-        this.scriptService.set(services.scriptService());
         this.mlUpgradeModeActionFilter.set(new MlUpgradeModeActionFilter(clusterService));
 
         MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(
@@ -1105,6 +1104,8 @@ public class MachineLearning extends Plugin
         this.deploymentManager.set(
             new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory, getMaxModelDeploymentsPerNode())
         );
+
+        this.learnToRankService.set(new LearnToRankService(modelLoadingService, services.scriptService(), services.xContentRegistry()));
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(

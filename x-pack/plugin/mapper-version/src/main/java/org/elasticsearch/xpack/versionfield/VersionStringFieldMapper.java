@@ -39,6 +39,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -288,6 +290,12 @@ public class VersionStringFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Illegal value type: " + value.getClass() + ", value: " + value);
             }
             return encodeVersion(valueAsString).bytesRef;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            failIfNoDocValues();
+            return BlockDocValuesReader.bytesRefsFromOrds(name());
         }
 
         @Override

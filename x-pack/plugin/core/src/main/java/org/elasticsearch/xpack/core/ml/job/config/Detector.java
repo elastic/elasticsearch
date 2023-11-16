@@ -719,7 +719,7 @@ public class Detector implements ToXContentObject, Writeable {
             checkScoping(rule);
         }
 
-        private void checkFunctionHasRuleSupport(DetectionRule rule, DetectorFunction detectorFunction) {
+        private static void checkFunctionHasRuleSupport(DetectionRule rule, DetectorFunction detectorFunction) {
             if (ruleHasConditionOnResultValue(rule) && FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT.contains(detectorFunction)) {
                 String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION, detectorFunction);
                 throw ExceptionsHelper.badRequestException(msg);

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -92,8 +93,18 @@ public class LimitOperator implements Operator {
                 filter[i] = i;
             }
             Block[] blocks = new Block[lastInput.getBlockCount()];
-            for (int b = 0; b < blocks.length; b++) {
-                blocks[b] = lastInput.getBlock(b).filter(filter);
+            boolean success = false;
+            try {
+                for (int b = 0; b < blocks.length; b++) {
+                    blocks[b] = lastInput.getBlock(b).filter(filter);
+                }
+                success = true;
+            } finally {
+                Releasables.closeExpectNoException(lastInput::releaseBlocks);
+                lastInput = null;
+                if (success == false) {
+                    Releasables.closeExpectNoException(blocks);
+                }
             }
             result = new Page(blocks);
             limitRemaining = 0;

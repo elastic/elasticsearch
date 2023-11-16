@@ -1,0 +1,5 @@
+pr: 100031
+summary: Add executed pipelines to bulk api response
+area: Indices APIs
+type: enhancement
+issues: []

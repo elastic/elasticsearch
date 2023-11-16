@@ -44,7 +44,7 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
 
     @Override
     public IntBlock filter(int... positions) {
-        return new FilterIntVector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
     }
 
     @Override
@@ -71,8 +71,13 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
+    public boolean isReleased() {
+        return released || vector.isReleased();
+    }
+
+    @Override
     public void close() {
-        if (released) {
+        if (released || vector.isReleased()) {
             throw new IllegalStateException("can't release already released block [" + this + "]");
         }
         released = true;

@@ -16,6 +16,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -24,10 +25,11 @@ import org.elasticsearch.compute.operator.AnyOperatorTestCase;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.OperatorTestCase;
-import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.junit.After;
@@ -37,6 +39,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -115,25 +118,53 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
     // TODO tests for the other data partitioning configurations
 
     public void testSimple() {
+        testSimple(this::driverContext);
+    }
+
+    public void testSimpleWithCranky() {
+        try {
+            testSimple(this::crankyDriverContext);
+            logger.info("cranky didn't break");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testSimple(Supplier<DriverContext> contexts) {
         int size = between(1_000, 20_000);
         int limit = randomBoolean() ? between(10, size) : Integer.MAX_VALUE;
-        testCount(size, limit);
+        testCount(contexts, size, limit);
     }
 
     public void testEmpty() {
-        int limit = randomBoolean() ? between(10, 10000) : Integer.MAX_VALUE;
-        testCount(0, limit);
+        testEmpty(this::driverContext);
     }
 
-    private void testCount(int size, int limit) {
+    public void testEmptyWithCranky() {
+        try {
+            testEmpty(this::crankyDriverContext);
+            logger.info("cranky didn't break");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testEmpty(Supplier<DriverContext> contexts) {
+        int limit = randomBoolean() ? between(10, 10000) : Integer.MAX_VALUE;
+        testCount(contexts, 0, limit);
+    }
+
+    private void testCount(Supplier<DriverContext> contexts, int size, int limit) {
         DataPartitioning dataPartitioning = randomFrom(DataPartitioning.values());
-        LuceneCountOperator.Factory factory = simple(nonBreakingBigArrays(), dataPartitioning, size, limit);
+        LuceneCountOperator.Factory factory = simple(contexts.get().bigArrays(), dataPartitioning, size, limit);
         List<Page> results = new CopyOnWriteArrayList<>();
         List<Driver> drivers = new ArrayList<>();
         int taskConcurrency = between(1, 8);
         for (int i = 0; i < taskConcurrency; i++) {
-            DriverContext ctx = driverContext();
-            drivers.add(new Driver(ctx, factory.get(ctx), List.of(), new PageConsumerOperator(results::add), () -> {}));
+            DriverContext ctx = contexts.get();
+            drivers.add(new Driver(ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add), () -> {}));
         }
         OperatorTestCase.runDriver(drivers);
         assertThat(results.size(), lessThanOrEqualTo(taskConcurrency));

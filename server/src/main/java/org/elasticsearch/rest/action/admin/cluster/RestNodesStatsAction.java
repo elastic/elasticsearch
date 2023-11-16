@@ -91,7 +91,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
         nodesStatsRequest.timeout(request.param("timeout"));
         // level parameter validation
-        NodeStatsLevel.of(request, NodeStatsLevel.NODE);
+        nodesStatsRequest.setIncludeShardsStats(NodeStatsLevel.of(request, NodeStatsLevel.NODE) != NodeStatsLevel.NODE);
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             if (request.hasParam("index_metric")) {

@@ -32,7 +32,7 @@ public class SequenceMatcher {
     private static final String CB_INFLIGHT_LABEL = "sequence_inflight";
     private static final String CB_COMPLETED_LABEL = "sequence_completed";
 
-    private final Logger log = LogManager.getLogger(SequenceMatcher.class);
+    private static final Logger log = LogManager.getLogger(SequenceMatcher.class);
 
     static class Stats {
 

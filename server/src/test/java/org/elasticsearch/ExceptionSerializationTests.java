@@ -75,6 +75,8 @@ import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.TooManyScrollContextsException;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -691,7 +693,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
         ids.put(25, org.elasticsearch.script.GeneralScriptException.class);
         ids.put(26, null);
-        ids.put(27, org.elasticsearch.snapshots.SnapshotCreationException.class);
+        ids.put(27, null); // was SnapshotCreationException
         ids.put(28, null); // was DeleteFailedEngineException, deprecated in 6.0 and removed in 7.0
         ids.put(29, org.elasticsearch.index.engine.DocumentMissingException.class);
         ids.put(30, org.elasticsearch.snapshots.SnapshotException.class);
@@ -834,6 +836,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(170, ElasticsearchRoleRestrictionException.class);
         ids.put(171, ApiNotAvailableException.class);
         ids.put(172, RecoveryCommitTooNewException.class);
+        ids.put(173, TooManyScrollContextsException.class);
+        ids.put(174, AggregationExecutionException.InvalidPath.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

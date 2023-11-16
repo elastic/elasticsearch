@@ -1,5 +1,5 @@
 ---
-"Indexing and searching sparse vectors":
+"Indexing and searching sparse vectors in >=8.11":
 
   - skip:
       version: " - 8.10.99"
@@ -77,16 +77,24 @@
         index: test
         id: "3"
         body:
-          text: "doing nothing will result in nothing"
+          text: "empty array with no nested values - should not be retrieved in exists queries"
           ml:
-            tokens: {}
+            tokens: [ ]
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          text: "should still respond to exists queries if when empty"
+          ml:
+            tokens: { }
 
   - match: { result: "created" }
 
   - do:
       index:
         index: test
-        id: "4"
+        id: "5"
         body:
           text: "other embeddings available only"
           embeddings:
@@ -144,9 +152,9 @@
 ---
 "Sparse vector in 7.x":
   - skip:
-      features: allowed_warnings
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/100003"
+      features: ["allowed_warnings"]
+      version: "8.0.0 - "
+      reason: "sparse_vector field type supported in 7.x"
   - do:
       allowed_warnings:
         - "The [sparse_vector] field type is deprecated and will be removed in 8.0."
@@ -164,17 +172,16 @@
   - match: { acknowledged: true }
 
   - do:
-      catch: /\[sparse_vector\] fields do not support \[exists\] queries/
+      allowed_warnings:
+        - "[sparse_vector] field type in old 7.x indices is allowed to contain [sparse_vector] fields, but they cannot be indexed or searched."
       search:
-        rest_total_hits_as_int: true
         index: test
         body:
           query:
             exists:
               field: ml.tokens
-
 ---
-"Sparse vector in 8.x":
+"Sparse vector in 8.0.0 <= x < 8.11.0":
   - skip:
       version: " - 7.99.99, 8.11.0 - "
       reason: "sparse_vector field type not supported in 8.x until 8.11.0"
@@ -189,3 +196,12 @@
                 type: text
               ml.tokens:
                 type: sparse_vector
+  - do:
+      catch: /\[sparse_vector\] fields do not support \[exists\] queries|no such index.*/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: ml.tokens

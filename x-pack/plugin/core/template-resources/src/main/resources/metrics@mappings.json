@@ -1,0 +1,58 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "long_metrics": {
+            "match_mapping_type": "long",
+            "mapping": {
+              "type": "long",
+              "index": false
+            }
+          }
+        },
+        {
+          "double_metrics": {
+            "match_mapping_type": "double",
+            "mapping": {
+              "type": "float",
+              "index": false
+            }
+          }
+        },
+        {
+          "histogram_metrics": {
+            "mapping": {
+              "type": "histogram"
+            }
+          }
+        },
+        {
+          "summary_metrics": {
+            "mapping": {
+              "type": "aggregate_metric_double",
+              "metrics": ["sum", "value_count"],
+              "default_metric": "value_count"
+            }
+          }
+        }
+      ],
+      "properties": {
+        "data_stream": {
+          "properties": {
+            "type": {
+              "type": "constant_keyword",
+              "value": "metrics"
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "default mappings for the metrics index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

@@ -44,6 +44,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
         try (Block.Ref ref = evaluator.eval(page)) {
             if (ref.block().areAllValuesNull()) {
                 // All results are null which is like false. No values selected.
+                page.releaseBlocks();
                 return null;
             }
             BooleanBlock test = (BooleanBlock) ref.block();
@@ -70,10 +71,18 @@ public class FilterOperator extends AbstractPageMappingOperator {
             positions = Arrays.copyOf(positions, rowCount);
 
             Block[] filteredBlocks = new Block[page.getBlockCount()];
-            for (int i = 0; i < page.getBlockCount(); i++) {
-                filteredBlocks[i] = page.getBlock(i).filter(positions);
+            boolean success = false;
+            try {
+                for (int i = 0; i < page.getBlockCount(); i++) {
+                    filteredBlocks[i] = page.getBlock(i).filter(positions);
+                }
+                success = true;
+            } finally {
+                Releasables.closeExpectNoException(page::releaseBlocks);
+                if (success == false) {
+                    Releasables.closeExpectNoException(filteredBlocks);
+                }
             }
-
             return new Page(filteredBlocks);
         }
     }

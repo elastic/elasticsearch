@@ -34,6 +34,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -558,7 +559,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100319")
     public void testIndexCompatibilityChecks() throws IOException {
         final Settings settings = buildEnvSettings(Settings.EMPTY);
 
@@ -585,7 +585,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             }
 
             Version oldVersion = Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
-            IndexVersion oldIndexVersion = IndexVersion.fromId(between(1, IndexVersion.MINIMUM_COMPATIBLE.id() - 1));
+            IndexVersion oldIndexVersion = IndexVersion.fromId(between(1, IndexVersions.MINIMUM_COMPATIBLE.id() - 1));
             Version previousNodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id - 1));
             overrideOldestIndexVersion(oldIndexVersion, previousNodeVersion, env.nodeDataPaths());
 
@@ -600,12 +600,16 @@ public class NodeEnvironmentTests extends ESTestCase {
                 allOf(
                     containsString("Cannot start this node"),
                     containsString("it holds metadata for indices with version [" + oldIndexVersion + "]"),
-                    containsString("Revert this node to version [" + previousNodeVersion + "]")
+                    containsString(
+                        "Revert this node to version ["
+                            + (previousNodeVersion.major == Version.V_8_0_0.major ? Version.V_7_17_0 : previousNodeVersion)
+                            + "]"
+                    )
                 )
             );
 
             // This should work
-            overrideOldestIndexVersion(IndexVersion.MINIMUM_COMPATIBLE, previousNodeVersion, env.nodeDataPaths());
+            overrideOldestIndexVersion(IndexVersions.MINIMUM_COMPATIBLE, previousNodeVersion, env.nodeDataPaths());
             checkForIndexCompatibility(logger, env.dataPaths());
 
             // Trying to boot with newer version should pass this check
@@ -621,8 +625,13 @@ public class NodeEnvironmentTests extends ESTestCase {
                 () -> checkForIndexCompatibility(logger, env.dataPaths())
             );
 
-            assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldVersion + "] directly"));
-            assertThat(ex.getMessage(), containsString("upgrade to version [" + Build.current().minWireCompatVersion()));
+            assertThat(
+                ex.getMessage(),
+                allOf(
+                    startsWith("cannot upgrade a node from version [" + oldVersion + "] directly"),
+                    containsString("upgrade to version [" + Build.current().minWireCompatVersion())
+                )
+            );
         }
     }
 

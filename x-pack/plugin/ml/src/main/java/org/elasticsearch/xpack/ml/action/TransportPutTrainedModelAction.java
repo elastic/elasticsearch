@@ -70,9 +70,10 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.packageloader.action.GetTrainedModelPackageConfigAction;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
-import org.elasticsearch.xpack.ml.inference.deployment.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.TaskRetriever;
 
@@ -383,7 +384,12 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         Client client,
         ThreadPool threadPool
     ) {
-        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(failureListener, client, threadPool, configToReturn);
+        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
+            failureListener,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            configToReturn
+        );
     }
 
     /**
@@ -571,6 +577,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             )
         );
         trainedModelConfig.setTags(resolvedModelPackageConfig.getTags());
+        trainedModelConfig.setPrefixStrings(resolvedModelPackageConfig.getPrefixStrings());
         trainedModelConfig.setModelPackageConfig(
             new ModelPackageConfig.Builder(resolvedModelPackageConfig).resetPackageOnlyFields().build()
         );

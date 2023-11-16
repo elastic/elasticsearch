@@ -52,7 +52,7 @@ public class PlannerUtils {
         PhysicalPlan coordinatorPlan = plan.transformUp(ExchangeExec.class, e -> {
             // remember the datanode subplan and wire it to a sink
             var subplan = e.child();
-            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), subplan));
+            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.isInBetweenAggs(), subplan));
 
             return new ExchangeSourceExec(e.source(), e.output(), e.isInBetweenAggs());
         });
@@ -117,7 +117,8 @@ public class PlannerUtils {
                     query -> new EsSourceExec(Source.EMPTY, query.index(), query.output(), filter)
                 );
             }
-            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), physicalOptimizer.localOptimize(physicalFragment));
+            var localOptimized = physicalOptimizer.localOptimize(physicalFragment);
+            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
         });
         return isCoordPlan.get() ? plan : localPhysicalPlan;
     }

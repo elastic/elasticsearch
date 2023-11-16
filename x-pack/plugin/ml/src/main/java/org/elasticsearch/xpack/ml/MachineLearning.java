@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -45,12 +44,11 @@ import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -73,15 +71,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -303,9 +297,9 @@ import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBui
 import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.kstest.InternalKSTestAggregation;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
-import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
@@ -492,6 +486,8 @@ public class MachineLearning extends Plugin
 
     public static final String TRAINED_MODEL_CIRCUIT_BREAKER_NAME = "model_inference";
 
+    public static final NodeFeature STATE_RESET_FALLBACK_ON_DISABLED = new NodeFeature("ml.state_reset_fallback_on_disabled");
+
     private static final long DEFAULT_MODEL_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
     private static final double DEFAULT_MODEL_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
 
@@ -624,6 +620,7 @@ public class MachineLearning extends Plugin
     // Settings higher than available memory are only recommended for OEM type situations where a wrapper tightly
     // controls the types of jobs that can be created, and each job alone is considerably smaller than what each node
     // can handle.
+    // See also {@link MachineLearningField#USE_AUTO_MACHINE_MEMORY_PERCENT}
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT = Setting.intSetting(
         "xpack.ml.max_machine_memory_percent",
         30,
@@ -632,19 +629,7 @@ public class MachineLearning extends Plugin
         Property.OperatorDynamic,
         Property.NodeScope
     );
-    /**
-     * This boolean value indicates if `max_machine_memory_percent` should be ignored and a automatic calculation is used instead.
-     *
-     * This calculation takes into account total node size and the size of the JVM on that node.
-     *
-     * If the calculation fails, we fall back to `max_machine_memory_percent`.
-     */
-    public static final Setting<Boolean> USE_AUTO_MACHINE_MEMORY_PERCENT = Setting.boolSetting(
-        "xpack.ml.use_auto_machine_memory_percent",
-        false,
-        Property.OperatorDynamic,
-        Property.NodeScope
-    );
+
     public static final Setting<Integer> MAX_LAZY_ML_NODES = Setting.intSetting(
         "xpack.ml.max_lazy_ml_nodes",
         0,
@@ -798,7 +783,7 @@ public class MachineLearning extends Plugin
             ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
             ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
             NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
-            USE_AUTO_MACHINE_MEMORY_PERCENT,
+            MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ
         );
@@ -868,7 +853,7 @@ public class MachineLearning extends Plugin
         }
     }
 
-    private void reportClashingNodeAttribute(String attrName) {
+    private static void reportClashingNodeAttribute(String attrName) {
         throw new IllegalArgumentException(
             "Directly setting ["
                 + attrName
@@ -895,22 +880,14 @@ public class MachineLearning extends Plugin
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
+        Client client = services.client();
+        ClusterService clusterService = services.clusterService();
+        ThreadPool threadPool = services.threadPool();
+        Environment environment = services.environment();
+        NamedXContentRegistry xContentRegistry = services.xContentRegistry();
+        IndexNameExpressionResolver indexNameExpressionResolver = services.indexNameExpressionResolver();
+
         if (enabled == false) {
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
             // both empty if ML is disabled
@@ -1208,10 +1185,9 @@ public class MachineLearning extends Plugin
         // Perform node startup operations
         nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
 
-        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(
-            settings,
-            clusterService.getClusterSettings()
-        );
+        AbstractNodeAvailabilityZoneMapper nodeAvailabilityZoneMapper = machineLearningExtension.get()
+            .getNodeAvailabilityZoneMapper(settings, clusterService.getClusterSettings());
+
         clusterService.addListener(nodeAvailabilityZoneMapper);
 
         // allocation service objects

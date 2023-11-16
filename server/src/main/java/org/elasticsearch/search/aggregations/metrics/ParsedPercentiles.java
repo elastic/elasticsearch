@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -59,20 +60,7 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
 
     @Override
     public Iterator<Percentile> iterator() {
-        return new Iterator<Percentile>() {
-            final Iterator<Map.Entry<Double, Double>> iterator = percentiles.entrySet().iterator();
-
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public Percentile next() {
-                Map.Entry<Double, Double> next = iterator.next();
-                return new Percentile(next.getKey(), next.getValue());
-            }
-        };
+        return Iterators.map(percentiles.entrySet().iterator(), next -> new Percentile(next.getKey(), next.getValue()));
     }
 
     @Override
@@ -123,7 +111,7 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
                         } else if (token == XContentParser.Token.VALUE_STRING) {
                             int i = parser.currentName().indexOf("_as_string");
                             if (i > 0) {
-                                double key = Double.valueOf(parser.currentName().substring(0, i));
+                                double key = Double.parseDouble(parser.currentName().substring(0, i));
                                 aggregation.addPercentileAsString(key, parser.text());
                             } else {
                                 aggregation.addPercentile(Double.valueOf(parser.currentName()), Double.valueOf(parser.text()));

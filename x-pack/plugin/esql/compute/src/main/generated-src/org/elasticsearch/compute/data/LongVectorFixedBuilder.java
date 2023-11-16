@@ -69,6 +69,7 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
     public void close() {
         if (nextIndex >= 0) {
             // If nextIndex < 0 we've already built the vector
+            nextIndex = -1;
             blockFactory.adjustBreaker(-preAdjustedBytes, false);
         }
     }

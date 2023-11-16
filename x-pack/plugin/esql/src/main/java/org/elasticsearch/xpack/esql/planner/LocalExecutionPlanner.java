@@ -13,9 +13,9 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
@@ -30,7 +30,6 @@ import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
-import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
@@ -47,6 +46,8 @@ import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -75,6 +77,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -110,6 +113,7 @@ import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperator
  * drivers that are used to execute the given plan.
  */
 public class LocalExecutionPlanner {
+    private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
 
     private final String sessionId;
     private final CancellableTask parentTask;
@@ -150,9 +154,7 @@ public class LocalExecutionPlanner {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
-            configuration.pragmas().taskConcurrency(),
-            configuration.pragmas().dataPartitioning(),
-            configuration.pragmas().pageSize(),
+            configuration.pragmas(),
             bigArrays,
             blockFactory
         );
@@ -255,8 +257,8 @@ public class LocalExecutionPlanner {
         final LuceneOperator.Factory luceneFactory = new LuceneCountOperator.Factory(
             esProvider.searchContexts(),
             querySupplier,
-            context.dataPartitioning(),
-            context.taskConcurrency(),
+            context.queryPragmas.dataPartitioning(),
+            context.queryPragmas.taskConcurrency(),
             limit
         );
 
@@ -334,8 +336,7 @@ public class LocalExecutionPlanner {
             for (int i = 0; i < blocks.length; i++) {
                 blocks[i] = p.getBlock(mappedPosition[i]);
             }
-            ProjectOperator.closeUnused(p, blocks);
-            return new Page(blocks);
+            return p.newPageAndRelease(blocks);
         } : Function.identity();
 
         return transformer;
@@ -348,10 +349,36 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
         Objects.requireNonNull(exchangeSinkHandler, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
+        // see https://github.com/elastic/elasticsearch/issues/100807 - handle case where the plan has been fully minimized
+        // to a local relation and the aggregate intermediate data erased. For this scenario, match the output the exchange output
+        // with that of the local relation
+
+        if (child instanceof LocalSourceExec localExec) {
+            var output = exchangeSink.output();
+            var localOutput = localExec.output();
+            if (output.equals(localOutput) == false) {
+                // the outputs are going to be similar except for the bool "seen" flags which are added in below
+                List<Block> blocks = new ArrayList<>(asList(localExec.supplier().get()));
+                if (blocks.size() > 0) {
+                    Block boolBlock = BooleanBlock.newConstantBlockWith(true, 1);
+                    for (int i = 0, s = output.size(); i < s; i++) {
+                        var out = output.get(i);
+                        if (out.dataType() == DataTypes.BOOLEAN) {
+                            blocks.add(i, boolBlock);
+                        }
+                    }
+                }
+                var newSupplier = LocalSupplier.of(blocks.toArray(Block[]::new));
+
+                child = new LocalSourceExec(localExec.source(), output, newSupplier);
+            }
+        }
+
         PhysicalOperation source = plan(child, context);
 
-        boolean isAgg = child instanceof AggregateExec || child instanceof EsStatsQueryExec;
-        Function<Page, Page> transformer = isAgg ? Function.identity() : alignPageToAttributes(exchangeSink.output(), source.layout);
+        Function<Page, Page> transformer = exchangeSink.isIntermediateAgg()
+            ? Function.identity()
+            : alignPageToAttributes(exchangeSink.output(), source.layout);
 
         return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkHandler::createExchangeSink, transformer), source.layout);
     }
@@ -382,6 +409,8 @@ public class LocalExecutionPlanner {
                 case "version" -> TopNEncoder.VERSION;
                 case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
                     "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
+                // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
+                case "unsupported" -> TopNEncoder.UNSUPPORTED;
                 default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
             };
         }
@@ -501,7 +530,7 @@ public class LocalExecutionPlanner {
             new EnrichLookupOperator.Factory(
                 sessionId,
                 parentTask,
-                1, // TODO: Add a concurrent setting for enrich - also support unordered mode
+                context.queryPragmas().enrichMaxWorkers(),
                 source.layout.get(enrich.matchField().id()).channel(),
                 enrichLookupService,
                 enrichIndex,
@@ -584,7 +613,24 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
-        return source.with(new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel()), source.layout);
+        List<Attribute> childOutput = mvExpandExec.child().output();
+        int blockSize = 5000;// TODO estimate row size and use context.pageSize()
+
+        Layout.Builder layout = new Layout.Builder();
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        var expandedName = mvExpandExec.expanded().name();
+        for (int index = 0; index < inverse.size(); index++) {
+            if (childOutput.get(index).name().equals(expandedName)) {
+                layout.append(mvExpandExec.expanded());
+            } else {
+                layout.append(inverse.get(index));
+            }
+        }
+
+        return source.with(
+            new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
+            layout.build()
+        );
     }
 
     /**
@@ -686,9 +732,7 @@ public class LocalExecutionPlanner {
     public record LocalExecutionPlannerContext(
         List<DriverFactory> driverFactories,
         Holder<DriverParallelism> driverParallelism,
-        int taskConcurrency,
-        DataPartitioning dataPartitioning,
-        int configuredPageSize,
+        QueryPragmas queryPragmas,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
@@ -707,8 +751,8 @@ public class LocalExecutionPlanner {
             if (estimatedRowSize == 0) {
                 throw new IllegalStateException("estimated row size can't be 0");
             }
-            if (configuredPageSize != 0) {
-                return configuredPageSize;
+            if (queryPragmas.pageSize() != 0) {
+                return queryPragmas.pageSize();
             }
             return Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize);
         }
@@ -768,12 +812,21 @@ public class LocalExecutionPlanner {
 
         public List<Driver> createDrivers(String sessionId) {
             List<Driver> drivers = new ArrayList<>();
-            for (DriverFactory df : driverFactories) {
-                for (int i = 0; i < df.driverParallelism.instanceCount; i++) {
-                    drivers.add(df.driverSupplier.apply(sessionId));
+            boolean success = false;
+            try {
+                for (DriverFactory df : driverFactories) {
+                    for (int i = 0; i < df.driverParallelism.instanceCount; i++) {
+                        logger.trace("building {} {}", i, df);
+                        drivers.add(df.driverSupplier.apply(sessionId));
+                    }
+                }
+                success = true;
+                return drivers;
+            } finally {
+                if (success == false) {
+                    Releasables.close(Releasables.wrap(drivers));
                 }
             }
-            return drivers;
         }
 
         @Override

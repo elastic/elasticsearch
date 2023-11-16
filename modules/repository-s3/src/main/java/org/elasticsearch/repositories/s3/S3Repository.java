@@ -27,7 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
@@ -35,13 +35,12 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -154,12 +153,12 @@ class S3Repository extends MeteredBlobStoreRepository {
     /**
      * Artificial delay to introduce after a snapshot finalization or delete has finished so long as the repository is still using the
      * backwards compatible snapshot format from before
-     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} ({@link IndexVersion#V_7_6_0}).
+     * {@link org.elasticsearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} ({@link IndexVersions#V_7_6_0}).
      * This delay is necessary so that the eventually consistent nature of AWS S3 does not randomly result in repository corruption when
      * doing repository operations in rapid succession on a repository in the old metadata format.
      * This setting should not be adjusted in production when working with an AWS S3 backed repository. Doing so risks the repository
      * becoming silently corrupted. To get rid of this waiting period, either create a new S3 repository or remove all snapshots older than
-     * {@link IndexVersion#V_7_6_0} from the repository which will trigger an upgrade of the repository metadata to the new
+     * {@link IndexVersions#V_7_6_0} from the repository which will trigger an upgrade of the repository metadata to the new
      * format and disable the cooldown period.
      */
     static final Setting<TimeValue> COOLDOWN_PERIOD = Setting.timeSetting(
@@ -205,7 +204,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3Service service,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final MeterRegistry meterRegistry
     ) {
         super(
             metadata,
@@ -214,7 +214,8 @@ class S3Repository extends MeteredBlobStoreRepository {
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            meterRegistry
         );
         this.service = service;
         this.snapshotExecutor = threadPool().executor(ThreadPool.Names.SNAPSHOT);
@@ -312,46 +313,35 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     @Override
-    public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        IndexVersion repositoryMetaVersion,
-        SnapshotDeleteListener listener
-    ) {
-        final SnapshotDeleteListener wrappedListener;
-        if (SnapshotsService.useShardGenerations(repositoryMetaVersion)) {
-            wrappedListener = listener;
-        } else {
-            wrappedListener = new SnapshotDeleteListener() {
-                @Override
-                public void onDone() {
-                    listener.onDone();
-                }
+    protected SnapshotDeleteListener wrapWithWeakConsistencyProtection(SnapshotDeleteListener listener) {
+        return new SnapshotDeleteListener() {
+            @Override
+            public void onDone() {
+                listener.onDone();
+            }
 
-                @Override
-                public void onRepositoryDataWritten(RepositoryData repositoryData) {
-                    logCooldownInfo();
-                    final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
-                        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-                        assert cancellable != null;
-                        listener.onRepositoryDataWritten(repositoryData);
-                    }, coolDown, snapshotExecutor));
-                    assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-                }
+            @Override
+            public void onRepositoryDataWritten(RepositoryData repositoryData) {
+                logCooldownInfo();
+                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
+                    final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+                    assert cancellable != null;
+                    listener.onRepositoryDataWritten(repositoryData);
+                }, coolDown, snapshotExecutor));
+                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logCooldownInfo();
-                    final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
-                        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-                        assert cancellable != null;
-                        listener.onFailure(e);
-                    }, coolDown, snapshotExecutor));
-                    assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-                }
-            };
-        }
-        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, wrappedListener);
+            @Override
+            public void onFailure(Exception e) {
+                logCooldownInfo();
+                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
+                    final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+                    assert cancellable != null;
+                    listener.onFailure(e);
+                }, coolDown, snapshotExecutor));
+                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+            }
+        };
     }
 
     /**
@@ -408,7 +398,18 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, metadata, bigArrays, threadPool);
+        return new S3BlobStore(
+            service,
+            bucket,
+            serverSideEncryption,
+            bufferSize,
+            cannedACL,
+            storageClass,
+            metadata,
+            bigArrays,
+            threadPool,
+            meterRegistry
+        );
     }
 
     // only use for testing

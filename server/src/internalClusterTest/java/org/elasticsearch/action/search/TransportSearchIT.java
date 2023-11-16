@@ -70,8 +70,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -167,7 +169,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
     }
 
-    public void testAbsoluteStartMillis() {
+    public void testAbsoluteStartMillis() throws ExecutionException, InterruptedException {
         TaskId parentTaskId = new TaskId("node", randomNonNegativeLong());
         {
             IndexRequest indexRequest = new IndexRequest("test-1970.01.01");
@@ -186,9 +188,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         {
-            SearchRequest searchRequest = new SearchRequest();
-            SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertHitCount(client().search(new SearchRequest()), 2);
         }
         {
             SearchRequest searchRequest = new SearchRequest("<test-{now/d}>");
@@ -205,8 +205,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 0,
                 randomBoolean()
             );
-            SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertHitCount(client().search(searchRequest), 2);
         }
         {
             SearchRequest searchRequest = SearchRequest.subSearchRequest(
@@ -310,12 +309,11 @@ public class TransportSearchIT extends ESIntegTestCase {
         Arrays.fill(validCheckpoints, SequenceNumbers.UNASSIGNED_SEQ_NO);
 
         // no exception
-        client().prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("testAlias", validCheckpoints)).get();
+        prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("testAlias", validCheckpoints)).get();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareSearch("testFailedAlias")
-                .setWaitForCheckpoints(Collections.singletonMap("testFailedAlias", validCheckpoints))
+            () -> prepareSearch("testFailedAlias").setWaitForCheckpoints(Collections.singletonMap("testFailedAlias", validCheckpoints))
                 .get()
         );
         assertThat(
@@ -328,7 +326,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         IllegalArgumentException e2 = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareSearch("test1").setWaitForCheckpoints(Collections.singletonMap("test1", new long[2])).get()
+            () -> prepareSearch("test1").setWaitForCheckpoints(Collections.singletonMap("test1", new long[2])).get()
         );
         assertThat(
             e2.getMessage(),
@@ -342,7 +340,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         IllegalArgumentException e3 = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("testAlias", new long[2])).get()
+            () -> prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("testAlias", new long[2])).get()
         );
         assertThat(
             e3.getMessage(),
@@ -356,7 +354,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         IllegalArgumentException e4 = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("test2", validCheckpoints)).get()
+            () -> prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("test2", validCheckpoints)).get()
         );
         assertThat(
             e4.getMessage(),
@@ -375,11 +373,11 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertAcked(prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries2)));
 
             // no exception
-            client().prepareSearch("test1").get();
+            prepareSearch("test1").get();
 
             updateClusterSettings(Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1));
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch("test1").get());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> prepareSearch("test1").get());
             assertThat(
                 e.getMessage(),
                 containsString("Trying to query " + numPrimaries1 + " shards, which is over the limit of " + (numPrimaries1 - 1))
@@ -388,9 +386,9 @@ public class TransportSearchIT extends ESIntegTestCase {
             updateClusterSettings(Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1));
 
             // no exception
-            client().prepareSearch("test1").get();
+            prepareSearch("test1").get();
 
-            e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch("test1", "test2").get());
+            e = expectThrows(IllegalArgumentException.class, () -> prepareSearch("test1", "test2").get());
             assertThat(
                 e.getMessage(),
                 containsString(
@@ -425,8 +423,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
         client().prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
         assertBusy(() -> {
-            SearchResponse resp = client().prepareSearch("test")
-                .setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
+            SearchResponse resp = prepareSearch("test").setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
                 .setPreFilterShardSize(randomIntBetween(1, 3))
                 .get();
             assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
@@ -442,8 +439,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             final CountDownLatch latch = new CountDownLatch(10);
             for (int i = 0; i < 10; i++) {
                 int batchReduceSize = randomIntBetween(2, Math.max(numShards + 1, 3));
-                SearchRequest request = client().prepareSearch("test")
-                    .addAggregation(new TestAggregationBuilder("test"))
+                SearchRequest request = prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
                     .setBatchedReduceSize(batchReduceSize)
                     .request();
                 final int index = i;
@@ -484,8 +480,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             final CountDownLatch latch = new CountDownLatch(10);
             for (int i = 0; i < 10; i++) {
                 int batchReduceSize = randomIntBetween(2, Math.max(numShards + 1, 3));
-                SearchRequest request = client().prepareSearch("test")
-                    .addAggregation(new TestAggregationBuilder("test"))
+                SearchRequest request = prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
                     .setBatchedReduceSize(batchReduceSize)
                     .request();
                 final int index = i;
@@ -522,8 +517,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(10);
         for (int i = 0; i < 10; i++) {
             int batchReduceSize = randomIntBetween(2, Math.max(numShards + 1, 3));
-            SearchRequest request = client().prepareSearch("boom")
-                .setBatchedReduceSize(batchReduceSize)
+            SearchRequest request = prepareSearch("boom").setBatchedReduceSize(batchReduceSize)
                 .setAllowPartialSearchResults(false)
                 .request();
             final int index = i;

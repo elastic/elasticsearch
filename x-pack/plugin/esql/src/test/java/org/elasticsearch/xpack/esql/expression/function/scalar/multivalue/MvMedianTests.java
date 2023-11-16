@@ -73,6 +73,7 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
         cases.add(
             new TestCaseSupplier(
                 "mv_median(<1, 2>)",
+                List.of(DataTypes.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(List.of(1, 2), DataTypes.INTEGER, "field")),
                     "MvMedian[field=Attribute[channel=0]]",
@@ -84,6 +85,7 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
         cases.add(
             new TestCaseSupplier(
                 "mv_median(<-1, -2>)",
+                List.of(DataTypes.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(List.of(-1, -2), DataTypes.INTEGER, "field")),
                     "MvMedian[field=Attribute[channel=0]]",
@@ -92,7 +94,7 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedData(cases);
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, cases)));
     }
 
     @Override

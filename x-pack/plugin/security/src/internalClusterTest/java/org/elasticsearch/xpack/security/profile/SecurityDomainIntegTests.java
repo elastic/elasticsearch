@@ -379,7 +379,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             .prepareHealth()
             .execute()
             .actionGet();
-        final SearchResponse searchResponse = client().prepareSearch(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).execute().actionGet();
+        final SearchResponse searchResponse = prepareSearch(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).execute().actionGet();
 
         final String encodedAuthentication = createTokenResponse.getAuthentication().encode();
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {

@@ -21,7 +21,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
@@ -49,6 +48,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -158,9 +158,7 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -844,7 +842,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas), index);
     }
 
-    private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
+    private static Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
         String exclude = String.join(",", internalCluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
         return builder;
@@ -1064,8 +1062,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    long count = client().prepareSearch()
-                        .setTrackTotalHits(true)
+                    long count = prepareSearch().setTrackTotalHits(true)
                         .setSize(0)
                         .setQuery(matchAllQuery())
                         .get()
@@ -1093,6 +1090,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    public static SearchRequestBuilder prepareSearch(String... indices) {
+        return client().prepareSearch(indices);
     }
 
     /**
@@ -1308,7 +1309,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    private void ensureClusterInfoServiceRunning() {
+    private static void ensureClusterInfoServiceRunning() {
         if (isInternalCluster() && cluster().size() > 0) {
             // ensures that the cluster info service didn't leak its async task, which would prevent future refreshes
             refreshClusterInfo();
@@ -1404,10 +1405,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final DocWriteResponse index(String index, String id, Map<String, Object> source) {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
-    }
-
-    protected final ActionFuture<DocWriteResponse> startIndex(String index, String id, BytesReference source, XContentType type) {
-        return client().prepareIndex(index).setId(id).setSource(source, type).execute();
     }
 
     /**
@@ -1984,46 +1981,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Collections.emptyList();
     }
 
-    private ExternalTestCluster buildExternalCluster(String clusterAddresses, String clusterName) throws IOException {
-        String[] stringAddresses = clusterAddresses.split(",");
-        TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
-        int i = 0;
-        for (String stringAddress : stringAddresses) {
-            URL url = new URL("http://" + stringAddress);
-            InetAddress inetAddress = InetAddress.getByName(url.getHost());
-            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
-        }
-        return new ExternalTestCluster(
-            createTempDir(),
-            externalClusterClientSettings(),
-            nodePlugins(),
-            getClientWrapper(),
-            clusterName,
-            transportAddresses
-        );
-    }
-
-    protected Settings externalClusterClientSettings() {
-        return Settings.EMPTY;
-    }
-
-    protected boolean ignoreExternalCluster() {
-        return false;
-    }
-
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        String clusterAddresses = System.getProperty(TESTS_CLUSTER);
-        if (Strings.hasLength(clusterAddresses) && ignoreExternalCluster() == false) {
-            if (scope == Scope.TEST) {
-                throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
-            }
-            String clusterName = System.getProperty(TESTS_CLUSTER_NAME);
-            if (Strings.isNullOrEmpty(clusterName)) {
-                throw new IllegalArgumentException("External test cluster name must be provided");
-            }
-            return buildExternalCluster(clusterAddresses, clusterName);
-        }
-
         final String nodePrefix = switch (scope) {
             case TEST -> TEST_CLUSTER_NODE_PREFIX;
             case SUITE -> SUITE_CLUSTER_NODE_PREFIX;
@@ -2076,8 +2034,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         boolean enableConcurrentSearch = enableConcurrentSearch();
         if (enableConcurrentSearch) {
-            initialNodeSettings.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), true);
             initialNodeSettings.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
+        } else {
+            initialNodeSettings.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false);
         }
         return new NodeConfigurationSource() {
             @Override
@@ -2434,6 +2393,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected static RestClient createRestClient() {
         return createRestClient(null, "http");
+    }
+
+    protected static RestClient createRestClient(String node) {
+        return createRestClient(client(node).admin().cluster().prepareNodesInfo("_local").get().getNodes(), null, "http");
     }
 
     protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {

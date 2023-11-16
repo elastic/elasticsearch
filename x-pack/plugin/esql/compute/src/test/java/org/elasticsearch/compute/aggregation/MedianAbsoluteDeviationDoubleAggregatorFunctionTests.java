@@ -26,7 +26,7 @@ public class MedianAbsoluteDeviationDoubleAggregatorFunctionTests extends Aggreg
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         List<Double> values = Arrays.asList(1.2, 1.25, 2.0, 2.0, 4.3, 6.0, 9.0);
         Randomness.shuffle(values);
-        return new SequenceDoubleBlockSourceOperator(blockFactory, values);
+        return new SequenceDoubleBlockSourceOperator(blockFactory, values.subList(0, Math.min(values.size(), end)));
     }
 
     @Override

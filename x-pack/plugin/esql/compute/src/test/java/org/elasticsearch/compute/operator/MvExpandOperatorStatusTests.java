@@ -16,12 +16,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MvExpandOperatorStatusTests extends AbstractWireSerializingTestCase<MvExpandOperator.Status> {
     public static MvExpandOperator.Status simple() {
-        return new MvExpandOperator.Status(10, 9);
+        return new MvExpandOperator.Status(10, 15, 9);
     }
 
     public static String simpleToJson() {
         return """
-            {"pages_processed":10,"noops":9}""";
+            {"pages_in":10,"pages_out":15,"noops":9}""";
     }
 
     public void testToXContent() {
@@ -35,20 +35,28 @@ public class MvExpandOperatorStatusTests extends AbstractWireSerializingTestCase
 
     @Override
     public MvExpandOperator.Status createTestInstance() {
-        return new MvExpandOperator.Status(randomNonNegativeInt(), randomNonNegativeInt());
+        return new MvExpandOperator.Status(randomNonNegativeInt(), randomNonNegativeInt(), randomNonNegativeInt());
     }
 
     @Override
     protected MvExpandOperator.Status mutateInstance(MvExpandOperator.Status instance) {
-        switch (between(0, 1)) {
+        switch (between(0, 2)) {
             case 0:
                 return new MvExpandOperator.Status(
-                    randomValueOtherThan(instance.pagesProcessed(), ESTestCase::randomNonNegativeInt),
+                    randomValueOtherThan(instance.pagesIn(), ESTestCase::randomNonNegativeInt),
+                    instance.pagesOut(),
                     instance.noops()
                 );
             case 1:
                 return new MvExpandOperator.Status(
-                    instance.pagesProcessed(),
+                    instance.pagesIn(),
+                    randomValueOtherThan(instance.pagesOut(), ESTestCase::randomNonNegativeInt),
+                    instance.noops()
+                );
+            case 2:
+                return new MvExpandOperator.Status(
+                    instance.pagesIn(),
+                    instance.pagesOut(),
                     randomValueOtherThan(instance.noops(), ESTestCase::randomNonNegativeInt)
                 );
             default:

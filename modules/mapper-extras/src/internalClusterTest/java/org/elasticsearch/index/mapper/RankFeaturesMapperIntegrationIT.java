@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -22,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -39,45 +39,51 @@ public class RankFeaturesMapperIntegrationIT extends ESIntegTestCase {
 
     public void testRankFeaturesTermQuery() throws IOException {
         init();
-        SearchResponse response = client().prepareSearch(INDEX_NAME)
-            .setQuery(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE))
-            .get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(2L));
-        for (SearchHit hit : response.getHits().getHits()) {
-            assertThat(hit.getScore(), equalTo(20f));
-        }
+        assertNoFailuresAndResponse(
+            prepareSearch(INDEX_NAME).setQuery(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE)),
+            searchResponse -> {
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    assertThat(hit.getScore(), equalTo(20f));
+                }
+            }
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch(INDEX_NAME).setQuery(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE).boost(100f)),
+            searchResponse -> {
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    assertThat(hit.getScore(), equalTo(2000f));
+                }
+            }
+        );
 
-        response = client().prepareSearch(INDEX_NAME)
-            .setQuery(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE).boost(100f))
-            .get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(2L));
-        for (SearchHit hit : response.getHits().getHits()) {
-            assertThat(hit.getScore(), equalTo(2000f));
-        }
-
-        response = client().prepareSearch(INDEX_NAME)
-            .setQuery(
+        assertNoFailuresAndResponse(
+            prepareSearch(INDEX_NAME).setQuery(
                 QueryBuilders.boolQuery()
                     .should(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE))
                     .should(QueryBuilders.termQuery(FIELD_NAME, LOWER_RANKED_FEATURE).boost(3f))
                     .minimumShouldMatch(1)
-            )
-            .get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
-        for (SearchHit hit : response.getHits().getHits()) {
-            if (hit.getId().equals("all")) {
-                assertThat(hit.getScore(), equalTo(50f));
+            ),
+            searchResponse -> {
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    if (hit.getId().equals("all")) {
+                        assertThat(hit.getScore(), equalTo(50f));
+                    }
+                    if (hit.getId().equals("lower")) {
+                        assertThat(hit.getScore(), equalTo(30f));
+                    }
+                    if (hit.getId().equals("higher")) {
+                        assertThat(hit.getScore(), equalTo(20f));
+                    }
+                }
             }
-            if (hit.getId().equals("lower")) {
-                assertThat(hit.getScore(), equalTo(30f));
-            }
-            if (hit.getId().equals("higher")) {
-                assertThat(hit.getScore(), equalTo(20f));
-            }
-        }
-
-        response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.termQuery(FIELD_NAME, "missing_feature")).get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch(INDEX_NAME).setQuery(QueryBuilders.termQuery(FIELD_NAME, "missing_feature")),
+            response -> assertThat(response.getHits().getTotalHits().value, equalTo(0L))
+        );
     }
 
     private void init() throws IOException {

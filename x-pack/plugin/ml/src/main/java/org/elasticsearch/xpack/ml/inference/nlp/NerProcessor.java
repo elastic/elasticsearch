@@ -88,7 +88,7 @@ public class NerProcessor extends NlpTask.Processor {
     /**
      * Checks labels are valid entity tags and none are duplicated
      */
-    private void validate(List<String> classificationLabels) {
+    private static void validate(List<String> classificationLabels) {
         if (classificationLabels == null || classificationLabels.isEmpty()) {
             return;
         }

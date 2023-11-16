@@ -366,8 +366,8 @@ public abstract class Publication {
 
                 if (response.getJoin().isPresent()) {
                     final Join join = response.getJoin().get();
-                    assert discoveryNode.equals(join.getSourceNode());
-                    assert join.getTerm() == response.getPublishResponse().getTerm() : response;
+                    assert discoveryNode.equals(join.votingNode());
+                    assert join.term() == response.getPublishResponse().getTerm() : response;
                     logger.trace("handling join within publish response: {}", join);
                     onJoin(join);
                 } else {

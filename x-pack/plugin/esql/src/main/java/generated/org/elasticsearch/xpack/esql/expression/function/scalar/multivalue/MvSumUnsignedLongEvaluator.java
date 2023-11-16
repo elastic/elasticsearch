@@ -43,7 +43,7 @@ public final class MvSumUnsignedLongEvaluator extends AbstractMultivalueFunction
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           if (valueCount == 0) {
@@ -67,6 +67,27 @@ public final class MvSumUnsignedLongEvaluator extends AbstractMultivalueFunction
         }
         return Block.Ref.floating(builder.build());
       }
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+      this.source = source;
+      this.field = field;
+    }
+
+    @Override
+    public MvSumUnsignedLongEvaluator get(DriverContext context) {
+      return new MvSumUnsignedLongEvaluator(source, field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvSum[field=" + field + "]";
     }
   }
 }

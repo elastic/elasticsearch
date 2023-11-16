@@ -15,14 +15,11 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -31,11 +28,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ProjectOperatorTests extends OperatorTestCase {
-    @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
-
     public void testProjectionOnEmptyPage() {
         var page = new Page(0);
         var projection = new ProjectOperator(randomProjection(10));
@@ -59,15 +51,12 @@ public class ProjectOperatorTests extends OperatorTestCase {
         var out = projection.getOutput();
         assertThat(randomProjection.size(), lessThanOrEqualTo(out.getBlockCount()));
 
-        Set<Block> blks = new HashSet<>();
         for (int i = 0; i < out.getBlockCount(); i++) {
             var block = out.<IntBlock>getBlock(i);
-            assertEquals(block, page.getBlock(randomProjection.get(i)));
-            blks.add(block);
+            assertEquals(blocks[randomProjection.get(i)], block);
         }
 
-        // close all blocks separately since the same block can be used by multiple columns (aliased)
-        Releasables.closeWhileHandlingException(blks.toArray(new Block[0]));
+        out.releaseBlocks();
     }
 
     private List<Integer> randomProjection(int size) {

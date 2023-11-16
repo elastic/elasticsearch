@@ -123,7 +123,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
 
         assertThat(manager.indexExists(), Matchers.equalTo(true));
-        assertThat(manager.isAvailable(), Matchers.equalTo(true));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(true));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(true));
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
     }
 
@@ -162,6 +163,96 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(event(clusterStateBuilder.build()));
 
         assertIndexUpToDateButNotAvailable();
+    }
+
+    public void testIndexAvailability() {
+        assertInitialState();
+        final ClusterState cs = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS
+        ).build();
+        Index index = cs.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex();
+        ShardId shardId = new ShardId(index, 0);
+        ShardRouting primary = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+            ShardRouting.Role.INDEX_ONLY
+        );
+        ShardRouting replica = ShardRouting.newUnassigned(
+            shardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, null),
+            ShardRouting.Role.SEARCH_ONLY
+        );
+        String nodeId = ESTestCase.randomAlphaOfLength(8);
+        String nodeId2 = ESTestCase.randomAlphaOfLength(8);
+
+        // primary/index unavailable, replica/search unavailable
+        IndexShardRoutingTable.Builder indxShardRoutingTableBuilder = IndexShardRoutingTable.builder(shardId)
+            .addShard(
+                primary.initialize(nodeId, null, primary.getExpectedShardSize())
+                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+            )
+            .addShard(
+                replica.initialize(nodeId2, null, replica.getExpectedShardSize())
+                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+            );
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index).addIndexShard(indxShardRoutingTableBuilder);
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTableBuilder.build()).build();
+        ClusterState.Builder clusterStateBuilder = ClusterState.builder(cs);
+        clusterStateBuilder.routingTable(routingTable);
+        ClusterState clusterState = clusterStateBuilder.build();
+        manager.clusterChanged(event(clusterState));
+        assertThat(manager.indexExists(), Matchers.equalTo(true));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(false));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(false));
+        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
+        assertThat(manager.isStateRecovered(), Matchers.equalTo(true));
+
+        // primary/index available, replica/search available
+        indxShardRoutingTableBuilder = IndexShardRoutingTable.builder(shardId)
+            .addShard(
+                primary.initialize(nodeId, null, primary.getExpectedShardSize()).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+            )
+            .addShard(
+                replica.initialize(nodeId2, null, replica.getExpectedShardSize())
+                    .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) // start replica
+            );
+        indexRoutingTableBuilder = IndexRoutingTable.builder(index).addIndexShard(indxShardRoutingTableBuilder);
+        routingTable = RoutingTable.builder().add(indexRoutingTableBuilder.build()).build();
+        clusterStateBuilder = ClusterState.builder(cs);
+        clusterStateBuilder.routingTable(routingTable);
+        clusterState = clusterStateBuilder.build();
+        manager.clusterChanged(event(clusterState));
+        assertThat(manager.indexExists(), Matchers.equalTo(true));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(true));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(true));
+        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
+        assertThat(manager.isStateRecovered(), Matchers.equalTo(true));
+
+        // primary/index available, replica/search unavailable
+        indxShardRoutingTableBuilder = IndexShardRoutingTable.builder(shardId)
+            .addShard(
+                primary.initialize(nodeId, null, primary.getExpectedShardSize()).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+            )
+            .addShard(replica.initialize(nodeId2, null, replica.getExpectedShardSize())); // initialized, but not started
+        indexRoutingTableBuilder = IndexRoutingTable.builder(index).addIndexShard(indxShardRoutingTableBuilder);
+        routingTable = RoutingTable.builder().add(indexRoutingTableBuilder.build()).build();
+        clusterStateBuilder = ClusterState.builder(cs);
+        clusterStateBuilder.routingTable(routingTable);
+        clusterState = clusterStateBuilder.build();
+        manager.clusterChanged(event(clusterState));
+        assertThat(manager.indexExists(), Matchers.equalTo(true));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(false));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(true));
+        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
+        assertThat(manager.isStateRecovered(), Matchers.equalTo(true));
+
+        // primary/index unavailable, replica/search available
+        // it is not currently possibly to have unassigned primaries with assigned replicas
     }
 
     private ClusterChangedEvent event(ClusterState clusterState) {
@@ -419,7 +510,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         );
         manager.clusterChanged(event(markShardsAvailable(indexAvailable)));
         assertThat(manager.indexExists(), is(true));
-        assertThat(manager.isAvailable(), is(true));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), is(true));
 
         // Now close it
         ClusterState.Builder indexClosed = createClusterState(
@@ -436,19 +528,22 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         manager.clusterChanged(event(indexClosed.build()));
         assertThat(manager.indexExists(), is(true));
-        assertThat(manager.isAvailable(), is(false));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(false));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), is(false));
     }
 
     private void assertInitialState() {
         assertThat(manager.indexExists(), Matchers.equalTo(false));
-        assertThat(manager.isAvailable(), Matchers.equalTo(false));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(false));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(false));
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(false));
         assertThat(manager.isStateRecovered(), Matchers.equalTo(false));
     }
 
     private void assertIndexUpToDateButNotAvailable() {
         assertThat(manager.indexExists(), Matchers.equalTo(true));
-        assertThat(manager.isAvailable(), Matchers.equalTo(false));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(false));
+        assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(false));
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
         assertThat(manager.isStateRecovered(), Matchers.equalTo(true));
     }

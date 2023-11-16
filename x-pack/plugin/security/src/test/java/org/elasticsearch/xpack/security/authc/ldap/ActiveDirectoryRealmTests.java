@@ -423,8 +423,11 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
 
         SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
-        when(mockSecurityIndex.isAvailable()).thenReturn(true);
+        when(mockSecurityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(mockSecurityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         when(mockSecurityIndex.isIndexUpToDate()).thenReturn(true);
+        when(mockSecurityIndex.indexExists()).thenReturn(true);
+        when(mockSecurityIndex.defensiveCopy()).thenReturn(mockSecurityIndex);
 
         Client mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(threadPool);

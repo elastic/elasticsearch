@@ -2,7 +2,8 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+periodic+concurrent-search-tests
     display-name: "elastic / elasticsearch # %BRANCH% - concurrent search tests"
-    description: "Testing concurrent search enabled for the Elasticsearch %BRANCH% branch.\n"
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     node: "general-purpose && docker"
     builders:
       - inject:

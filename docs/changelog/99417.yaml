@@ -1,6 +1,0 @@
-pr: 99417
-summary: Disable `FilterByFilterAggregator` through `ClusterSettings`
-area: Aggregations
-type: enhancement
-issues:
- - 99335

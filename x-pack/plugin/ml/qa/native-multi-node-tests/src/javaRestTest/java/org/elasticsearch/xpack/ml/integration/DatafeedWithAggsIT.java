@@ -164,21 +164,14 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
             );
             // Confirm that it's possible to search for the same buckets by @timestamp - proves that @timestamp works as a field alias
             assertThat(
-                client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-                    .setQuery(
-                        QueryBuilders.boolQuery()
-                            .filter(QueryBuilders.termQuery("job_id", jobId))
-                            .filter(QueryBuilders.termQuery("result_type", "bucket"))
-                            .filter(
-                                QueryBuilders.rangeQuery("@timestamp")
-                                    .gte(bucket.getTimestamp().getTime())
-                                    .lte(bucket.getTimestamp().getTime())
-                            )
-                    )
-                    .setTrackTotalHits(true)
-                    .get()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("job_id", jobId))
+                        .filter(QueryBuilders.termQuery("result_type", "bucket"))
+                        .filter(
+                            QueryBuilders.rangeQuery("@timestamp").gte(bucket.getTimestamp().getTime()).lte(bucket.getTimestamp().getTime())
+                        )
+                ).setTrackTotalHits(true).get().getHits().getTotalHits().value,
                 equalTo(1L)
             );
         }

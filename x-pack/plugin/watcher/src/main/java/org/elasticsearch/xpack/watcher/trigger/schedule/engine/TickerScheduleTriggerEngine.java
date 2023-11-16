@@ -128,7 +128,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         }
     }
 
-    private ZonedDateTime utcDateTimeAtEpochMillis(long triggeredTime) {
+    private static ZonedDateTime utcDateTimeAtEpochMillis(long triggeredTime) {
         return Instant.ofEpochMilli(triggeredTime).atZone(ZoneOffset.UTC);
     }
 

@@ -28,8 +28,7 @@ import java.util.Map;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.mockito.Mockito.mock;
 
-public class RestPutIndexTemplateActionTests extends ESTestCase {
-    @SuppressWarnings("this-escape")
+public final class RestPutIndexTemplateActionTests extends ESTestCase {
     final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
 
     private RestPutIndexTemplateAction action;

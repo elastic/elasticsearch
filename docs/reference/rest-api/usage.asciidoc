@@ -183,6 +183,7 @@ GET /_xpack/usage
           "avg": 0.0,
           "max": 0.0
         },
+        "stats_by_model": [],
         "model_sizes_bytes": {
           "total": 0.0,
           "min": 0.0,
@@ -473,6 +474,10 @@ GET /_xpack/usage
       "min_rule_count": 0,
       "max_rule_count": 0
     }
+  },
+  "universal_profiling" : {
+    "available" : true,
+    "enabled" : true
   }
 }
 ------------------------------------------------------------

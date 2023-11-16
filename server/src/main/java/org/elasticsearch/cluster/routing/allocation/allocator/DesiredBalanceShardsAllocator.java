@@ -100,7 +100,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
         this.desiredBalanceReconciler = new DesiredBalanceReconciler(clusterService.getClusterSettings(), threadPool);
-        this.desiredBalanceComputation = new ContinuousComputation<>(threadPool) {
+        this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
@@ -141,7 +141,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
             @Override
             public String toString() {
-                return "DesiredBalanceShardsAllocator#updateDesiredBalanceAndReroute";
+                return "DesiredBalanceShardsAllocator#allocate";
             }
         };
         this.queue = new PendingListenersQueue();
@@ -264,7 +264,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     public DesiredBalanceStats getStats() {
         return new DesiredBalanceStats(
-            currentDesiredBalance.lastConvergedIndex(),
+            Math.max(currentDesiredBalance.lastConvergedIndex(), 0L),
             desiredBalanceComputation.isActive(),
             computationsSubmitted.count(),
             computationsExecuted.count(),
@@ -272,7 +272,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             desiredBalanceComputer.iterations.sum(),
             computedShardMovements.sum(),
             cumulativeComputationTime.count(),
-            cumulativeReconciliationTime.count()
+            cumulativeReconciliationTime.count(),
+            desiredBalanceReconciler.unassignedShards.get(),
+            desiredBalanceReconciler.totalAllocations.get(),
+            desiredBalanceReconciler.undesiredAllocations.get()
         );
     }
 
@@ -313,7 +316,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             return newState;
         }
 
-        private TaskContext<ReconcileDesiredBalanceTask> findLatest(List<? extends TaskContext<ReconcileDesiredBalanceTask>> taskContexts) {
+        private static TaskContext<ReconcileDesiredBalanceTask> findLatest(
+            List<? extends TaskContext<ReconcileDesiredBalanceTask>> taskContexts
+        ) {
             return taskContexts.stream().max(Comparator.comparing(context -> context.getTask().desiredBalance.lastConvergedIndex())).get();
         }
 
@@ -331,7 +336,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
         }
 
-        private void discardSupersededTasks(
+        private static void discardSupersededTasks(
             List<? extends TaskContext<ReconcileDesiredBalanceTask>> taskContexts,
             TaskContext<ReconcileDesiredBalanceTask> latest
         ) {

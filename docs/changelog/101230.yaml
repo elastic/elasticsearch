@@ -1,0 +1,12 @@
+pr: 101230
+summary: Enable query phase parallelism within a single shard
+area: Search
+type: enhancement
+issues:
+ - 80693
+highlight:
+  title: Enable query phase parallelism within a single shard
+  body: |-
+    Activate inter-segment search concurrency by default in the query phase, in order to
+    enable parallelizing search execution across segments that a single shard is made of.
+  notable: true

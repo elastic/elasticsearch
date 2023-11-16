@@ -21,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -136,6 +137,55 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         }
         taskBlocker.countDown();
         /// Eventually all tasks are executed
+        safeAwait(executedCountDown);
+        assertTrue(queue.isEmpty());
+        assertNoRunningTasks(taskRunner);
+    }
+
+    public void testRunSyncTasksEagerly() {
+        final int maxTasks = randomIntBetween(1, maxThreads);
+        final int taskCount = between(maxTasks, maxTasks * 2);
+        final var barrier = new CyclicBarrier(maxTasks + 1);
+        final var executedCountDown = new CountDownLatch(taskCount);
+        final var testThread = Thread.currentThread();
+
+        class TestTask implements ActionListener<Releasable> {
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    if (Thread.currentThread() != testThread) {
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                    }
+                } finally {
+                    executedCountDown.countDown();
+                }
+            }
+        }
+
+        final BlockingQueue<TestTask> queue = ConcurrentCollections.newBlockingQueue();
+        final AbstractThrottledTaskRunner<TestTask> taskRunner = new AbstractThrottledTaskRunner<>("test", maxTasks, executor, queue);
+        for (int i = 0; i < taskCount; i++) {
+            taskRunner.enqueueTask(new TestTask());
+        }
+
+        safeAwait(barrier);
+        assertThat(taskRunner.runningTasks(), equalTo(maxTasks)); // maxTasks tasks are running now
+        assertEquals(taskCount - maxTasks, queue.size()); // the remainder are enqueued
+
+        final var capturedTask = new AtomicReference<Runnable>();
+        taskRunner.runSyncTasksEagerly(t -> assertTrue(capturedTask.compareAndSet(null, t)));
+        assertEquals(taskCount - maxTasks, queue.size()); // hasn't run any tasks yet
+        capturedTask.get().run();
+        assertTrue(queue.isEmpty());
+
+        safeAwait(barrier);
         safeAwait(executedCountDown);
         assertTrue(queue.isEmpty());
         assertNoRunningTasks(taskRunner);

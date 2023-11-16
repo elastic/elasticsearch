@@ -544,7 +544,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testGetCredentialsFromThreadContext() {
         final ApiKeyService apiKeyService = createApiKeyService();
         ThreadContext threadContext = threadPool.getThreadContext();
-        assertNull(apiKeyService.getCredentialsFromThreadContext(threadContext));
+        assertNull(apiKeyService.parseCredentialsFromApiKeyString(getAuthenticatorContext(threadContext).getApiKeyString()));
 
         final String apiKeyAuthScheme = randomFrom("apikey", "apiKey", "ApiKey", "APikey", "APIKEY");
         final String id = randomAlphaOfLength(12);
@@ -553,7 +553,9 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", headerValue);
-            ApiKeyService.ApiKeyCredentials creds = apiKeyService.getCredentialsFromThreadContext(threadContext);
+            ApiKeyService.ApiKeyCredentials creds = apiKeyService.parseCredentialsFromApiKeyString(
+                getAuthenticatorContext(threadContext).getApiKeyString()
+            );
             assertNotNull(creds);
             assertEquals(id, creds.getId());
             assertEquals(key, creds.getKey().toString());
@@ -563,7 +565,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         headerValue = apiKeyAuthScheme + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", headerValue);
-            ApiKeyService.ApiKeyCredentials creds = apiKeyService.getCredentialsFromThreadContext(threadContext);
+            ApiKeyService.ApiKeyCredentials creds = apiKeyService.parseCredentialsFromApiKeyString(
+                getAuthenticatorContext(threadContext).getApiKeyString()
+            );
             assertNull(creds);
         }
 
@@ -573,7 +577,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             threadContext.putHeader("Authorization", headerValue);
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> apiKeyService.getCredentialsFromThreadContext(threadContext)
+                () -> apiKeyService.parseCredentialsFromApiKeyString(getAuthenticatorContext(threadContext).getApiKeyString())
             );
             assertEquals("invalid ApiKey value", e.getMessage());
         }
@@ -877,7 +881,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testCrossClusterApiKeyUsageFailsWhenIndexNotAvailable() {
         securityIndex = SecurityMocks.mockSecurityIndexManager(".security", true, false);
         final ElasticsearchException expectedException = new ElasticsearchException("not available");
-        when(securityIndex.getUnavailableReason()).thenReturn(expectedException);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(expectedException);
         final ApiKeyService apiKeyService = createApiKeyService();
 
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
@@ -2192,7 +2196,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(request.getMetadata()).thenReturn(newMetadata);
         final var service = createApiKeyService();
 
-        final XContentBuilder builder = service.maybeBuildUpdatedDocument(
+        final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
             apiKeyId,
             oldApiKeyDoc,
             newVersion,
@@ -2738,7 +2742,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     XContentType.JSON
                 )
             );
-            PlainActionFuture<AuthenticationResult<User>> authenticationResultFuture = PlainActionFuture.newFuture();
+            PlainActionFuture<AuthenticationResult<User>> authenticationResultFuture = new PlainActionFuture<>();
             ApiKeyService.validateApiKeyTypeAndExpiration(
                 apiKeyDoc,
                 new ApiKeyService.ApiKeyCredentials("id", new SecureString(randomAlphaOfLength(16).toCharArray()), ApiKey.Type.REST),
@@ -2922,5 +2926,15 @@ public class ApiKeyServiceTests extends ESTestCase {
         } else {
             return ApiKey.Type.REST;
         }
+    }
+
+    private static Authenticator.Context getAuthenticatorContext(ThreadContext threadContext) {
+        return new Authenticator.Context(
+            threadContext,
+            mock(AuthenticationService.AuditableRequest.class),
+            null,
+            randomBoolean(),
+            mock(Realms.class)
+        );
     }
 }

@@ -53,6 +53,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -138,17 +139,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             return new DirectoryStream<>() {
                 @Override
                 public Iterator<Path> iterator() {
-                    return new Iterator<>() {
-                        @Override
-                        public boolean hasNext() {
-                            return false;
-                        }
-
-                        @Override
-                        public Path next() {
-                            return null;
-                        }
-                    };
+                    return Collections.emptyIterator();
                 }
 
                 @Override

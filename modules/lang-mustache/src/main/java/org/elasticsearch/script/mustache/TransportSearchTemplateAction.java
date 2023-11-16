@@ -55,7 +55,13 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         NodeClient client,
         UsageService usageService
     ) {
-        super(SearchTemplateAction.NAME, transportService, actionFilters, SearchTemplateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            MustachePlugin.SEARCH_TEMPLATE_ACTION.name(),
+            transportService,
+            actionFilters,
+            SearchTemplateRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
@@ -98,20 +104,22 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         response.setSource(new BytesArray(source));
 
         SearchRequest searchRequest = searchTemplateRequest.getRequest();
-        if (searchTemplateRequest.isSimulate()) {
-            return null;
-        }
+
+        SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
 
         XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, source)) {
-            SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
             builder.parseXContent(parser, false, searchUsageHolder);
-            builder.explain(searchTemplateRequest.isExplain());
-            builder.profile(searchTemplateRequest.isProfile());
-            checkRestTotalHitsAsInt(searchRequest, builder);
-            searchRequest.source(builder);
         }
+
+        if (searchTemplateRequest.isSimulate()) {
+            return null;
+        }
+        builder.explain(searchTemplateRequest.isExplain());
+        builder.profile(searchTemplateRequest.isProfile());
+        checkRestTotalHitsAsInt(searchRequest, builder);
+        searchRequest.source(builder);
         return searchRequest;
     }
 

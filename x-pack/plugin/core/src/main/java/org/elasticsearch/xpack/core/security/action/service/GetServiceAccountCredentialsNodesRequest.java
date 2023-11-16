@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.service;
 
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,17 +30,9 @@ public class GetServiceAccountCredentialsNodesRequest extends BaseNodesRequest<G
         this.serviceName = serviceName;
     }
 
-    public GetServiceAccountCredentialsNodesRequest(StreamInput in) throws IOException {
-        super(in);
-        this.namespace = in.readString();
-        this.serviceName = in.readString();
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(namespace);
-        out.writeString(serviceName);
+        TransportAction.localOnly();
     }
 
     public static class Node extends TransportRequest {

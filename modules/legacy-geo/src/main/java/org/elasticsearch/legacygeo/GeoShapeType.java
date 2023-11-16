@@ -167,7 +167,7 @@ public enum GeoShapeType {
             return polygon;
         }
 
-        void validateLinearRing(CoordinateNode coordinates, boolean coerce) {
+        static void validateLinearRing(CoordinateNode coordinates, boolean coerce) {
             if (coordinates.children == null || coordinates.children.isEmpty()) {
                 String error = "Invalid LinearRing found.";
                 error += (coordinates.coordinate == null)

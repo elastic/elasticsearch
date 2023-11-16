@@ -19,7 +19,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -110,7 +109,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
          * Immediately before the renewal of the lease, we sleep long enough to ensure that an estimated time interval has elapsed, and
          * sample the thread pool to ensure the clock has in fact advanced.
          */
-        final TimeValue estimatedTimeInterval = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(getInstanceFromNode(Node.class).settings());
+        final TimeValue estimatedTimeInterval = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(node().settings());
 
         client().execute(
             RetentionLeaseActions.Add.INSTANCE,
@@ -308,7 +307,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
          * Immediately before the renewal of the lease, we sleep long enough to ensure that an estimated time interval has elapsed, and
          * sample the thread pool to ensure the clock has in fact advanced.
          */
-        final TimeValue estimatedTimeInterval = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(getInstanceFromNode(Node.class).settings());
+        final TimeValue estimatedTimeInterval = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(node().settings());
 
         client().execute(
             RetentionLeaseActions.Add.INSTANCE,

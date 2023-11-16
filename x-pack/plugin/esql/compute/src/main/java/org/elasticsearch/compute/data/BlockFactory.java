@@ -109,7 +109,10 @@ public class BlockFactory {
         return new BooleanBlockBuilder(estimatedSize, this);
     }
 
-    BooleanVector.FixedBuilder newBooleanVectorFixedBuilder(int size) {
+    /**
+     * Build a {@link BooleanVector.FixedBuilder} that never grows.
+     */
+    public BooleanVector.FixedBuilder newBooleanVectorFixedBuilder(int size) {
         return new BooleanVectorFixedBuilder(size, this);
     }
 
@@ -172,7 +175,10 @@ public class BlockFactory {
         return new IntVectorBuilder(estimatedSize, this);
     }
 
-    IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
+    /**
+     * Build a {@link IntVector.FixedBuilder} that never grows.
+     */
+    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
         return new IntVectorFixedBuilder(size, this);
     }
 
@@ -214,7 +220,7 @@ public class BlockFactory {
     public IntVector newConstantIntVector(int value, int positions) {
         adjustBreaker(ConstantIntVector.RAM_BYTES_USED, false);
         var v = new ConstantIntVector(value, positions, this);
-        assert v.ramBytesUsed() == ConstantLongVector.RAM_BYTES_USED;
+        assert v.ramBytesUsed() == ConstantIntVector.RAM_BYTES_USED;
         return v;
     }
 
@@ -236,7 +242,10 @@ public class BlockFactory {
         return new LongVectorBuilder(estimatedSize, this);
     }
 
-    LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
+    /**
+     * Build a {@link LongVector.FixedBuilder} that never grows.
+     */
+    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
         return new LongVectorFixedBuilder(size, this);
     }
 
@@ -286,7 +295,10 @@ public class BlockFactory {
         return new DoubleVectorBuilder(estimatedSize, this);
     }
 
-    DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
+    /**
+     * Build a {@link DoubleVector.FixedBuilder} that never grows.
+     */
+    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
         return new DoubleVectorFixedBuilder(size, this);
     }
 

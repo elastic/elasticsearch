@@ -206,7 +206,7 @@ public class CompositeRolesStore {
         assert false == subject.getUser() instanceof InternalUser : "Internal user [" + subject.getUser() + "] should not pass here";
 
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
-        final String workflow = workflowService.readWorkflowFromThreadContext(threadContext);
+        final String workflow = WorkflowService.readWorkflowFromThreadContext(threadContext);
         roleReferenceIntersection.buildRole(
             this::buildRoleFromRoleReference,
             roleActionListener.delegateFailureAndWrap((l, role) -> l.onResponse(role.forWorkflow(workflow)))

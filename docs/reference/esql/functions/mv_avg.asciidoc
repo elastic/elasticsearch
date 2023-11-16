@@ -1,3 +1,4 @@
+[discrete]
 [[esql-mv_avg]]
 === `MV_AVG`
 Converts a multivalued field into a single valued field containing the average

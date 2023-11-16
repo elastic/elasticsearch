@@ -18,6 +18,10 @@ public class ActionType<Response extends ActionResponse> {
     private final String name;
     private final Writeable.Reader<Response> responseReader;
 
+    public static <T extends ActionResponse> ActionType<T> localOnly(String name) {
+        return new ActionType<>(name, Writeable.Reader.localOnly());
+    }
+
     /**
      * @param name The name of the action, must be unique across actions.
      * @param responseReader A reader for the response type
@@ -35,7 +39,7 @@ public class ActionType<Response extends ActionResponse> {
     }
 
     /**
-     * Get a reader that can create a new instance of the class from a {@link org.elasticsearch.common.io.stream.StreamInput}
+     * Get a reader that can read a response from a {@link org.elasticsearch.common.io.stream.StreamInput}.
      */
     public Writeable.Reader<Response> getResponseReader() {
         return responseReader;
@@ -43,7 +47,7 @@ public class ActionType<Response extends ActionResponse> {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof ActionType && name.equals(((ActionType<?>) o).name());
+        return o instanceof ActionType<?> actionType && name.equals(actionType.name);
     }
 
     @Override

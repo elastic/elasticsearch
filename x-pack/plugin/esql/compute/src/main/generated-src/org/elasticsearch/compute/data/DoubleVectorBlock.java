@@ -44,7 +44,7 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
 
     @Override
     public DoubleBlock filter(int... positions) {
-        return new FilterDoubleVector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
     }
 
     @Override
@@ -71,8 +71,13 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
+    public boolean isReleased() {
+        return released || vector.isReleased();
+    }
+
+    @Override
     public void close() {
-        if (released) {
+        if (released || vector.isReleased()) {
             throw new IllegalStateException("can't release already released block [" + this + "]");
         }
         released = true;

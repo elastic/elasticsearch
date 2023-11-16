@@ -23,7 +23,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.adjacency.ParsedAdjacencyMatrix;
@@ -159,7 +158,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -180,29 +178,6 @@ import static java.util.stream.Collectors.toList;
  * High level REST client that wraps an instance of the low level {@link RestClient} and allows to build requests and read responses. The
  * {@link RestClient} instance is internally built based on the provided {@link RestClientBuilder} and it gets closed automatically when
  * closing the {@link RestHighLevelClient} instance that wraps it.
- * <p>
- *
- * In case an already existing instance of a low-level REST client needs to be provided, this class can be subclassed and the
- * {@link #RestHighLevelClient(RestClient, CheckedConsumer, List)} constructor can be used.
- * <p>
- *
- * This class can also be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through plugins,
- * or to add support for custom response sections, again added to Elasticsearch through plugins.
- * <p>
- *
- * The majority of the methods in this class come in two flavors, a blocking and an asynchronous version (e.g.
- * {@link #search(SearchRequest, RequestOptions)} and {@link #searchAsync(SearchRequest, RequestOptions, ActionListener)}, where the later
- * takes an implementation of an {@link ActionListener} as an argument that needs to implement methods that handle successful responses and
- * failure scenarios. Most of the blocking calls can throw an {@link IOException} or an unchecked {@link ElasticsearchException} in the
- * following cases:
- *
- * <ul>
- * <li>an {@link IOException} is usually thrown in case of failing to parse the REST response in the high-level REST client, the request
- * times out or similar cases where there is no response coming back from the Elasticsearch server</li>
- * <li>an {@link ElasticsearchException} is usually thrown in case where the server returns a 4xx or 5xx error code. The high-level client
- * then tries to parse the response body error details into a generic ElasticsearchException and suppresses the original
- * {@link ResponseException}</li>
- * </ul>
  *
  * @deprecated The High Level Rest Client is deprecated in favor of the
  * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
@@ -216,7 +191,7 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Environment variable determining whether to send the 7.x compatibility header
      */
-    public static final String API_VERSIONING_ENV_VARIABLE = "ELASTIC_CLIENT_APIVERSIONING";
+    private static final String API_VERSIONING_ENV_VARIABLE = "ELASTIC_CLIENT_APIVERSIONING";
 
     // To be called using performClientRequest and performClientRequestAsync to ensure version compatibility check
     private final RestClient client;
@@ -226,22 +201,6 @@ public class RestHighLevelClient implements Closeable {
 
     /** Do not access directly but through getVersionValidationFuture() */
     private volatile ListenableFuture<Optional<String>> versionValidationFuture;
-
-    /**
-     * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
-     * {@link RestClient} to be used to perform requests.
-     */
-    public RestHighLevelClient(RestClientBuilder restClientBuilder) {
-        this(restClientBuilder, Collections.emptyList());
-    }
-
-    /**
-     * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
-     * {@link RestClient} to be used to perform requests and parsers for custom response sections added to Elasticsearch through plugins.
-     */
-    protected RestHighLevelClient(RestClientBuilder restClientBuilder, List<NamedXContentRegistry.Entry> namedXContentEntries) {
-        this(restClientBuilder.build(), RestClient::close, namedXContentEntries);
-    }
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests and
@@ -265,7 +224,7 @@ public class RestHighLevelClient implements Closeable {
      * The consumer argument allows to control what needs to be done when the {@link #close()} method is called.
      * Also subclasses can provide parsers for custom response sections added to Elasticsearch through plugins.
      */
-    protected RestHighLevelClient(
+    private RestHighLevelClient(
         RestClient restClient,
         CheckedConsumer<RestClient, IOException> doClose,
         List<NamedXContentRegistry.Entry> namedXContentEntries,
@@ -310,17 +269,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a bulk request using the Bulk API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
-     * @param bulkRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final BulkResponse bulk(BulkRequest bulkRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, emptySet());
-    }
-
-    /**
      * Asynchronously executes a bulk request using the Bulk API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      * @param bulkRequest the request
@@ -351,23 +299,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a search request using the Search API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
-     * @param searchRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final SearchResponse search(SearchRequest searchRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            searchRequest,
-            r -> RequestConverters.search(r, "_search"),
-            options,
-            SearchResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
      * Asynchronously executes a search using the Search API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
      * @param searchRequest the request
@@ -387,30 +318,10 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a search using the Search Scroll API.
-     * See <a
-     * href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll">Search
-     * Scroll API on elastic.co</a>
-     * @param searchScrollRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final SearchResponse scroll(SearchScrollRequest searchScrollRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            searchScrollRequest,
-            RequestConverters::searchScroll,
-            options,
-            SearchResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions.
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(
+    private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(
         Req request,
         CheckedFunction<Req, Request, IOException> requestConverter,
         RequestOptions options,
@@ -421,11 +332,10 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions.
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Resp performRequest(
+    private <Req extends ActionRequest, Resp> Resp performRequest(
         Req request,
         CheckedFunction<Req, Request, IOException> requestConverter,
         RequestOptions options,
@@ -435,23 +345,6 @@ public class RestHighLevelClient implements Closeable {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null && validationException.validationErrors().isEmpty() == false) {
             throw validationException;
-        }
-        return internalPerformRequest(request, requestConverter, options, responseConverter, ignores);
-    }
-
-    /**
-     * Defines a helper method for performing a request.
-     */
-    protected final <Req extends Validatable, Resp> Resp performRequest(
-        Req request,
-        CheckedFunction<Req, Request, IOException> requestConverter,
-        RequestOptions options,
-        CheckedFunction<Response, Resp, IOException> responseConverter,
-        Set<Integer> ignores
-    ) throws IOException {
-        Optional<ValidationException> validationException = request.validate();
-        if (validationException != null && validationException.isPresent()) {
-            throw validationException.get();
         }
         return internalPerformRequest(request, requestConverter, options, responseConverter, ignores);
     }
@@ -494,12 +387,11 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions.
      * @return Cancellable instance that may be used to cancel the request
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Cancellable performRequestAsyncAndParseEntity(
+    private <Req extends ActionRequest, Resp> Cancellable performRequestAsyncAndParseEntity(
         Req request,
         CheckedFunction<Req, Request, IOException> requestConverter,
         RequestOptions options,
@@ -518,12 +410,11 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions.
      * @return Cancellable instance that may be used to cancel the request
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Cancellable performRequestAsync(
+    private <Req extends ActionRequest, Resp> Cancellable performRequestAsync(
         Req request,
         CheckedFunction<Req, Request, IOException> requestConverter,
         RequestOptions options,
@@ -564,7 +455,7 @@ public class RestHighLevelClient implements Closeable {
         return performClientRequestAsync(req, responseListener);
     }
 
-    final <Resp> ResponseListener wrapResponseListener(
+    private <Resp> ResponseListener wrapResponseListener(
         CheckedFunction<Response, Resp, IOException> responseConverter,
         ActionListener<Resp> actionListener,
         Set<Integer> ignores
@@ -611,7 +502,7 @@ public class RestHighLevelClient implements Closeable {
      * that wraps the original {@link ResponseException}. The potential exception obtained while parsing is added to the returned
      * exception as a suppressed exception. This method is guaranteed to not throw any exception eventually thrown while parsing.
      */
-    protected final ElasticsearchStatusException parseResponseException(ResponseException responseException) {
+    private ElasticsearchStatusException parseResponseException(ResponseException responseException) {
         Response response = responseException.getResponse();
         HttpEntity entity = response.getEntity();
         ElasticsearchStatusException elasticsearchException;
@@ -631,7 +522,7 @@ public class RestHighLevelClient implements Closeable {
         return elasticsearchException;
     }
 
-    protected final <Resp> Resp parseEntity(final HttpEntity entity, final CheckedFunction<XContentParser, Resp, IOException> entityParser)
+    private <Resp> Resp parseEntity(final HttpEntity entity, final CheckedFunction<XContentParser, Resp, IOException> entityParser)
         throws IOException {
         if (entity == null) {
             throw new IllegalStateException("Response body expected but not returned");
@@ -735,7 +626,7 @@ public class RestHighLevelClient implements Closeable {
         ListenableFuture<Optional<String>> versionCheck = getVersionValidationFuture();
 
         // Create a future that tracks cancellation of this method's result and forwards cancellation to the actual LLRC request.
-        CompletableFuture<Void> cancellationForwarder = new CompletableFuture<Void>();
+        CompletableFuture<Void> cancellationForwarder = new CompletableFuture<>();
         Cancellable result = new Cancellable() {
             @Override
             public void cancel() {
@@ -754,7 +645,7 @@ public class RestHighLevelClient implements Closeable {
 
         // Send the request after we have done the version compatibility check. Note that if it has already happened, the listener will
         // be called immediately on the same thread with no asynchronous scheduling overhead.
-        versionCheck.addListener(new ActionListener<Optional<String>>() {
+        versionCheck.addListener(new ActionListener<>() {
             @Override
             public void onResponse(Optional<String> validation) {
                 if (validation.isPresent() == false) {
@@ -779,13 +670,13 @@ public class RestHighLevelClient implements Closeable {
         });
 
         return result;
-    };
+    }
 
     /**
      * Go through all the request's existing headers, looking for {@code headerName} headers and if they exist,
      * changing them to use version compatibility. If no request headers are changed, modify the entity type header if appropriate
      */
-    boolean addCompatibilityFor(RequestOptions.Builder newOptions, Header entityHeader, String headerName) {
+    private boolean addCompatibilityFor(RequestOptions.Builder newOptions, Header entityHeader, String headerName) {
         // Modify any existing "Content-Type" headers on the request to use the version compatibility, if available
         boolean contentTypeModified = false;
         for (Header header : new ArrayList<>(newOptions.getHeaders())) {
@@ -807,7 +698,7 @@ public class RestHighLevelClient implements Closeable {
      * Modify the given header to be version compatible, if necessary.
      * Returns true if a modification was made, false otherwise.
      */
-    boolean modifyHeader(RequestOptions.Builder newOptions, Header header, String headerName) {
+    private boolean modifyHeader(RequestOptions.Builder newOptions, Header header, String headerName) {
         for (EntityType type : EntityType.values()) {
             final String headerValue = header.getValue();
             if (headerValue.startsWith(type.header())) {
@@ -825,7 +716,7 @@ public class RestHighLevelClient implements Closeable {
      * modifying the "Content-Type" and "Accept" headers if present, or modifying the header based
      * on the request's entity type.
      */
-    void modifyRequestForCompatibility(Request request) {
+    private void modifyRequestForCompatibility(Request request) {
         final Header entityHeader = request.getEntity() == null ? null : request.getEntity().getContentType();
         final RequestOptions.Builder newOptions = request.getOptions().toBuilder();
 
@@ -982,7 +873,7 @@ public class RestHighLevelClient implements Closeable {
         return Optional.empty();
     }
 
-    static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
+    private static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();
         map.put(CardinalityAggregationBuilder.NAME, (p, c) -> ParsedCardinality.fromXContent(p, (String) c));
         map.put(InternalHDRPercentiles.NAME, (p, c) -> ParsedHDRPercentiles.fromXContent(p, (String) c));
@@ -1068,7 +959,7 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Loads and returns the {@link NamedXContentRegistry.Entry} parsers provided by plugins.
      */
-    static List<NamedXContentRegistry.Entry> getProvidedNamedXContents() {
+    private static List<NamedXContentRegistry.Entry> getProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
         for (NamedXContentProvider service : ServiceLoader.load(NamedXContentProvider.class)) {
             entries.addAll(service.getNamedXContentParsers());

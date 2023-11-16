@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -60,7 +61,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.bytesFromLong;
+import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -300,9 +306,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             private final AtomicBoolean registerWasCorrupted = new AtomicBoolean();
 
             @Override
-            public BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+            public BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
                 if (registerWasCorrupted.compareAndSet(false, true)) {
-                    register.updateAndGet(bytes -> RegisterAnalyzeAction.bytesFromLong(RegisterAnalyzeAction.longFromBytes(bytes) + 1));
+                    register.updateAndGet(bytes -> bytesFromLong(longFromBytes(bytes) + 1));
                 }
                 return register.compareAndExchange(expected, updated);
             }
@@ -317,11 +323,11 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         final long expectedMax = Math.max(request.getConcurrency(), internalCluster().getNodeNames().length);
         blobStore.setDisruption(new Disruption() {
             @Override
-            public BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+            public BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
                 if (randomBoolean() && sawSpuriousValue.compareAndSet(false, true)) {
-                    final var currentValue = RegisterAnalyzeAction.longFromBytes(register.get());
+                    final var currentValue = longFromBytes(register.get());
                     if (currentValue == expectedMax) {
-                        return RegisterAnalyzeAction.bytesFromLong(
+                        return bytesFromLong(
                             randomFrom(
                                 randomLongBetween(0L, expectedMax - 1),
                                 randomLongBetween(expectedMax + 1, Long.MAX_VALUE),
@@ -329,7 +335,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                             )
                         );
                     } else {
-                        return RegisterAnalyzeAction.bytesFromLong(
+                        return bytesFromLong(
                             randomFrom(expectedMax, randomLongBetween(expectedMax, Long.MAX_VALUE), randomLongBetween(Long.MIN_VALUE, -1))
                         );
                     }
@@ -341,12 +347,77 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             analyseRepository(request);
             assertFalse(sawSpuriousValue.get());
         } catch (RepositoryVerificationException e) {
-            assertTrue(sawSpuriousValue.get());
+            if (sawSpuriousValue.get() == false) {
+                fail(e, "did not see spurious value, so why did the verification fail?");
+            }
         }
     }
 
-    private RepositoryAnalyzeAction.Response analyseRepository(RepositoryAnalyzeAction.Request request) {
-        return client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
+    public void testTimesOutSpinningRegisterAnalysis() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.timeout(TimeValue.timeValueMillis(between(1, 1000)));
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean compareAndExchangeReturnsWitness(String key) {
+                // let uncontended accesses succeed but all contended ones fail
+                return isContendedRegisterKey(key) == false;
+            }
+        });
+        final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertThat(exception.getMessage(), containsString("analysis failed"));
+        assertThat(
+            asInstanceOf(RepositoryVerificationException.class, exception.getCause()).getMessage(),
+            containsString("analysis timed out")
+        );
+    }
+
+    public void testFailsIfAllRegisterOperationsInconclusive() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean compareAndExchangeReturnsWitness(String key) {
+                return false;
+            }
+        });
+        final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertThat(exception.getMessage(), containsString("analysis failed"));
+        assertThat(
+            asInstanceOf(RepositoryVerificationException.class, ExceptionsHelper.unwrapCause(exception.getCause())).getMessage(),
+            allOf(containsString("uncontended register operation failed"), containsString("did not observe any value"))
+        );
+    }
+
+    public void testFailsIfEmptyRegisterRejected() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean acceptsEmptyRegister() {
+                return false;
+            }
+        });
+        final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertThat(exception.getMessage(), containsString("analysis failed"));
+        final var cause = ExceptionsHelper.unwrapCause(exception.getCause());
+        if (cause instanceof IOException ioException) {
+            assertThat(ioException.getMessage(), containsString("empty register update rejected"));
+        } else {
+            assertThat(
+                asInstanceOf(RepositoryVerificationException.class, ExceptionsHelper.unwrapCause(exception.getCause())).getMessage(),
+                anyOf(
+                    allOf(containsString("uncontended register operation failed"), containsString("did not observe any value")),
+                    containsString("but instead had value [OptionalBytesReference[MISSING]]")
+                )
+            );
+        }
+    }
+
+    private void analyseRepository(RepositoryAnalyzeAction.Request request) {
+        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
+    }
+
+    private static void assertPurpose(OperationPurpose purpose) {
+        assertEquals(OperationPurpose.REPOSITORY_ANALYSIS, purpose);
     }
 
     public static class TestPlugin extends Plugin implements RepositoryPlugin {
@@ -420,7 +491,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {}
+        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
+            assertPurpose(purpose);
+        }
 
         private void deleteContainer(DisruptableBlobContainer container) {
             blobContainer = null;
@@ -456,7 +529,15 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             return false;
         }
 
-        default BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+        default boolean compareAndExchangeReturnsWitness(String key) {
+            return true;
+        }
+
+        default boolean acceptsEmptyRegister() {
+            return true;
+        }
+
+        default BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
             return register.compareAndExchange(expected, updated);
         }
     }
@@ -482,11 +563,13 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public boolean blobExists(OperationPurpose purpose, String blobName) {
+            assertPurpose(purpose);
             return blobs.containsKey(blobName);
         }
 
         @Override
         public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+            assertPurpose(purpose);
             final byte[] actualContents = blobs.get(blobName);
             final byte[] disruptedContents = disruption.onRead(actualContents, 0L, actualContents == null ? 0L : actualContents.length);
             if (disruptedContents == null) {
@@ -497,6 +580,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+            assertPurpose(purpose);
             final byte[] actualContents = blobs.get(blobName);
             final byte[] disruptedContents = disruption.onRead(actualContents, position, length);
             if (disruptedContents == null) {
@@ -514,13 +598,15 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             long blobSize,
             boolean failIfAlreadyExists
         ) throws IOException {
+            assertPurpose(purpose);
             writeBlobAtomic(blobName, inputStream, failIfAlreadyExists);
         }
 
         @Override
         public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
             throws IOException {
-            writeBlob(OperationPurpose.SNAPSHOT, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+            assertPurpose(purpose);
+            writeBlob(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
         }
 
         @Override
@@ -531,18 +617,20 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             boolean atomic,
             CheckedConsumer<OutputStream, IOException> writer
         ) throws IOException {
+            assertPurpose(purpose);
             final BytesStreamOutput out = new BytesStreamOutput();
             writer.accept(out);
             if (atomic) {
-                writeBlobAtomic(OperationPurpose.SNAPSHOT, blobName, out.bytes(), failIfAlreadyExists);
+                writeBlobAtomic(purpose, blobName, out.bytes(), failIfAlreadyExists);
             } else {
-                writeBlob(OperationPurpose.SNAPSHOT, blobName, out.bytes(), failIfAlreadyExists);
+                writeBlob(purpose, blobName, out.bytes(), failIfAlreadyExists);
             }
         }
 
         @Override
         public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
             throws IOException {
+            assertPurpose(purpose);
             final StreamInput inputStream;
             try {
                 inputStream = bytes.streamInput();
@@ -575,6 +663,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public DeleteResult delete(OperationPurpose purpose) throws IOException {
+            assertPurpose(purpose);
             disruption.onDelete();
             deleteContainer.accept(this);
             final DeleteResult deleteResult = new DeleteResult(blobs.size(), blobs.values().stream().mapToLong(b -> b.length).sum());
@@ -584,11 +673,13 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
+            assertPurpose(purpose);
             blobNames.forEachRemaining(blobs.keySet()::remove);
         }
 
         @Override
         public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
+            assertPurpose(purpose);
             return disruption.onList(
                 blobs.entrySet()
                     .stream()
@@ -598,12 +689,14 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Map<String, BlobContainer> children(OperationPurpose purpose) {
+            assertPurpose(purpose);
             return Map.of();
         }
 
         @Override
         public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
-            final Map<String, BlobMetadata> blobMetadataByName = listBlobs(OperationPurpose.SNAPSHOT);
+            assertPurpose(purpose);
+            final Map<String, BlobMetadata> blobMetadataByName = listBlobs(purpose);
             blobMetadataByName.keySet().removeIf(s -> s.startsWith(blobNamePrefix) == false);
             return blobMetadataByName;
         }
@@ -616,9 +709,35 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             BytesReference updated,
             ActionListener<OptionalBytesReference> listener
         ) {
-            final var register = registers.computeIfAbsent(key, ignored -> new BytesRegister());
-            listener.onResponse(OptionalBytesReference.of(disruption.onCompareAndExchange(register, expected, updated)));
+            assertPurpose(purpose);
+            final boolean isContendedRegister = isContendedRegisterKey(key); // validate key
+            if (disruption.acceptsEmptyRegister() == false && updated.length() == 0) {
+                if (randomBoolean()) {
+                    listener.onResponse(OptionalBytesReference.MISSING);
+                } else {
+                    listener.onFailure(new IOException("empty register update rejected"));
+                }
+            } else if (disruption.compareAndExchangeReturnsWitness(key)) {
+                final var register = registers.computeIfAbsent(key, ignored -> new BytesRegister());
+                if (isContendedRegister) {
+                    listener.onResponse(OptionalBytesReference.of(disruption.onContendedCompareAndExchange(register, expected, updated)));
+                } else {
+                    listener.onResponse(OptionalBytesReference.of(register.compareAndExchange(expected, updated)));
+                }
+            } else {
+                listener.onResponse(OptionalBytesReference.MISSING);
+            }
         }
+    }
+
+    static boolean isContendedRegisterKey(String key) {
+        if (key.startsWith(RepositoryAnalyzeAction.CONTENDED_REGISTER_NAME_PREFIX)) {
+            return true;
+        }
+        if (key.startsWith(RepositoryAnalyzeAction.UNCONTENDED_REGISTER_NAME_PREFIX)) {
+            return false;
+        }
+        return fail(null, "unknown register: %s", key);
     }
 
 }

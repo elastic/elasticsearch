@@ -33,7 +33,7 @@ public class TransportMainAction extends TransportAction<MainRequest, MainRespon
         ActionFilters actionFilters,
         ClusterService clusterService
     ) {
-        super(MainAction.NAME, actionFilters, transportService.getTaskManager());
+        super(MainRestPlugin.MAIN_ACTION.name(), actionFilters, transportService.getTaskManager());
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterService = clusterService;
     }

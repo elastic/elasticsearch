@@ -16,7 +16,7 @@ import java.io.IOException;
  * Vector that stores long values.
  * This class is generated. Do not edit it.
  */
-public sealed interface LongVector extends Vector permits ConstantLongVector, FilterLongVector, LongArrayVector, LongBigArrayVector {
+public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector, ConstantNullVector {
 
     long getLong(int position);
 
@@ -102,8 +102,12 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
         }
     }
 
-    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    /**
+     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
+     * @deprecated use {@link BlockFactory#newLongVectorBuilder}
+     */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    @Deprecated
     static Builder newVectorBuilder(int estimatedSize) {
         return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
@@ -111,7 +115,9 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
     /**
      * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
      * if you know the size up front because it's faster.
+     * @deprecated use {@link BlockFactory#newLongVectorBuilder}
      */
+    @Deprecated
     static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return blockFactory.newLongVectorBuilder(estimatedSize);
     }
@@ -119,7 +125,9 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
     /**
      * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
      * if you know the size up front because it's faster.
+     * @deprecated use {@link BlockFactory#newLongVectorFixedBuilder}
      */
+    @Deprecated
     static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
         return blockFactory.newLongVectorFixedBuilder(size);
     }

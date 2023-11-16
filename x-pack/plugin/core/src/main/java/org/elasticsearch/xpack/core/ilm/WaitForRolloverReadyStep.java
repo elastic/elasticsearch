@@ -205,18 +205,16 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(metadata.settings());
         RolloverRequest rolloverRequest = createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
 
-        getClient().admin()
-            .indices()
-            .rolloverIndex(
-                rolloverRequest,
-                ActionListener.wrap(
-                    response -> listener.onResponse(
-                        rolloverRequest.getConditions().areConditionsMet(response.getConditionStatus()),
-                        EmptyInfo.INSTANCE
-                    ),
-                    listener::onFailure
-                )
-            );
+        getClient().admin().indices().rolloverIndex(rolloverRequest, ActionListener.wrap(response -> {
+            final var conditionStatus = response.getConditionStatus();
+            final var conditionsMet = rolloverRequest.getConditions().areConditionsMet(conditionStatus);
+            if (conditionsMet) {
+                logger.info("index [{}] is ready for rollover, conditions: [{}]", index.getName(), conditionStatus);
+            } else {
+                logger.debug("index [{}] is not ready for rollover, conditions: [{}]", index.getName(), conditionStatus);
+            }
+            listener.onResponse(conditionsMet, EmptyInfo.INSTANCE);
+        }, listener::onFailure));
     }
 
     /**

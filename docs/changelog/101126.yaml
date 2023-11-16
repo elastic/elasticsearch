@@ -1,0 +1,5 @@
+pr: 101126
+summary: Include totals in flamegraph response
+area: Application
+type: enhancement
+issues: []

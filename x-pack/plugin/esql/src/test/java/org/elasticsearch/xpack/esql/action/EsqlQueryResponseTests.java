@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -136,11 +137,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             case 1 -> new EsqlQueryResponse(instance.columns(), deepCopyOfPages(instance), false == instance.columnar());
             case 2 -> {
                 int noPages = instance.pages().size();
-                yield new EsqlQueryResponse(
-                    instance.columns(),
-                    randomValueOtherThan(instance.pages(), () -> randomList(noPages, noPages, () -> randomPage(instance.columns()))),
-                    instance.columnar()
-                );
+                List<Page> differentPages = List.of();
+                do {
+                    differentPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
+                    differentPages = randomList(noPages, noPages, () -> randomPage(instance.columns()));
+                } while (differentPages.equals(instance.pages()));
+                yield new EsqlQueryResponse(instance.columns(), differentPages, instance.columnar());
             }
             default -> throw new IllegalArgumentException();
         };

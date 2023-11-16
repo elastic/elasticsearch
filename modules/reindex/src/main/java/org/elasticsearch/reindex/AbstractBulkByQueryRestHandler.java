@@ -76,7 +76,7 @@ public abstract class AbstractBulkByQueryRestHandler<
      * should get better when SearchRequest has full ObjectParser support
      * then we can delegate and stuff.
      */
-    private XContentParser extractRequestSpecificFields(RestRequest restRequest, Map<String, Consumer<Object>> bodyConsumers)
+    private static XContentParser extractRequestSpecificFields(RestRequest restRequest, Map<String, Consumer<Object>> bodyConsumers)
         throws IOException {
         if (restRequest.hasContentOrSourceParam() == false) {
             return null; // body is optional

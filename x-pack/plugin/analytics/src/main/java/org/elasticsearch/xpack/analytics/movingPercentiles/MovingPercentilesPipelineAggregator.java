@@ -164,7 +164,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         }
     }
 
-    private PercentileConfig resolvePercentileConfig(
+    private static PercentileConfig resolvePercentileConfig(
         MultiBucketsAggregation agg,
         InternalMultiBucketAggregation.InternalBucket bucket,
         String aggPath
@@ -194,7 +194,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         throw buildResolveError(agg, aggPathsList, propertyValue, "percentiles");
     }
 
-    private TDigestState resolveTDigestBucketValue(
+    private static TDigestState resolveTDigestBucketValue(
         MultiBucketsAggregation agg,
         InternalMultiBucketAggregation.InternalBucket bucket,
         String aggPath
@@ -207,7 +207,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         return ((InternalTDigestPercentiles) propertyValue).getState();
     }
 
-    private DoubleHistogram resolveHDRBucketValue(
+    private static DoubleHistogram resolveHDRBucketValue(
         MultiBucketsAggregation agg,
         InternalMultiBucketAggregation.InternalBucket bucket,
         String aggPath
@@ -220,7 +220,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         return ((InternalHDRPercentiles) propertyValue).getState();
     }
 
-    private IllegalArgumentException buildResolveError(
+    private static IllegalArgumentException buildResolveError(
         MultiBucketsAggregation agg,
         List<String> aggPathsList,
         Object propertyValue,
@@ -253,7 +253,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         }
     }
 
-    private int clamp(int index, int length) {
+    private static int clamp(int index, int length) {
         if (index < 0) {
             return 0;
         }

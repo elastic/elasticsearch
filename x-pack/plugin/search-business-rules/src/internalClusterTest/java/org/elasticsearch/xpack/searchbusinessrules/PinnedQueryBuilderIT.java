@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchbusinessrules;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.Operator;
@@ -32,6 +31,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFourthHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
@@ -113,51 +113,45 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     private void assertPinnedPromotions(PinnedQueryBuilder pqb, LinkedHashSet<String> pins, int iter, int numRelevantDocs) {
         int from = randomIntBetween(0, numRelevantDocs);
         int size = randomIntBetween(10, 100);
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
-            .setTrackTotalHits(true)
-            .setSize(size)
-            .setFrom(from)
-            .setSearchType(DFS_QUERY_THEN_FETCH)
-            .get();
+        assertResponse(
+            prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSize(size).setFrom(from).setSearchType(DFS_QUERY_THEN_FETCH),
+            response -> {
+                long numHits = response.getHits().getTotalHits().value;
+                assertThat(numHits, lessThanOrEqualTo((long) numRelevantDocs + pins.size()));
 
-        long numHits = searchResponse.getHits().getTotalHits().value;
-        assertThat(numHits, lessThanOrEqualTo((long) numRelevantDocs + pins.size()));
-
-        // Check pins are sorted by increasing score, (unlike organic, there are no duplicate scores)
-        float lastScore = Float.MAX_VALUE;
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        for (int hitNumber = 0; hitNumber < Math.min(hits.length, pins.size() - from); hitNumber++) {
-            assertThat("Hit " + hitNumber + " in iter " + iter + " wrong" + pins, hits[hitNumber].getScore(), lessThan(lastScore));
-            lastScore = hits[hitNumber].getScore();
-        }
-        // Check that the pins appear in the requested order (globalHitNumber is cursor independent of from and size window used)
-        int globalHitNumber = 0;
-        for (String id : pins) {
-            if (globalHitNumber < size && globalHitNumber >= from) {
-                assertThat(
-                    "Hit " + globalHitNumber + " in iter " + iter + " wrong" + pins,
-                    hits[globalHitNumber - from].getId(),
-                    equalTo(id)
-                );
-            }
-            globalHitNumber++;
-        }
-        // Test the organic hits are sorted by text relevance
-        boolean highScoresExhausted = false;
-        for (; globalHitNumber < hits.length + from; globalHitNumber++) {
-            if (globalHitNumber >= from) {
-                int id = Integer.parseInt(hits[globalHitNumber - from].getId());
-                if (id % 2 == 0) {
-                    highScoresExhausted = true;
-                } else {
-                    assertFalse("All odd IDs should have scored higher than even IDs in organic results", highScoresExhausted);
+                // Check pins are sorted by increasing score, (unlike organic, there are no duplicate scores)
+                float lastScore = Float.MAX_VALUE;
+                SearchHit[] hits = response.getHits().getHits();
+                for (int hitNumber = 0; hitNumber < Math.min(hits.length, pins.size() - from); hitNumber++) {
+                    assertThat("Hit " + hitNumber + " in iter " + iter + " wrong" + pins, hits[hitNumber].getScore(), lessThan(lastScore));
+                    lastScore = hits[hitNumber].getScore();
                 }
-
+                // Check that the pins appear in the requested order (globalHitNumber is cursor independent of from and size window used)
+                int globalHitNumber = 0;
+                for (String id : pins) {
+                    if (globalHitNumber < size && globalHitNumber >= from) {
+                        assertThat(
+                            "Hit " + globalHitNumber + " in iter " + iter + " wrong" + pins,
+                            hits[globalHitNumber - from].getId(),
+                            equalTo(id)
+                        );
+                    }
+                    globalHitNumber++;
+                }
+                // Test the organic hits are sorted by text relevance
+                boolean highScoresExhausted = false;
+                for (; globalHitNumber < hits.length + from; globalHitNumber++) {
+                    if (globalHitNumber >= from) {
+                        int id = Integer.parseInt(hits[globalHitNumber - from].getId());
+                        if (id % 2 == 0) {
+                            highScoresExhausted = true;
+                        } else {
+                            assertFalse("All odd IDs should have scored higher than even IDs in organic results", highScoresExhausted);
+                        }
+                    }
+                }
             }
-
-        }
-
+        );
     }
 
     /**
@@ -194,14 +188,10 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     }
 
     private void assertExhaustiveScoring(PinnedQueryBuilder pqb) {
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
-            .setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH)
-            .get();
-
-        long numHits = searchResponse.getHits().getTotalHits().value;
-        assertThat(numHits, equalTo(2L));
+        assertResponse(prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH), response -> {
+            long numHits = response.getHits().getTotalHits().value;
+            assertThat(numHits, equalTo(2L));
+        });
     }
 
     public void testExplain() throws Exception {
@@ -232,23 +222,19 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     }
 
     private void assertExplain(PinnedQueryBuilder pqb) {
-        SearchResponse searchResponse = client().prepareSearch()
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .setQuery(pqb)
-            .setExplain(true)
-            .get();
-        assertHitCount(searchResponse, 3);
-        assertFirstHit(searchResponse, hasId("2"));
-        assertSecondHit(searchResponse, hasId("1"));
-        assertThirdHit(searchResponse, hasId("4"));
+        assertResponse(prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(pqb).setExplain(true), searchResponse -> {
+            assertHitCount(searchResponse, 3);
+            assertFirstHit(searchResponse, hasId("2"));
+            assertSecondHit(searchResponse, hasId("1"));
+            assertThirdHit(searchResponse, hasId("4"));
 
-        Explanation pinnedExplanation = searchResponse.getHits().getAt(0).getExplanation();
-        assertThat(pinnedExplanation, notNullValue());
-        assertThat(pinnedExplanation.isMatch(), equalTo(true));
-        assertThat(pinnedExplanation.getDetails().length, equalTo(1));
-        assertThat(pinnedExplanation.getDetails()[0].isMatch(), equalTo(true));
-        assertThat(pinnedExplanation.getDetails()[0].getDescription(), containsString("ConstantScore"));
-
+            Explanation pinnedExplanation = searchResponse.getHits().getAt(0).getExplanation();
+            assertThat(pinnedExplanation, notNullValue());
+            assertThat(pinnedExplanation.isMatch(), equalTo(true));
+            assertThat(pinnedExplanation.getDetails().length, equalTo(1));
+            assertThat(pinnedExplanation.getDetails()[0].isMatch(), equalTo(true));
+            assertThat(pinnedExplanation.getDetails()[0].getDescription(), containsString("ConstantScore"));
+        });
     }
 
     public void testHighlight() throws Exception {
@@ -280,17 +266,16 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         HighlightBuilder testHighlighter = new HighlightBuilder();
         testHighlighter.field("field1");
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .setQuery(pqb)
-            .highlighter(testHighlighter)
-            .setExplain(true)
-            .get();
-        assertHitCount(searchResponse, 1);
-        Map<String, HighlightField> highlights = searchResponse.getHits().getHits()[0].getHighlightFields();
-        assertThat(highlights.size(), equalTo(1));
-        HighlightField highlight = highlights.get("field1");
-        assertThat(highlight.fragments()[0].toString(), equalTo("<em>the</em> <em>quick</em> <em>brown</em> fox"));
+        assertResponse(
+            prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(pqb).highlighter(testHighlighter).setExplain(true),
+            searchResponse -> {
+                assertHitCount(searchResponse, 1);
+                Map<String, HighlightField> highlights = searchResponse.getHits().getHits()[0].getHighlightFields();
+                assertThat(highlights.size(), equalTo(1));
+                HighlightField highlight = highlights.get("field1");
+                assertThat(highlight.fragments()[0].toString(), equalTo("<em>the</em> <em>quick</em> <em>brown</em> fox"));
+            }
+        );
     }
 
     public void testMultiIndexDocs() throws Exception {
@@ -340,17 +325,13 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             new Item("test1", "b")
         );
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
-            .setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH)
-            .get();
-
-        assertHitCount(searchResponse, 4);
-        assertFirstHit(searchResponse, both(hasIndex("test2")).and(hasId("a")));
-        assertSecondHit(searchResponse, both(hasIndex("test1")).and(hasId("a")));
-        assertThirdHit(searchResponse, both(hasIndex("test1")).and(hasId("b")));
-        assertFourthHit(searchResponse, both(hasIndex("test2")).and(hasId("c")));
+        assertResponse(prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH), searchResponse -> {
+            assertHitCount(searchResponse, 4);
+            assertFirstHit(searchResponse, both(hasIndex("test2")).and(hasId("a")));
+            assertSecondHit(searchResponse, both(hasIndex("test1")).and(hasId("a")));
+            assertThirdHit(searchResponse, both(hasIndex("test1")).and(hasId("b")));
+            assertFourthHit(searchResponse, both(hasIndex("test2")).and(hasId("c")));
+        });
     }
 
     public void testMultiIndexWithAliases() throws Exception {
@@ -384,16 +365,12 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             new Item("test", "a")
         );
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
-            .setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH)
-            .get();
-
-        assertHitCount(searchResponse, 3);
-        assertFirstHit(searchResponse, both(hasIndex("test")).and(hasId("b")));
-        assertSecondHit(searchResponse, both(hasIndex("test")).and(hasId("a")));
-        assertThirdHit(searchResponse, both(hasIndex("test")).and(hasId("c")));
+        assertResponse(prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH), searchResponse -> {
+            assertHitCount(searchResponse, 3);
+            assertFirstHit(searchResponse, both(hasIndex("test")).and(hasId("b")));
+            assertSecondHit(searchResponse, both(hasIndex("test")).and(hasId("a")));
+            assertThirdHit(searchResponse, both(hasIndex("test")).and(hasId("c")));
+        });
     }
 
     public void testMultiIndexWithAliasesAndDuplicateIds() throws Exception {
@@ -446,16 +423,12 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             new Item("test-alias", "a")
         );
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
-            .setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH)
-            .get();
-
-        assertHitCount(searchResponse, 4);
-        assertFirstHit(searchResponse, both(hasIndex("test1")).and(hasId("b")));
-        assertSecondHit(searchResponse, hasId("a"));
-        assertThirdHit(searchResponse, hasId("a"));
-        assertFourthHit(searchResponse, both(hasIndex("test1")).and(hasId("c")));
+        assertResponse(prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH), searchResponse -> {
+            assertHitCount(searchResponse, 4);
+            assertFirstHit(searchResponse, both(hasIndex("test1")).and(hasId("b")));
+            assertSecondHit(searchResponse, hasId("a"));
+            assertThirdHit(searchResponse, hasId("a"));
+            assertFourthHit(searchResponse, both(hasIndex("test1")).and(hasId("c")));
+        });
     }
 }

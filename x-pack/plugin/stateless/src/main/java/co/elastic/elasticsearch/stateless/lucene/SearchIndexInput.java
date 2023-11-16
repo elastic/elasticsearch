@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.Stateless;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -182,7 +184,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                             len
                         )
                     ) {
-                        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                        assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_THREAD_POOL);
                         logger.trace(
                             "{}: writing channel {} pos {} length {} (details: {})",
                             cacheFile.getCacheKey().fileName(),

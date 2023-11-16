@@ -217,13 +217,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         this.clusterService = clusterService;
         this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-translog-file-task-runner",
-            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
-            threadPool.executor(ThreadPool.Names.SNAPSHOT) // TODO use dedicated object store thread pool
+            threadPool.info(Stateless.TRANSLOG_THREAD_POOL).getMax(),
+            threadPool.executor(Stateless.TRANSLOG_THREAD_POOL)
         );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-task-runner",
-            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
-            threadPool.executor(ThreadPool.Names.SNAPSHOT) // TODO use dedicated object store thread pool
+            threadPool.info(Stateless.SHARD_THREAD_POOL).getMax(),
+            threadPool.executor(Stateless.SHARD_THREAD_POOL)
         );
         this.permits = new Semaphore(0);
     }
@@ -411,9 +411,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             logger.debug("scheduling translog blob file for async delete [{}]", fileToDelete);
             translogBlobsToDelete.add(fileToDelete);
             if (translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new FileDeleteTask(this::getTranslogBlobContainer));
+                threadPool.executor(Stateless.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
             }
-        });
+        }, Stateless.TRANSLOG_THREAD_POOL);
     }
 
     public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
@@ -426,17 +426,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             );
             commitBlobsToDelete.add(staleCompoundCommit);
             if (shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ShardFilesDeleteTask());
+                threadPool.executor(Stateless.SHARD_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
-        });
+        }, Stateless.SHARD_THREAD_POOL);
     }
 
-    private void asyncDeleteFile(Runnable deleteFileRunnable) {
+    private void asyncDeleteFile(Runnable deleteFileRunnable, String executor) {
         TimeValue delay = OBJECT_STORE_FILE_DELETION_DELAY.get(settings);
         if (delay.compareTo(TimeValue.ZERO) == 0) {
             deleteFileRunnable.run();
         } else {
-            threadPool.schedule(deleteFileRunnable, delay, threadPool.executor(ThreadPool.Names.SNAPSHOT));
+            threadPool.schedule(deleteFileRunnable, delay, threadPool.executor(executor));
         }
     }
 
@@ -754,7 +754,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         public void onAfter() {
             translogDeleteSchedulePermit.release();
             if (translogBlobsToDelete.isEmpty() == false && translogDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new FileDeleteTask(blobContainer));
+                threadPool.executor(Stateless.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(blobContainer));
             }
         }
 
@@ -801,7 +801,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         public void onAfter() {
             shardFileDeleteSchedulePermit.release();
             if (commitBlobsToDelete.isEmpty() == false && shardFileDeleteSchedulePermit.tryAcquire()) {
-                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ShardFilesDeleteTask());
+                threadPool.executor(Stateless.SHARD_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
         }
 

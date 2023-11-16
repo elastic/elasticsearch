@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -290,7 +291,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             nodeEnvironment,
             indexSettings.getSettings(),
             threadPool,
-            ThreadPool.Names.GENERIC,
+            Stateless.SHARD_THREAD_POOL,
             BlobCacheMetrics.NOOP
         );
         var directory = new SearchDirectory(cache, shardId);

@@ -86,18 +86,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     private boolean shared = false;
 
-    /**
-     * this cluster si marked as shared across TestClusterAware tasks
-     * */
-    @Internal
-    public boolean isShared() {
-        return shared;
-    }
-
-    protected void setShared(boolean shared) {
-        this.shared = shared;
-    }
-
     public ElasticsearchCluster(
         String path,
         String clusterName,
@@ -143,6 +131,19 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
         addWaitForClusterHealth();
     }
+
+    /**
+     * this cluster si marked as shared across TestClusterAware tasks
+     * */
+    @Internal
+    public boolean isShared() {
+        return shared;
+    }
+
+    protected void setShared(boolean shared) {
+        this.shared = shared;
+    }
+
 
     @Classpath
     public FileCollection getInstalledClasspath() {

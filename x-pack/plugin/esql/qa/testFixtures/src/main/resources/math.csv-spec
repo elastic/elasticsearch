@@ -200,7 +200,7 @@ height:double | s:double
 1.53          | 0.34
 ;
 
-powSalarySquared
+powSalarySquared#[skip:-8.11.99,reason:return type changed in 8.12]
 from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
 salary:integer | s:double
@@ -365,7 +365,7 @@ base:integer | exponent:integer | s:double
 2            | 2                | 4.0
 ;
 
-powIntIntPlusInt
+powIntIntPlusInt#[skip:-8.11.99,reason:return type changed in 8.12]
 row s = 1 + pow(2, 2);
 
 s:double
@@ -386,7 +386,7 @@ x:double
 1
 ;
 
-powLongUL
+powLongUL#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = to_long(1) | eval x = pow(x, 9223372036854775808);
 
 x:double
@@ -416,7 +416,7 @@ x:double
 null
 ;
 
-powULInt
+powULInt#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = pow(to_unsigned_long(9223372036854775807), 1);
 
 x:double

@@ -73,7 +73,7 @@ class TransformFailureHandler {
         } else if (unwrappedException instanceof SearchPhaseExecutionException e) {
             // The reason of a SearchPhaseExecutionException unfortunately contains a full stack trace.
             // Instead of displaying that to the user, get the cause's message instead.
-            retry(e, e.getCause().getMessage(), unattended, getNumFailureRetries(settingsConfig));
+            retry(e, e.getCause() != null ? e.getCause().getMessage() : null, unattended, getNumFailureRetries(settingsConfig));
         } else if (unwrappedException instanceof ElasticsearchException e) {
             handleElasticsearchException(e, unattended, getNumFailureRetries(settingsConfig));
         } else if (unwrappedException instanceof IllegalArgumentException e) {

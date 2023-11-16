@@ -50,7 +50,8 @@ public final class InferenceIndexConstants {
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
 
     // 2 added support for platform specific models
-    public static final int INFERENCE_INDEX_MAPPINGS_VERSION = 2;
+    // 3 added prefix strings configuration
+    public static final int INFERENCE_INDEX_MAPPINGS_VERSION = 3;
 
     public static String mapping() {
         return TemplateUtils.loadTemplate(

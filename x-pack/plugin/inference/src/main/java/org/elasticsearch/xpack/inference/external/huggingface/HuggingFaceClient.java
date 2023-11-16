@@ -7,46 +7,43 @@
 
 package org.elasticsearch.xpack.inference.external.huggingface;
 
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.AlwaysRetryingResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequest;
 import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceElserResponseEntity;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
-
-import static org.elasticsearch.core.Strings.format;
+import java.util.List;
 
 public class HuggingFaceClient {
     private static final Logger logger = LogManager.getLogger(HuggingFaceClient.class);
+    private static final ResponseHandler ELSER_RESPONSE_HANDLER = createElserHandler();
 
-    private final ThrottlerManager throttlerManager;
+    private final RetryingHttpSender sender;
 
-    private final Sender sender;
-
-    public HuggingFaceClient(Sender sender, ThrottlerManager throttlerManager) {
-        this.sender = sender;
-        this.throttlerManager = throttlerManager;
+    public HuggingFaceClient(Sender sender, ServiceComponents serviceComponents) {
+        this.sender = new RetryingHttpSender(
+            sender,
+            serviceComponents.throttlerManager(),
+            logger,
+            new RetrySettings(serviceComponents.settings()),
+            serviceComponents.threadPool()
+        );
     }
 
-    public void send(HuggingFaceElserRequest request, ActionListener<InferenceResults> listener) throws IOException {
-        HttpRequestBase httpRequest = request.createRequest();
-        ActionListener<HttpResult> responseListener = ActionListener.wrap(response -> {
-            try {
-                listener.onResponse(HuggingFaceElserResponseEntity.fromResponse(response));
-            } catch (Exception e) {
-                String msg = format("Failed to parse the Hugging Face ELSER response for request [%s]", httpRequest.getRequestLine());
-                throttlerManager.getThrottler().warn(logger, msg, e);
-                listener.onFailure(new ElasticsearchException(msg, e));
-            }
-        }, listener::onFailure);
+    public void send(HuggingFaceElserRequest request, ActionListener<List<? extends InferenceResults>> listener) throws IOException {
+        this.sender.send(request.createRequest(), ELSER_RESPONSE_HANDLER, listener);
+    }
 
-        sender.send(httpRequest, responseListener);
+    private static ResponseHandler createElserHandler() {
+        return new AlwaysRetryingResponseHandler("elser hugging face", HuggingFaceElserResponseEntity::fromResponse);
     }
 }

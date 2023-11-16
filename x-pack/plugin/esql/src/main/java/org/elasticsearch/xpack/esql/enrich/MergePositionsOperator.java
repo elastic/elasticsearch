@@ -81,23 +81,27 @@ final class MergePositionsOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        final IntBlock positions = page.getBlock(positionChannel);
-        final int currentPosition = positions.getInt(0);
-        if (singleMode) {
-            fillNullUpToPosition(currentPosition);
-            for (int i = 0; i < mergingChannels.length; i++) {
-                int channel = mergingChannels[i];
-                outputBuilders[i].appendAllValuesToCurrentPosition(page.getBlock(channel));
+        try {
+            final IntBlock positions = page.getBlock(positionChannel);
+            final int currentPosition = positions.getInt(0);
+            if (singleMode) {
+                fillNullUpToPosition(currentPosition);
+                for (int i = 0; i < mergingChannels.length; i++) {
+                    int channel = mergingChannels[i];
+                    outputBuilders[i].appendAllValuesToCurrentPosition(page.getBlock(channel));
+                }
+                filledPositions++;
+            } else {
+                if (positionBuilder != null && positionBuilder.position != currentPosition) {
+                    flushPositionBuilder();
+                }
+                if (positionBuilder == null) {
+                    positionBuilder = new PositionBuilder(currentPosition, mergingTypes);
+                }
+                positionBuilder.combine(page, mergingChannels);
             }
-            filledPositions++;
-        } else {
-            if (positionBuilder != null && positionBuilder.position != currentPosition) {
-                flushPositionBuilder();
-            }
-            if (positionBuilder == null) {
-                positionBuilder = new PositionBuilder(currentPosition, mergingTypes);
-            }
-            positionBuilder.combine(page, mergingChannels);
+        } finally {
+            Releasables.closeExpectNoException(page::releaseBlocks);
         }
     }
 

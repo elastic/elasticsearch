@@ -86,7 +86,6 @@ the same numeric UID and GID, or else update your NFS configuration to account
 for the variance in numeric IDs across nodes.
 
 [[repository-fs-linearizable-registers]]
-[discrete]
 ==== Linearizable register implementation
 
 The linearizable register implementation for shared filesystem repositories is

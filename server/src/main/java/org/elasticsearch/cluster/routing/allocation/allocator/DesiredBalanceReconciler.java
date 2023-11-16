@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -68,6 +69,20 @@ public class DesiredBalanceReconciler {
     private double undesiredAllocationsLogThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
+
+    // stats
+    /**
+     * Number of unassigned shards during last reconciliation
+     */
+    protected final AtomicLong unassignedShards = new AtomicLong();
+    /**
+     * Total number of assigned shards during last reconciliation
+     */
+    protected final AtomicLong totalAllocations = new AtomicLong();
+    /**
+     * Number of assigned shards during last reconciliation that are not allocated on desired node and need to be moved
+     */
+    protected final AtomicLong undesiredAllocations = new AtomicLong();
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(threadPool);
@@ -445,8 +460,9 @@ public class DesiredBalanceReconciler {
                 return;
             }
 
-            long allAllocations = 0;
-            long undesiredAllocations = 0;
+            int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
+            int totalAllocations = 0;
+            int undesiredAllocations = 0;
 
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
@@ -454,7 +470,7 @@ public class DesiredBalanceReconciler {
             for (final var iterator = OrderedShardsIterator.create(routingNodes, moveOrdering); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
 
-                allAllocations++;
+                totalAllocations++;
 
                 if (shardRouting.started() == false) {
                     // can only rebalance started shards
@@ -504,10 +520,14 @@ public class DesiredBalanceReconciler {
                 }
             }
 
-            maybeLogUndesiredAllocationsWarning(allAllocations, undesiredAllocations, routingNodes.size());
+            DesiredBalanceReconciler.this.unassignedShards.set(unassignedShards);
+            DesiredBalanceReconciler.this.undesiredAllocations.set(undesiredAllocations);
+            DesiredBalanceReconciler.this.totalAllocations.set(totalAllocations);
+
+            maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocations, routingNodes.size());
         }
 
-        private void maybeLogUndesiredAllocationsWarning(long allAllocations, long undesiredAllocations, int nodeCount) {
+        private void maybeLogUndesiredAllocationsWarning(int allAllocations, int undesiredAllocations, int nodeCount) {
             // more shards than cluster can relocate with one reroute
             final boolean nonEmptyRelocationBacklog = undesiredAllocations > 2L * nodeCount;
             final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsLogThreshold * allAllocations;

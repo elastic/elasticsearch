@@ -783,7 +783,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             if (child instanceof OrderBy childOrder) {
                 // combine orders
-                return new OrderBy(orderBy.source(), childOrder.child(), CollectionUtils.combine(orderBy.order(), childOrder.order()));
+                return new OrderBy(orderBy.source(), childOrder.child(), orderBy.order());
             } else if (child instanceof Project) {
                 return pushDownPastProject(orderBy);
             }

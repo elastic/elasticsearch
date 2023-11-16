@@ -111,7 +111,7 @@ public abstract class ParsedPercentiles extends ParsedAggregation implements Ite
                         } else if (token == XContentParser.Token.VALUE_STRING) {
                             int i = parser.currentName().indexOf("_as_string");
                             if (i > 0) {
-                                double key = Double.valueOf(parser.currentName().substring(0, i));
+                                double key = Double.parseDouble(parser.currentName().substring(0, i));
                                 aggregation.addPercentileAsString(key, parser.text());
                             } else {
                                 aggregation.addPercentile(Double.valueOf(parser.currentName()), Double.valueOf(parser.text()));

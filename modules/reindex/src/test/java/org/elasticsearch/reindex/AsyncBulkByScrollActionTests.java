@@ -126,6 +126,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private PlainActionFuture<BulkByScrollResponse> listener;
     private String scrollId;
     private ThreadPool threadPool;
+    private ThreadPool clientThreadPool;
     private TaskManager taskManager;
     private BulkByScrollTask testTask;
     private WorkerBulkByScrollTaskState worker;
@@ -154,16 +155,18 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private void setupClient(ThreadPool threadPool) {
-        if (client != null) {
-            client.close();
+        if (clientThreadPool != null) {
+            terminate(clientThreadPool);
         }
+        clientThreadPool = threadPool;
         client = new MyMockClient(new NoOpClient(threadPool));
         client.threadPool().getThreadContext().putHeader(expectedHeaders);
     }
 
     @After
     public void tearDownAndVerifyCommonStuff() throws Exception {
-        client.close();
+        terminate(clientThreadPool);
+        clientThreadPool = null;
         terminate(threadPool);
     }
 

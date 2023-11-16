@@ -60,7 +60,7 @@ public class ToDatetime extends AbstractConvertFunction {
         return NodeInfo.create(this, ToDatetime::new, field());
     }
 
-    @ConvertEvaluator(extraName = "FromString")
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
         return DateParse.process(in, DateParse.DEFAULT_FORMATTER);
     }

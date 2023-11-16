@@ -20,9 +20,11 @@ import java.util.stream.Collectors;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Methods.appendMethod;
+import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_CONVERT_FUNCTION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
@@ -33,6 +35,7 @@ import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
 import static org.elasticsearch.compute.gen.Types.blockType;
+import static org.elasticsearch.compute.gen.Types.builderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class ConvertEvaluatorImplementer {
@@ -43,8 +46,14 @@ public class ConvertEvaluatorImplementer {
     private final ClassName implementation;
     private final TypeName argumentType;
     private final TypeName resultType;
+    private final List<TypeMirror> warnExceptions;
 
-    public ConvertEvaluatorImplementer(Elements elements, ExecutableElement processFunction, String extraName) {
+    public ConvertEvaluatorImplementer(
+        Elements elements,
+        ExecutableElement processFunction,
+        String extraName,
+        List<TypeMirror> warnExceptions
+    ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
         this.processFunction = processFunction;
         if (processFunction.getParameters().size() != 1) {
@@ -53,6 +62,7 @@ public class ConvertEvaluatorImplementer {
         this.extraName = extraName;
         this.argumentType = TypeName.get(processFunction.getParameters().get(0).asType());
         this.resultType = TypeName.get(processFunction.getReturnType());
+        this.warnExceptions = warnExceptions;
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -111,56 +121,61 @@ public class ConvertEvaluatorImplementer {
         builder.addStatement("$T vector = ($T) v", vectorType, vectorType);
         builder.addStatement("int positionCount = v.getPositionCount()");
 
-        String scratchPadName = null;
+        String scratchPadName = argumentType.equals(BYTES_REF) ? "scratchPad" : null;
         if (argumentType.equals(BYTES_REF)) {
-            scratchPadName = "scratchPad";
             builder.addStatement("BytesRef $N = new BytesRef()", scratchPadName);
         }
 
         builder.beginControlFlow("if (vector.isConstant())");
         {
-            builder.beginControlFlow("try");
-            {
+            catchingWarnExceptions(builder, () -> {
                 var constVectType = blockType(resultType);
                 builder.addStatement(
                     "return driverContext.blockFactory().newConstant$TWith($N, positionCount)",
                     constVectType,
                     evalValueCall("vector", "0", scratchPadName)
                 );
-            }
-            builder.nextControlFlow("catch (Exception e)");
-            {
-                builder.addStatement("registerException(e)");
-                builder.addStatement("return Block.constantNullBlock(positionCount, driverContext.blockFactory())");
-            }
-            builder.endControlFlow();
+            }, () -> builder.addStatement("return driverContext.blockFactory().newConstantNullBlock(positionCount)"));
         }
         builder.endControlFlow();
 
-        ClassName returnBlockType = blockType(resultType);
-        builder.addStatement(
-            "$T.Builder builder = $T.newBlockBuilder(positionCount, driverContext.blockFactory())",
-            returnBlockType,
-            returnBlockType
+        ClassName resultBuilderType = builderType(blockType(resultType));
+        builder.beginControlFlow(
+            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            resultBuilderType,
+            buildFromFactory(resultBuilderType)
         );
-        builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
         {
-            builder.beginControlFlow("try");
+            builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
             {
-                builder.addStatement("builder.$L($N)", appendMethod(resultType), evalValueCall("vector", "p", scratchPadName));
-            }
-            builder.nextControlFlow("catch (Exception e)");
-            {
-                builder.addStatement("registerException(e)");
-                builder.addStatement("builder.appendNull()");
+                catchingWarnExceptions(
+                    builder,
+                    () -> builder.addStatement("builder.$L($N)", appendMethod(resultType), evalValueCall("vector", "p", scratchPadName)),
+                    () -> builder.addStatement("builder.appendNull()")
+                );
             }
             builder.endControlFlow();
+            builder.addStatement("return builder.build()");
         }
         builder.endControlFlow();
-
-        builder.addStatement("return builder.build()");
 
         return builder.build();
+    }
+
+    private void catchingWarnExceptions(MethodSpec.Builder builder, Runnable whileCatching, Runnable ifCaught) {
+        if (warnExceptions.isEmpty()) {
+            whileCatching.run();
+            return;
+        }
+        builder.beginControlFlow("try");
+        whileCatching.run();
+        builder.nextControlFlow(
+            "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + "  e)",
+            warnExceptions.stream().map(m -> TypeName.get(m)).toArray()
+        );
+        builder.addStatement("registerException(e)");
+        ifCaught.run();
+        builder.endControlFlow();
     }
 
     private MethodSpec evalBlock() {
@@ -170,15 +185,14 @@ public class ConvertEvaluatorImplementer {
         TypeName blockType = blockType(argumentType);
         builder.addStatement("$T block = ($T) b", blockType, blockType);
         builder.addStatement("int positionCount = block.getPositionCount()");
-        TypeName resultBlockType = blockType(resultType);
+        TypeName resultBuilderType = builderType(blockType(resultType));
         builder.beginControlFlow(
-            "try ($T.Builder builder = $T.newBlockBuilder(positionCount, driverContext.blockFactory()))",
-            resultBlockType,
-            resultBlockType
+            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            resultBuilderType,
+            buildFromFactory(resultBuilderType)
         );
-        String scratchPadName = null;
+        String scratchPadName = argumentType.equals(BYTES_REF) ? "scratchPad" : null;
         if (argumentType.equals(BYTES_REF)) {
-            scratchPadName = "scratchPad";
             builder.addStatement("BytesRef $N = new BytesRef()", scratchPadName);
         }
 
@@ -193,8 +207,7 @@ public class ConvertEvaluatorImplementer {
             // builder.addStatement("builder.beginPositionEntry()");
             builder.beginControlFlow("for (int i = start; i < end; i++)");
             {
-                builder.beginControlFlow("try");
-                {
+                catchingWarnExceptions(builder, () -> {
                     builder.addStatement("$T value = $N", resultType, evalValueCall("block", "i", scratchPadName));
                     builder.beginControlFlow("if (positionOpened == false && valueCount > 1)");
                     {
@@ -204,12 +217,7 @@ public class ConvertEvaluatorImplementer {
                     builder.endControlFlow();
                     builder.addStatement("builder.$N(value)", appendMethod);
                     builder.addStatement("valuesAppended = true");
-                }
-                builder.nextControlFlow("catch (Exception e)");
-                {
-                    builder.addStatement("registerException(e)");
-                }
-                builder.endControlFlow();
+                }, () -> {});
             }
             builder.endControlFlow();
             builder.beginControlFlow("if (valuesAppended == false)");

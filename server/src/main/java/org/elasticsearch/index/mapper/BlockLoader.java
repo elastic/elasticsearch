@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 
@@ -125,12 +126,23 @@ public interface BlockLoader {
     }
 
     /**
+     * Marker interface for block results. The compute engine has a fleshed
+     * out implementation.
+     */
+    interface Block {}
+
+    /**
      * A builder for typed values. For each document you may either call
      * {@link #appendNull}, {@code append<Type>}, or
      * {@link #beginPositionEntry} followed by two or more {@code append<Type>}
      * calls, and then {@link #endPositionEntry}.
      */
-    interface Builder {
+    interface Builder extends Releasable {
+        /**
+         * Build the actual block.
+         */
+        Block build();
+
         /**
          * Insert a null value.
          */

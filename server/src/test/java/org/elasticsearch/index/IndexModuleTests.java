@@ -701,7 +701,7 @@ public class IndexModuleTests extends ESTestCase {
             closeables.add(() -> indexShard.close("close shard at end of test", true));
             indexShard.markAsRecovering("test", new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null));
 
-            final PlainActionFuture<Boolean> recoveryFuture = PlainActionFuture.newFuture();
+            final PlainActionFuture<Boolean> recoveryFuture = new PlainActionFuture<>();
             indexShard.recoverFromStore(recoveryFuture);
             recoveryFuture.get();
 

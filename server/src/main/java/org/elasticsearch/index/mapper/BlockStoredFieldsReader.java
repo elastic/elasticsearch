@@ -63,12 +63,13 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
     }
 
     @Override
-    public final BlockLoader.Builder readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) throws IOException {
-        var builder = builder(factory, docs.count());
-        for (int i = 0; i < docs.count(); i++) {
-            readValuesFromSingleDoc(docs.get(i), builder);
+    public final BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) throws IOException {
+        try (BlockLoader.Builder builder = builder(factory, docs.count())) {
+            for (int i = 0; i < docs.count(); i++) {
+                readValuesFromSingleDoc(docs.get(i), builder);
+            }
+            return builder.build();
         }
-        return builder;
     }
 
     @Override

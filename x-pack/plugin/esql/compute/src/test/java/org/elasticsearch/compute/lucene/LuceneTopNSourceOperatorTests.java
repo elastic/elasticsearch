@@ -15,6 +15,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -23,7 +24,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
-import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -136,23 +138,50 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     // TODO tests for the other data partitioning configurations
 
     public void testShardDataPartitioning() {
+        testShardDataPartitioning(driverContext());
+    }
+
+    public void testShardDataPartitioningWithCranky() {
+        try {
+            testShardDataPartitioning(crankyDriverContext());
+            logger.info("cranky didn't break");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testShardDataPartitioning(DriverContext context) {
         int size = between(1_000, 20_000);
         int limit = between(10, size);
-        testSimple(size, limit);
+        testSimple(context, size, limit);
     }
 
     public void testEmpty() {
-        testSimple(0, between(10, 10_000));
+        testEmpty(driverContext());
     }
 
-    private void testSimple(int size, int limit) {
-        DriverContext ctx = driverContext();
-        LuceneTopNSourceOperator.Factory factory = simple(nonBreakingBigArrays(), DataPartitioning.SHARD, size, limit);
+    public void testEmptyWithCranky() {
+        try {
+            testEmpty(crankyDriverContext());
+            logger.info("cranky didn't break");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testEmpty(DriverContext context) {
+        testSimple(context, 0, between(10, 10_000));
+    }
+
+    private void testSimple(DriverContext ctx, int size, int limit) {
+        LuceneTopNSourceOperator.Factory factory = simple(ctx.bigArrays(), DataPartitioning.SHARD, size, limit);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD);
 
         List<Page> results = new ArrayList<>();
         OperatorTestCase.runDriver(
-            new Driver(ctx, factory.get(ctx), List.of(readS.get(ctx)), new PageConsumerOperator(page -> results.add(page)), () -> {})
+            new Driver(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add), () -> {})
         );
         OperatorTestCase.assertDriverContext(ctx);
 

@@ -585,13 +585,14 @@ public final class PlanNamedTypes {
     }
 
     static MvExpandExec readMvExpandExec(PlanStreamInput in) throws IOException {
-        return new MvExpandExec(in.readSource(), in.readPhysicalPlanNode(), in.readNamedExpression());
+        return new MvExpandExec(in.readSource(), in.readPhysicalPlanNode(), in.readNamedExpression(), in.readAttribute());
     }
 
     static void writeMvExpandExec(PlanStreamOutput out, MvExpandExec mvExpandExec) throws IOException {
         out.writeNoSource();
         out.writePhysicalPlanNode(mvExpandExec.child());
         out.writeNamedExpression(mvExpandExec.target());
+        out.writeAttribute(mvExpandExec.expanded());
     }
 
     static OrderExec readOrderExec(PlanStreamInput in) throws IOException {
@@ -780,13 +781,14 @@ public final class PlanNamedTypes {
     }
 
     static MvExpand readMvExpand(PlanStreamInput in) throws IOException {
-        return new MvExpand(in.readSource(), in.readLogicalPlanNode(), in.readNamedExpression());
+        return new MvExpand(in.readSource(), in.readLogicalPlanNode(), in.readNamedExpression(), in.readAttribute());
     }
 
     static void writeMvExpand(PlanStreamOutput out, MvExpand mvExpand) throws IOException {
         out.writeNoSource();
         out.writeLogicalPlanNode(mvExpand.child());
         out.writeNamedExpression(mvExpand.target());
+        out.writeAttribute(mvExpand.expanded());
     }
 
     static OrderBy readOrderBy(PlanStreamInput in) throws IOException {

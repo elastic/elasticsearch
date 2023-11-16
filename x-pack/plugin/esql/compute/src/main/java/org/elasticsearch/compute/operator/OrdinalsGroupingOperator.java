@@ -467,7 +467,7 @@ public class OrdinalsGroupingOperator implements Operator {
             int maxPageSize,
             DriverContext driverContext
         ) {
-            this.extractor = new ValuesSourceReaderOperator(factories, docChannel, groupingField);
+            this.extractor = new ValuesSourceReaderOperator(BlockFactory.getNonBreakingInstance(), factories, docChannel, groupingField);
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
                 () -> BlockHash.build(List.of(new GroupSpec(channelIndex, groupingElementType)), driverContext, maxPageSize, false),

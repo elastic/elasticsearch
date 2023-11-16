@@ -156,16 +156,17 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.Builder readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) throws IOException {
-        BlockLoader.Builder blockBuilder = builder(factory, docs.count());
-        for (int i = 0; i < docs.count(); i++) {
-            int doc = docs.get(i);
-            if (doc < this.docID) {
-                throw new IllegalStateException("docs within same block must be in order");
+    public BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) throws IOException {
+        try (BlockLoader.Builder builder = builder(factory, docs.count())) {
+            for (int i = 0; i < docs.count(); i++) {
+                int doc = docs.get(i);
+                if (doc < this.docID) {
+                    throw new IllegalStateException("docs within same block must be in order");
+                }
+                readValuesFromSingleDoc(doc, builder);
             }
-            readValuesFromSingleDoc(doc, blockBuilder);
+            return builder.build();
         }
-        return blockBuilder;
     }
 
     @Override

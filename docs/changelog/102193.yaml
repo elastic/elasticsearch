@@ -1,0 +1,5 @@
+pr: 102193
+summary: Fix cache invalidation on privilege modification
+area: Authorization
+type: bug
+issues: []

@@ -187,10 +187,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             return Double.compare(centroid, other.centroid); // Use centroid for bucket ordering
         }
 
-        public DocValueFormat getFormatter() {
-            return format;
-        }
-
         Bucket finalizeSampling(SamplingContext samplingContext) {
             return new Bucket(
                 centroid,
@@ -280,10 +276,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     @Override
     public List<Bucket> getBuckets() {
         return Collections.unmodifiableList(buckets);
-    }
-
-    DocValueFormat getFormatter() {
-        return format;
     }
 
     public int getTargetBuckets() {
@@ -525,7 +517,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
      *
      * After this adjustment, A will contain more values than indicated and B will have less.
      */
-    private static void adjustBoundsForOverlappingBuckets(List<Bucket> buckets, AggregationReduceContext reduceContext) {
+    private static void adjustBoundsForOverlappingBuckets(List<Bucket> buckets) {
         for (int i = 1; i < buckets.size(); i++) {
             Bucket curBucket = buckets.get(i);
             Bucket prevBucket = buckets.get(i - 1);
@@ -545,7 +537,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         if (reduceContext.isFinalReduce()) {
             buckets.sort(Comparator.comparing(Bucket::min));
             mergeBucketsWithSameMin(reducedBuckets, reduceContext);
-            adjustBoundsForOverlappingBuckets(reducedBuckets, reduceContext);
+            adjustBoundsForOverlappingBuckets(reducedBuckets);
         }
         return new InternalVariableWidthHistogram(getName(), reducedBuckets, emptyBucketInfo, targetNumBuckets, format, metadata);
     }

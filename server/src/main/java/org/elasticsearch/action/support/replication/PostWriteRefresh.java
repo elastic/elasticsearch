@@ -146,6 +146,7 @@ public class PostWriteRefresh {
     ) {
         UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
             indexShard.getReplicationGroup().getRoutingTable(),
+            indexShard.getOperationPrimaryTerm(),
             generation,
             true
         );

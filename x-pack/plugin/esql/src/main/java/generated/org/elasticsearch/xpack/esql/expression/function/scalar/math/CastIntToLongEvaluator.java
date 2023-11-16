@@ -33,9 +33,6 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       IntBlock vBlock = (IntBlock) vRef.block();
       IntVector vVector = vBlock.asVector();
       if (vVector == null) {
@@ -46,7 +43,7 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
   }
 
   public LongBlock eval(int positionCount, IntBlock vBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -59,7 +56,7 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
   }
 
   public LongVector eval(int positionCount, IntVector vVector) {
-    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendLong(Cast.castIntToLong(vVector.getInt(p)));
       }

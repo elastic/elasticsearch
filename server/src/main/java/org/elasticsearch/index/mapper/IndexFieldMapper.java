@@ -96,12 +96,13 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 }
 
                 @Override
-                public BlockLoader.Builder readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
-                    BlockLoader.BytesRefBuilder builder = builder(factory, docs.count());
-                    for (int i = 0; i < docs.count(); i++) {
-                        builder.appendBytesRef(bytes);
+                public BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
+                    try (BlockLoader.BytesRefBuilder builder = builder(factory, docs.count())) {
+                        for (int i = 0; i < docs.count(); i++) {
+                            builder.appendBytesRef(bytes);
+                        }
+                        return builder.build();
                     }
-                    return builder;
                 }
 
                 @Override

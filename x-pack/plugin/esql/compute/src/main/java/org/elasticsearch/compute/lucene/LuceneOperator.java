@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.logging.LogManager;
@@ -37,6 +38,8 @@ public abstract class LuceneOperator extends SourceOperator {
 
     public static final int NO_LIMIT = Integer.MAX_VALUE;
 
+    protected final BlockFactory blockFactory;
+
     private int processSlices;
     final int maxPageSize;
     private final LuceneSliceQueue sliceQueue;
@@ -49,7 +52,8 @@ public abstract class LuceneOperator extends SourceOperator {
     int pagesEmitted;
     boolean doneCollecting;
 
-    public LuceneOperator(int maxPageSize, LuceneSliceQueue sliceQueue) {
+    public LuceneOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue) {
+        this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
     }

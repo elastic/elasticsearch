@@ -1094,14 +1094,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         // Drop all file chunk requests so that below relocation takes forever and we're guaranteed to run the snapshot in parallel to it
         for (String nodeName : dataNodes) {
-            ((MockTransportService) internalCluster().getInstance(TransportService.class, nodeName)).addSendBehavior(
-                (connection, requestId, action, request, options) -> {
-                    if (PeerRecoveryTargetService.Actions.FILE_CHUNK.equals(action)) {
-                        return;
-                    }
-                    connection.sendRequest(requestId, action, request, options);
+            MockTransportService.getInstance(nodeName).addSendBehavior((connection, requestId, action, request, options) -> {
+                if (PeerRecoveryTargetService.Actions.FILE_CHUNK.equals(action)) {
+                    return;
                 }
-            );
+                connection.sendRequest(requestId, action, request, options);
+            });
         }
 
         logger.info("--> start relocations");
@@ -1168,7 +1166,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int concurrentLoops = randomIntBetween(2, 5);
         final List<Future<Void>> futures = new ArrayList<>(concurrentLoops);
         for (int i = 0; i < concurrentLoops; i++) {
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
             futures.add(future);
             startSnapshotDeleteLoop(repoName, indexName, "test-snap-" + i, future);
         }

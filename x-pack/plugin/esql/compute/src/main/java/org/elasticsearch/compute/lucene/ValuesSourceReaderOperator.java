@@ -53,7 +53,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(sources, docChannel, field);
+            return new ValuesSourceReaderOperator(driverContext.blockFactory(), sources, docChannel, field);
         }
 
         @Override
@@ -83,11 +83,16 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      * @param field the lucene field being loaded
      */
-    public ValuesSourceReaderOperator(List<BlockDocValuesReader.Factory> factories, int docChannel, String field) {
+    public ValuesSourceReaderOperator(
+        BlockFactory blockFactory,
+        List<BlockDocValuesReader.Factory> factories,
+        int docChannel,
+        String field
+    ) {
         this.factories = factories;
         this.docChannel = docChannel;
         this.field = field;
-        this.blockFactory = new ComputeBlockLoaderFactory(BlockFactory.getNonBreakingInstance()); // TODO breaking!
+        this.blockFactory = new ComputeBlockLoaderFactory(blockFactory);
     }
 
     @Override
@@ -106,7 +111,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     private Block loadFromSingleLeaf(DocVector docVector) throws IOException {
         setupReader(docVector.shards().getInt(0), docVector.segments().getInt(0), docVector.docs().getInt(0));
-        return ((Block.Builder) lastReader.readValues(blockFactory, new BlockLoader.Docs() {
+        return ((Block) lastReader.readValues(blockFactory, new BlockLoader.Docs() {
             private final IntVector docs = docVector.docs();
 
             @Override
@@ -118,26 +123,28 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             public int get(int i) {
                 return docs.getInt(i);
             }
-        })).build();
+        }));
     }
 
     private Block loadFromManyLeaves(DocVector docVector) throws IOException {
         int[] forwards = docVector.shardSegmentDocMapForwards();
         int doc = docVector.docs().getInt(forwards[0]);
         setupReader(docVector.shards().getInt(forwards[0]), docVector.segments().getInt(forwards[0]), doc);
-        BlockLoader.Builder builder = lastReader.builder(blockFactory, forwards.length);
-        lastReader.readValuesFromSingleDoc(doc, builder);
-        for (int i = 1; i < forwards.length; i++) {
-            int shard = docVector.shards().getInt(forwards[i]);
-            int segment = docVector.segments().getInt(forwards[i]);
-            doc = docVector.docs().getInt(forwards[i]);
-            if (segment != lastSegment || shard != lastShard) {
-                setupReader(shard, segment, doc);
-            }
+        try (BlockLoader.Builder builder = lastReader.builder(blockFactory, forwards.length)) {
             lastReader.readValuesFromSingleDoc(doc, builder);
+            for (int i = 1; i < forwards.length; i++) {
+                int shard = docVector.shards().getInt(forwards[i]);
+                int segment = docVector.segments().getInt(forwards[i]);
+                doc = docVector.docs().getInt(forwards[i]);
+                if (segment != lastSegment || shard != lastShard) {
+                    setupReader(shard, segment, doc);
+                }
+                lastReader.readValuesFromSingleDoc(doc, builder);
+            }
+            try (Block orig = ((Block.Builder) builder).build()) {
+                return orig.filter(docVector.shardSegmentDocMapBackwards());
+            }
         }
-        // TODO maybe it's better for downstream consumers if we perform a copy here.
-        return ((Block.Builder) builder).build().filter(docVector.shardSegmentDocMapBackwards());
     }
 
     private void setupReader(int shard, int segment, int doc) throws IOException {

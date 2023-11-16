@@ -138,6 +138,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             // TODO build a constant block directly
+            if (value == null) {
+                return BlockDocValuesReader.nulls();
+            }
             BytesRef bytes = new BytesRef(value);
             return context -> new BlockDocValuesReader() {
                 private int docId;
@@ -153,12 +156,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public BlockLoader.Builder readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
-                    BlockLoader.BytesRefBuilder builder = builder(factory, docs.count());
-                    for (int i = 0; i < docs.count(); i++) {
-                        builder.appendBytesRef(bytes);
+                public BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
+                    try (BlockLoader.BytesRefBuilder builder = builder(factory, docs.count())) {
+                        for (int i = 0; i < docs.count(); i++) {
+                            builder.appendBytesRef(bytes);
+                        }
+                        return builder.build();
                     }
-                    return builder;
                 }
 
                 @Override

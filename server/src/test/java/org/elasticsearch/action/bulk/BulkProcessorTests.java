@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -59,7 +57,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class BulkProcessorTests extends ESTestCase {
 
     private ThreadPool threadPool;
-    private final Logger logger = LogManager.getLogger(BulkProcessorTests.class);
 
     @Before
     public void startThreadPool() {

@@ -231,11 +231,6 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public boolean isFieldMapped(String field) {
-            return field.startsWith("int");
-        }
-
-        @Override
         public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
             throw new UnsupportedOperationException();
         }

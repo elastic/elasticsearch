@@ -1,0 +1,6 @@
+pr: 101859
+summary: Cover head/tail commands edge cases and data types coverage
+area: EQL
+type: bug
+issues:
+ - 101724

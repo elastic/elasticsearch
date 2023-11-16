@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -385,7 +386,8 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         DataFrameAnalyticsTaskState stoppingState = new DataFrameAnalyticsTaskState(
             DataFrameAnalyticsState.STOPPING,
             task.getAllocationId(),
-            null
+            null,
+            Instant.now()
         );
         task.updatePersistentTaskState(stoppingState, ActionListener.wrap(pTask -> {
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {

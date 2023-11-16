@@ -36,12 +36,13 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.Builder readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
-        BlockLoader.LongBuilder builder = builder(factory, docs.count());
-        for (int i = 0; i < docs.count(); i++) {
-            read(docs.get(i), builder);
+    public BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
+        try (BlockLoader.LongBuilder builder = builder(factory, docs.count())) {
+            for (int i = 0; i < docs.count(); i++) {
+                read(docs.get(i), builder);
+            }
+            return builder.build();
         }
-        return builder;
     }
 
     @Override

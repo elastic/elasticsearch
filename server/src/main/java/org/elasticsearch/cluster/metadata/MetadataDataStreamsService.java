@@ -166,7 +166,9 @@ public class MetadataDataStreamsService {
                     dataStream.isSystem(),
                     dataStream.isAllowCustomRouting(),
                     dataStream.getIndexMode(),
-                    lifecycle
+                    lifecycle,
+                    dataStream.isFailureStore(),
+                    dataStream.getFailureIndices()
                 )
             );
         }

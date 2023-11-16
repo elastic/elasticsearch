@@ -108,7 +108,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             threadPool,
             telemetryProvider.getMeterRegistry()
         );
-        this.desiredBalanceComputation = new ContinuousComputation<>(threadPool) {
+        this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
@@ -149,7 +149,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
             @Override
             public String toString() {
-                return "DesiredBalanceShardsAllocator#updateDesiredBalanceAndReroute";
+                return "DesiredBalanceShardsAllocator#allocate";
             }
         };
         this.queue = new PendingListenersQueue();

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -62,12 +63,16 @@ public abstract class AsyncOperator implements Operator {
 
     @Override
     public void addInput(Page input) {
-        checkFailure();
+        if (failure.get() != null) {
+            input.releaseBlocks();
+            return;
+        }
         final long seqNo = checkpoint.generateSeqNo();
         performAsync(input, ActionListener.wrap(output -> {
             buffers.put(seqNo, output);
             onSeqNoCompleted(seqNo);
         }, e -> {
+            input.releaseBlocks();
             onFailure(e);
             onSeqNoCompleted(seqNo);
         }));
@@ -80,6 +85,8 @@ public abstract class AsyncOperator implements Operator {
      * @param listener  the listener
      */
     protected abstract void performAsync(Page inputPage, ActionListener<Page> listener);
+
+    protected abstract void doClose();
 
     private void onFailure(Exception e) {
         failure.getAndUpdate(first -> {
@@ -105,6 +112,9 @@ public abstract class AsyncOperator implements Operator {
         if (checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint()) {
             notifyIfBlocked();
         }
+        if (failure.get() != null) {
+            discardPages();
+        }
     }
 
     private void notifyIfBlocked() {
@@ -123,18 +133,39 @@ public abstract class AsyncOperator implements Operator {
     private void checkFailure() {
         Exception e = failure.get();
         if (e != null) {
+            discardPages();
             throw ExceptionsHelper.convertToElastic(e);
         }
+    }
+
+    private void discardPages() {
+        long nextCheckpoint;
+        while ((nextCheckpoint = checkpoint.getPersistedCheckpoint() + 1) <= checkpoint.getProcessedCheckpoint()) {
+            Page page = buffers.remove(nextCheckpoint);
+            checkpoint.markSeqNoAsPersisted(nextCheckpoint);
+            if (page != null) {
+                Releasables.closeExpectNoException(page::releaseBlocks);
+            }
+        }
+    }
+
+    @Override
+    public final void close() {
+        finish();
+        discardPages();
+        doClose();
     }
 
     @Override
     public void finish() {
         finished = true;
+        if (failure.get() != null) {
+            discardPages();
+        }
     }
 
     @Override
     public boolean isFinished() {
-        checkFailure();
         return finished && checkpoint.getPersistedCheckpoint() == checkpoint.getMaxSeqNo();
     }
 
@@ -154,6 +185,7 @@ public abstract class AsyncOperator implements Operator {
 
     @Override
     public SubscribableListener<Void> isBlocked() {
+        // TODO: Add an exchange service between async operation instead?
         if (finished) {
             return Operator.NOT_BLOCKED;
         }

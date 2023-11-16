@@ -100,7 +100,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
         this.desiredBalanceReconciler = new DesiredBalanceReconciler(clusterService.getClusterSettings(), threadPool);
-        this.desiredBalanceComputation = new ContinuousComputation<>(threadPool) {
+        this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
@@ -141,7 +141,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
             @Override
             public String toString() {
-                return "DesiredBalanceShardsAllocator#updateDesiredBalanceAndReroute";
+                return "DesiredBalanceShardsAllocator#allocate";
             }
         };
         this.queue = new PendingListenersQueue();
@@ -272,7 +272,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             desiredBalanceComputer.iterations.sum(),
             computedShardMovements.sum(),
             cumulativeComputationTime.count(),
-            cumulativeReconciliationTime.count()
+            cumulativeReconciliationTime.count(),
+            desiredBalanceReconciler.unassignedShards.get(),
+            desiredBalanceReconciler.totalAllocations.get(),
+            desiredBalanceReconciler.undesiredAllocations.get()
         );
     }
 

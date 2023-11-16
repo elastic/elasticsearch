@@ -489,7 +489,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private static Optional<Join> joinWithDestination(Optional<Join> lastJoin, DiscoveryNode leader, long term) {
-        if (lastJoin.isPresent() && lastJoin.get().masterCandidateMatches(leader) && lastJoin.get().getTerm() == term) {
+        if (lastJoin.isPresent() && lastJoin.get().masterCandidateMatches(leader) && lastJoin.get().term() == term) {
             return lastJoin;
         }
 
@@ -780,7 +780,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
                 final CoordinationState coordState = coordinationState.get();
                 final boolean prevElectionWon = coordState.electionWon()
-                    && optionalJoin.stream().allMatch(j -> j.getTerm() <= getCurrentTerm());
+                    && optionalJoin.stream().allMatch(j -> j.term() <= getCurrentTerm());
 
                 optionalJoin.ifPresent(this::handleJoin);
                 joinAccumulator.handleJoinRequest(
@@ -1399,7 +1399,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private void handleJoin(Join join) {
         synchronized (mutex) {
-            ensureTermAtLeast(getLocalNode(), join.getTerm()).ifPresent(this::handleJoin);
+            ensureTermAtLeast(getLocalNode(), join.term()).ifPresent(this::handleJoin);
 
             if (coordinationState.get().electionWon()) {
                 // If we have already won the election then the actual join does not matter for election purposes, so swallow any exception
@@ -2075,7 +2075,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
 
         private void handleAssociatedJoin(Join join) {
-            if (join.getTerm() == getCurrentTerm() && missingJoinVoteFrom(join.getVotingNode())) {
+            if (join.term() == getCurrentTerm() && missingJoinVoteFrom(join.votingNode())) {
                 logger.trace("handling {}", join);
                 handleJoin(join);
             }

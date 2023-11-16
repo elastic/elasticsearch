@@ -170,7 +170,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         private Set<Long> valids;
         private Set<Long> invalids;
 
-        private Long spare = new Long(0);
+        private final Long spare = new Long(0);
 
         private SetBackedLongFilter(int numValids, int numInvalids) {
             if (numValids > 0) {

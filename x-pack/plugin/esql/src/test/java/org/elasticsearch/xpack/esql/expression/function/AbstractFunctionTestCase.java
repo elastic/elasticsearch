@@ -52,6 +52,10 @@ import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -117,11 +121,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     protected TestCaseSupplier.TestCase testCase;
 
-    protected static Iterable<Object[]> parameterSuppliersFromTypedData(List<TestCaseSupplier> cases) {
+    protected static Iterable<Object[]> parameterSuppliersFromTypedData(List<TestCaseSupplier> suppliers) {
         // TODO rename this method to something more descriptive. Javadoc. And make sure all parameters are "representable" types.
-        List<Object[]> parameters = new ArrayList<>(cases.size());
-        for (TestCaseSupplier element : cases) {
-            parameters.add(new Object[] { element });
+        List<Object[]> parameters = new ArrayList<>(suppliers.size());
+        for (TestCaseSupplier supplier : suppliers) {
+            parameters.add(new Object[] { supplier });
         }
         return parameters;
     }
@@ -493,13 +497,34 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertSerialization(buildFieldExpression(testCase));
     }
 
+    private static boolean ranAllTests = false;
+
+    @ClassRule
+    public static TestRule rule = new TestRule() {
+        @Override
+        public Statement apply(Statement base, Description description) {
+            for (Description d : description.getChildren()) {
+                if (d.getChildren().size() > 1) {
+                    ranAllTests = true;
+                    return base;
+                }
+            }
+            return base;
+        }
+    };
+
     @AfterClass
     public static void testFunctionInfo() {
+        if (ranAllTests == false) {
+            LogManager.getLogger(getTestClass()).info("Skipping function info checks because we're running a portion of the tests");
+            return;
+        }
         FunctionDefinition definition = definition();
         if (definition == null) {
             LogManager.getLogger(getTestClass()).info("Skipping function info checks because the function isn't registered");
             return;
         }
+        LogManager.getLogger(getTestClass()).info("Running function info checks");
         EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
         List<EsqlFunctionRegistry.ArgSignature> args = description.args();
 
@@ -760,6 +785,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     @AfterClass
     public static void renderSignature() throws IOException {
         if (System.getProperty("generateDocs") == null) {
+            return;
+        }
+        if (ranAllTests == false) {
+            LogManager.getLogger(getTestClass()).info("Skipping rendering signature because we're running a portion of the tests");
             return;
         }
         FunctionDefinition definition = definition();

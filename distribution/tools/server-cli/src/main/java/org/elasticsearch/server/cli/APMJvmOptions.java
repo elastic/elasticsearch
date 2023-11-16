@@ -145,7 +145,7 @@ class APMJvmOptions {
         // Configures a log file to write to. Don't disable writing to a log file,
         // as the agent will then require extra Security Manager permissions when
         // it tries to do something else, and it's just painful.
-        propertiesMap.put("log_file", logsDir.resolve("apm-agent.log").toString());
+        propertiesMap.put("log_file", logsDir.resolve("apm-agent.json").toString());
 
         // No point doing anything if we don't have a destination for the trace data, and it can't be configured dynamically
         if (propertiesMap.containsKey("server_url") == false && propertiesMap.containsKey("server_urls") == false) {

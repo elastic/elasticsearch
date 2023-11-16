@@ -65,7 +65,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -628,7 +627,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         if (indexMetadata != null) {
             diagnosisDefs.addAll(checkIsAllocationDisabled(indexMetadata, nodeAllocationResults));
-            diagnosisDefs.addAll(checkDataTierRelatedIssues(indexMetadata, nodeAllocationResults, state));
+            diagnosisDefs.addAll(checkNodeRoleRelatedIssues(indexMetadata, nodeAllocationResults, state, shardRouting));
         }
         if (diagnosisDefs.isEmpty()) {
             diagnosisDefs.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
@@ -678,36 +677,22 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     /**
-     * Generates a list of diagnoses for common problems that keep a shard from allocating to nodes in a data tier.
+     * Generates a list of diagnoses for common problems that keep a shard from allocating to nodes depending on their role;
+     * a very common example of such a case are data tiers.
      * @param indexMetadata Index metadata for the shard being diagnosed.
      * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
      * @param clusterState the current cluster state.
+     * @param shardRouting the shard the nodeAllocationResults refer to
      * @return A list of diagnoses for the provided unassigned shard
      */
-    public List<Diagnosis.Definition> checkDataTierRelatedIssues(
-        IndexMetadata indexMetadata,
-        List<NodeAllocationResult> nodeAllocationResults,
-        ClusterState clusterState
-    ) {
-        return checkNodeRoleRelatedIssues(indexMetadata, nodeAllocationResults, clusterState, indexMetadata::getTierPreference);
-    }
-
-    /**
-     * Generates a list of diagnoses for common problems that keep a shard from allocating to a node based on a role.
-     * @param indexMetadata Index metadata for the shard being diagnosed.
-     * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
-     * @param clusterState the current cluster state.
-     * @param rolePreferencesSupplier a function that provides the role preferences for this index.
-     * @return A list of diagnoses for the provided unassigned shard
-     */
-    public List<Diagnosis.Definition> checkNodeRoleRelatedIssues(
+    protected List<Diagnosis.Definition> checkNodeRoleRelatedIssues(
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> nodeAllocationResults,
         ClusterState clusterState,
-        Supplier<List<String>> rolePreferencesSupplier
+        ShardRouting shardRouting
     ) {
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
-        List<String> rolePreferences = rolePreferencesSupplier.get();
+        List<String> rolePreferences = indexMetadata.getTierPreference();
         if (rolePreferences.isEmpty() == false) {
             List<NodeAllocationResult> dataTierAllocationResults = nodeAllocationResults.stream()
                 .filter(hasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
@@ -855,11 +840,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
     }
 
-    private Optional<Diagnosis.Definition> checkNotEnoughNodesWithRole(
+    protected Optional<Diagnosis.Definition> checkNotEnoughNodesWithRole(
         List<NodeAllocationResult> dataTierAllocationResults,
         @Nullable String role
     ) {
-        // Not enough tier nodes to hold shards on different nodes?
+        // Not enough nodes to hold shards on different nodes?
         if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
             // We couldn't determine a desired tier. This is likely because there are no tiers in the cluster,
             // only `data` nodes. Give a generic ask for increasing the shard limit.
@@ -871,6 +856,26 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         } else {
             return Optional.empty();
         }
+    }
+
+    @Nullable
+    public Diagnosis.Definition getAddNodesWithRoleAction(String role) {
+        return ACTION_ENABLE_TIERS_LOOKUP.get(role);
+    }
+
+    @Nullable
+    public Diagnosis.Definition getIncreaseShardLimitIndexSettingAction(String role) {
+        return ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(role);
+    }
+
+    @Nullable
+    public Diagnosis.Definition getIncreaseShardLimitClusterSettingAction(String role) {
+        return ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(role);
+    }
+
+    @Nullable
+    public Diagnosis.Definition getIncreaseNodeWithRoleCapacityAction(String role) {
+        return ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(role);
     }
 
     public class ShardAllocationStatus {
@@ -1203,25 +1208,5 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
             }
         }
-    }
-
-    @Nullable
-    public Diagnosis.Definition getAddNodesWithRoleAction(String role) {
-        return ACTION_ENABLE_TIERS_LOOKUP.get(role);
-    }
-
-    @Nullable
-    public Diagnosis.Definition getIncreaseShardLimitIndexSettingAction(String role) {
-        return ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(role);
-    }
-
-    @Nullable
-    public Diagnosis.Definition getIncreaseShardLimitClusterSettingAction(String role) {
-        return ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(role);
-    }
-
-    @Nullable
-    public Diagnosis.Definition getIncreaseNodeWithRoleCapacityAction(String role) {
-        return ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(role);
     }
 }

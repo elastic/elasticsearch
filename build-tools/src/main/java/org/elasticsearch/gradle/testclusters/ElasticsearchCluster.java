@@ -11,14 +11,12 @@ import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
-import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
@@ -60,6 +58,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
+import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.BUNDLE_ATTRIBUTE;
 
 public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
@@ -74,7 +73,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final FileOperations fileOperations;
     private final File workingDirBase;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
-    transient private final Project project;
+    private final transient Project project;
     private final Provider<ReaperService> reaper;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
@@ -84,8 +83,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private int nodeIndex = 0;
 
     private final ConfigurableFileCollection pluginAndModuleConfiguration;
-
-    private final Attribute<Boolean> bundleAttribute = Attribute.of("bundle", Boolean.class);
 
     public ElasticsearchCluster(
         String path,
@@ -113,7 +110,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.isReleasedVersion = isReleasedVersion;
         this.nodes = project.container(ElasticsearchNode.class);
         this.pluginAndModuleConfiguration = project.getObjects().fileCollection();
-        configureArtifactTransforms();
         this.nodes.add(
             new ElasticsearchNode(
                 safeName(clusterName),
@@ -231,7 +227,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));
         Configuration extractedConfig = project.getConfigurations().detachedConfiguration(pluginDependency);
         extractedConfig.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
-        extractedConfig.getAttributes().attribute(bundleAttribute, true);
+        extractedConfig.getAttributes().attribute(BUNDLE_ATTRIBUTE, true);
         pluginAndModuleConfiguration.from(extractedConfig);
     }
 
@@ -263,20 +259,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void module(String moduleProjectPath) {
         module(maybeCreatePluginOrModuleDependency(moduleProjectPath, EXPLODED_BUNDLE_CONFIG));
-    }
-
-    private void configureArtifactTransforms() {
-        project.getDependencies().getAttributesSchema().attribute(bundleAttribute);
-        project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
-        project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
-            transformSpec.getFrom()
-                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
-                .attribute(bundleAttribute, true);
-            transformSpec.getTo()
-                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-                .attribute(bundleAttribute, true);
-            transformSpec.getParameters().setAsFiletreeOutput(true);
-        });
     }
 
     private final Map<String, Configuration> pluginAndModuleConfigurations = new HashMap<>();

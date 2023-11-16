@@ -11,11 +11,14 @@ import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.internal.file.FileOperations;
@@ -44,6 +47,8 @@ import javax.inject.Inject;
 import static org.elasticsearch.gradle.util.GradleUtils.noop;
 
 public class TestClustersPlugin implements Plugin<Project> {
+
+    public static final Attribute<Boolean> BUNDLE_ATTRIBUTE = Attribute.of("bundle", Boolean.class);
 
     public static final String EXTENSION_NAME = "testClusters";
     public static final String THROTTLE_SERVICE_NAME = "testClustersThrottle";
@@ -119,6 +124,21 @@ public class TestClustersPlugin implements Plugin<Project> {
 
         project.getTasks().withType(TestClustersAware.class).configureEach(task -> { task.usesService(testClustersThrottleProvider); });
         project.getRootProject().getPluginManager().apply(TestClustersHookPlugin.class);
+        configureArtifactTransforms(project);
+    }
+
+    private void configureArtifactTransforms(Project project) {
+        project.getDependencies().getAttributesSchema().attribute(BUNDLE_ATTRIBUTE);
+        project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
+        project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
+            transformSpec.getFrom()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
+                .attribute(BUNDLE_ATTRIBUTE, true);
+            transformSpec.getTo()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(BUNDLE_ATTRIBUTE, true);
+            transformSpec.getParameters().setAsFiletreeOutput(true);
+        });
     }
 
     private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(

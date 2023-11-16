@@ -7,6 +7,7 @@
 package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
@@ -27,5 +28,14 @@ public class S3SnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTest
         assertThat(basePath, not(blankOrNullString()));
 
         return Settings.builder().put("client", "repo_test_kit").put("bucket", bucket).put("base_path", basePath).build();
+    }
+
+    @Override
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/102294",
+        value = "org.elasticsearch.repositories.s3:TRACE,org.elasticsearch.repositories.blobstore.testkit:TRACE"
+    )
+    public void testRepositoryAnalysis() throws Exception {
+        super.testRepositoryAnalysis();
     }
 }

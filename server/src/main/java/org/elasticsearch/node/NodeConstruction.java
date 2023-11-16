@@ -111,6 +111,7 @@ import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -609,8 +610,9 @@ class NodeConstruction {
             .stream()
             .map(plugin -> plugin.getCircuitBreaker(settings))
             .toList();
+        final CircuitBreakerMetrics circuitBreakerMetrics = new CircuitBreakerMetrics(telemetryProvider, Collections.emptyMap());
         final CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
-            telemetryProvider,
+            circuitBreakerMetrics,
             settingsModule.getSettings(),
             pluginCircuitBreakers,
             settingsModule.getClusterSettings()
@@ -618,6 +620,7 @@ class NodeConstruction {
         pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
             CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
             plugin.setCircuitBreaker(breaker);
+            circuitBreakerMetrics.addCustomCircuitBreaker(breaker);
         });
         resourcesToClose.add(circuitBreakerService);
         modules.add(new GatewayModule());
@@ -1230,14 +1233,14 @@ class NodeConstruction {
      * @see Node#BREAKER_TYPE_KEY
      */
     private static CircuitBreakerService createCircuitBreakerService(
-        TelemetryProvider telemetryProvider,
+        CircuitBreakerMetrics metrics,
         Settings settings,
         List<BreakerSettings> breakerSettings,
         ClusterSettings clusterSettings
     ) {
         String type = Node.BREAKER_TYPE_KEY.get(settings);
         return switch (type) {
-            case "hierarchy" -> new HierarchyCircuitBreakerService(telemetryProvider, settings, breakerSettings, clusterSettings);
+            case "hierarchy" -> new HierarchyCircuitBreakerService(metrics, settings, breakerSettings, clusterSettings);
             case "none" -> new NoneCircuitBreakerService();
             default -> throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
         };

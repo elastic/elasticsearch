@@ -16,9 +16,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.reflect.InvocationTargetException;
@@ -360,7 +360,7 @@ public class BigArraysTests extends ESTestCase {
         for (String type : Arrays.asList("Byte", "Int", "Long", "Float", "Double", "Object")) {
             final int maxSize = randomIntBetween(1 << 8, 1 << 14);
             HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
-                TelemetryProvider.NOOP,
+                CircuitBreakerMetrics.NOOP,
                 Settings.builder()
                     .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                     .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
@@ -415,7 +415,7 @@ public class BigArraysTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         try (
             HierarchyCircuitBreakerService realBreakers = new HierarchyCircuitBreakerService(
-                TelemetryProvider.NOOP,
+                CircuitBreakerMetrics.NOOP,
                 Settings.EMPTY,
                 List.of(),
                 clusterSettings
@@ -500,7 +500,7 @@ public class BigArraysTests extends ESTestCase {
 
     private BigArrays newBigArraysInstance(final long maxSize, final boolean withBreaking) {
         HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
-            TelemetryProvider.NOOP,
+            CircuitBreakerMetrics.NOOP,
             Settings.builder()
                 .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)

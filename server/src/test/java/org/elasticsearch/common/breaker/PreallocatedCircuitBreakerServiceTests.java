@@ -10,9 +10,9 @@ package org.elasticsearch.common.breaker;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -122,7 +122,7 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
 
     private HierarchyCircuitBreakerService real() {
         return new HierarchyCircuitBreakerService(
-            TelemetryProvider.NOOP,
+            CircuitBreakerMetrics.NOOP,
             Settings.builder()
                 // Pin the limit to something that'll totally fit in the heap we use for the tests
                 .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100mb")

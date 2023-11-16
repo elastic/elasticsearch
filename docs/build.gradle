@@ -72,6 +72,10 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
+    if (BuildParams.isSnapshotBuild() == false) {
+//      systemProperty 'es.failure_store_feature_flag_enabled', 'true'
+      requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
+    }
   }
 
   // debug ccr test failures:

@@ -334,12 +334,12 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                 }
                 var indexResponse = client().prepareIndex(indexName)
                     .setSource("date", randomPositiveTimeValue(), "value", randomInt())
-                    .get();
+                    .get(TimeValue.timeValueSeconds(10));
                 var id = indexResponse.getId();
                 assertNotEquals(id, "");
                 var gets = randomIntBetween(20, 50);
                 for (int read = 0; read < gets; read++) {
-                    var getResponse = client().prepareGet(indexName, id).setRealtime(true).get();
+                    var getResponse = client().prepareGet(indexName, id).setRealtime(true).get(TimeValue.timeValueSeconds(10));
                     assertTrue(Strings.format("(write %d): failed to get '%s' at read %s", write, id, read), getResponse.isExists());
                 }
             }
@@ -400,7 +400,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                     for (int i = 0; i < docs; i++) {
                         bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
                     }
-                    var response = bulkRequest.get();
+                    var response = bulkRequest.get(TimeValue.timeValueSeconds(10));
                     assertNoFailures(response);
                     ids.add(randomFrom(Arrays.stream(response.getItems()).map(BulkItemResponse::getId).toList()));
                     safeSleep(randomLongBetween(0, 100));
@@ -416,7 +416,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                 try {
                     var id = randomBoolean() ? ids.poll(1, TimeUnit.SECONDS) : ids.peek();
                     if (id != null) {
-                        var getResponse = client().prepareGet(indexName, id).get();
+                        var getResponse = client().prepareGet(indexName, id).get(TimeValue.timeValueSeconds(10));
                         assertTrue(Strings.format("could not GET id '%s'", id), getResponse.isExists());
                         safeSleep(randomLongBetween(1, 100));
                     }

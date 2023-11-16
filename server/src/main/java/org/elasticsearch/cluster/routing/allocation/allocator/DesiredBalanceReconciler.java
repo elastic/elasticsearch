@@ -31,6 +31,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -97,21 +98,21 @@ public class DesiredBalanceReconciler {
 
         unassignedShards = LongGaugeMetric.create(
             meterRegistry,
-            "elasticsearch.allocator.desired_balance_reconciliation.unassigned_shards",
+            "es.allocator.desired_balance_reconciliation.unassigned_shards",
             "Current unassigned shards count"
         );
         totalAllocations = LongGaugeMetric.create(
             meterRegistry,
-            "elasticsearch.allocator.desired_balance_reconciliation.total_allocations",
+            "es.allocator.desired_balance_reconciliation.total_allocations",
             "Current total shards count in cluster"
         );
         undesiredAllocations = LongGaugeMetric.create(
             meterRegistry,
-            "elasticsearch.allocator.desired_balance_reconciliation.undesired_allocations",
+            "es.allocator.desired_balance_reconciliation.undesired_allocations",
             "Current number of shards allocated on undesired nodes"
         );
         undesiredAllocationsFraction = meterRegistry.registerDoubleGauge(
-            "elasticsearch.allocator.desired_balance_reconciliation.undesired_allocations_fraction",
+            "es.allocator.desired_balance_reconciliation.undesired_allocations_fraction",
             "Current undesired_allocations / total_allocations fraction",
             "",
             () -> {

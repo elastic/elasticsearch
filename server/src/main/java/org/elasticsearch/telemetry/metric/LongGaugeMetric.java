@@ -6,16 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cluster.routing.allocation.allocator;
-
-import org.elasticsearch.telemetry.metric.LongGauge;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
+package org.elasticsearch.telemetry.metric;
 
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * This wrapper allow us to record metric with APM (via LongGauge) while also access its current state via AtomicLong
+ * This wrapper allow us to record metric with APM (via {@link LongGauge}) while also access its current state via {@link AtomicLong}
  */
 public record LongGaugeMetric(AtomicLong value, LongGauge gauge) {
 

@@ -37,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;

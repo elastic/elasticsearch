@@ -657,7 +657,8 @@ class NodeConstruction {
             snapshotsInfoService,
             threadPool,
             systemIndices,
-            writeLoadForecaster
+            writeLoadForecaster,
+            telemetryProvider
         );
         modules.add(clusterModule);
         IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());

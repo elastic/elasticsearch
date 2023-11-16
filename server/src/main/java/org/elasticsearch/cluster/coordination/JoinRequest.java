@@ -76,7 +76,10 @@ public class JoinRequest extends TransportRequest {
         } else {
             // there's a 1-1 mapping from Version to TransportVersion before 8.8.0
             // no known mapping versions here
-            compatibilityVersions = new CompatibilityVersions(TransportVersion.fromId(sourceNode.getVersion().id), Map.of());
+            compatibilityVersions = new CompatibilityVersions(
+                TransportVersion.fromId(sourceNode.getPre811VersionId().getAsInt()),
+                Map.of()
+            );
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
             features = in.readCollectionAsSet(StreamInput::readString);

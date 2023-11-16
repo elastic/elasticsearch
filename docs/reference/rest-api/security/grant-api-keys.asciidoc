@@ -58,8 +58,11 @@ The following parameters can be specified in the body of a POST request:
 
 `access_token`::
 (Required*, string)
-The user's {es} access token or JWT. If you specify the `access_token` grant type, this
-parameter is required. It is not valid with other grant types.
+The user's <<security-api-get-token, {es} access token>>, or JWT. Both <<jwt-realm-oauth2, access>> and
+<<jwt-realm-oidc, id>> JWT token types are supported, and they depend on the underlying JWT realm configuration.
+The created API key will have a point in time snapshot of permissions of the user authenticated with this token
+(or even more restricted permissions, see the `role_descriptors` parameter).
+If you specify the `access_token` grant type, this parameter is required. It is not valid with other grant types.
 
 `api_key`::
 (Required, object)

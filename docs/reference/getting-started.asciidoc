@@ -46,9 +46,10 @@ stream must have a `@timestamp` field.
 [[add-single-document]]
 ==== Add a single document
 
-Submit the following indexing request to add a single log entry to the
-`logs-my_app-default` data stream. Since `logs-my_app-default` doesn't exist, the
-request automatically creates it using the built-in `logs-*-*` index template.
+Submit the following indexing request to add a single document to the
+`books` index.
+Since `index` doesn't exist yet, the
+request automatically creates it.
 
 [source,console]
 ----

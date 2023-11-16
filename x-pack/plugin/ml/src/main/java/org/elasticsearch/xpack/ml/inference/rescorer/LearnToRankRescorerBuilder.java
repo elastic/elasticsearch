@@ -343,8 +343,8 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(MODEL_FIELD.getPreferredName(), modelId);
-        if (params != null) {
-            builder.field(PARAMS_FIELD.getPreferredName(), params);
+        if (this.params != null) {
+            builder.field(PARAMS_FIELD.getPreferredName(), this.params);
         }
         builder.endObject();
     }

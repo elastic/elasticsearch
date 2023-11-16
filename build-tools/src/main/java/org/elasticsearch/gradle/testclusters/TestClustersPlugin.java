@@ -256,7 +256,6 @@ public class TestClustersPlugin implements Plugin<Project> {
         private TestClustersRegistry registryProvider;
 
         public void register(TestClustersAware task) {
-            System.out.println("TaskEventsService.register " + task.getPath());
             tasksMap.put(task.getPath(), task);
         }
 

@@ -91,8 +91,8 @@ system usage.
 
 `client_authentication`::
 (Optional, object) When using the `access_token` grant type, and when supplying a
-JWT, this specifies the client authentication for <<jwt-auth-realm, JWT access tokens>>
- (i.e. what's normally specified by the `ES-Client-Authentication` request header).
+JWT, this specifies the client authentication for <<jwt-auth-realm, JWTs>> that
+need it (i.e. what's normally specified by the `ES-Client-Authentication` request header).
 
 `scheme`:::
 (Required, string) The scheme (case-sensitive) as it's supplied in the
@@ -101,7 +101,10 @@ value is <<jwt-auth-shared-secret-scheme-example, `SharedSecret`>>.
 
 `value`:::
 (Required, string) The value that follows the scheme for the client credentials
-as it's supplied in the `ES-Client-Authentication` request header.
+as it's supplied in the `ES-Client-Authentication` request header. For example,
+if the request header would be `ES-Client-Authentication: SharedSecret myShar3dS3cret`
+if the client were to authenticate directly with a JWT, then `value` here should
+be `myShar3dS3cret`.
 
 `grant_type`::
 (Required, string)

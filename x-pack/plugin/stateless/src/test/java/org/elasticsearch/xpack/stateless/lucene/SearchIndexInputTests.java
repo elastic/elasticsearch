@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.Stateless;
+
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
@@ -44,7 +46,7 @@ import static org.hamcrest.Matchers.not;
 public class SearchIndexInputTests extends ESIndexInputTestCase {
 
     public void testRandomReads() throws IOException {
-        final ThreadPool threadPool = new TestThreadPool("testRandomReads");
+        final ThreadPool threadPool = getThreadPool("testRandomReads");
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(randomLongBetween(0, 10_000_000));
         final var settings = sharedCacheSettings(cacheSize);
         try (
@@ -53,7 +55,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                Stateless.SHARD_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -86,7 +88,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
      * @throws IOException
      */
     public void testClone() throws IOException {
-        final ThreadPool threadPool = new TestThreadPool("testRandomReads");
+        final ThreadPool threadPool = getThreadPool("testRandomReads");
         final var settings = sharedCacheSettings(ByteSizeValue.ofBytes(randomLongBetween(0, 10_000_000)));
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -94,7 +96,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                Stateless.SHARD_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -131,5 +133,9 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
             .build();
+    }
+
+    private static TestThreadPool getThreadPool(String name) {
+        return new TestThreadPool(name, Stateless.statelessExecutorBuilders(Settings.EMPTY, true));
     }
 }

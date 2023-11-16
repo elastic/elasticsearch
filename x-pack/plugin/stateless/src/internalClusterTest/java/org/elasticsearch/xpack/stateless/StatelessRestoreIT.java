@@ -22,7 +22,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
@@ -48,11 +47,6 @@ public class StatelessRestoreIT extends AbstractStatelessIntegTestCase {
     @Before
     public void init() {
         startMasterOnlyNode();
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("thread_pool.snapshot.max", 6).build();
     }
 
     public void testRestoreShardOverClosedIndex() {

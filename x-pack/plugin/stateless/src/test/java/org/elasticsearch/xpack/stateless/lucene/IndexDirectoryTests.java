@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
@@ -97,7 +98,7 @@ public class IndexDirectoryTests extends ESTestCase {
     public void testEstimateSizeInBytes() throws Exception {
         final Path dataPath = createTempDir();
         final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
-        final ThreadPool threadPool = new TestThreadPool("testEstimateSizeInBytes");
+        final ThreadPool threadPool = getThreadPool("testEstimateSizeInBytes");
         final var settings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
@@ -112,7 +113,7 @@ public class IndexDirectoryTests extends ESTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                Stateless.SHARD_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
@@ -224,7 +225,7 @@ public class IndexDirectoryTests extends ESTestCase {
     public void testEstimateSizeInBytesAfterDeletion() throws Exception {
         final Path dataPath = createTempDir();
         final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
-        final ThreadPool threadPool = new TestThreadPool("testEstimateSizeInBytes");
+        final ThreadPool threadPool = getThreadPool("testEstimateSizeInBytes");
         final var settings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
@@ -239,7 +240,7 @@ public class IndexDirectoryTests extends ESTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                Stateless.SHARD_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
@@ -303,7 +304,7 @@ public class IndexDirectoryTests extends ESTestCase {
     public void testPruneSearchDirectoryMetadata() throws IOException {
         final Path dataPath = createTempDir();
         final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
-        final ThreadPool threadPool = new TestThreadPool("testEstimateSizeInBytes");
+        final ThreadPool threadPool = getThreadPool("testEstimateSizeInBytes");
         final var settings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L))
@@ -318,7 +319,7 @@ public class IndexDirectoryTests extends ESTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                Stateless.SHARD_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
@@ -351,6 +352,10 @@ public class IndexDirectoryTests extends ESTestCase {
         } finally {
             assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
         }
+    }
+
+    private static TestThreadPool getThreadPool(String name) {
+        return new TestThreadPool(name, Stateless.statelessExecutorBuilders(Settings.EMPTY, true));
     }
 
     private static StatelessCompoundCommit createCommit(IndexDirectory directory, Set<String> files, long generation) {

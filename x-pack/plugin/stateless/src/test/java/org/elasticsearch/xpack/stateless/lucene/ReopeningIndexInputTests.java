@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
@@ -80,7 +81,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
     public void testRandomReads() throws IOException {
         final Path dataPath = createTempDir();
         final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
-        final ThreadPool threadPool = new TestThreadPool("testRandomReads");
+        final ThreadPool threadPool = getThreadPool("testRandomReads");
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(randomLongBetween(0, 10_000_000));
         final var settings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
@@ -99,7 +100,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                Stateless.SHARD_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
@@ -152,7 +153,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
     public void testReadsAfterDelete() throws IOException {
         final Path dataPath = createTempDir();
         final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
-        final ThreadPool threadPool = new TestThreadPool("testReadsAfterDelete");
+        final ThreadPool threadPool = getThreadPool("testReadsAfterDelete");
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(randomLongBetween(0, 10_000_000));
         final var settings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
@@ -171,7 +172,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                Stateless.SHARD_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
@@ -326,6 +327,10 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
         } finally {
             PathUtilsForTesting.teardown();
         }
+    }
+
+    private static TestThreadPool getThreadPool(String name) {
+        return new TestThreadPool(name, Stateless.statelessExecutorBuilders(Settings.EMPTY, true));
     }
 
     private void randomRead(IndexInput input, byte[] bytes) throws IOException {

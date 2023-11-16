@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.test;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
@@ -170,7 +171,7 @@ public class FakeStatelessNode implements Closeable {
 
         try (var localCloseables = new TransferableCloseables()) {
 
-            threadPool = new TestThreadPool("test");
+            threadPool = new TestThreadPool("test", Stateless.statelessExecutorBuilders(Settings.EMPTY, true));
             localCloseables.add(() -> TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
 
             transport = localCloseables.add(new MockTransport());
@@ -182,7 +183,7 @@ public class FakeStatelessNode implements Closeable {
                 nodeEnvironment,
                 nodeSettings,
                 threadPool,
-                ThreadPool.Names.GENERIC,
+                Stateless.SHARD_THREAD_POOL,
                 BlobCacheMetrics.NOOP
             );
             localCloseables.add(sharedCacheService);

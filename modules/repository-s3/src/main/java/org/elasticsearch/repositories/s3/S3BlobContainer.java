@@ -641,7 +641,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                 .addListener(listener.delegateResponse((l, e) -> {
                     // Best-effort attempt to clean up after ourselves.
-                    logger.trace(Strings.format("[%s] aborting upload [%s] on exception", blobKey, uploadId), e);
+                    logger.trace(() -> Strings.format("[%s] aborting upload [%s] on exception", blobKey, uploadId), e);
                     safeAbortMultipartUpload(uploadId);
                     l.onFailure(e);
                 }));
@@ -852,6 +852,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     ) {
         final var clientReference = blobStore.clientReference();
         ActionListener.run(ActionListener.releaseAfter(listener.delegateResponse((delegate, e) -> {
+            logger.trace(() -> Strings.format("[%s]: compareAndExchangeRegister failed", key), e);
             if (e instanceof AmazonS3Exception amazonS3Exception && amazonS3Exception.getStatusCode() == 404) {
                 // an uncaught 404 means that our multipart upload was aborted by a concurrent operation before we could complete it
                 delegate.onResponse(OptionalBytesReference.MISSING);
@@ -879,6 +880,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             ) {
                 return OptionalBytesReference.of(getRegisterUsingConsistentRead(stream, keyPath, key));
             } catch (AmazonS3Exception e) {
+                logger.trace(() -> Strings.format("[%s]: getRegister failed", key), e);
                 if (e.getStatusCode() == 404) {
                     return OptionalBytesReference.EMPTY;
                 } else {

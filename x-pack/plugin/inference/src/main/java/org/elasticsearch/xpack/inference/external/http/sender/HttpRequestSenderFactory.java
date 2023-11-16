@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcher;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,15 +53,15 @@ public class HttpRequestSenderFactory {
         this.settings = Objects.requireNonNull(settings);
     }
 
-    public Sender createSender(String serviceName) {
-        return new HttpRequestSender(serviceName, threadPool, httpClientManager, clusterService, settings);
+    public <T> HttpRequestSender<T> createSender(String serviceName, RequestBatcher<T> requestBatcher) {
+        return new HttpRequestSender<>(serviceName, threadPool, httpClientManager, clusterService, settings, requestBatcher);
     }
 
     /**
      * A class for providing a more friendly interface for sending an {@link HttpUriRequest}. This leverages the queuing logic for sending
      * a request.
      */
-    public static final class HttpRequestSender implements Sender {
+    public static final class HttpRequestSender<T> implements Sender {
         private static final Logger logger = LogManager.getLogger(HttpRequestSender.class);
         private static final TimeValue START_COMPLETED_WAIT_TIME = TimeValue.timeValueSeconds(5);
 
@@ -78,7 +79,7 @@ public class HttpRequestSenderFactory {
 
         private final ThreadPool threadPool;
         private final HttpClientManager manager;
-        private final HttpRequestExecutorService service;
+        private final HttpRequestExecutorService<T> service;
         private final AtomicBoolean started = new AtomicBoolean(false);
         private volatile TimeValue maxRequestTimeout;
         private final CountDownLatch startCompleted = new CountDownLatch(2);
@@ -88,11 +89,12 @@ public class HttpRequestSenderFactory {
             ThreadPool threadPool,
             HttpClientManager httpClientManager,
             ClusterService clusterService,
-            Settings settings
+            Settings settings,
+            RequestBatcher<T> requestBatcher
         ) {
             this.threadPool = Objects.requireNonNull(threadPool);
             this.manager = Objects.requireNonNull(httpClientManager);
-            service = new HttpRequestExecutorService(serviceName, manager.getHttpClient(), threadPool, startCompleted);
+            service = new HttpRequestExecutorService<>(serviceName, manager.getHttpClient(), threadPool, startCompleted, requestBatcher);
 
             this.maxRequestTimeout = MAX_REQUEST_TIMEOUT.get(settings);
             addSettingsUpdateConsumers(clusterService);

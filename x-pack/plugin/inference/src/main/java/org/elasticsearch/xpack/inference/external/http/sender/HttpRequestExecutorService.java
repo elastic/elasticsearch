@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcher;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -39,7 +40,7 @@ import static org.elasticsearch.core.Strings.format;
 
 /**
  * An {@link java.util.concurrent.ExecutorService} for queuing and executing {@link RequestTask} containing
- * {@link org.apache.http.client.methods.HttpUriRequest}. This class is useful because the
+ * {@link org.apache.http.client.methods.HttpRequestBase}. This class is useful because the
  * {@link org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager} will block when leasing a connection if no
  * connections are available. To avoid blocking the inference transport threads, this executor will queue up the
  * requests until connections are available.
@@ -49,7 +50,7 @@ import static org.elasticsearch.core.Strings.format;
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
-class HttpRequestExecutorService implements ExecutorService {
+class HttpRequestExecutorService<T> implements ExecutorService {
     private static final Logger logger = LogManager.getLogger(HttpRequestExecutorService.class);
 
     private final String serviceName;
@@ -60,10 +61,17 @@ class HttpRequestExecutorService implements ExecutorService {
     private final HttpClient httpClient;
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
+    private final RequestBatcher<T> requestBatcher;
 
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
-    HttpRequestExecutorService(String serviceName, HttpClient httpClient, ThreadPool threadPool, @Nullable CountDownLatch startupLatch) {
-        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(), startupLatch);
+    HttpRequestExecutorService(
+        String serviceName,
+        HttpClient httpClient,
+        ThreadPool threadPool,
+        @Nullable CountDownLatch startupLatch,
+        RequestBatcher<T> requestBatcher
+    ) {
+        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(), startupLatch, requestBatcher);
     }
 
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
@@ -72,9 +80,10 @@ class HttpRequestExecutorService implements ExecutorService {
         HttpClient httpClient,
         ThreadPool threadPool,
         int capacity,
-        @Nullable CountDownLatch startupLatch
+        @Nullable CountDownLatch startupLatch,
+        RequestBatcher<T> requestBatcher
     ) {
-        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity), startupLatch);
+        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity), startupLatch, requestBatcher);
     }
 
     /**
@@ -86,11 +95,13 @@ class HttpRequestExecutorService implements ExecutorService {
         HttpClient httpClient,
         ThreadPool threadPool,
         BlockingQueue<HttpTask> queue,
-        @Nullable CountDownLatch startupLatch
+        @Nullable CountDownLatch startupLatch,
+        RequestBatcher<T> requestCreator
     ) {
         this.serviceName = Objects.requireNonNull(serviceName);
         this.httpClient = Objects.requireNonNull(httpClient);
         this.threadPool = Objects.requireNonNull(threadPool);
+        this.requestBatcher = Objects.requireNonNull(requestCreator);
         this.httpContext = HttpClientContext.create();
         this.queue = queue;
         this.startupLatch = startupLatch;

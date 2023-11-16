@@ -8,11 +8,8 @@
 package org.elasticsearch.xpack.inference.external.action.huggingface;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
@@ -25,48 +22,32 @@ import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceE
 import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
 public class HuggingFaceElserAction implements ExecutableAction {
 
     private final HuggingFaceAccount account;
     private final HuggingFaceClient client;
+    private final String errorMessage;
 
     public HuggingFaceElserAction(Sender sender, HuggingFaceElserModel model, ServiceComponents serviceComponents) {
         this.client = new HuggingFaceClient(sender, serviceComponents);
         this.account = new HuggingFaceAccount(model.getServiceSettings().uri(), model.getSecretSettings().apiKey());
+        this.errorMessage = format("Failed to send ELSER Hugging Face request to [%s]", model.getServiceSettings().uri().toString());
     }
 
     @Override
     public void execute(List<String> input, ActionListener<List<? extends InferenceResults>> listener) {
         try {
             HuggingFaceElserRequest request = new HuggingFaceElserRequest(account, new HuggingFaceElserRequestEntity(input));
+            ActionListener<List<? extends InferenceResults>> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 
-            ActionListener<List<? extends InferenceResults>> wrapFailuresInElasticsearchExceptionListener = ActionListener.wrap(
-                listener::onResponse,
-                e -> {
-                    var unwrappedException = ExceptionsHelper.unwrapCause(e);
-
-                    if (unwrappedException instanceof ElasticsearchException esException) {
-                        listener.onFailure(esException);
-                    } else {
-                        listener.onFailure(createInternalServerError(unwrappedException));
-                    }
-                }
-            );
-
-            client.send(request, wrapFailuresInElasticsearchExceptionListener);
+            client.send(request, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {
-            listener.onFailure(createInternalServerError(e));
+            listener.onFailure(createInternalServerError(e, errorMessage));
         }
-    }
-
-    private ElasticsearchStatusException createInternalServerError(Throwable e) {
-        return new ElasticsearchStatusException(
-            format("Failed to send ELSER Hugging Face request to [%s]", account.url()),
-            RestStatus.INTERNAL_SERVER_ERROR,
-            e
-        );
     }
 }

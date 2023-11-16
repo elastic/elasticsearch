@@ -114,7 +114,7 @@ The type of grant. Supported grant types are: `access_token`,`password`.
 (Required*, string)
 In this type of grant, you must supply either an access token, that was created by the
 {es} token service (see <<security-api-get-token>> and <<encrypt-http-communication>>),
-or a <<jwt-auth-realm, JWT>>.
+or a <<jwt-auth-realm, JWT>> (either a JWT `access_token` or a JWT `id_token`).
 
 `password`:::
 In this type of grant, you must supply the user ID and password for which you

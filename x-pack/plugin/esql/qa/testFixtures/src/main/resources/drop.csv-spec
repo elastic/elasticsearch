@@ -54,3 +54,11 @@ c:l|mi:i|s:l
 0  |null|null
 ;
 
+
+// see https://github.com/elastic/elasticsearch/issues/102121
+dropGrouping#[skip:-8.11.99, reason:planning bug fixed in v8.12]
+row a = 1 | rename a AS foo | stats bar = count(*) by foo | drop foo;
+
+bar:long
+1
+;

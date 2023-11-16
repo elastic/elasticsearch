@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -36,6 +37,9 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -370,11 +374,32 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             mget(client, indices, slice, ActionListener.wrap(handler::onResponse, submitListener::onFailure));
         }
 
-        // TODO: query only the relevant host metadata for the given list of host IDs (mget won't work here).
         // Retrieve the host metadata in parallel. Assume low-cardinality and do not split the query.
         client.prepareSearch("profiling-hosts")
             .setSize(10000)
             .setTrackTotalHits(false)
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .filter(
+                        // Only return hosts that have been active during the requested time period
+                        QueryBuilders.rangeQuery("@timestamp")
+                            // HAs write host metadata every 6h, so use start minus 6h.
+                            .gte(responseBuilder.getStart().minusSeconds(6 * 60 * 60).toEpochMilli())
+                            .lt(responseBuilder.getEnd().toEpochMilli())
+                            .format("epoch_millis")
+                    )
+                    // Filter for host we are interested in.
+                    .filter(QueryBuilders.termsQuery("host.id", responseBuilder.hostEventCounts.stream().map(hec -> hec.hostID).toList()))
+                    // Filter for AWS hosts.
+                    .filter(QueryBuilders.existsQuery("ec2.instance_type"))
+            )
+            .setCollapse(
+                // Collapse on host.id to get a single host metadata for each host.
+                new CollapseBuilder("host.id")
+            )
+            // Sort descending by timestamp to get the latest host metadata for each host.
+            .addSort(new FieldSortBuilder("@timestamp").order(SortOrder.DESC))
+            .setFrom(0)
             .execute(ActionListener.wrap(handler::onHostsResponse, submitListener::onFailure));
     }
 

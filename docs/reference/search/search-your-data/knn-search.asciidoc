@@ -338,7 +338,7 @@ POST quantized-image-index/_search
             "match_all": {}
           },
           "script": {
-            "source": "cosineSimilarity(params.query_vector, doc['image-vector']) + 1.0",
+            "source": "cosineSimilarity(params.query_vector, 'image-vector') + 1.0",
             "params": {
               "query_vector": [0.1, -2]
             }

@@ -34,7 +34,7 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
     }
 
     public boolean isReusedCluster(ElasticsearchCluster cluster) {
-        return claimCount.get(cluster) > 1;
+        return claimCount.getOrDefault(cluster, 0) > 0;
     }
 
     public void maybeStartCluster(ElasticsearchCluster cluster) {

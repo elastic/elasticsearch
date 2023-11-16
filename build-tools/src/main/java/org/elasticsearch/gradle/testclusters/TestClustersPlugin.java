@@ -109,7 +109,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         project.getGradle().getSharedServices().registerIfAbsent(REGISTRY_SERVICE_NAME, TestClustersRegistry.class, noop());
 
         // register throttle so we only run at most max-workers/2 nodes concurrently
-        project.getGradle()
+        Provider<TestClustersThrottle> testClustersThrottleProvider = project.getGradle()
             .getSharedServices()
             .registerIfAbsent(
                 THROTTLE_SERVICE_NAME,
@@ -117,7 +117,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 spec -> spec.getMaxParallelUsages().set(Math.max(1, project.getGradle().getStartParameter().getMaxWorkerCount() / 2))
             );
 
-        // register cluster hooks
+        project.getTasks().withType(TestClustersAware.class).configureEach(task -> { task.usesService(testClustersThrottleProvider); });
         project.getRootProject().getPluginManager().apply(TestClustersHookPlugin.class);
     }
 

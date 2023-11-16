@@ -70,13 +70,9 @@ public abstract class StandaloneRestIntegTestTask extends Test implements TestCl
     @Internal
     public List<ResourceLock> getSharedResources() {
         List<ResourceLock> locks = new ArrayList<>(super.getSharedResources());
-        System.out.println("locks.size() = " + getName() + " -- " + locks.size());
         BuildServiceRegistryInternal serviceRegistry = getServices().get(BuildServiceRegistryInternal.class);
         BuildServiceProvider<?, ?> serviceProvider = serviceRegistry.consume(THROTTLE_SERVICE_NAME, TestClustersThrottle.class);
-        System.out.println("locks.size() 2 = " + getName() + " -- " + super.getSharedResources().size());
-
         SharedResource resource = serviceRegistry.forService(serviceProvider);
-        System.out.println("resource.getMaxUsages() = " + getName() + " -- " + resource.getMaxUsages());
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
             for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages()); i++) {

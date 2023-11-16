@@ -19,6 +19,7 @@ module org.elasticsearch.xpack.inference {
     requires org.apache.lucene.core;
 
     exports org.elasticsearch.xpack.inference.rest;
+    exports org.elasticsearch.xpack.inference.results;
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;
     exports org.elasticsearch.xpack.inference;

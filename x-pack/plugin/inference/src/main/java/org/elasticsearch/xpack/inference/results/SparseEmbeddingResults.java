@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
@@ -20,12 +21,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public record SparseVectorResults(List<TextExpansionResults> expansionResults) implements InferenceResults {
+public record SparseEmbeddingResults(List<TextExpansionResults> expansionResults) implements ResultGetter {
     public static final String NAME = "sparse_vector_results";
     // TODO Do we want it as sparse_embedding to match the task type or sparse_vector from the client PR?
     public static final String SPARSE_EMBEDDING = TaskType.SPARSE_EMBEDDING.toString();
+    public static final String EMBEDDING = "embedding";
 
-    public SparseVectorResults(StreamInput in) throws IOException {
+    public SparseEmbeddingResults(StreamInput in) throws IOException {
         this(in.readNamedWriteableCollectionAsList(TextExpansionResults.class));
     }
 
@@ -73,5 +75,14 @@ public record SparseVectorResults(List<TextExpansionResults> expansionResults) i
     @Override
     public Object predictedValue() {
         throw new UnsupportedOperationException("[" + NAME + "] does not support a single predicted value");
+    }
+
+    @Override
+    public List<? extends InferenceResults> getEmbedding() {
+        if (expansionResults.isEmpty()) {
+            return List.of(new TextEmbeddingResults(EMBEDDING, new double[0], false));
+        }
+
+        return expansionResults;
     }
 }

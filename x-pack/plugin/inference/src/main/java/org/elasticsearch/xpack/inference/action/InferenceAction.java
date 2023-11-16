@@ -24,7 +24,9 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.inference.results.SparseVectorResults;
+import org.elasticsearch.xpack.inference.results.ResultGetter;
+import org.elasticsearch.xpack.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.inference.results.TextEmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -186,24 +188,55 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final InferenceResults results;
+        private final ResultGetter results;
 
-        public Response(InferenceResults results) {
+        public Response(ResultGetter results) {
             this.results = results;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SINGLE_RESULT_FIELD_ADDED)) {
-                results = in.readNamedWriteable(InferenceResults.class);
+                results = in.readNamedWriteable(ResultGetter.class);
+            } else if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_OPENAI_ADDED)) {
+                results = transform(in.readNamedWriteableCollectionAsList(ResultGetter.class));
             } else if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
-                results = transformToSparseVector(in.readNamedWriteableCollectionAsList(InferenceResults.class));
+                results = transformToSparseEmbedding(in.readNamedWriteableCollectionAsList(ResultGetter.class));
             } else {
-                results = transformToSparseVector(List.of(in.readNamedWriteable(InferenceResults.class)));
+                results = transformToSparseEmbedding(List.of(in.readNamedWriteable(ResultGetter.class)));
             }
         }
 
-        private static SparseVectorResults transformToSparseVector(List<? extends InferenceResults> parsedResults) {
+        private static ResultGetter transform(List<? extends InferenceResults> parsedResults) {
+            if (parsedResults.isEmpty()) {
+                throw new ElasticsearchStatusException(
+                    "Failed to transform results to response format, expected a non-empty list, please remove and re-add the service",
+                    RestStatus.INTERNAL_SERVER_ERROR
+                );
+            }
+
+            if (parsedResults.get(0) instanceof TextEmbeddingResults textEmbedding) {
+                if (parsedResults.size() > 1) {
+                    throw new ElasticsearchStatusException(
+                        "Failed to transform results to response format, malformed text embedding result,"
+                            + " please remove and re-add the service",
+                        RestStatus.INTERNAL_SERVER_ERROR
+                    );
+                }
+
+                return textEmbedding;
+            } else if (parsedResults.get(0) instanceof TextExpansionResults) {
+                return transformToSparseEmbedding(parsedResults);
+            } else {
+                throw new ElasticsearchStatusException(
+                    "Failed to transform results to response format, unknown embedding type received,"
+                        + " please remove and re-add the service",
+                    RestStatus.INTERNAL_SERVER_ERROR
+                );
+            }
+        }
+
+        private static SparseEmbeddingResults transformToSparseEmbedding(List<? extends InferenceResults> parsedResults) {
             List<TextExpansionResults> textExpansionResults = new ArrayList<>(parsedResults.size());
 
             for (InferenceResults result : parsedResults) {
@@ -217,7 +250,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 }
             }
 
-            return new SparseVectorResults(textExpansionResults);
+            return new SparseEmbeddingResults(textExpansionResults);
         }
 
         public InferenceResults getResults() {
@@ -228,10 +261,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SINGLE_RESULT_FIELD_ADDED)) {
                 out.writeNamedWriteable(results);
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_OPENAI_ADDED)) {
+                // we wrote it as List<TextEmbeddingResults>
+                // TODO: we probably need to ensure that this is only a TextEmbeddingResults?
+                out.writeNamedWriteableCollection(List.of(results));
             } else if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
-                out.writeNamedWriteableCollection(results);
+                out.writeNamedWriteableCollection(results.getEmbedding());
             } else {
-                out.writeNamedWriteable(results);
+                out.writeNamedWriteable(results.getEmbedding().get(0));
             }
         }
 

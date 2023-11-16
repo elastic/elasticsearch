@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
  *     ]
  * }
  */
-public record TextEmbeddingResults(List<Embedding> embeddings) implements InferenceResults {
+public record TextEmbeddingResults(List<Embedding> embeddings) implements ResultGetter {
     public static final String NAME = "text_embedding_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 
@@ -91,6 +91,14 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
     @Override
     public Object predictedValue() {
         throw new UnsupportedOperationException("[" + NAME + "] does not support a single predicted value");
+    }
+
+    @Override
+    public List<? extends InferenceResults> getEmbedding() {
+        // TODO: really this should never get called because this class is only ever used by openai which
+        // was defined after we had the format for a single inference result response format
+        // TODO: so what do we put here? throw unsupported?
+        return null;
     }
 
     public record Embedding(List<Float> values) implements Writeable, ToXContentObject {

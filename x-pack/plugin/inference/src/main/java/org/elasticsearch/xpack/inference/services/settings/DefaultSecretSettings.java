@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.huggingface.elser;
+package org.elasticsearch.xpack.inference.services.settings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -23,12 +23,16 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredSecureString;
 
-public record HuggingFaceElserSecretSettings(SecureString apiKey) implements SecretSettings {
-    public static final String NAME = "hugging_face_elser_secret_settings";
+/**
+ * Contains secret settings that are common to all services.
+ * @param apiKey the key used to authenticate with the 3rd party service
+ */
+public record DefaultSecretSettings(SecureString apiKey) implements SecretSettings {
+    public static final String NAME = "default_secret_settings";
 
     static final String API_KEY = "api_key";
 
-    public static HuggingFaceElserSecretSettings fromMap(Map<String, Object> map) {
+    public static DefaultSecretSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
         SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
 
@@ -36,14 +40,14 @@ public record HuggingFaceElserSecretSettings(SecureString apiKey) implements Sec
             throw validationException;
         }
 
-        return new HuggingFaceElserSecretSettings(secureApiToken);
+        return new DefaultSecretSettings(secureApiToken);
     }
 
-    public HuggingFaceElserSecretSettings {
+    public DefaultSecretSettings {
         Objects.requireNonNull(apiKey);
     }
 
-    public HuggingFaceElserSecretSettings(StreamInput in) throws IOException {
+    public DefaultSecretSettings(StreamInput in) throws IOException {
         this(in.readSecureString());
     }
 
@@ -62,7 +66,7 @@ public record HuggingFaceElserSecretSettings(SecureString apiKey) implements Sec
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
+        return TransportVersions.ML_INFERENCE_OPENAI_ADDED;
     }
 
     @Override

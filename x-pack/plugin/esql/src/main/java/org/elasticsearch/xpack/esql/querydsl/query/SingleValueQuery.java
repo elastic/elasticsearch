@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.querydsl.query;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -321,20 +323,30 @@ public class SingleValueQuery extends Query {
              * can't do that because we need the check the number of fields.
              */
             if (lfd instanceof LeafNumericFieldData n) {
-                return scorer(nextScorer, n);
+                return scorer(context, nextScorer, n);
             }
             if (lfd instanceof LeafOrdinalsFieldData o) {
-                return scorer(nextScorer, o);
+                return scorer(context, nextScorer, o);
             }
             return scorer(nextScorer, lfd);
         }
 
-        private Scorer scorer(Scorer nextScorer, LeafNumericFieldData lfd) {
+        private Scorer scorer(LeafReaderContext context, Scorer nextScorer, LeafNumericFieldData lfd) throws IOException {
             SortedNumericDocValues sortedNumerics = lfd.getLongValues();
             if (DocValues.unwrapSingleton(sortedNumerics) != null) {
-                // Segment contains only single valued fields.
-                stats.numericSingle++;
-                return nextScorer;
+                /*
+                 * Segment contains only single valued fields. But it's possible
+                 * that some fields have 0 values. The most surefire way to check
+                 * is to look at the index for the data. If there isn't an index
+                 * this isn't going to work - but if there is we can compare the
+                 * number of documents in the index to the number of values in it -
+                 * if they are the same we've got a dense singleton.
+                 */
+                PointValues points = context.reader().getPointValues(fieldData.getFieldName());
+                if (points != null && points.getDocCount() == context.reader().maxDoc()) {
+                    stats.numericSingle++;
+                    return nextScorer;
+                }
             }
             TwoPhaseIterator nextIterator = nextScorer.twoPhaseIterator();
             if (nextIterator == null) {
@@ -353,12 +365,22 @@ public class SingleValueQuery extends Query {
             );
         }
 
-        private Scorer scorer(Scorer nextScorer, LeafOrdinalsFieldData lfd) {
+        private Scorer scorer(LeafReaderContext context, Scorer nextScorer, LeafOrdinalsFieldData lfd) throws IOException {
             SortedSetDocValues sortedSet = lfd.getOrdinalsValues();
             if (DocValues.unwrapSingleton(sortedSet) != null) {
-                // Segment contains only single valued fields.
-                stats.ordinalsSingle++;
-                return nextScorer;
+                /*
+                 * Segment contains only single valued fields. But it's possible
+                 * that some fields have 0 values. The most surefire way to check
+                 * is to look at the index for the data. If there isn't an index
+                 * this isn't going to work - but if there is we can compare the
+                 * number of documents in the index to the number of values in it -
+                 * if they are the same we've got a dense singleton.
+                 */
+                Terms terms = context.reader().terms(fieldData.getFieldName());
+                if (terms != null && terms.getDocCount() == context.reader().maxDoc()) {
+                    stats.ordinalsSingle++;
+                    return nextScorer;
+                }
             }
             TwoPhaseIterator nextIterator = nextScorer.twoPhaseIterator();
             if (nextIterator == null) {

@@ -97,12 +97,12 @@ public record DesiredBalanceStats(
         builder.field("unassigned_shards", unassignedShards);
         builder.field("total_allocations", totalAllocations);
         builder.field("undesired_allocations", undesiredAllocations);
-        builder.field("undesired_allocations_fraction", undesiredAllocationsFraction());
+        builder.field("undesired_allocations_ratio", undesiredAllocationsRatio());
         builder.endObject();
         return builder;
     }
 
-    public double undesiredAllocationsFraction() {
+    public double undesiredAllocationsRatio() {
         if (unassignedShards == -1 || totalAllocations == -1 || undesiredAllocations == -1) {
             return -1.0;
         } else if (totalAllocations == 0) {

@@ -23,8 +23,11 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.inference.results.SparseVectorResults;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -183,31 +186,52 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final List<? extends InferenceResults> results;
+        private final InferenceResults results;
 
-        public Response(List<? extends InferenceResults> results) {
+        public Response(InferenceResults results) {
             this.results = results;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
-                results = in.readNamedWriteableCollectionAsList(InferenceResults.class);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SINGLE_RESULT_FIELD_ADDED)) {
+                results = in.readNamedWriteable(InferenceResults.class);
+            } else if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+                results = transformToSparseVector(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             } else {
-                results = List.of(in.readNamedWriteable(InferenceResults.class));
+                results = transformToSparseVector(List.of(in.readNamedWriteable(InferenceResults.class)));
             }
         }
 
-        public List<? extends InferenceResults> getResults() {
+        private static SparseVectorResults transformToSparseVector(List<? extends InferenceResults> parsedResults) {
+            List<TextExpansionResults> textExpansionResults = new ArrayList<>(parsedResults.size());
+
+            for (InferenceResults result : parsedResults) {
+                if (result instanceof TextExpansionResults textExpansion) {
+                    textExpansionResults.add(textExpansion);
+                } else {
+                    throw new ElasticsearchStatusException(
+                        "Failed to transform results to response format, please remove and re-add the service",
+                        RestStatus.INTERNAL_SERVER_ERROR
+                    );
+                }
+            }
+
+            return new SparseVectorResults(textExpansionResults);
+        }
+
+        public InferenceResults getResults() {
             return results;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SINGLE_RESULT_FIELD_ADDED)) {
+                out.writeNamedWriteable(results);
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
                 out.writeNamedWriteableCollection(results);
             } else {
-                out.writeNamedWriteable(results.get(0));
+                out.writeNamedWriteable(results);
             }
         }
 

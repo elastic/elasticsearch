@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 
-
 /**
  * Manages information on the features supported by nodes in the cluster
  */

@@ -24,7 +24,6 @@ public class FeatureData {
     private final NavigableMap<Version, Set<String>> historicalFeatures;
     private final Map<String, NodeFeature> nodeFeatures;
 
-
     private FeatureData(NavigableMap<Version, Set<String>> historicalFeatures, Map<String, NodeFeature> nodeFeatures) {
         this.historicalFeatures = historicalFeatures;
         this.nodeFeatures = nodeFeatures;

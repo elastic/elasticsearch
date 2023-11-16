@@ -133,7 +133,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         remoteNewDocs = createIndexAndIndexDocs(REMOTE_CLUSTER, "remote_new_index", newRemoteNumShards, timestamp, randomBoolean());
     }
 
-    int createIndexAndIndexDocs(String cluster, String index, int numberOfShards, long timestamp, boolean exposeTimestamp)
+    private int createIndexAndIndexDocs(String cluster, String index, int numberOfShards, long timestamp, boolean exposeTimestamp)
         throws Exception {
         Client client = client(cluster);
         ElasticsearchAssertions.assertAcked(
@@ -170,28 +170,53 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
     }
 
     public void testSearchAction_MatchAllQuery() {
-        testSearchAction(QueryBuilders.matchAllQuery(), localOldDocs + localNewDocs + remoteOldDocs + remoteNewDocs, 0);
+        testSearchAction(QueryBuilders.matchAllQuery(), true, localOldDocs + localNewDocs + remoteOldDocs + remoteNewDocs, 0);
+        testSearchAction(QueryBuilders.matchAllQuery(), false, localOldDocs + localNewDocs + remoteOldDocs + remoteNewDocs, 0);
     }
 
     public void testSearchAction_RangeQuery() {
         testSearchAction(
-            QueryBuilders.rangeQuery("@timestamp").from(timestamp),
+            QueryBuilders.rangeQuery("@timestamp").from(timestamp),  // This query only matches new documents
+            true,
+            localNewDocs + remoteNewDocs,
+            oldLocalNumShards + oldRemoteNumShards
+        );
+        testSearchAction(
+            QueryBuilders.rangeQuery("@timestamp").from(timestamp),  // This query only matches new documents
+            false,
             localNewDocs + remoteNewDocs,
             oldLocalNumShards + oldRemoteNumShards
         );
     }
 
-    private void testSearchAction(QueryBuilder query, long expectedHitCount, int expectedSkippedShards) {
+    public void testSearchAction_RangeQueryThatMatchesNoShards() {
+        testSearchAction(
+            QueryBuilders.rangeQuery("@timestamp").from(100_000_000),  // This query matches no documents
+            true,
+            0,
+            // All but 2 shards are skipped. TBH I don't know why this 2 shards are not skipped
+            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards - 2
+        );
+        testSearchAction(
+            QueryBuilders.rangeQuery("@timestamp").from(100_000_000),  // This query matches no documents
+            false,
+            0,
+            // All but 1 shards are skipped. TBH I don't know why this 1 shard is not skipped
+            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards - 1
+        );
+    }
+
+    private void testSearchAction(QueryBuilder query, boolean ccsMinimizeRoundtrips, long expectedHitCount, int expectedSkippedShards) {
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
         SearchRequest request = new SearchRequest("local_*", "*:remote_*");
-        request.source(source).setCcsMinimizeRoundtrips(false);
+        request.source(source).setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
         SearchResponse response = client().search(request).actionGet();
         ElasticsearchAssertions.assertHitCount(response, expectedHitCount);
         int expectedTotalShards = oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards;
-        assertThat(response.getTotalShards(), is(equalTo(expectedTotalShards)));
-        assertThat(response.getSuccessfulShards(), is(equalTo(expectedTotalShards)));
-        assertThat(response.getSkippedShards(), is(equalTo(expectedSkippedShards)));
-        assertThat(response.getFailedShards(), is(equalTo(0)));
+        assertThat("Response was: " + response, response.getTotalShards(), is(equalTo(expectedTotalShards)));
+        assertThat("Response was: " + response, response.getSuccessfulShards(), is(equalTo(expectedTotalShards)));
+        assertThat("Response was: " + response, response.getFailedShards(), is(equalTo(0)));
+        assertThat("Response was: " + response, response.getSkippedShards(), is(equalTo(expectedSkippedShards)));
     }
 
     public void testGetCheckpointAction_MatchAllQuery() throws InterruptedException {
@@ -225,6 +250,23 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             new String[] { "remote_*" },
             QueryBuilders.rangeQuery("@timestamp").from(timestamp),
             Set.of("remote_new_index")
+        );
+    }
+
+    public void testGetCheckpointAction_RangeQueryThatMatchesNoShards() throws InterruptedException {
+        testGetCheckpointAction(
+            client(),
+            null,
+            new String[] { "local_*" },
+            QueryBuilders.rangeQuery("@timestamp").from(100_000_000),
+            Set.of()
+        );
+        testGetCheckpointAction(
+            client().getRemoteClusterClient(REMOTE_CLUSTER, EsExecutors.DIRECT_EXECUTOR_SERVICE),
+            REMOTE_CLUSTER,
+            new String[] { "remote_*" },
+            QueryBuilders.rangeQuery("@timestamp").from(100_000_000),
+            Set.of()
         );
     }
 
@@ -268,6 +310,10 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         testTransformLifecycle(QueryBuilders.rangeQuery("@timestamp").from(timestamp), localNewDocs + remoteNewDocs);
     }
 
+    public void testTransformLifecycle_RangeQueryThatMatchesNoShards() throws Exception {
+        testTransformLifecycle(QueryBuilders.rangeQuery("@timestamp").from(100_000_000), 0);
+    }
+
     private void testTransformLifecycle(QueryBuilder query, long expectedHitCount) throws Exception {
         String transformId = "test-transform-lifecycle";
         {
@@ -301,11 +347,6 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             assertThat(response.getTransformsStats().get(0).getIndexerStats().getSearchFailures(), is(equalTo(0L)));
             assertThat(response.getTransformsStats().get(0).getIndexerStats().getIndexFailures(), is(equalTo(0L)));
         });
-        // {
-        // DeleteTransformAction.Request request = new DeleteTransformAction.Request(transformId, false, true, TIMEOUT);
-        // AcknowledgedResponse response = client().execute(DeleteTransformAction.INSTANCE, request).actionGet();
-        // assertTrue(response.isAcknowledged());
-        // }
     }
 
     @Override

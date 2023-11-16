@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -141,7 +140,10 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 );
             }, e -> {
                 // search_shards API failed so we just log the error here and continue just like there was no query
-                logger.warn(Strings.format("search_shards API failed, request was: [%s]", searchShardsRequest), e);
+                logger.atWarn().withThrowable(e).log("search_shards API failed for cluster [{}]", request.getCluster());
+                logger.atTrace()
+                    .withThrowable(e)
+                    .log("search_shards API failed for cluster [{}], request was [{}]", request.getCluster(), searchShardsRequest);
                 getCheckpointsFromNodes(clusterState, task, nodesAndShards, new OriginalIndices(request), request.getTimeout(), listener);
             })
         );
@@ -214,6 +216,11 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         TimeValue timeout,
         ActionListener<Response> listener
     ) {
+        if (nodesAndShards.isEmpty()) {
+            listener.onResponse(new Response(Map.of()));
+            return;
+        }
+
         final String localNodeId = clusterService.localNode().getId();
 
         GroupedActionListener<GetCheckpointNodeAction.Response> groupedListener = new GroupedActionListener<>(

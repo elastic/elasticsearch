@@ -88,7 +88,7 @@ system usage.
 
 `client_authentication`::
 (Optional, object) When using the `access_token` grant type, and when supplying a
-JWT, this specifies the client authentication for <<JWT access tokens, jwt-realm-oauth2>>
+JWT, this specifies the client authentication for <<jwt-realm-oauth2, JWT access tokens>>
  (i.e. what's normally specified by the `ES-Client-Authentication` request header).
 
 `scheme`:::

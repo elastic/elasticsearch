@@ -167,8 +167,9 @@ public class ContinuousComputationTests extends ESTestCase {
             }
         };
 
-        final var mockLogAppender = new MockLogAppender();
-        mockLogAppender.addExpectation(
+        MockLogAppender.assertThatLogger(
+            () -> computation.onNewInput(input1),
+            ContinuousComputation.class,
             new MockLogAppender.SeenEventExpectation(
                 "error log",
                 ContinuousComputation.class.getCanonicalName(),
@@ -176,11 +177,6 @@ public class ContinuousComputationTests extends ESTestCase {
                 "unexpected error processing [test computation]"
             )
         );
-
-        try (var ignored = mockLogAppender.capturing(ContinuousComputation.class)) {
-            computation.onNewInput(input1);
-            mockLogAppender.assertAllExpectationsMatched();
-        }
 
         // check that both inputs were processed
         assertEquals(1, failureCount.get());

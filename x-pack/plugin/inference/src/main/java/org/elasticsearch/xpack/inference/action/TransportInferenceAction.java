@@ -83,8 +83,8 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         InferenceService service,
         ActionListener<InferenceAction.Response> listener
     ) {
-        service.infer(model, request.getInput(), request.getTaskSettings(), ActionListener.wrap(inferenceResult -> {
-            listener.onResponse(new InferenceAction.Response(inferenceResult));
+        service.infer(model, request.getInput(), request.getTaskSettings(), ActionListener.wrap(inferenceResults -> {
+            listener.onResponse(new InferenceAction.Response(inferenceResults));
         }, listener::onFailure));
     }
 }

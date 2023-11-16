@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 
@@ -60,11 +61,15 @@ public class RetryingHttpSender implements Retrier {
         this.executor = Objects.requireNonNull(executor);
     }
 
-    private class InternalRetrier extends RetryableAction<InferenceResults> {
+    private class InternalRetrier extends RetryableAction<List<? extends InferenceResults>> {
         private final HttpRequestBase request;
         private final ResponseHandler responseHandler;
 
-        InternalRetrier(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<InferenceResults> listener) {
+        InternalRetrier(
+            HttpRequestBase request,
+            ResponseHandler responseHandler,
+            ActionListener<List<? extends InferenceResults>> listener
+        ) {
             super(
                 logger,
                 threadPool,
@@ -79,11 +84,11 @@ public class RetryingHttpSender implements Retrier {
         }
 
         @Override
-        public void tryAction(ActionListener<InferenceResults> listener) {
+        public void tryAction(ActionListener<List<? extends InferenceResults>> listener) {
             ActionListener<HttpResult> responseListener = ActionListener.wrap(result -> {
                 try {
                     responseHandler.validateResponse(throttlerManager, logger, request, result);
-                    InferenceResults inferenceResults = responseHandler.parseResult(result);
+                    List<? extends InferenceResults> inferenceResults = responseHandler.parseResult(result);
 
                     listener.onResponse(inferenceResults);
                 } catch (Exception e) {
@@ -125,7 +130,7 @@ public class RetryingHttpSender implements Retrier {
     }
 
     @Override
-    public void send(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<InferenceResults> listener) {
+    public void send(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<List<? extends InferenceResults>> listener) {
         InternalRetrier retrier = new InternalRetrier(request, responseHandler, listener);
         retrier.run();
     }

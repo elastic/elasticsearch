@@ -818,12 +818,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return nodes;
         }
 
-        // Deprecate to keep downstream projects compiling
-        @Deprecated(forRemoval = true)
-        public Builder putTransportVersion(String nodeId, TransportVersion transportVersion) {
-            return putCompatibilityVersions(nodeId, transportVersion, Map.of());
-        }
-
         public Builder putCompatibilityVersions(
             String nodeId,
             TransportVersion transportVersion,
@@ -841,10 +835,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
 
         // Deprecate to keep downstream projects compiling
-        @Deprecated(forRemoval = true)
-        public Builder compatibilityVersions(Map<String, CompatibilityVersions> versions) {
-            return nodeIdsToCompatibilityVersions(versions);
-        }
 
         public Builder nodeIdsToCompatibilityVersions(Map<String, CompatibilityVersions> versions) {
             versions.forEach((key, value) -> Objects.requireNonNull(value, key));

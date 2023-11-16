@@ -86,7 +86,7 @@ public class DesiredBalanceReconciler {
      * Number of assigned shards during last reconciliation that are not allocated on desired node and need to be moved
      */
     protected final LongGaugeMetric undesiredAllocations;
-    private final DoubleGauge undesiredAllocationsFraction;
+    private final DoubleGauge undesiredAllocationsRatio;
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, MeterRegistry meterRegistry) {
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(threadPool);
@@ -114,9 +114,9 @@ public class DesiredBalanceReconciler {
             "Current number of shards allocated on undesired nodes",
             "count"
         );
-        undesiredAllocationsFraction = meterRegistry.registerDoubleGauge(
-            "es.allocator.desired_balance.undesired_allocations_fraction",
-            "Current undesired_allocations / total_allocations fraction",
+        undesiredAllocationsRatio = meterRegistry.registerDoubleGauge(
+            "es.allocator.desired_balance.undesired_allocations.ratio",
+            "Current undesired_allocations / allocations ratio",
             "count",
             () -> {
                 var total = totalAllocations.get();

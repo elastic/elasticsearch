@@ -141,11 +141,13 @@ public class ContinuousComputationTests extends ESTestCase {
         final var input1 = new Object();
         final var input2 = new Object();
 
+        final var successCount = new AtomicInteger();
         final var failureCount = new AtomicInteger();
 
         final var computation = new ContinuousComputation<>(r -> {
             try {
                 r.run();
+                successCount.incrementAndGet();
             } catch (AssertionError e) {
                 assertEquals("simulated", asInstanceOf(RuntimeException.class, e.getCause()).getMessage());
                 failureCount.incrementAndGet();
@@ -155,8 +157,8 @@ public class ContinuousComputationTests extends ESTestCase {
             protected void processInput(Object input) {
                 if (input == input1) {
                     onNewInput(input2);
+                    throw new RuntimeException("simulated");
                 }
-                throw new RuntimeException("simulated");
             }
 
             @Override
@@ -181,12 +183,16 @@ public class ContinuousComputationTests extends ESTestCase {
         }
 
         // check that both inputs were processed
-        assertEquals(2, failureCount.get());
+        assertEquals(1, failureCount.get());
+        assertEquals(1, successCount.get());
 
         // check that the computation still accepts and processes new inputs
         computation.onNewInput(input2);
-        assertEquals(3, failureCount.get());
+        assertEquals(1, failureCount.get());
+        assertEquals(2, successCount.get());
+
         computation.onNewInput(input1);
-        assertEquals(5, failureCount.get());
+        assertEquals(2, failureCount.get());
+        assertEquals(3, successCount.get());
     }
 }

@@ -230,6 +230,7 @@ import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.retriever.ClassicRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.LinearCombinationRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -1049,6 +1050,13 @@ public class SearchModule {
             new RetrieverSpec<>(ClassicRetrieverBuilder.NAME, ClassicRetrieverBuilder::new, ClassicRetrieverBuilder::fromXContent)
         );
         registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.NAME, KnnRetrieverBuilder::new, KnnRetrieverBuilder::fromXContent));
+        registerRetriever(
+            new RetrieverSpec<>(
+                LinearCombinationRetrieverBuilder.NAME,
+                LinearCombinationRetrieverBuilder::new,
+                LinearCombinationRetrieverBuilder::fromXContent
+            )
+        );
 
         registerFromPlugin(plugins, SearchPlugin::getRetrievers, this::registerRetriever);
     }

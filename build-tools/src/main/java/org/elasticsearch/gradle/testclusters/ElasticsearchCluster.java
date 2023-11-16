@@ -84,6 +84,20 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     private final ConfigurableFileCollection pluginAndModuleConfiguration;
 
+    private boolean shared = false;
+
+    /**
+     * this cluster si marked as shared across TestClusterAware tasks
+     * */
+    @Internal
+    public boolean isShared() {
+        return shared;
+    }
+
+    protected void setShared(boolean shared) {
+        this.shared = shared;
+    }
+
     public ElasticsearchCluster(
         String path,
         String clusterName,

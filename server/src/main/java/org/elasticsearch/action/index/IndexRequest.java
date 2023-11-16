@@ -102,6 +102,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private String pipeline;
     private String finalPipeline;
+    private String inferencePipeline;
 
     private boolean isPipelineResolved;
 
@@ -189,6 +190,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                     : new ArrayList<>(possiblyImmutableExecutedPipelines);
             }
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD)) {
+            this.inferencePipeline = in.readOptionalString();
+        }
     }
 
     public IndexRequest() {
@@ -268,6 +272,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
         if (finalPipeline != null && finalPipeline.isEmpty()) {
             validationException = addValidationError("final pipeline cannot be an empty string", validationException);
+        }
+
+        if (inferencePipeline != null && inferencePipeline.isEmpty()) {
+            validationException = addValidationError("inference pipeline cannot be an empty string", validationException);
         }
 
         return validationException;
@@ -353,6 +361,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public String getFinalPipeline() {
         return this.finalPipeline;
+    }
+
+    public String getInferencePipeline() {
+        return inferencePipeline;
+    }
+
+    public void setInferencePipeline(String inferencePipeline) {
+        this.inferencePipeline = inferencePipeline;
     }
 
     /**
@@ -733,6 +749,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             if (listExecutedPipelines) {
                 out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
             }
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD)) {
+            out.writeOptionalString(inferencePipeline);
         }
     }
 

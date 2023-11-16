@@ -491,4 +491,12 @@ public final class MappingLookup {
             throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_metric");
         }
     }
+
+    public List<String> fieldsForModel(String modelName) {
+        return fieldTypeLookup.fieldsForModel(modelName);
+    }
+
+    public Map<String, List<String>> fieldsForModels() {
+        return fieldTypeLookup.fieldsForModel();
+    }
 }

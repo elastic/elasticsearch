@@ -10,10 +10,12 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.regex.Regex;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -36,6 +38,8 @@ final class FieldTypeLookup {
      */
     private final Map<String, Set<String>> fieldToCopiedFields;
 
+    private final Map<String, List<String>> fieldsForModel;
+
     private final int maxParentPathDots;
 
     FieldTypeLookup(
@@ -48,6 +52,7 @@ final class FieldTypeLookup {
         final Map<String, String> fullSubfieldNameToParentPath = new HashMap<>();
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
+        final Map<String, List<String>> fieldsForModel = new HashMap<>();
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
@@ -64,6 +69,10 @@ final class FieldTypeLookup {
                     fieldToCopiedFields.put(targetField, copiedFields);
                 }
                 fieldToCopiedFields.get(targetField).add(fieldName);
+            }
+            if (fieldType.hasInferenceModel()) {
+                Collection<String> fields = fieldsForModel.computeIfAbsent(fieldType.getInferenceModel(), v -> new ArrayList<>());
+                fields.add(fieldName);
             }
         }
 
@@ -97,6 +106,7 @@ final class FieldTypeLookup {
         // make values into more compact immutable sets to save memory
         fieldToCopiedFields.entrySet().forEach(e -> e.setValue(Set.copyOf(e.getValue())));
         this.fieldToCopiedFields = Map.copyOf(fieldToCopiedFields);
+        this.fieldsForModel = Map.copyOf(fieldsForModel);
     }
 
     public static int dotCount(String path) {
@@ -107,6 +117,14 @@ final class FieldTypeLookup {
             }
         }
         return dotCount;
+    }
+
+    List<String> fieldsForModel(String modelName) {
+        return this.fieldsForModel.get(modelName);
+    }
+
+    Map<String, List<String>> fieldsForModel() {
+        return this.fieldsForModel;
     }
 
     /**

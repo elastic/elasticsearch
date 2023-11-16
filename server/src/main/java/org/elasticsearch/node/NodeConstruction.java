@@ -552,17 +552,7 @@ class NodeConstruction {
             factoryContext
         );
 
-        final IngestService ingestService = new IngestService(
-            clusterService,
-            threadPool,
-            environment,
-            scriptService,
-            analysisModule.getAnalysisRegistry(),
-            pluginsService.filterPlugins(IngestPlugin.class).toList(),
-            client,
-            IngestService.createGrokThreadWatchdog(environment, threadPool),
-            documentParsingObserverSupplier
-        );
+
         final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
         final ClusterInfoService clusterInfoService = serviceProvider.newClusterInfoService(
             pluginsService,
@@ -729,6 +719,19 @@ class NodeConstruction {
             snapshotCommitSuppliers,
             searchModule.getRequestCacheKeyDifferentiator(),
             documentParsingObserverSupplier
+        );
+        final IngestService ingestService = new IngestService(
+            clusterService,
+            threadPool,
+            environment,
+            scriptService,
+            analysisModule.getAnalysisRegistry(),
+            pluginsService.filterPlugins(IngestPlugin.class).toList(),
+            client,
+            IngestService.createGrokThreadWatchdog(environment, threadPool),
+            documentParsingObserverSupplier,
+            clusterModule.getIndexNameExpressionResolver(),
+            indicesService
         );
 
         final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);

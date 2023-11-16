@@ -203,6 +203,14 @@ public abstract class MappedFieldType {
         return Collections.emptyList();
     }
 
+    public String getInferenceModel() {
+        return null;
+    }
+
+    public final boolean hasInferenceModel() {
+        return getInferenceModel() != null;
+    }
+
     /**
      * @return metric type or null if the field is not a metric field
      */

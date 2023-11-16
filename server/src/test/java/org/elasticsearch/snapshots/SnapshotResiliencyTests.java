@@ -1934,7 +1934,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(),
                             client,
                             null,
-                            () -> DocumentParsingObserver.EMPTY_INSTANCE
+                            () -> DocumentParsingObserver.EMPTY_INSTANCE,
+                            indexNameExpressionResolver,
+                            indicesService
                         ),
                         client,
                         actionFilters,

@@ -21,6 +21,10 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -42,10 +46,13 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
 
     private final boolean routingRequired;
 
+    private final Map<String, List<String>> fieldsForModels;
+
     public MappingMetadata(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
         this.routingRequired = docMapper.routingFieldMapper().required();
+        this.fieldsForModels = docMapper.mappers().fieldsForModels();
     }
 
     @SuppressWarnings({ "this-escape", "unchecked" })
@@ -56,7 +63,9 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
             throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
         this.type = mappingMap.keySet().iterator().next();
-        this.routingRequired = routingRequired((Map<String, Object>) mappingMap.get(this.type));
+        Map<String, Object> withoutType = (Map<String, Object>) mappingMap.get(this.type);
+        this.routingRequired = routingRequired(withoutType);
+        this.fieldsForModels = inferenceModelsForFields(withoutType);
     }
 
     @SuppressWarnings({ "this-escape", "unchecked" })
@@ -72,6 +81,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
         this.routingRequired = routingRequired(withoutType);
+        this.fieldsForModels = inferenceModelsForFields(withoutType);;
     }
 
     public static void writeMappingMetadata(StreamOutput out, Map<String, MappingMetadata> mappings) throws IOException {
@@ -112,12 +122,38 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         return required;
     }
 
+    // TODO: Remove if not needed
+    private static Map<String, List<String>> inferenceModelsForFields(Map<String, Object> withoutType) {
+        Map<String, List<String>> fieldsForModel = new HashMap<>();
+        if (withoutType.containsKey("properties")) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> propertiesNode = (Map<String, Object>) withoutType.get("properties");
+            for (Map.Entry<String, Object> entry : propertiesNode.entrySet()) {
+                String fieldName = entry.getKey();
+                Object fieldNode = entry.getValue();
+                if (fieldNode instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
+                    if ("semantic_text".equals(fieldNodeMap.get("type"))) {
+                        Collection<String> fields = fieldsForModel.computeIfAbsent(fieldName, value -> new ArrayList<>());
+                        fields.add((String) fieldNodeMap.get("model_id"));
+                    }
+                }
+            }
+        }
+        return fieldsForModel;
+    }
+
     public String type() {
         return this.type;
     }
 
     public CompressedXContent source() {
         return this.source;
+    }
+
+    public Map<String, List<String>> getFieldsForModels() {
+        return fieldsForModels;
     }
 
     /**
@@ -164,6 +200,9 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         source().writeTo(out);
         // routing
         out.writeBoolean(routingRequired);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD)) {
+            out.writeMap(fieldsForModels, StreamOutput::writeStringCollection);
+        }
     }
 
     @Override
@@ -176,22 +215,30 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         if (Objects.equals(this.routingRequired, that.routingRequired) == false) return false;
         if (source.equals(that.source) == false) return false;
         if (type.equals(that.type) == false) return false;
+        if (Objects.equals(fieldsForModels, ((MappingMetadata) o).fieldsForModels) == false) return false;
 
         return true;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, source, routingRequired);
+        return Objects.hash(type, source, routingRequired, fieldsForModels);
     }
 
     public MappingMetadata(StreamInput in) throws IOException {
         type = in.readString();
         source = CompressedXContent.readCompressedString(in);
         routingRequired = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD)) {
+            fieldsForModels = in.readMapOfLists(StreamInput::readString);
+        } else {
+            fieldsForModels = Map.of();
+        }
     }
 
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(MappingMetadata::new, in);
     }
+
+
 }

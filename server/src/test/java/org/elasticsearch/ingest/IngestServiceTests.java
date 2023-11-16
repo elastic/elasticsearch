@@ -244,7 +244,7 @@ public class IngestServiceTests extends ESTestCase {
         PipelineConfiguration pipeline1 = new PipelineConfiguration("_id1", new BytesArray("{\"processors\": []}"), XContentType.JSON);
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1));
 
-        ingestService.innerUpdatePipelines(ingestMetadata);
+        ingestService.innerUpdatePipelines(ingestMetadata, event.state().metadata());
         assertThat(ingestService.pipelines().size(), is(1));
         {
             Pipeline p1 = ingestService.getPipeline("_id1");
@@ -255,7 +255,7 @@ public class IngestServiceTests extends ESTestCase {
         PipelineConfiguration pipeline2 = new PipelineConfiguration("_id2", new BytesArray("{\"processors\": []}"), XContentType.JSON);
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id2", pipeline2));
 
-        ingestService.innerUpdatePipelines(ingestMetadata);
+        ingestService.innerUpdatePipelines(ingestMetadata, event.state().metadata());
         assertThat(ingestService.pipelines().size(), is(2));
         {
             Pipeline p1 = ingestService.getPipeline("_id1");
@@ -269,7 +269,7 @@ public class IngestServiceTests extends ESTestCase {
         PipelineConfiguration pipeline3 = new PipelineConfiguration("_id3", new BytesArray("{\"processors\": []}"), XContentType.JSON);
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id2", pipeline2, "_id3", pipeline3));
 
-        ingestService.innerUpdatePipelines(ingestMetadata);
+        ingestService.innerUpdatePipelines(ingestMetadata, event.state().metadata());
         assertThat(ingestService.pipelines().size(), is(3));
         {
             Pipeline p1 = ingestService.getPipeline("_id1");
@@ -285,7 +285,7 @@ public class IngestServiceTests extends ESTestCase {
 
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id3", pipeline3));
 
-        ingestService.innerUpdatePipelines(ingestMetadata);
+        ingestService.innerUpdatePipelines(ingestMetadata, event.state().metadata());
         assertThat(ingestService.pipelines().size(), is(2));
         {
             Pipeline p1 = ingestService.getPipeline("_id1");
@@ -300,7 +300,7 @@ public class IngestServiceTests extends ESTestCase {
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id3", pipeline3));
 
-        ingestService.innerUpdatePipelines(ingestMetadata);
+        ingestService.innerUpdatePipelines(ingestMetadata, event.state().metadata());
         assertThat(ingestService.pipelines().size(), is(2));
         {
             Pipeline p1 = ingestService.getPipeline("_id1");
@@ -314,7 +314,7 @@ public class IngestServiceTests extends ESTestCase {
 
         // Perform an update with no changes:
         Map<String, IngestService.PipelineHolder> pipelines = ingestService.pipelines();
-        ingestService.innerUpdatePipelines(ingestMetadata);
+        ingestService.innerUpdatePipelines(ingestMetadata, event.state().metadata());
         assertThat(ingestService.pipelines(), sameInstance(pipelines));
     }
 

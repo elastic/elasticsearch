@@ -12,6 +12,8 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.GcNames;
+import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -113,6 +115,34 @@ public class NodeMetrics {
             "bytes",
             () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getTransport().getTxSize().getBytes(), Map.of())
         );
+        registry.registerLongGauge(
+            "es.node.stats.jvm.mem.pools.young.used",
+            "Memory, in bytes, used by the young generation heap.",
+            "bytes",
+            () -> new LongWithAttributes(bytesUsedByGCGen(nodeStatsCache.getOrRefresh().getJvm().getMem(), GcNames.YOUNG), Map.of())
+        );
+        registry.registerLongGauge(
+            "es.node.stats.jvm.mem.pools.survivor.used",
+            "Memory, in bytes, used by the survivor space.",
+            "bytes",
+            () -> new LongWithAttributes(bytesUsedByGCGen(nodeStatsCache.getOrRefresh().getJvm().getMem(), GcNames.SURVIVOR), Map.of())
+        );
+        registry.registerLongGauge(
+            "es.node.stats.jvm.mem.pools.old.used",
+            "Memory, in bytes, used by the old generation heap.",
+            "bytes",
+            () -> new LongWithAttributes(bytesUsedByGCGen(nodeStatsCache.getOrRefresh().getJvm().getMem(), GcNames.OLD), Map.of())
+        );
+    }
+
+    private long bytesUsedByGCGen(JvmStats.Mem mem, String name) {
+        long bytesUsed = 0;
+        for (JvmStats.MemoryPool pool : mem) {
+            if (pool.getName().equals(name)) {
+                bytesUsed = pool.getUsed().getBytes();
+            }
+        }
+        return bytesUsed;
     }
 
     private NodeStats getNodeStats() {
@@ -127,7 +157,7 @@ public class NodeMetrics {
             true,
             false,
             false,
-            false,
+            true,
             false,
             false,
             true,

@@ -370,7 +370,7 @@ public class NativePrivilegeStore {
     public void putPrivileges(
         Collection<ApplicationPrivilegeDescriptor> privileges,
         WriteRequest.RefreshPolicy refreshPolicy,
-        ActionListener<Map<String, List<String>>> listener
+        ActionListener<Map<String, Map<String, DocWriteResponse.Result>>> listener
     ) {
         if (privileges.isEmpty()) {
             listener.onResponse(Map.of());
@@ -416,9 +416,9 @@ public class NativePrivilegeStore {
         }
     }
 
-    private void handleBulkResponse(BulkResponse bulkResponse, ActionListener<Map<String, List<String>>> listener) {
+    private void handleBulkResponse(BulkResponse bulkResponse, ActionListener<Map<String, Map<String, DocWriteResponse.Result>>> listener) {
         ElasticsearchException failure = null;
-        final Map<String, List<String>> createdPrivilegesByAppName = new HashMap<>();
+        final Map<String, Map<String, DocWriteResponse.Result>> privilegeResultByAppName = new HashMap<>();
         for (var item : bulkResponse.getItems()) {
             if (item.isFailed()) {
                 if (failure == null) {
@@ -427,24 +427,22 @@ public class NativePrivilegeStore {
                     failure.addSuppressed(item.getFailure().getCause());
                 }
             } else {
-                if (item.getResponse().getResult() == DocWriteResponse.Result.CREATED) {
-                    final Tuple<String, String> name = nameFromDocId(item.getId());
-                    final String appName = name.v1();
-                    final String privilegeName = name.v2();
+                final Tuple<String, String> name = nameFromDocId(item.getId());
+                final String appName = name.v1();
+                final String privilegeName = name.v2();
 
-                    List<String> createdPrivileges = createdPrivilegesByAppName.get(appName);
-                    if (createdPrivileges == null) {
-                        createdPrivileges = new ArrayList<>();
-                        createdPrivilegesByAppName.put(appName, createdPrivileges);
-                    }
-                    createdPrivileges.add(privilegeName);
+                var privileges = privilegeResultByAppName.get(appName);
+                if (privileges == null) {
+                    privileges = new HashMap<>();
+                    privilegeResultByAppName.put(appName, privileges);
                 }
+                privileges.put(privilegeName, item.getResponse().getResult());
             }
         }
         if (failure != null) {
             listener.onFailure(failure);
         } else {
-            clearCaches(listener, createdPrivilegesByAppName.keySet(), createdPrivilegesByAppName);
+            clearCaches(listener, privilegeResultByAppName.keySet(), privilegeResultByAppName);
         }
     }
 

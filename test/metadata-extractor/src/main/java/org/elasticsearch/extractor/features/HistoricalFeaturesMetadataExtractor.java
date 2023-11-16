@@ -9,6 +9,7 @@
 package org.elasticsearch.extractor.features;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.XContentGenerator;
@@ -28,6 +29,11 @@ import java.util.ServiceLoader;
 
 public class HistoricalFeaturesMetadataExtractor {
     private final ClassLoader classLoader;
+
+    static {
+        // Make sure we initialize logging since this is normally done by Elasticsearch startup
+        LogConfigurator.configureESLogging();
+    }
 
     public HistoricalFeaturesMetadataExtractor(ClassLoader classLoader) {
         this.classLoader = classLoader;

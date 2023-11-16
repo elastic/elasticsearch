@@ -16,6 +16,7 @@ import org.gradle.api.tasks.Nested;
 import java.util.Collection;
 
 import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.REGISTRY_SERVICE_NAME;
+import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.TEST_CLUSTER_TASKS_SERVICE;
 
 public interface TestClustersAware extends Task {
 
@@ -24,6 +25,9 @@ public interface TestClustersAware extends Task {
 
     @ServiceReference(REGISTRY_SERVICE_NAME)
     Property<TestClustersRegistry> getRegistery();
+
+    @ServiceReference(TEST_CLUSTER_TASKS_SERVICE)
+    Property<TestClustersPlugin.TaskEventsService> getTasksService();
 
     default void useCluster(ElasticsearchCluster cluster) {
         if (cluster.getPath().equals(getProject().getPath()) == false) {
@@ -40,7 +44,9 @@ public interface TestClustersAware extends Task {
         useCluster(cluster.get());
     }
 
-    default void beforeStart() {}
+    default void beforeStart() {
+        getTasksService().get().register(this);
+    }
 
     default void enableDebug() {
         int debugPort = 5007;

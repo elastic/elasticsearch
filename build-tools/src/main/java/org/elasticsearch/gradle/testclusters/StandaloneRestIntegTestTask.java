@@ -88,6 +88,7 @@ public abstract class StandaloneRestIntegTestTask extends Test implements TestCl
 
     @Override
     public void beforeStart() {
+        getTasksService().get().register(this);
         if (debugServer) {
             enableDebug();
         }

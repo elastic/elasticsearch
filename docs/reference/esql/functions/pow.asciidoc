@@ -5,7 +5,8 @@
 image::esql/functions/signature/pow.svg[Embedded,opts=inline]
 
 Returns the value of a base (first argument) raised to the power of an exponent (second argument).
-Both arguments must be numeric. The output is always a double.
+Both arguments must be numeric. The output is always a double.  Note that it is still possible to overflow
+a double result here; in that case, null will be returned.
 
 [source.merge.styled,esql]
 ----
@@ -14,27 +15,6 @@ include::{esql-specs}/math.csv-spec[tag=powDI]
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 include::{esql-specs}/math.csv-spec[tag=powDI-result]
-|===
-
-
-[discrete]
-==== Arithmetic errors
-
-Arithmetic errors and numeric overflow do not result in an error. Instead, the result will be `null`
-and a warning for the `ArithmeticException` added.
-For example:
-
-[source.merge.styled,esql]
-----
-include::{esql-specs}/math.csv-spec[tag=powULOverrun]
-----
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-include::{esql-specs}/math.csv-spec[tag=powULOverrun-warning]
-|===
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-include::{esql-specs}/math.csv-spec[tag=powULOverrun-result]
 |===
 
 

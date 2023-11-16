@@ -357,16 +357,12 @@ base:double | exponent:integer | result:double
 ;
 
 powIntInt
-// tag::powII[]
 ROW base = 2, exponent = 2
 | EVAL s = POW(base, exponent)
-// end::powII[]
 ;
 
-// tag::powII-result[]
 base:integer | exponent:integer | s:double
 2            | 2                | 4.0
-// end::powII-result[]
 ;
 
 powIntIntPlusInt

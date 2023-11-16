@@ -264,7 +264,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     public DesiredBalanceStats getStats() {
         return new DesiredBalanceStats(
-            currentDesiredBalance.lastConvergedIndex(),
+            Math.max(currentDesiredBalance.lastConvergedIndex(), 0L),
             desiredBalanceComputation.isActive(),
             computationsSubmitted.count(),
             computationsExecuted.count(),
@@ -272,7 +272,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             desiredBalanceComputer.iterations.sum(),
             computedShardMovements.sum(),
             cumulativeComputationTime.count(),
-            cumulativeReconciliationTime.count()
+            cumulativeReconciliationTime.count(),
+            desiredBalanceReconciler.unassignedShards.get(),
+            desiredBalanceReconciler.totalAllocations.get(),
+            desiredBalanceReconciler.undesiredAllocations.get()
         );
     }
 

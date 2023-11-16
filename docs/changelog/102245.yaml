@@ -1,0 +1,5 @@
+pr: 102245
+summary: Add non-green indicator names to `HealthPeriodicLogger` message
+area: Health
+type: enhancement
+issues: []

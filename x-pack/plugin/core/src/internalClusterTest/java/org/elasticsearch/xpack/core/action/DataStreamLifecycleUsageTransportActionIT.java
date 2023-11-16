@@ -129,7 +129,9 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     systemDataStream,
                     randomBoolean(),
                     IndexMode.STANDARD,
-                    lifecycle
+                    lifecycle,
+                    false,
+                    List.of()
                 );
                 dataStreamMap.put(dataStream.getName(), dataStream);
             }
@@ -184,7 +186,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
      * Updates the cluster state in the internal cluster using the provided function
      */
     protected static void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override

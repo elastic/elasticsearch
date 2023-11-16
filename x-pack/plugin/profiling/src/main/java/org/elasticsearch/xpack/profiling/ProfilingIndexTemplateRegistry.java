@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
+
 /**
  * Creates all index-templates and ILM policies that are required for using Elastic Universal Profiling.
  */

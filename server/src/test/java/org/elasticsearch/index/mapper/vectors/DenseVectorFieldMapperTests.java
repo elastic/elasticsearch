@@ -1063,7 +1063,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             + ", beamWidth="
             + efConstruction
             + ", flatVectorFormat=Lucene99ScalarQuantizedVectorsFormat("
-            + "name=Lucene99ScalarQuantizedVectorsFormat, quantile="
+            + "name=Lucene99ScalarQuantizedVectorsFormat, confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : null)
             + ", rawVectorFormat=Lucene99FlatVectorsFormat()"
             + "))";

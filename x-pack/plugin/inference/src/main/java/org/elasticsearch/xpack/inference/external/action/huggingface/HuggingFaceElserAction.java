@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFac
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 
+import java.util.List;
+
 import static org.elasticsearch.core.Strings.format;
 
 public class HuggingFaceElserAction implements ExecutableAction {
@@ -34,19 +36,23 @@ public class HuggingFaceElserAction implements ExecutableAction {
         this.account = new HuggingFaceAccount(model.getServiceSettings().uri(), model.getSecretSettings().apiKey());
     }
 
-    public void execute(String input, ActionListener<InferenceResults> listener) {
+    @Override
+    public void execute(List<String> input, ActionListener<List<? extends InferenceResults>> listener) {
         try {
             HuggingFaceElserRequest request = new HuggingFaceElserRequest(account, new HuggingFaceElserRequestEntity(input));
 
-            ActionListener<InferenceResults> wrapFailuresInElasticsearchExceptionListener = ActionListener.wrap(listener::onResponse, e -> {
-                var unwrappedException = ExceptionsHelper.unwrapCause(e);
+            ActionListener<List<? extends InferenceResults>> wrapFailuresInElasticsearchExceptionListener = ActionListener.wrap(
+                listener::onResponse,
+                e -> {
+                    var unwrappedException = ExceptionsHelper.unwrapCause(e);
 
-                if (unwrappedException instanceof ElasticsearchException esException) {
-                    listener.onFailure(esException);
-                } else {
-                    listener.onFailure(createInternalServerError(unwrappedException));
+                    if (unwrappedException instanceof ElasticsearchException esException) {
+                        listener.onFailure(esException);
+                    } else {
+                        listener.onFailure(createInternalServerError(unwrappedException));
+                    }
                 }
-            });
+            );
 
             client.send(request, wrapFailuresInElasticsearchExceptionListener);
         } catch (ElasticsearchException e) {

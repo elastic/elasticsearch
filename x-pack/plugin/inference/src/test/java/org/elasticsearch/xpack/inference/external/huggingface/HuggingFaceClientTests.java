@@ -27,6 +27,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -38,8 +39,10 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterS
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequestTests.createRequest;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -65,6 +68,7 @@ public class HuggingFaceClientTests extends ESTestCase {
         webServer.close();
     }
 
+    @SuppressWarnings("unchecked")
     public void testSend_SuccessfulResponse() throws IOException, URISyntaxException {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
@@ -85,10 +89,10 @@ public class HuggingFaceClientTests extends ESTestCase {
                 new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY)
             );
 
-            PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
             huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(TIMEOUT).get(0);
 
             assertThat(result.asMap(), is(Map.of(DEFAULT_RESULTS_FIELD, Map.of(".", 0.13315596f))));
 
@@ -102,10 +106,13 @@ public class HuggingFaceClientTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(1));
-            assertThat(requestMap.get("inputs"), is("abc"));
+            assertThat(requestMap.get("inputs"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("inputs");
+            assertThat(inputList, contains("abc"));
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testSend_FailsFromInvalidResponseFormat() throws IOException, URISyntaxException {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
@@ -139,7 +146,7 @@ public class HuggingFaceClientTests extends ESTestCase {
                 )
             );
 
-            PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
             huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -158,7 +165,9 @@ public class HuggingFaceClientTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(1));
-            assertThat(requestMap.get("inputs"), is("abc"));
+            assertThat(requestMap.get("inputs"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("inputs");
+            assertThat(inputList, contains("abc"));
         }
     }
 
@@ -170,7 +179,7 @@ public class HuggingFaceClientTests extends ESTestCase {
             sender,
             new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY)
         );
-        PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
+        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
 
         huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
 

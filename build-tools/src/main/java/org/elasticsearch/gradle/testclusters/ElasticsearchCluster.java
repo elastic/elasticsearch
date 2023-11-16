@@ -144,7 +144,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.shared = shared;
     }
 
-
     @Classpath
     public FileCollection getInstalledClasspath() {
         return pluginAndModuleConfiguration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"));

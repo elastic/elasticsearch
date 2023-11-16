@@ -31,7 +31,7 @@ abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
         }
         """
 
-        subProject(":distribution:archives:integ-test-zip") << "configurations.create('extracted') \n"
+        subProject(":distribution:archives:integ-test-zip") << "configurations.create('extracted')\n"
         subProject(":distribution:archives:integ-test-zip") << "configurations.create('default')\n"
     }
 

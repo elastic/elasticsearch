@@ -35,7 +35,7 @@ public class InferenceActionResponseTests extends AbstractWireSerializingTestCas
 
     @Override
     protected InferenceAction.Response createTestInstance() {
-        return new InferenceAction.Response(TextExpansionResultsTests.createRandomResults());
+        return new InferenceAction.Response(List.of(TextExpansionResultsTests.createRandomResults()));
     }
 
     @Override

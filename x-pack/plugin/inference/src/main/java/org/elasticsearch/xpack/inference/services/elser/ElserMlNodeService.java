@@ -23,7 +23,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.io.IOException;
@@ -157,7 +156,12 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener) {
+    public void infer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        ActionListener<List<? extends InferenceResults>> listener
+    ) {
         // No task settings to override with requestTaskSettings
 
         if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
@@ -173,12 +177,11 @@ public class ElserMlNodeService implements InferenceService {
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
             model.getConfigurations().getModelId(),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
-            List.of(input),
+            input,
             TimeValue.timeValueSeconds(10)  // TODO get timeout from request
         );
         client.execute(InferTrainedModelDeploymentAction.INSTANCE, request, ActionListener.wrap(inferenceResult -> {
-            var textExpansionResult = (TextExpansionResults) inferenceResult.getResults().get(0);
-            listener.onResponse(textExpansionResult);
+            listener.onResponse(inferenceResult.getResults());
         }, listener::onFailure));
     }
 

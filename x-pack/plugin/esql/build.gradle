@@ -26,7 +26,6 @@ dependencies {
   testImplementation project('qa:testFixtures')
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation project(path: xpackModule('enrich'))
 
   testImplementation project(path: ':modules:reindex')

@@ -72,10 +72,9 @@ public class LearnToRankRescorerBuilderSerializationTests extends AbstractBWCSer
 
     @Override
     protected LearnToRankRescorerBuilder createTestInstance() {
-        LearnToRankConfig learnToRankConfig = randomLearnToRankConfig();
         LearnToRankRescorerBuilder builder = randomBoolean()
             ? createXContextTestInstance(null)
-            : new LearnToRankRescorerBuilder(randomAlphaOfLength(10), null, () -> learnToRankConfig);
+            : new LearnToRankRescorerBuilder(randomAlphaOfLength(10), null, randomLearnToRankConfig());
 
         if (randomBoolean()) {
             builder.windowSize(randomIntBetween(1, 10000));
@@ -127,11 +126,9 @@ public class LearnToRankRescorerBuilderSerializationTests extends AbstractBWCSer
                 yield builder;
             }
             case 3 -> {
-                LearnToRankConfig learnToRankConfig = instance.learnToRankConfigSupplier() != null
-                    ? randomValueOtherThan(instance.learnToRankConfigSupplier().get(), () -> randomLearnToRankConfig())
-                    : randomLearnToRankConfig();
+                LearnToRankConfig learnToRankConfig = randomValueOtherThan(instance.learnToRankConfig(), () -> randomLearnToRankConfig());
 
-                LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(instance.modelId(), null, () -> learnToRankConfig);
+                LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(instance.modelId(), null, learnToRankConfig);
                 if (instance.windowSize() != null) {
                     builder.windowSize(instance.windowSize());
                 }
@@ -139,7 +136,7 @@ public class LearnToRankRescorerBuilderSerializationTests extends AbstractBWCSer
             }
             case 4 -> {
                 LocalModel localModel = mock(LocalModel.class);
-                LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(instance.learnToRankConfigSupplier(), () -> localModel);
+                LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(instance.learnToRankConfig(), localModel);
                 if (instance.windowSize() != null) {
                     builder.windowSize(instance.windowSize());
                 }

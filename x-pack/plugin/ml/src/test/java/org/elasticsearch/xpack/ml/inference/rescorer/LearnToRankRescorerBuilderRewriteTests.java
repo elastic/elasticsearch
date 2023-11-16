@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
@@ -55,6 +54,7 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigTests.randomLearnToRankConfig;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -97,11 +97,8 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
 
     public void testMustRewrite() {
         TestModelLoader testModelLoader = new TestModelLoader();
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
-            GOOD_MODEL,
-            testModelLoader,
-            () -> LearnToRankConfigTests.randomLearnToRankConfig()
-        );
+        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(GOOD_MODEL, testModelLoader, randomLearnToRankConfig());
+
         SearchExecutionContext context = createSearchExecutionContext();
         LearnToRankRescorerContext rescorerContext = rescorerBuilder.innerBuildContext(randomIntBetween(1, 30), context);
         IllegalStateException e = expectThrows(
@@ -127,14 +124,13 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
             randomIntBetween(1_500_000, Integer.MAX_VALUE)
         );
         LearnToRankRescorerBuilder rewritten = rewriteAndFetch(rescorerBuilder, context);
-        assertThat(rewritten.learnToRankConfigSupplier().get(), not(nullValue()));
-        assertThat(rewritten.learnToRankConfigSupplier().get().getNumTopFeatureImportanceValues(), equalTo(2));
+        assertThat(rewritten.learnToRankConfig(), not(nullValue()));
+        assertThat(rewritten.learnToRankConfig().getNumTopFeatureImportanceValues(), equalTo(2));
         assertThat(
             "feature_1",
             is(
                 in(
-                    rewritten.learnToRankConfigSupplier()
-                        .get()
+                    rewritten.learnToRankConfig()
                         .getFeatureExtractorBuilders()
                         .stream()
                         .map(LearnToRankFeatureExtractorBuilder::featureName)
@@ -173,17 +169,15 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
     public void testSearchRewrite() throws IOException {
         LocalModel localModel = localModel();
         when(localModel.getModelId()).thenReturn(GOOD_MODEL);
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
-            () -> LearnToRankConfigTests.randomLearnToRankConfig(),
-            () -> localModel
-        );
+
+        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(randomLearnToRankConfig(), localModel);
 
         QueryRewriteContext context = createSearchExecutionContext();
         LearnToRankRescorerBuilder rewritten = (LearnToRankRescorerBuilder) Rewriteable.rewrite(rescorerBuilder, context, true);
 
-        LearnToRankConfig rewrittenLearnToRankConfig = Rewriteable.rewrite(rewritten.learnToRankConfigSupplier().get(), context);
-        assertThat(rewritten.localModelSupplier().get(), is(localModel));
-        assertThat(rewritten.learnToRankConfigSupplier().get(), is(rewrittenLearnToRankConfig));
+        LearnToRankConfig rewrittenLearnToRankConfig = Rewriteable.rewrite(rewritten.learnToRankConfig(), context);
+        assertThat(rewritten.localModel(), is(localModel));
+        assertThat(rewritten.learnToRankConfig(), is(rewrittenLearnToRankConfig));
     }
 
     protected LearnToRankRescorerBuilder rewriteAndFetch(RescorerBuilder<LearnToRankRescorerBuilder> builder, QueryRewriteContext context) {
@@ -220,7 +214,7 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
         LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
             GOOD_MODEL,
             testModelLoader,
-            () -> (LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig()
+            (LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig()
         );
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         LearnToRankRescorerBuilder rewritten = (LearnToRankRescorerBuilder) rescorerBuilder.rewrite(createSearchExecutionContext());
@@ -230,11 +224,9 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
 
     public void testRewriteAndFetchOnDataNode() throws IOException {
         TestModelLoader testModelLoader = new TestModelLoader();
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
-            GOOD_MODEL,
-            testModelLoader,
-            () -> LearnToRankConfigTests.randomLearnToRankConfig()
-        );
+
+        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(GOOD_MODEL, testModelLoader, randomLearnToRankConfig());
+
         boolean setWindowSize = randomBoolean();
         if (setWindowSize) {
             rescorerBuilder.windowSize(42);
@@ -253,10 +245,8 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
         List<String> inputFields = List.of(DOUBLE_FIELD_NAME, INT_FIELD_NAME);
         when(localModel.inputFields()).thenReturn(inputFields);
         SearchExecutionContext context = createSearchExecutionContext();
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
-            () -> LearnToRankConfigTests.randomLearnToRankConfig(),
-            () -> localModel
-        );
+
+        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(randomLearnToRankConfig(), localModel);
 
         LearnToRankRescorerContext rescoreContext = rescorerBuilder.innerBuildContext(20, context);
         assertNotNull(rescoreContext);

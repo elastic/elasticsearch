@@ -70,8 +70,8 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
     private final Map<String, Object> params;
     private final ScriptService scriptService;
     private final ModelLoadingService modelLoadingService;
-    private final Supplier<LocalModel> localModelSupplier;
-    private final Supplier<LearnToRankConfig> learnToRankConfigSupplier;
+    private final LocalModel localModel;
+    private final LearnToRankConfig learnToRankConfig;
     private boolean rescoreOccurred = false;
 
     LearnToRankRescorerBuilder(
@@ -86,36 +86,19 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         this.modelLoadingService = modelLoadingService;
 
         // Config and model will be set during successive rewrite phases.
-        this.learnToRankConfigSupplier = null;
-        this.localModelSupplier = null;
+        this.learnToRankConfig = null;
+        this.localModel = null;
     }
 
-    LearnToRankRescorerBuilder(
-        String modelId,
-        ModelLoadingService modelLoadingService,
-        Supplier<LearnToRankConfig> learnToRankConfigSupplier
-    ) {
+    LearnToRankRescorerBuilder(String modelId, ModelLoadingService modelLoadingService, LearnToRankConfig learnToRankConfig) {
         this.modelId = modelId;
         this.modelLoadingService = modelLoadingService;
-        this.learnToRankConfigSupplier = learnToRankConfigSupplier;
+        this.learnToRankConfig = learnToRankConfig;
 
         // Local inference model is not loaded yet. Will be done in a later rewrite.
-        this.localModelSupplier = null;
+        this.localModel = null;
 
         // Templates has been applied already, so we do not need params and script service anymore.
-        this.params = null;
-        this.scriptService = null;
-    }
-
-    LearnToRankRescorerBuilder(Supplier<LearnToRankConfig> learnToRankConfigSupplier, Supplier<LocalModel> localModelSupplier) {
-        this.modelId = localModelSupplier.get() != null ? localModelSupplier.get().getModelId() : null;
-        this.learnToRankConfigSupplier = learnToRankConfigSupplier;
-        this.localModelSupplier = localModelSupplier;
-
-        // Model is loaded already, so we do not need the model loading service anymore.
-        this.modelLoadingService = null;
-
-        // Template has been applied already, so we do not need params and script service anymore.
         this.params = null;
         this.scriptService = null;
     }
@@ -128,14 +111,25 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         super(input);
         this.modelId = input.readString();
         this.params = input.readMap();
-
-        LearnToRankConfig learnToRankConfig = input.readOptionalNamedWriteable(LearnToRankConfig.class);
-        this.learnToRankConfigSupplier = learnToRankConfig != null ? () -> learnToRankConfig : null;
+        this.learnToRankConfig = input.readOptionalNamedWriteable(LearnToRankConfig.class);
 
         this.modelLoadingService = modelLoadingServiceSupplier.get();
         this.scriptService = scriptServiceSupplier.get();
 
-        this.localModelSupplier = null;
+        this.localModel = null;
+    }
+
+    LearnToRankRescorerBuilder(LearnToRankConfig learnToRankConfig, LocalModel localModel) {
+        this.modelId = localModel.getModelId();
+        this.learnToRankConfig = learnToRankConfig;
+        this.localModel = localModel;
+
+        // Model is loaded already, so we do not need the model loading service anymore.
+        this.modelLoadingService = null;
+
+        // Template has been applied already, so we do not need params and script service anymore.
+        this.params = null;
+        this.scriptService = null;
     }
 
     public String modelId() {
@@ -146,16 +140,16 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         return params;
     }
 
-    public Supplier<LearnToRankConfig> learnToRankConfigSupplier() {
-        return learnToRankConfigSupplier;
+    public LearnToRankConfig learnToRankConfig() {
+        return learnToRankConfig;
     }
 
-    public ModelLoadingService modelLoadingServiceSupplier() {
+    public ModelLoadingService modelLoadingService() {
         return modelLoadingService;
     }
 
-    public Supplier<LocalModel> localModelSupplier() {
-        return localModelSupplier;
+    public LocalModel localModel() {
+        return localModel;
     }
 
     @Override
@@ -179,18 +173,13 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
      * @throws IOException when rewrite fails
      */
     private RescorerBuilder<LearnToRankRescorerBuilder> doCoordinatorNodeRewrite(QueryRewriteContext ctx) throws IOException {
-        if (learnToRankConfigSupplier != null && learnToRankConfigSupplier.get() == null) {
-            // Awaiting to fetch the model.
-            return this;
-        }
-
         // We have requested for the stored config and fetch is completed, get the config and rewrite further if required
-        if (learnToRankConfigSupplier != null) {
-            LearnToRankConfig rewrittenConfig = Rewriteable.rewrite(learnToRankConfigSupplier.get(), ctx);
-            if (rewrittenConfig == learnToRankConfigSupplier.get()) {
+        if (learnToRankConfig != null) {
+            LearnToRankConfig rewrittenConfig = Rewriteable.rewrite(learnToRankConfig, ctx);
+            if (rewrittenConfig == learnToRankConfig) {
                 return this;
             }
-            LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(modelId, modelLoadingService, () -> rewrittenConfig);
+            LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(modelId, modelLoadingService, rewrittenConfig);
             if (windowSize != null) {
                 builder.windowSize(windowSize);
             }
@@ -228,7 +217,24 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
                 }, l::onFailure)
             )
         );
-        LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(modelId, modelLoadingService, configSetOnce::get);
+        LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(modelId, modelLoadingService, null) {
+            @Override
+            public RescorerBuilder<LearnToRankRescorerBuilder> rewrite(QueryRewriteContext ctx) throws IOException {
+                if (configSetOnce.get() == null) {
+                    // Still waiting for the model to be loaded.
+                    return this;
+                }
+
+                LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(modelId, modelLoadingService, configSetOnce.get());
+
+                if (windowSize() != null) {
+                    builder.windowSize(windowSize());
+                }
+
+                return builder;
+            }
+        };
+
         if (windowSize() != null) {
             builder.windowSize(windowSize);
         }
@@ -264,23 +270,41 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
      * @return A rewritten rescorer with a model definition or a model definition supplier populated
      */
     private RescorerBuilder<LearnToRankRescorerBuilder> doDataNodeRewrite(QueryRewriteContext ctx) throws IOException {
-        assert learnToRankConfigSupplier.get() != null;
+        assert learnToRankConfig != null;
 
-        // The model supplier is already created, no need to rewrite further.
-        if (localModelSupplier != null) {
+        // The model is already loaded, no need to rewrite further.
+        if (localModel != null) {
             return this;
         }
 
         if (modelLoadingService == null) {
             throw new IllegalStateException("Model loading service must be available");
         }
-        LearnToRankConfig rewrittenConfig = Rewriteable.rewrite(learnToRankConfigSupplier.get(), ctx);
-        SetOnce<LocalModel> inferenceDefinitionSetOnce = new SetOnce<>();
+        LearnToRankConfig rewrittenConfig = Rewriteable.rewrite(learnToRankConfig, ctx);
+        SetOnce<LocalModel> localModelSetOnce = new SetOnce<>();
         ctx.registerAsyncAction((c, l) -> modelLoadingService.getModelForLearnToRank(modelId, ActionListener.wrap(lm -> {
-            inferenceDefinitionSetOnce.set(lm);
+            localModelSetOnce.set(lm);
             l.onResponse(null);
         }, l::onFailure)));
-        LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(() -> rewrittenConfig, inferenceDefinitionSetOnce::get);
+
+        LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(modelId, modelLoadingService, learnToRankConfig) {
+            @Override
+            public RescorerBuilder<LearnToRankRescorerBuilder> rewrite(QueryRewriteContext ctx) throws IOException {
+                if (localModelSetOnce.get() == null) {
+                    // Still waiting for the model to be loaded.
+                    return this;
+                }
+
+                LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(learnToRankConfig, localModelSetOnce.get());
+
+                if (windowSize() != null) {
+                    builder.windowSize(windowSize());
+                }
+
+                return builder;
+            }
+        };
+
         if (windowSize() != null) {
             builder.windowSize(windowSize());
         }
@@ -294,14 +318,14 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
      * @throws IOException If fetching, parsing, or overall rewrite failures occur
      */
     private RescorerBuilder<LearnToRankRescorerBuilder> doSearchRewrite(QueryRewriteContext ctx) throws IOException {
-        if (learnToRankConfigSupplier == null || learnToRankConfigSupplier.get() == null) {
+        if (learnToRankConfig == null) {
             return this;
         }
-        LearnToRankConfig rewrittenConfig = Rewriteable.rewrite(learnToRankConfigSupplier.get(), ctx);
-        if (rewrittenConfig == learnToRankConfigSupplier.get()) {
+        LearnToRankConfig rewrittenConfig = Rewriteable.rewrite(learnToRankConfig, ctx);
+        if (rewrittenConfig == learnToRankConfig) {
             return this;
         }
-        LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(() -> rewrittenConfig, localModelSupplier);
+        LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(rewrittenConfig, localModel);
         if (windowSize != null) {
             builder.windowSize(windowSize);
         }
@@ -311,9 +335,11 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
     @Override
     protected LearnToRankRescorerContext innerBuildContext(int windowSize, SearchExecutionContext context) {
         rescoreOccurred = true;
-        LearnToRankConfig learnToRankConfig = learnToRankConfigSupplier != null ? learnToRankConfigSupplier.get() : null;
-        LocalModel inferenceDefinition = localModelSupplier != null ? localModelSupplier.get() : null;
-        return new LearnToRankRescorerContext(windowSize, LearnToRankRescorer.INSTANCE, learnToRankConfig, inferenceDefinition, context);
+
+        assert learnToRankConfig != null;
+        assert localModel != null;
+
+        return new LearnToRankRescorerContext(windowSize, LearnToRankRescorer.INSTANCE, learnToRankConfig, localModel, context);
     }
 
     @Override
@@ -329,10 +355,10 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        assert localModelSupplier == null || rescoreOccurred : "Unnecessarily populated local model object";
+        assert localModel == null || rescoreOccurred : "Unnecessarily populated local model object";
         out.writeString(modelId);
         out.writeGenericMap(params);
-        out.writeOptionalNamedWriteable(learnToRankConfigSupplier != null ? learnToRankConfigSupplier.get() : null);
+        out.writeOptionalNamedWriteable(learnToRankConfig);
     }
 
     @Override
@@ -352,19 +378,10 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         if (super.equals(o) == false) return false;
         LearnToRankRescorerBuilder that = (LearnToRankRescorerBuilder) o;
 
-        if (learnToRankConfigSupplier != null
-            && (that.learnToRankConfigSupplier == null
-                || Objects.equals(learnToRankConfigSupplier.get(), that.learnToRankConfigSupplier.get()) == false)) {
-            return false;
-        }
-
-        if (localModelSupplier != null
-            && (that.localModelSupplier == null || Objects.equals(localModelSupplier.get(), that.localModelSupplier.get()) == false)) {
-            return false;
-        }
-
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(params, that.params)
+            && Objects.equals(learnToRankConfig, that.learnToRankConfig)
+            && Objects.equals(localModel, that.localModel)
             && Objects.equals(modelLoadingService, that.modelLoadingService)
             && Objects.equals(scriptService, that.scriptService)
             && rescoreOccurred == that.rescoreOccurred;
@@ -376,10 +393,10 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
             super.hashCode(),
             modelId,
             params,
+            learnToRankConfig,
+            localModel,
             modelLoadingService,
             scriptService,
-            learnToRankConfigSupplier != null ? learnToRankConfigSupplier.get() : null,
-            localModelSupplier != null ? localModelSupplier.get() : null,
             rescoreOccurred
         );
     }

@@ -23,18 +23,15 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
 
-    private final Map<ElasticsearchCluster, Integer> claimCount = new HashMap<>();
-
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
 
     public void claimCluster(ElasticsearchCluster cluster) {
         cluster.freeze();
-        claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) + 1);
-        claimCount.put(cluster, claimCount.getOrDefault(cluster, 0) + 1);
-    }
-
-    public boolean isReusedCluster(ElasticsearchCluster cluster) {
-        return claimCount.getOrDefault(cluster, 0) > 0;
+        int claim = claimsInventory.getOrDefault(cluster, 0) + 1;
+        claimsInventory.put(cluster, claim);
+        if (claim > 1) {
+            cluster.setShared(true);
+        }
     }
 
     public void maybeStartCluster(ElasticsearchCluster cluster) {

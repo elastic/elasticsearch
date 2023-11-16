@@ -128,7 +128,7 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
     }
 
     private void configureCacheability(StandaloneRestIntegTestTask testTask) {
-        Spec<Task> taskSpec = task -> testTask.getClusters().stream().anyMatch(testTask.getRegistery().get()::isReusedCluster);
+        Spec<Task> taskSpec = task -> testTask.getClusters().stream().anyMatch(ElasticsearchCluster::isShared);
         testTask.getOutputs()
             .doNotCacheIf(
                 "Caching disabled for this task since it uses a cluster shared by other tasks",

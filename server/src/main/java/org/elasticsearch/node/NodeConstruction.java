@@ -1016,7 +1016,7 @@ class NodeConstruction {
             compatibilityVersions,
             featureService
         );
-        this.nodeService = new NodeService(
+        nodeService = new NodeService(
             settings,
             threadPool,
             monitorService,
@@ -1102,8 +1102,8 @@ class NodeConstruction {
             loadDiagnosticServices(settings, discoveryModule.getCoordinator(), clusterService, transportService, featureService, threadPool)
         );
 
+        RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
         modules.add(b -> {
-            RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
             serviceProvider.processRecoverySettings(pluginsService, settingsModule.getClusterSettings(), recoverySettings);
             SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoryService);
             var peerRecovery = new PeerRecoverySourceService(

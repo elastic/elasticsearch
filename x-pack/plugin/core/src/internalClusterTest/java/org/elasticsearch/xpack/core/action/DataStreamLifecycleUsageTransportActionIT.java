@@ -129,7 +129,9 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     systemDataStream,
                     randomBoolean(),
                     IndexMode.STANDARD,
-                    lifecycle
+                    lifecycle,
+                    false,
+                    List.of()
                 );
                 dataStreamMap.put(dataStream.getName(), dataStream);
             }

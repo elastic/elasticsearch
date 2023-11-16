@@ -628,10 +628,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
         @Override
         public Set<Entry<String, Object>> entrySet() {
-            return new AbstractSet<Entry<String, Object>>() {
+            return new AbstractSet<>() {
                 @Override
                 public Iterator<Entry<String, Object>> iterator() {
-                    return new Iterator<Entry<String, Object>>() {
+                    return new Iterator<>() {
                         int pos = 0;
 
                         @Override

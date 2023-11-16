@@ -12,21 +12,19 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.rest.RestStatus.OK;
-
 /**
  * A response of an async search status request.
  */
-public class AsyncStatusResponse extends ActionResponse implements SearchStatusResponse, StatusToXContentObject {
+public class AsyncStatusResponse extends ActionResponse implements SearchStatusResponse, ToXContentObject {
     private final String id;
     private final boolean isRunning;
     private final boolean isPartial;
@@ -141,7 +139,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         } else {
             this.clusters = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_035)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             this.completionTimeMillis = in.readOptionalVLong();
         } else {
             this.completionTimeMillis = null;
@@ -166,14 +164,9 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
             // optional since only CCS uses is; it is null for local-only searches
             out.writeOptionalWriteable(clusters);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_035)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             out.writeOptionalVLong(completionTimeMillis);
         }
-    }
-
-    @Override
-    public RestStatus status() {
-        return OK;
     }
 
     @Override

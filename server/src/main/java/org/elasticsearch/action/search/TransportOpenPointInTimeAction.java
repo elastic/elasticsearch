@@ -62,7 +62,13 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         TransportSearchAction transportSearchAction,
         SearchTransportService searchTransportService
     ) {
-        super(OpenPointInTimeAction.NAME, transportService, actionFilters, OpenPointInTimeRequest::new);
+        super(
+            OpenPointInTimeAction.NAME,
+            transportService,
+            actionFilters,
+            OpenPointInTimeRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;
@@ -262,7 +268,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
     private class ShardOpenReaderRequestHandler implements TransportRequestHandler<ShardOpenReaderRequest> {
         @Override
-        public void messageReceived(ShardOpenReaderRequest request, TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(ShardOpenReaderRequest request, TransportChannel channel, Task task) {
             searchService.openReaderContext(
                 request.getShardId(),
                 request.keepAlive,

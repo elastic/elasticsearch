@@ -90,6 +90,7 @@ public class IndexLifecycleService
     private final LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
 
+    @SuppressWarnings("this-escape")
     public IndexLifecycleService(
         Settings settings,
         Client client,

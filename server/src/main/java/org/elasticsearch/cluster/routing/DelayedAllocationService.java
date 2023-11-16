@@ -129,6 +129,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
+    @SuppressWarnings("this-escape")
     @Inject
     public DelayedAllocationService(ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService) {
         this.threadPool = threadPool;

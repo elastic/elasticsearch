@@ -5,8 +5,10 @@
   "data_stream": {},
   "composed_of": [
     "profiling-hosts",
-    "profiling-ilm"
+    "profiling-ilm",
+    "profiling-ilm@custom"
   ],
+  "ignore_missing_component_templates": ["profiling-ilm@custom"],
   "priority": 100,
   "_meta": {
     "description": "Template for profiling-hosts"

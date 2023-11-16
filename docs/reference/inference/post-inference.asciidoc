@@ -1,0 +1,103 @@
+[role="xpack"]
+[[post-inference-api]]
+=== Perform inference API
+
+experimental[]
+
+Performs an inference task on an input text by using an {infer} model.
+
+
+[discrete]
+[[post-inference-api-request]]
+==== {api-request-title}
+
+`POST /_inference/<task_type>/<model_id>`
+
+
+[discrete]
+[[post-inference-api-prereqs]]
+==== {api-prereq-title}
+
+* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+
+
+[discrete]
+[[post-inference-api-desc]]
+==== {api-description-title}
+
+The perform {infer} API enables you to use {infer} models to perform specific
+tasks on data that you provide as an input. The API returns a response with the
+resutls of the tasks. The {infer} model you use can perform one specific task
+that has been defined when the model was created with the <<put-inference-api>>.
+
+
+[discrete]
+[[post-inference-api-path-params]]
+==== {api-path-parms-title}
+
+`<model_id>`::
+(Required, string)
+The unique identifier of the {infer} model.
+
+
+`<task_type>`::
+(Required, string)
+The type of {infer} task that the model performs.
+
+
+[discrete]
+[[post-inference-api-request-body]]
+== {api-request-body-title}
+
+`input`::
+(Required, array of strings)
+The text on which you want to perform the {infer} task.
+`input` can be a single string or an array.
+
+
+[discrete]
+[[post-inference-api-example]]
+==== {api-examples-title}
+
+The following example performs sparse embedding on the example sentence.
+
+
+[source,console]
+------------------------------------------------------------
+POST _inference/sparse_embedding/my-elser-model
+{
+  "input": "The sky above the port was the color of television tuned to a dead channel."
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following response:
+
+
+[source,console-result]
+------------------------------------------------------------
+{
+  "sparse_embedding": [
+    {
+      "port": 2.1259406,
+      "sky": 1.7073475,
+      "color": 1.6922266,
+      "dead": 1.6247464,
+      "television": 1.3525393,
+      "above": 1.2425821,
+      "tuned": 1.1440028,
+      "colors": 1.1218185,
+      "tv": 1.0111054,
+      "ports": 1.0067928,
+      "poem": 1.0042328,
+      "channel": 0.99471164,
+      "tune": 0.96235967,
+      "scene": 0.9020516,
+      (...)
+    },
+    (...)
+  ]
+}
+------------------------------------------------------------
+// NOTCONSOLE

@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.node.ReportingService;
@@ -130,6 +129,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
+    @SuppressWarnings("this-escape")
     public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
         this.settings = settings;
         this.configPath = configPath;
@@ -361,7 +361,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         var services = loadServiceProviders(service);
         if (services.size() > 1) {
             throw new IllegalStateException(String.format(Locale.ROOT, "More than one extension found for %s", service.getSimpleName()));
-        } else if (services.size() == 0) {
+        } else if (services.isEmpty()) {
             return fallback.get();
         }
         return services.get(0);
@@ -710,21 +710,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     @SuppressWarnings("unchecked")
-    public final <T> List<T> filterPlugins(Class<T> type) {
-        return plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
+    public final <T> Stream<T> filterPlugins(Class<T> type) {
+        return plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance()));
     }
 
-    /**
-     * Get a function that will take a {@link Settings} object and return a {@link PluginsService}.
-     * This function passes in an empty list of classpath plugins.
-     * @param environment The environment for the plugins service.
-     * @return A function for creating a plugins service.
-     */
-    public static Function<Settings, PluginsService> getPluginsServiceCtor(Environment environment) {
-        return settings -> new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
-    }
-
-    static final LayerAndLoader createPluginModuleLayer(
+    static LayerAndLoader createPluginModuleLayer(
         PluginBundle bundle,
         ClassLoader parentLoader,
         List<ModuleLayer> parentLayers,

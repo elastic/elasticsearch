@@ -8,22 +8,24 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.inference.TaskType;
-import org.elasticsearch.xpack.inference.results.InferenceResult;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -44,7 +46,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
             // TODO timeout
-            PARSER.declareString(Request.Builder::setInput, INPUT);
+            PARSER.declareStringArray(Request.Builder::setInput, INPUT);
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
         }
 
@@ -57,10 +59,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         private final TaskType taskType;
         private final String modelId;
-        private final String input;
+        private final List<String> input;
         private final Map<String, Object> taskSettings;
 
-        public Request(TaskType taskType, String modelId, String input, Map<String, Object> taskSettings) {
+        public Request(TaskType taskType, String modelId, List<String> input, Map<String, Object> taskSettings) {
             this.taskType = taskType;
             this.modelId = modelId;
             this.input = input;
@@ -71,7 +73,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super(in);
             this.taskType = TaskType.fromStream(in);
             this.modelId = in.readString();
-            this.input = in.readString();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+                this.input = in.readStringCollectionAsList();
+            } else {
+                this.input = List.of(in.readString());
+            }
             this.taskSettings = in.readMap();
         }
 
@@ -83,7 +89,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             return modelId;
         }
 
-        public String getInput() {
+        public List<String> getInput() {
             return input;
         }
 
@@ -98,6 +104,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 e.addValidationError("missing input");
                 return e;
             }
+            if (input.isEmpty()) {
+                var e = new ActionRequestValidationException();
+                e.addValidationError("input array is empty");
+                return e;
+            }
             return null;
         }
 
@@ -106,7 +117,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super.writeTo(out);
             taskType.writeTo(out);
             out.writeString(modelId);
-            out.writeString(input);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+                out.writeStringCollection(input);
+            } else {
+                out.writeString(input.get(0));
+            }
             out.writeGenericMap(taskSettings);
         }
 
@@ -130,7 +145,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
             private TaskType taskType;
             private String modelId;
-            private String input;
+            private List<String> input;
             private Map<String, Object> taskSettings = Map.of();
 
             private Builder() {}
@@ -150,7 +165,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
-            public Builder setInput(String input) {
+            public Builder setInput(List<String> input) {
                 this.input = input;
                 return this;
             }
@@ -168,26 +183,45 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final InferenceResult result;
+        private final List<? extends InferenceResults> results;
 
-        public Response(InferenceResult result) {
-            this.result = result;
+        public Response(List<? extends InferenceResults> results) {
+            this.results = results;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            result = in.readNamedWriteable(InferenceResult.class);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+                results = in.readNamedWriteableCollectionAsList(InferenceResults.class);
+            } else {
+                results = List.of(in.readNamedWriteable(InferenceResults.class));
+            }
+        }
+
+        public List<? extends InferenceResults> getResults() {
+            return results;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteable(result);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+                out.writeNamedWriteableCollection(results);
+            } else {
+                out.writeNamedWriteable(results.get(0));
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            result.toXContent(builder, params);
+            builder.startArray("inference_results"); // TODO what is the name of this field?
+            for (var result : results) {
+                // inference results implement ToXContentFragment
+                builder.startObject();
+                result.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endArray();
             builder.endObject();
             return builder;
         }
@@ -197,12 +231,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return Objects.equals(result, response.result);
+            return Objects.equals(results, response.results);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(result);
+            return Objects.hash(results);
         }
     }
 }

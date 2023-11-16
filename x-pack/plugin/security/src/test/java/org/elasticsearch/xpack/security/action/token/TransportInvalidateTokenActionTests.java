@@ -78,10 +78,12 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     }
 
     public void testInvalidateTokensWhenIndexUnavailable() throws Exception {
-        when(securityIndex.isAvailable()).thenReturn(false);
+
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
         when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
-        when(securityIndex.getUnavailableReason()).thenReturn(new ElasticsearchException("simulated"));
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS))
+            .thenReturn(new ElasticsearchException("simulated"));
         final TokenService tokenService = new TokenService(
             SETTINGS,
             Clock.systemUTC(),
@@ -122,10 +124,10 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     }
 
     public void testInvalidateTokensWhenIndexClosed() throws Exception {
-        when(securityIndex.isAvailable()).thenReturn(false);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
         when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
-        when(securityIndex.getUnavailableReason()).thenReturn(
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(
             new IndexClosedException(new Index(INTERNAL_SECURITY_TOKENS_INDEX_7, ClusterState.UNKNOWN_UUID))
         );
         final TokenService tokenService = new TokenService(

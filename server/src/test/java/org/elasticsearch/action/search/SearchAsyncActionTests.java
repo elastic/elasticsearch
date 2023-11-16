@@ -233,11 +233,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 });
 
                 new Thread(() -> {
-                    try {
-                        awaitInitialRequests.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(awaitInitialRequests);
                     Transport.Connection connection = getConnection(null, shard.getNodeId());
                     TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
                         new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()),

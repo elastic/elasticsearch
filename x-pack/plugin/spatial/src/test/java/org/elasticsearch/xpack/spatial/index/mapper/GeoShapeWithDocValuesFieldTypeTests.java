@@ -41,6 +41,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
             IndexVersion.current(),
+            null,
             false,
             false,
             geoFormatterFactory
@@ -102,6 +103,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
             IndexVersion.current(),
+            null,
             false,
             false,
             geoFormatterFactory
@@ -146,6 +148,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
             IndexVersion.current(),
+            null,
             false,
             false,
             geoFormatterFactory
@@ -258,6 +261,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
             IndexVersion.current(),
+            null,
             false,
             false,
             geoFormatterFactory
@@ -274,6 +278,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
             IndexVersion.current(),
+            null,
             false,
             false,
             geoFormatterFactory
@@ -294,6 +299,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
             "field",
             IndexVersion.current(),
+            null,
             false,
             false,
             geoFormatterFactory

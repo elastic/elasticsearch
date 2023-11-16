@@ -10,6 +10,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.HasAttributeNodeSelector;
 import org.elasticsearch.client.Node;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
@@ -510,7 +512,7 @@ public class DoSection implements ExecutableSection {
         }
     }
 
-    private void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {
+    private static void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {
         if (headers.isEmpty() == false) {
             sb.append(message).append(" [\n");
             for (final String header : headers) {
@@ -626,24 +628,45 @@ public class DoSection implements ExecutableSection {
         return result;
     }
 
+    private static boolean matchWithRange(String nodeVersionString, List<VersionRange> acceptedVersionRanges, XContentLocation location) {
+        try {
+            Version version = Version.fromString(nodeVersionString);
+            return acceptedVersionRanges.stream().anyMatch(v -> v.contains(version));
+        } catch (IllegalArgumentException e) {
+            throw new XContentParseException(
+                location,
+                "[version] range node selector expects a semantic version format (x.y.z), but found " + nodeVersionString,
+                e
+            );
+        }
+    }
+
     private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
-        List<VersionRange> skipVersionRanges = parser.text().equals("current")
-            ? List.of(new VersionRange(Version.CURRENT, Version.CURRENT))
-            : SkipSection.parseVersionRanges(parser.text());
+
+        final Predicate<String> nodeMatcher;
+        final String versionSelectorString;
+        if (parser.text().equals("current")) {
+            nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion);
+            versionSelectorString = "version is " + Build.current().version() + " (current)";
+        } else {
+            var acceptedVersionRange = SkipSection.parseVersionRanges(parser.text());
+            nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
+            versionSelectorString = "version ranges " + acceptedVersionRange;
+        }
+
         return new NodeSelector() {
             @Override
             public void select(Iterable<Node> nodes) {
                 for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
                     Node node = itr.next();
-                    if (node.getVersion() == null) {
+                    String versionString = node.getVersion();
+                    if (versionString == null) {
                         throw new IllegalStateException("expected [version] metadata to be set but got " + node);
                     }
-                    Version version = Version.fromString(node.getVersion());
-                    boolean skip = skipVersionRanges.stream().anyMatch(v -> v.contains(version));
-                    if (false == skip) {
+                    if (nodeMatcher.test(versionString) == false) {
                         itr.remove();
                     }
                 }
@@ -651,7 +674,7 @@ public class DoSection implements ExecutableSection {
 
             @Override
             public String toString() {
-                return "version ranges " + skipVersionRanges;
+                return versionSelectorString;
             }
         };
     }

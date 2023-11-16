@@ -9,14 +9,17 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -27,6 +30,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.junit.Assert;
 
 import java.util.ArrayList;
@@ -77,20 +81,41 @@ public final class EsqlTestUtils {
         public byte[] max(String field, DataType dataType) {
             return null;
         }
+
+        @Override
+        public boolean isSingleValue(String field) {
+            return false;
+        }
     }
 
     public static final TestSearchStats TEST_SEARCH_STATS = new TestSearchStats();
 
-    public static final EsqlConfiguration TEST_CFG = new EsqlConfiguration(
-        DateUtils.UTC,
-        Locale.US,
-        null,
-        null,
-        new QueryPragmas(Settings.EMPTY),
-        EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY)
-    );
+    public static final EsqlConfiguration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
+
+    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics());
 
     private EsqlTestUtils() {}
+
+    public static EsqlConfiguration configuration(QueryPragmas pragmas, String query) {
+        return new EsqlConfiguration(
+            DateUtils.UTC,
+            Locale.US,
+            null,
+            null,
+            pragmas,
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            query
+        );
+    }
+
+    public static EsqlConfiguration configuration(QueryPragmas pragmas) {
+        return configuration(pragmas, StringUtils.EMPTY);
+    }
+
+    public static EsqlConfiguration configuration(String query) {
+        return configuration(new QueryPragmas(Settings.EMPTY), query);
+    }
 
     public static Literal L(Object value) {
         return of(value);
@@ -100,8 +125,8 @@ public final class EsqlTestUtils {
         return new LocalRelation(Source.EMPTY, emptyList(), LocalSupplier.EMPTY);
     }
 
-    public static LogicalPlan localSource(List<Attribute> fields, List<Object> row) {
-        return new LocalRelation(Source.EMPTY, fields, LocalSupplier.of(BlockUtils.fromListRow(row)));
+    public static LogicalPlan localSource(BlockFactory blockFactory, List<Attribute> fields, List<Object> row) {
+        return new LocalRelation(Source.EMPTY, fields, LocalSupplier.of(BlockUtils.fromListRow(blockFactory, row)));
     }
 
     public static <T> T as(Object node, Class<T> type) {
@@ -141,4 +166,11 @@ public final class EsqlTestUtils {
         });
         return valuesList;
     }
+
+    public static List<String> withDefaultLimitWarning(List<String> warnings) {
+        List<String> result = warnings == null ? new ArrayList<>() : new ArrayList<>(warnings);
+        result.add("No limit defined, adding default limit of [500]");
+        return result;
+    }
+
 }

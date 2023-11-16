@@ -22,6 +22,7 @@ the value of `query_delay'. If it doesn't help, investigate the ingest latency a
 cause. You can do this by comparing event and ingest timestamps. High latency 
 is often caused by bursts of ingested documents, misconfiguration of the ingest 
 pipeline, or misalignment of system clocks.
+
 == Why worry about delayed data?
 
 If data are delayed randomly (and consequently are missing from analysis), the

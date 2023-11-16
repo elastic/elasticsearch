@@ -191,7 +191,7 @@ public class BinaryFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    public static class CustomBinaryDocValuesField extends CustomDocValuesField {
+    public static final class CustomBinaryDocValuesField extends CustomDocValuesField {
 
         private final List<byte[]> bytesList;
 

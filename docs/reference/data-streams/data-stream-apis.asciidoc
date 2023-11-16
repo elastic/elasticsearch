@@ -15,10 +15,16 @@ The following APIs are available for managing <<data-streams,data streams>>:
 [[data-stream-lifecycle-api]]
 The following APIs are available for managing the built-in lifecycle of data streams:
 
+preview::[]
+
 * <<data-streams-put-lifecycle,Update data stream lifecycle>> 
+preview:[]
 * <<data-streams-get-lifecycle,Get data stream lifecycle>> 
+preview:[]
 * <<data-streams-delete-lifecycle,Delete data stream lifecycle>>
+preview:[]
 * <<data-streams-explain-lifecycle,Explain data stream lifecycle>>
+preview:[]
 
 The following API is available for <<tsds,time series data streams>>:
 

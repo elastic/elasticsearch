@@ -10,7 +10,10 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.util.List;
 
@@ -23,16 +26,9 @@ import java.util.List;
  * or dense data. A Block can represent either single or multi valued data. A Block that represents
  * dense single-valued data can be viewed as a {@link Vector}.
  *
- * TODO: update comment
- * <p> All Blocks share the same set of data retrieval methods, but actual concrete implementations
- * effectively support a subset of these, throwing {@code UnsupportedOperationException} where a
- * particular data retrieval method is not supported. For example, a Block of primitive longs may
- * not support retrieval as an integer, {code getInt}. This greatly simplifies Block usage and
- * avoids cumbersome use-site casting.
- *
  * <p> Block are immutable and can be passed between threads.
  */
-public interface Block extends Accountable, NamedWriteable, Releasable {
+public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, Releasable {
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -60,6 +56,9 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
 
     /** The block factory associated with this block. */
     BlockFactory blockFactory();
+
+    /** Tells if this block has been released. A block is released by calling its {@link Block#close()} method. */
+    boolean isReleased();
 
     /**
      * Returns true if the value stored at the given position is null, false otherwise.
@@ -99,18 +98,40 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
 
     /**
      * How are multivalued fields ordered?
-     * <p>Note that there isn't a {@code DESCENDING} because we don't have
-     * anything that makes descending fields.</p>
+     * Some operators can enable its optimization when mv_values are sorted ascending or de-duplicated.
      */
     enum MvOrdering {
-        ASCENDING,
-        UNORDERED;
+        UNORDERED(false, false),
+        DEDUPLICATED_UNORDERD(true, false),
+        DEDUPLICATED_AND_SORTED_ASCENDING(true, true);
+
+        private final boolean deduplicated;
+        private final boolean sortedAscending;
+
+        MvOrdering(boolean deduplicated, boolean sortedAscending) {
+            this.deduplicated = deduplicated;
+            this.sortedAscending = sortedAscending;
+        }
     }
 
     /**
      * How are multivalued fields ordered?
      */
     MvOrdering mvOrdering();
+
+    /**
+     * Are multivalued fields de-duplicated in each position
+     */
+    default boolean mvDeduplicated() {
+        return mayHaveMultivaluedFields() == false || mvOrdering().deduplicated;
+    }
+
+    /**
+     * Are multivalued fields sorted ascending in each position
+     */
+    default boolean mvSortedAscending() {
+        return mayHaveMultivaluedFields() == false || mvOrdering().sortedAscending;
+    }
 
     /**
      * Expand multivalued fields into one row per value. Returns the
@@ -120,17 +141,28 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
 
     /**
      * {@return a constant null block with the given number of positions, using the non-breaking block factory}.
+     * @deprecated use {@link BlockFactory#newConstantNullBlock}
      */
     // Eventually, this should use the GLOBAL breaking instance
+    @Deprecated
     static Block constantNullBlock(int positions) {
         return constantNullBlock(positions, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * {@return a constant null block with the given number of positions}.
+     * @deprecated use {@link BlockFactory#newConstantNullBlock}
+     */
+    @Deprecated
     static Block constantNullBlock(int positions, BlockFactory blockFactory) {
         return blockFactory.newConstantNullBlock(positions);
     }
 
-    interface Builder {
+    /**
+     * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
+     * This is {@link Releasable} and should be released after building the block or if building the block fails.
+     */
+    interface Builder extends BlockLoader.Builder, Releasable {
 
         /**
          * Appends a null value to the block.
@@ -165,7 +197,7 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
 
         /**
          * How are multivalued fields ordered? This defaults to {@link Block.MvOrdering#UNORDERED}
-         * but when you set it to {@link Block.MvOrdering#ASCENDING} some operators can optimize
+         * but when you set it to {@link Block.MvOrdering#DEDUPLICATED_AND_SORTED_ASCENDING} some operators can optimize
          * themselves. This is a <strong>promise</strong> that is never checked. If you set this
          * to anything other than {@link Block.MvOrdering#UNORDERED} be sure the values are in
          * that order or other operators will make mistakes. The actual ordering isn't checked
@@ -177,6 +209,66 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
          * Builds the block. This method can be called multiple times.
          */
         Block build();
+
+        /**
+         * Build many {@link Block}s at once, releasing any partially built blocks
+         * if any fail.
+         */
+        static Block[] buildAll(Block.Builder... builders) {
+            Block[] blocks = new Block[builders.length];
+            try {
+                for (int b = 0; b < blocks.length; b++) {
+                    blocks[b] = builders[b].build();
+                }
+            } finally {
+                if (blocks[blocks.length - 1] == null) {
+                    Releasables.closeExpectNoException(blocks);
+                }
+            }
+            return blocks;
+        }
+    }
+
+    /**
+     * A reference to a {@link Block}. This is {@link Releasable} and
+     * {@link Ref#close closing} it will {@link Block#close release}
+     * the underlying {@link Block} if it wasn't borrowed from a {@link Page}.
+     *
+     * The usual way to use this is:
+     * <pre>{@code
+     *   try (Block.Ref ref = eval.eval(page)) {
+     *     return ref.block().doStuff;
+     *   }
+     * }</pre>
+     *
+     * The {@code try} block will return the memory used by the block to the
+     * breaker if it was "free floating", but if it was attached to a {@link Page}
+     * then it'll do nothing.
+     *
+     * @param block the block referenced
+     * @param containedIn the page containing it or null, if it is "free floating".
+     */
+    record Ref(Block block, @Nullable Page containedIn) implements Releasable {
+        /**
+         * Create a "free floating" {@link Ref}.
+         */
+        public static Ref floating(Block block) {
+            return new Ref(block, null);
+        }
+
+        /**
+         * Is this block "free floating" or attached to a page?
+         */
+        public boolean floating() {
+            return containedIn == null;
+        }
+
+        @Override
+        public void close() {
+            if (floating()) {
+                block.close();
+            }
+        }
     }
 
     static List<NamedWriteableRegistry.Entry> getNamedWriteables() {

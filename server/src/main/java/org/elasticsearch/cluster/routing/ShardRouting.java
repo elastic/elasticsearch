@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
@@ -930,6 +931,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         return role.isPromotableToPrimary();
     }
 
+    /**
+     * Determine if role searchable. Consumers should prefer {@link OperationRouting#canSearchShard(ShardRouting, ClusterState)} to
+     * determine if a shard can be searched and {@link IndexRoutingTable#readyForSearch(ClusterState)} to determine if an index
+     * is ready to be searched.
+     */
     public boolean isSearchable() {
         return role.isSearchable();
     }

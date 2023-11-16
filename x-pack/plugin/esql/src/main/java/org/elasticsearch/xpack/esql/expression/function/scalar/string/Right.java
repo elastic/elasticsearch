@@ -13,7 +13,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -42,7 +42,11 @@ public class Right extends ScalarFunction implements EvaluatorMapper {
 
     private final Expression length;
 
-    public Right(Source source, @Named("string") Expression str, @Named("length") Expression length) {
+    public Right(
+        Source source,
+        @Param(name = "string", type = { "keyword" }) Expression str,
+        @Param(name = "length", type = { "integer" }) Expression length
+    ) {
         super(source, Arrays.asList(str, length));
         this.source = source;
         this.str = str;
@@ -51,8 +55,8 @@ public class Right extends ScalarFunction implements EvaluatorMapper {
 
     @Evaluator
     static BytesRef process(
-        @Fixed(includeInToString = false) BytesRef out,
-        @Fixed(includeInToString = false) UnicodeUtil.UTF8CodePoint cp,
+        @Fixed(includeInToString = false, build = true) BytesRef out,
+        @Fixed(includeInToString = false, build = true) UnicodeUtil.UTF8CodePoint cp,
         BytesRef str,
         int length
     ) {
@@ -73,13 +77,12 @@ public class Right extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var strSupplier = toEvaluator.apply(str);
-        var lengthSupplier = toEvaluator.apply(length);
-        return dvrCtx -> {
-            BytesRef out = new BytesRef();
-            UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
-            return new RightEvaluator(out, cp, strSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
-        };
+        return new RightEvaluator.Factory(
+            context -> new BytesRef(),
+            context -> new UnicodeUtil.UTF8CodePoint(),
+            toEvaluator.apply(str),
+            toEvaluator.apply(length)
+        );
     }
 
     @Override

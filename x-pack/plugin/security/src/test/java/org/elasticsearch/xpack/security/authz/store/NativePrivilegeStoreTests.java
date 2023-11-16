@@ -11,6 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -38,7 +42,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -108,7 +111,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     public void setup() {
         requests = new ArrayList<>();
         listener = new AtomicReference<>();
-        client = new NoOpClient(getTestName()) {
+        threadPool = createThreadPool();
+        client = new NoOpClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -126,9 +130,10 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             }
         };
         securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
         when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         Mockito.doAnswer(invocationOnMock -> {
             assertThat(invocationOnMock.getArguments().length, equalTo(2));
             assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
@@ -143,7 +148,6 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
 
-        threadPool = new TestThreadPool(getTestName());
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         allowExpensiveQueries = randomBoolean();
@@ -158,7 +162,6 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
     @After
     public void cleanup() {
-        client.close();
         terminate(threadPool);
     }
 
@@ -749,15 +752,20 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         final PlainActionFuture<Map<String, List<String>>> putPrivilegeFuture = new PlainActionFuture<>();
         store.putPrivileges(putPrivileges, WriteRequest.RefreshPolicy.IMMEDIATE, putPrivilegeFuture);
-        assertThat(requests, iterableWithSize(putPrivileges.size()));
-        assertThat(requests, everyItem(instanceOf(IndexRequest.class)));
+        assertThat(requests, iterableWithSize(1));
+        assertThat(requests, everyItem(instanceOf(BulkRequest.class)));
 
-        final List<IndexRequest> indexRequests = new ArrayList<>(requests.size());
-        requests.stream().map(IndexRequest.class::cast).forEach(indexRequests::add);
+        final BulkRequest bulkRequest = (BulkRequest) requests.get(0);
         requests.clear();
 
-        final ActionListener<ActionResponse> indexListener = listener.get();
+        assertThat(bulkRequest.requests(), iterableWithSize(putPrivileges.size()));
+        assertThat(bulkRequest.requests(), everyItem(instanceOf(IndexRequest.class)));
+
+        final List<IndexRequest> indexRequests = new ArrayList<>(putPrivileges.size());
+        bulkRequest.requests().stream().map(IndexRequest.class::cast).forEach(indexRequests::add);
+
         final String uuid = UUIDs.randomBase64UUID(random());
+        final BulkItemResponse[] responses = new BulkItemResponse[putPrivileges.size()];
         for (int i = 0; i < putPrivileges.size(); i++) {
             ApplicationPrivilegeDescriptor privilege = putPrivileges.get(i);
             IndexRequest request = indexRequests.get(i);
@@ -766,10 +774,14 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             final XContentBuilder builder = privilege.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), true);
             assertThat(request.source(), equalTo(BytesReference.bytes(builder)));
             final boolean created = privilege.getName().equals("user") == false;
-            indexListener.onResponse(
+            responses[i] = BulkItemResponse.success(
+                i,
+                created ? DocWriteRequest.OpType.CREATE : DocWriteRequest.OpType.UPDATE,
                 new IndexResponse(new ShardId(SecuritySystemIndices.SECURITY_MAIN_ALIAS, uuid, i), request.id(), 1, 1, 1, created)
             );
         }
+
+        listener.get().onResponse(new BulkResponse(responses, randomLongBetween(1, 1_000)));
 
         assertBusy(() -> assertFalse(requests.isEmpty()), 1, TimeUnit.SECONDS);
 
@@ -974,6 +986,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         return new SecurityIndexManager.State(
             Instant.now(),
             isIndexUpToDate,
+            true,
             true,
             true,
             null,

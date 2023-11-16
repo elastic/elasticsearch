@@ -1,5 +1,5 @@
 [[search-using-query-rules]]
-== Searching with query rules
+=== Searching with query rules
 ++++
 <titleabbrev>Searching with query rules</titleabbrev>
 ++++
@@ -30,13 +30,13 @@ Rules are defined using the <<query-rules-apis, query rules API>> and searched u
 
 [discrete]
 [[query-rule-definition]]
-=== Rule definition
+==== Rule definition
 
 When defining a rule, consider the following:
 
 [discrete]
 [[query-rule-type]]
-==== Rule type
+===== Rule type
 
 The type of rule we want to apply. For the moment there is a single rule type:
 
@@ -45,7 +45,7 @@ The type of rule we want to apply. For the moment there is a single rule type:
 
 [discrete]
 [[query-rule-criteria]]
-==== Rule criteria
+===== Rule criteria
 
 The criteria for which this rule will match. Criteria is defined as `type`, `metadata`, and `values`.
 Allowed criteria types are:
@@ -88,7 +88,7 @@ Allowed criteria types are:
 
 [discrete]
 [[query-rule-actions]]
-==== Rule actions
+===== Rule actions
 
 The actions to take when the rule matches a query:
 
@@ -101,7 +101,7 @@ See <<query-dsl-pinned-query,pinned query>> for details.
 
 [discrete]
 [[add-query-rules]]
-=== Add query rules
+==== Add query rules
 
 You can add query rules using the <<put-query-ruleset>> call. This adds a ruleset containing one or more query rules that will be applied to queries that match their specified criteria.
 
@@ -188,7 +188,7 @@ and the <<delete-query-ruleset>> call to delete a query ruleset.
 
 [discrete]
 [[rule-query-search]]
-=== Perform a rule query
+==== Perform a rule query
 
 Once you have defined a query ruleset, you can search this ruleset using the <<query-dsl-rule-query>> query.
 An example query for the `my-ruleset` defined above is:

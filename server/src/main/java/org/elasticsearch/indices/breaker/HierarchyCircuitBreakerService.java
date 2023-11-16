@@ -145,10 +145,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private final Function<Boolean, OverLimitStrategy> overLimitStrategyFactory;
     private volatile OverLimitStrategy overLimitStrategy;
 
+    @SuppressWarnings("this-escape")
     public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
         this(settings, customBreakers, clusterSettings, HierarchyCircuitBreakerService::createOverLimitStrategy);
     }
 
+    @SuppressWarnings("this-escape")
     HierarchyCircuitBreakerService(
         Settings settings,
         List<BreakerSettings> customBreakers,

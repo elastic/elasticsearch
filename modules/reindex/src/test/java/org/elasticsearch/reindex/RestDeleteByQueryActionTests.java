@@ -23,7 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class RestDeleteByQueryActionTests extends RestActionTestCase {
+public final class RestDeleteByQueryActionTests extends RestActionTestCase {
 
     final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
 

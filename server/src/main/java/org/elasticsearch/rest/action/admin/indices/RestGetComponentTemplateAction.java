@@ -13,7 +13,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -54,13 +53,10 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
 
         final boolean implicitAll = getRequest.name() == null;
 
-        return channel -> client.execute(GetComponentTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel) {
-            @Override
-            protected RestStatus getStatus(final GetComponentTemplateAction.Response response) {
-                final boolean templateExists = response.getComponentTemplates().isEmpty() == false;
-                return (templateExists || implicitAll) ? OK : NOT_FOUND;
-            }
-        });
+        return channel -> client.execute(GetComponentTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel, r -> {
+            final boolean templateExists = r.getComponentTemplates().isEmpty() == false;
+            return (templateExists || implicitAll) ? OK : NOT_FOUND;
+        }));
     }
 
     @Override

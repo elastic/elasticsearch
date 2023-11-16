@@ -18,7 +18,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,6 +43,7 @@ class S3RetryingInputStream extends InputStream {
 
     static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
 
+    private final OperationPurpose purpose;
     private final S3BlobStore blobStore;
     private final String blobKey;
     private final long start;
@@ -56,18 +59,19 @@ class S3RetryingInputStream extends InputStream {
     private boolean closed;
     private boolean eof;
 
-    S3RetryingInputStream(S3BlobStore blobStore, String blobKey) throws IOException {
-        this(blobStore, blobKey, 0, Long.MAX_VALUE - 1);
+    S3RetryingInputStream(OperationPurpose purpose, S3BlobStore blobStore, String blobKey) throws IOException {
+        this(purpose, blobStore, blobKey, 0, Long.MAX_VALUE - 1);
     }
 
     // both start and end are inclusive bounds, following the definition in GetObjectRequest.setRange
-    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, long start, long end) throws IOException {
+    S3RetryingInputStream(OperationPurpose purpose, S3BlobStore blobStore, String blobKey, long start, long end) throws IOException {
         if (start < 0L) {
             throw new IllegalArgumentException("start must be non-negative");
         }
         if (end < start || end == Long.MAX_VALUE) {
             throw new IllegalArgumentException("end must be >= start and not Long.MAX_VALUE");
         }
+        this.purpose = purpose;
         this.blobStore = blobStore;
         this.blobKey = blobKey;
         this.failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
@@ -79,7 +83,7 @@ class S3RetryingInputStream extends InputStream {
     private void openStream() throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector);
+            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.GET_OBJECT, purpose));
             if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                 assert start + currentOffset <= end
                     : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;

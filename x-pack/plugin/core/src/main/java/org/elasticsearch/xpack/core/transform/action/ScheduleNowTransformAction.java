@@ -37,7 +37,7 @@ public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformA
         super(NAME, ScheduleNowTransformAction.Response::new);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
 
         private final String id;
 

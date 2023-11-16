@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -131,7 +130,6 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             }
             assertNotNull(indexLevel);
 
-            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
             assertEquals(
                 AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION,
                 extractValue("mappings._meta.managed_index_mappings_version", indexLevel)
@@ -168,7 +166,6 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             }
             assertNotNull(indexLevel);
 
-            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
             assertEquals(
                 AnnotationIndex.ANNOTATION_INDEX_MAPPINGS_VERSION,
                 extractValue("mappings._meta.managed_index_mappings_version", indexLevel)
@@ -226,7 +223,6 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             Map<String, Object> indexLevel = (Map<String, Object>) responseLevel.get(".ml-config");
             assertNotNull(indexLevel);
 
-            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
             assertEquals(
                 MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION,
                 extractValue("mappings._meta.managed_index_mappings_version", indexLevel)

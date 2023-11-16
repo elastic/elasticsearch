@@ -15,7 +15,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 
 public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
@@ -36,7 +36,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
         int shingleDiff = maxShingleSize - minShingleSize + (outputUnigrams ? 1 : 0);
         if (shingleDiff > maxAllowedShingleDiff) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_7_0_0)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_0_0)) {
                 throw new IllegalArgumentException(
                     "In Shingle TokenFilter the difference between max_shingle_size and min_shingle_size (and +1 if outputting unigrams)"
                         + " must be less than or equal to: ["
@@ -81,7 +81,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getSynonymFilter() {
-        if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_7_0_0)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_0_0)) {
             throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
         } else {
             DEPRECATION_LOGGER.warn(

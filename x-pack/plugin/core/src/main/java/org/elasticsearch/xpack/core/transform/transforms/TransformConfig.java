@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -51,7 +53,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class holds the configuration details of a data frame transform
  */
-public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeable, ToXContentObject {
+public final class TransformConfig implements SimpleDiffable<TransformConfig>, Writeable, ToXContentObject {
 
     /**
      * Version of the last time the config defaults have been changed.
@@ -62,7 +64,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
     /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
-    private static final TransformConfigVersion FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION = TransformConfigVersion.V_7_12_0;
+    private static final TransportVersion FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
 
     /** Specifies all the possible transform functions. */
     public enum Function {
@@ -341,7 +343,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
     public List<SourceDestValidation> getAdditionalSourceDestValidations() {
         if ((source.getRuntimeMappings() == null || source.getRuntimeMappings().isEmpty()) == false) {
             SourceDestValidation validation = new SourceDestValidator.RemoteClusterMinimumVersionValidation(
-                TransformConfigVersion.toVersion(FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION),
+                FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION,
                 "source.runtime_mappings field was set"
             );
             return Collections.singletonList(validation);

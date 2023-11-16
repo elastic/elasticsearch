@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.Duration;
 import java.time.ZoneOffset;
@@ -65,7 +66,16 @@ public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute LONG = field("long", DataTypes.LONG);
     private static final FieldAttribute DATE = field("date", DataTypes.DATETIME);
 
-    private static final EsqlConfiguration TEST_CONFIG = new EsqlConfiguration(ZoneOffset.UTC, Locale.US, "test", null, null, 10000000);
+    private static final EsqlConfiguration TEST_CONFIG = new EsqlConfiguration(
+        ZoneOffset.UTC,
+        Locale.US,
+        "test",
+        null,
+        null,
+        10000000,
+        10000,
+        StringUtils.EMPTY
+    );
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static List<Object[]> params() {
@@ -151,7 +161,7 @@ public class EvalMapperTests extends ESTestCase {
     static DriverContext driverContext() {
         return new DriverContext(
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
-            BlockFactory.getGlobalInstance()
+            BlockFactory.getNonBreakingInstance()
         );
     }
 }

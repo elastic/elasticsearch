@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -48,7 +49,13 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
         Client client,
         JobConfigProvider jobConfigProvider
     ) {
-        super(DeleteFilterAction.NAME, transportService, actionFilters, DeleteFilterAction.Request::new);
+        super(
+            DeleteFilterAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteFilterAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.jobConfigProvider = jobConfigProvider;
     }

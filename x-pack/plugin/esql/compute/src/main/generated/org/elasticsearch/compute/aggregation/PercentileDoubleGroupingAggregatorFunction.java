@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link PercentileDoubleAggregator}.
@@ -33,21 +34,25 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   private final List<Integer> channels;
 
+  private final DriverContext driverContext;
+
   private final BigArrays bigArrays;
 
   private final double percentile;
 
   public PercentileDoubleGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, BigArrays bigArrays, double percentile) {
+      QuantileStates.GroupingState state, DriverContext driverContext, BigArrays bigArrays,
+      double percentile) {
     this.channels = channels;
     this.state = state;
+    this.driverContext = driverContext;
     this.bigArrays = bigArrays;
     this.percentile = percentile;
   }
 
   public static PercentileDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays, double percentile) {
-    return new PercentileDoubleGroupingAggregatorFunction(channels, PercentileDoubleAggregator.initGrouping(bigArrays, percentile), bigArrays, percentile);
+      DriverContext driverContext, BigArrays bigArrays, double percentile) {
+    return new PercentileDoubleGroupingAggregatorFunction(channels, PercentileDoubleAggregator.initGrouping(bigArrays, percentile), driverContext, bigArrays, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -62,20 +67,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    Block uncastValuesBlock = page.getBlock(channels.get(0));
-    if (uncastValuesBlock.areAllValuesNull()) {
-      state.enableGroupIdTracking(seenGroupIds);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntBlock groupIds) {
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-        }
-      };
-    }
-    DoubleBlock valuesBlock = (DoubleBlock) uncastValuesBlock;
+    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
     DoubleVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
@@ -186,12 +178,13 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected);
+    state.toIntermediate(blocks, offset, selected, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
-    blocks[offset] = PercentileDoubleAggregator.evaluateFinal(state, selected);
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+      DriverContext driverContext) {
+    blocks[offset] = PercentileDoubleAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

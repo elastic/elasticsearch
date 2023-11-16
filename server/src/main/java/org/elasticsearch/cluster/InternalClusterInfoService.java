@@ -100,6 +100,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
+    @SuppressWarnings("this-escape")
     public InternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
         this.leastAvailableSpaceUsages = Map.of();
         this.mostAvailableSpaceUsages = Map.of();

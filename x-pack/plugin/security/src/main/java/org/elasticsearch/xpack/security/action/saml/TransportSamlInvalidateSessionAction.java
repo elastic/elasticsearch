@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -55,7 +56,13 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
         TokenService tokenService,
         Realms realms
     ) {
-        super(SamlInvalidateSessionAction.NAME, transportService, actionFilters, SamlInvalidateSessionRequest::new);
+        super(
+            SamlInvalidateSessionAction.NAME,
+            transportService,
+            actionFilters,
+            SamlInvalidateSessionRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.tokenService = tokenService;
         this.realms = realms;
     }
@@ -95,7 +102,7 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
         }
     }
 
-    private String buildLogoutResponseUrl(SamlRealm realm, SamlLogoutRequestHandler.Result result) {
+    private static String buildLogoutResponseUrl(SamlRealm realm, SamlLogoutRequestHandler.Result result) {
         final LogoutResponse response = realm.buildLogoutResponse(result.getRequestId());
         return new SamlRedirect(response, realm.getSigningConfiguration()).getRedirectUrl(result.getRelayState());
     }
@@ -129,7 +136,7 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
         );
     }
 
-    private Predicate<Map<String, Object>> containsMetadata(Map<String, Object> requiredMetadata) {
+    private static Predicate<Map<String, Object>> containsMetadata(Map<String, Object> requiredMetadata) {
         return source -> {
             @SuppressWarnings("unchecked")
             Map<String, Object> actualMetadata = (Map<String, Object>) source.get("metadata");

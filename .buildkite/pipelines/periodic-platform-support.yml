@@ -2,7 +2,7 @@ steps:
   - group: platform-support-unix
     steps:
       - label: "{{matrix.image}} / platform-support-unix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true functionalTests
         timeout_in_minutes: 420
         matrix:
           setup:
@@ -19,6 +19,7 @@ steps:
               - ubuntu-2004
               - ubuntu-2204
               - rocky-8
+              - rocky-9
               - rhel-7
               - rhel-8
               - rhel-9
@@ -26,8 +27,9 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          diskSizeGb: 350
-          machineType: n1-standard-32
+          localSsds: 1
+          localSsdInterface: nvme
+          machineType: custom-32-98304
         env: {}
   - group: platform-support-windows
     steps:
@@ -45,7 +47,6 @@ steps:
               - checkPart1
               - checkPart2
               - checkPart3
-              - bwcTestSnapshots
               - checkRestCompat
         agents:
           provider: gcp
@@ -69,7 +70,6 @@ steps:
               - checkPart1
               - checkPart2
               - checkPart3
-              - bwcTestSnapshots
               - checkRestCompat
         agents:
           provider: aws

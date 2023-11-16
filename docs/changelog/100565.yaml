@@ -1,0 +1,5 @@
+pr: 100565
+summary: "[Monitoring] Dont get cluster state until recovery"
+area: Monitoring
+type: bug
+issues: []

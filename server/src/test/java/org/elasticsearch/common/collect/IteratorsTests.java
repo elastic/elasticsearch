@@ -37,12 +37,12 @@ public class IteratorsTests extends ESTestCase {
     }
 
     public void testEmptyConcatenation() {
-        Iterator<Integer> iterator = Iterators.<Integer>concat(empty());
+        Iterator<Integer> iterator = Iterators.<Integer>concat(Collections.emptyIterator());
         assertEmptyIterator(iterator);
     }
 
     public void testMultipleEmptyConcatenation() {
-        Iterator<Integer> iterator = Iterators.concat(empty(), empty());
+        Iterator<Integer> iterator = Iterators.concat(Collections.emptyIterator(), Collections.emptyIterator());
         assertEmptyIterator(iterator);
     }
 
@@ -53,12 +53,12 @@ public class IteratorsTests extends ESTestCase {
 
     public void testEmptyBeforeSingleton() {
         int value = randomInt();
-        assertSingleton(value, empty(), singletonIterator(value));
+        assertSingleton(value, Collections.emptyIterator(), singletonIterator(value));
     }
 
     public void testEmptyAfterSingleton() {
         int value = randomInt();
-        assertSingleton(value, singletonIterator(value), empty());
+        assertSingleton(value, singletonIterator(value), Collections.emptyIterator());
     }
 
     public void testRandomSingleton() {
@@ -68,7 +68,7 @@ public class IteratorsTests extends ESTestCase {
         @SuppressWarnings({ "rawtypes", "unchecked" })
         Iterator<Integer>[] iterators = new Iterator[numberOfIterators];
         for (int i = 0; i < numberOfIterators; i++) {
-            iterators[i] = i != singletonIndex ? empty() : singletonIterator(value);
+            iterators[i] = i != singletonIndex ? Collections.emptyIterator() : singletonIterator(value);
         }
         assertSingleton(value, iterators);
     }
@@ -94,7 +94,12 @@ public class IteratorsTests extends ESTestCase {
     public void testTwoEntries() {
         int first = randomInt();
         int second = randomInt();
-        Iterator<Integer> concat = Iterators.concat(singletonIterator(first), empty(), empty(), singletonIterator(second));
+        Iterator<Integer> concat = Iterators.concat(
+            singletonIterator(first),
+            Collections.emptyIterator(),
+            Collections.emptyIterator(),
+            singletonIterator(second)
+        );
         assertContainsInOrder(concat, first, second);
     }
 
@@ -109,7 +114,7 @@ public class IteratorsTests extends ESTestCase {
 
     public void testNullIterator() {
         try {
-            Iterators.concat(singletonIterator(1), empty(), null, empty(), singletonIterator(2));
+            Iterators.concat(singletonIterator(1), Collections.emptyIterator(), null, Collections.emptyIterator(), singletonIterator(2));
             fail("expected " + NullPointerException.class.getSimpleName());
         } catch (NullPointerException e) {
 
@@ -266,20 +271,6 @@ public class IteratorsTests extends ESTestCase {
     private <T> void assertSingleton(T value, Iterator<T>... iterators) {
         Iterator<T> concat = Iterators.concat(iterators);
         assertContainsInOrder(concat, value);
-    }
-
-    private <T> Iterator<T> empty() {
-        return new Iterator<T>() {
-            @Override
-            public boolean hasNext() {
-                return false;
-            }
-
-            @Override
-            public T next() {
-                throw new NoSuchElementException();
-            }
-        };
     }
 
     @SafeVarargs

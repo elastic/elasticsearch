@@ -78,6 +78,7 @@ public class MockTransport extends StubbableTransport {
         );
     }
 
+    @SuppressWarnings("this-escape")
     public MockTransport() {
         super(new FakeTransport());
         setDefaultConnectBehavior(

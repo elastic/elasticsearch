@@ -238,8 +238,10 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
     };
 
+    @SuppressWarnings("this-escape")
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(getNamedWriteables());
 
+    @SuppressWarnings("this-escape")
     private final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(getNamedXContents());
 
     private static final List<NamedXContentRegistry.Entry> namedXContents;
@@ -390,7 +392,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return b;
     }
 
-    private void collectSubBuilderNames(Map<String, Object> names, InternalAggregation result) {
+    private static void collectSubBuilderNames(Map<String, Object> names, InternalAggregation result) {
         result.forEachBucket(ia -> {
             for (InternalAggregation a : ia.copyResults()) {
                 @SuppressWarnings("unchecked")

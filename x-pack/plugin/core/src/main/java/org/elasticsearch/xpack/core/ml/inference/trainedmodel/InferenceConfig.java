@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -15,6 +16,7 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
 
     String DEFAULT_TOP_CLASSES_RESULTS_FIELD = "top_classes";
     String DEFAULT_RESULTS_FIELD = "predicted_value";
+    ParseField RESULTS_FIELD = new ParseField("results_field");
 
     boolean isTargetTypeSupported(TargetType targetType);
 

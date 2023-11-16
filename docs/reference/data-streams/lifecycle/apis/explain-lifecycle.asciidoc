@@ -4,6 +4,8 @@
 <titleabbrev>Explain Data Stream Lifecycle</titleabbrev>
 ++++
 
+preview::[]
+
 Retrieves the current data stream lifecycle status for one or more data stream backing indices.
 
 [[explain-lifecycle-api-prereqs]]

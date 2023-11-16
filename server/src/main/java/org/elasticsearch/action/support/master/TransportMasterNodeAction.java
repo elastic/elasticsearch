@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
@@ -76,7 +77,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
         this(
             actionName,
@@ -102,14 +103,14 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.executor = threadPool.executor(executor);
+        this.executor = executor;
         this.responseReader = response;
     }
 

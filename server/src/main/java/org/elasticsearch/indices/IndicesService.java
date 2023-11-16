@@ -17,7 +17,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
@@ -75,6 +74,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
@@ -207,6 +208,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Setting.Property.NodeScope
     );
 
+    static final NodeFeature SUPPORTS_AUTO_PUT = new NodeFeature("indices.auto_put_supported");
+
     /**
      * The node's settings.
      */
@@ -226,6 +229,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final Client client;
+    private final FeatureService featureService;
     private volatile Map<String, IndexService> indices = Map.of();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
@@ -267,6 +271,7 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.addStateApplier(timestampFieldMapperService);
     }
 
+    @SuppressWarnings("this-escape")
     public IndicesService(
         Settings settings,
         PluginsService pluginsService,
@@ -283,6 +288,7 @@ public class IndicesService extends AbstractLifecycleComponent
         ScriptService scriptService,
         ClusterService clusterService,
         Client client,
+        FeatureService featureService,
         MetaStateService metaStateService,
         Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
@@ -320,6 +326,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.client = client;
+        this.featureService = featureService;
         this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_ID_FIELD_DATA_ENABLED_SETTING, this::setIdFieldDataEnabled);
         this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
@@ -334,7 +341,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         });
         this.cleanInterval = INDICES_CACHE_CLEAN_INTERVAL_SETTING.get(settings);
-        this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache, logger, threadPool, this.cleanInterval);
+        this.cacheCleaner = new CacheCleaner(indicesFieldDataCache, indicesRequestCache, threadPool, this.cleanInterval);
         this.metaStateService = metaStateService;
         this.engineFactoryProviders = engineFactoryProviders;
 
@@ -454,7 +461,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return closeLatch.await(timeout, timeUnit);
     }
 
-    public NodeIndicesStats stats(CommonStatsFlags flags) {
+    public NodeIndicesStats stats(CommonStatsFlags flags, boolean includeShardsStats) {
         CommonStats commonStats = new CommonStats(flags);
         // the cumulative statistics also account for shards that are no longer on this node, which is tracked by oldShardsStats
         for (Flag flag : flags.getFlags()) {
@@ -470,7 +477,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags));
+        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags), includeShardsStats);
     }
 
     static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -902,7 +909,7 @@ public class IndicesService extends AbstractLifecycleComponent
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
                 : "mapping update consumer only required by local shards recovery";
             client.execute(
-                clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_8_8_0)
+                featureService.clusterHasFeature(clusterService.state(), SUPPORTS_AUTO_PUT)
                     ? AutoPutMappingAction.INSTANCE
                     : PutMappingAction.INSTANCE,
                 new PutMappingRequest().setConcreteIndex(shardRouting.index())
@@ -1439,22 +1446,14 @@ public class IndicesService extends AbstractLifecycleComponent
     private static final class CacheCleaner implements Runnable, Releasable {
 
         private final IndicesFieldDataCache cache;
-        private final Logger logger;
         private final ThreadPool threadPool;
         private final TimeValue interval;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final IndicesRequestCache requestCache;
 
-        CacheCleaner(
-            IndicesFieldDataCache cache,
-            IndicesRequestCache requestCache,
-            Logger logger,
-            ThreadPool threadPool,
-            TimeValue interval
-        ) {
+        CacheCleaner(IndicesFieldDataCache cache, IndicesRequestCache requestCache, ThreadPool threadPool, TimeValue interval) {
             this.cache = cache;
             this.requestCache = requestCache;
-            this.logger = logger;
             this.threadPool = threadPool;
             this.interval = interval;
         }
@@ -1842,5 +1841,10 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public IndexScopedSettings getIndexScopedSettings() {
         return indexScopedSettings;
+    }
+
+    // TODO move this?
+    public BigArrays getBigArrays() {
+        return bigArrays;
     }
 }

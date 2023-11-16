@@ -13,13 +13,13 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
 
-public class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
+public final class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
 
     private final AggregateDoubleMetricFieldType aggMetricFieldType;
 
     private final AbstractDownsampleFieldProducer fieldProducer;
 
-    protected AggregateMetricFieldValueFetcher(
+    AggregateMetricFieldValueFetcher(
         MappedFieldType fieldType,
         AggregateDoubleMetricFieldType aggMetricFieldType,
         IndexFieldData<?> fieldData

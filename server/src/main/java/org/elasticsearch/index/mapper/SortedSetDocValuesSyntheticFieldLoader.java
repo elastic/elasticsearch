@@ -87,7 +87,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
             docValues = NO_VALUES;
             return null;
         }
-        if (docIdsInLeaf.length > 1) {
+        if (docIdsInLeaf != null && docIdsInLeaf.length > 1) {
             /*
              * The singleton optimization is mostly about looking up ordinals
              * in sorted order and doesn't buy anything if there is only a single

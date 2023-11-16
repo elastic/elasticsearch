@@ -1,3 +1,4 @@
+[discrete]
 [[esql-to_datetime]]
 === `TO_DATETIME`
 Converts an input value to a date value.

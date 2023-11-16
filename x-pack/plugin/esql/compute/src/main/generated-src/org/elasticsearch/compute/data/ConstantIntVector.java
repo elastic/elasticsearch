@@ -15,9 +15,11 @@ import org.apache.lucene.util.RamUsageEstimator;
  */
 public final class ConstantIntVector extends AbstractVector implements IntVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntVector.class);
 
     private final int value;
+
+    private final IntBlock block;
 
     public ConstantIntVector(int value, int positionCount) {
         this(value, positionCount, BlockFactory.getNonBreakingInstance());
@@ -26,6 +28,7 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
     public ConstantIntVector(int value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
+        this.block = new IntVectorBlock(this);
     }
 
     @Override
@@ -35,7 +38,7 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     @Override
     public IntBlock asBlock() {
-        return new IntVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -55,7 +58,7 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(int.class);
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -77,6 +80,10 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

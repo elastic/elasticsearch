@@ -36,10 +36,12 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -68,6 +70,7 @@ import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.M
 
 public final class CompositeAggregator extends BucketsAggregator implements SizedBucketAggregator {
 
+    private static final Logger logger = LogManager.getLogger(CompositeAggregator.class);
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
@@ -107,6 +110,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         // check that the provided size is not greater than the search.max_buckets setting
         int bucketLimit = aggCtx.maxBuckets();
         if (size > bucketLimit) {
+            logger.warn("Too many buckets (max [{}], count [{}])", bucketLimit, size);
             throw new MultiBucketConsumerService.TooManyBucketsException(
                 "Trying to create too many buckets. Must be less than or equal"
                     + " to: ["
@@ -606,11 +610,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     @Override
     public double bucketSize(long bucket, Rounding.DateTimeUnit unit) {
         if (innerSizedBucketAggregators.length != 1) {
-            throw new AggregationExecutionException(
-                "aggregation ["
-                    + name()
-                    + "] does not have exactly one date_histogram value source; exactly one is required when using with rate aggregation"
-            );
+            throw AggregationErrors.rateWithoutDateHistogram(name());
         }
         return innerSizedBucketAggregators[0].bucketSize(bucket, unit);
     }
@@ -618,11 +618,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     @Override
     public double bucketSize(Rounding.DateTimeUnit unit) {
         if (innerSizedBucketAggregators.length != 1) {
-            throw new AggregationExecutionException(
-                "aggregation ["
-                    + name()
-                    + "] does not have exactly one date_histogram value source; exactly one is required when using with rate aggregation"
-            );
+            throw AggregationErrors.rateWithoutDateHistogram(name());
         }
         return innerSizedBucketAggregators[0].bucketSize(unit);
     }

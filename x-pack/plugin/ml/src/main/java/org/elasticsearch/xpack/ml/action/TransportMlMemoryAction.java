@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
@@ -45,9 +46,9 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
-import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
 public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryAction.Request, MlMemoryAction.Response> {
 
@@ -73,7 +74,7 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             MlMemoryAction.Request::new,
             indexNameExpressionResolver,
             MlMemoryAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.memoryTracker = memoryTracker;

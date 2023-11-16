@@ -8,6 +8,9 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -21,7 +24,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -68,7 +70,7 @@ final class DfsQueryPhase extends SearchPhase {
     }
 
     @Override
-    public void run() throws IOException {
+    public void run() {
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
         // to free up memory early
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
@@ -93,7 +95,7 @@ final class DfsQueryPhase extends SearchPhase {
                 connection,
                 querySearchRequest,
                 context.getTask(),
-                new SearchActionListener<QuerySearchResult>(shardTarget, shardIndex) {
+                new SearchActionListener<>(shardTarget, shardIndex) {
 
                     @Override
                     protected void innerOnResponse(QuerySearchResult response) {
@@ -139,6 +141,7 @@ final class DfsQueryPhase extends SearchPhase {
 
         List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>(source.subSearches());
 
+        int i = 0;
         for (DfsKnnResults dfsKnnResults : knnResults) {
             List<ScoreDoc> scoreDocs = new ArrayList<>();
             for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
@@ -147,8 +150,13 @@ final class DfsQueryPhase extends SearchPhase {
                 }
             }
             scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
-            KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
-            subSearchSourceBuilders.add(new SubSearchSourceBuilder(knnQuery));
+            String nestedPath = dfsKnnResults.getNestedPath();
+            QueryBuilder query = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
+            if (nestedPath != null) {
+                query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());
+            }
+            subSearchSourceBuilders.add(new SubSearchSourceBuilder(query));
+            i++;
         }
 
         source = source.shallowCopy().subSearches(subSearchSourceBuilders).knnSearch(List.of());

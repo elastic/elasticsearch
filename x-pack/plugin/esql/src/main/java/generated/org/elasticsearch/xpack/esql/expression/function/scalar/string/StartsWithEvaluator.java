@@ -36,55 +36,53 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   @Override
-  public Block eval(Page page) {
-    Block strUncastBlock = str.eval(page);
-    if (strUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref strRef = str.eval(page)) {
+      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
+      try (Block.Ref prefixRef = prefix.eval(page)) {
+        BytesRefBlock prefixBlock = (BytesRefBlock) prefixRef.block();
+        BytesRefVector strVector = strBlock.asVector();
+        if (strVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, prefixBlock));
+        }
+        BytesRefVector prefixVector = prefixBlock.asVector();
+        if (prefixVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, prefixBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), strVector, prefixVector).asBlock());
+      }
     }
-    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
-    Block prefixUncastBlock = prefix.eval(page);
-    if (prefixUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock prefixBlock = (BytesRefBlock) prefixUncastBlock;
-    BytesRefVector strVector = strBlock.asVector();
-    if (strVector == null) {
-      return eval(page.getPositionCount(), strBlock, prefixBlock);
-    }
-    BytesRefVector prefixVector = prefixBlock.asVector();
-    if (prefixVector == null) {
-      return eval(page.getPositionCount(), strBlock, prefixBlock);
-    }
-    return eval(page.getPositionCount(), strVector, prefixVector).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock prefixBlock) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    BytesRef prefixScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef prefixScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (prefixBlock.isNull(p) || prefixBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(StartsWith.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), prefixBlock.getBytesRef(prefixBlock.getFirstValueIndex(p), prefixScratch)));
       }
-      if (prefixBlock.isNull(p) || prefixBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBoolean(StartsWith.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), prefixBlock.getBytesRef(prefixBlock.getFirstValueIndex(p), prefixScratch)));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector strVector,
       BytesRefVector prefixVector) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    BytesRef prefixScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBoolean(StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch)));
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef prefixScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -95,5 +93,27 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, prefix);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory prefix;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory prefix) {
+      this.str = str;
+      this.prefix = prefix;
+    }
+
+    @Override
+    public StartsWithEvaluator get(DriverContext context) {
+      return new StartsWithEvaluator(str.get(context), prefix.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "StartsWithEvaluator[" + "str=" + str + ", prefix=" + prefix + "]";
+    }
   }
 }

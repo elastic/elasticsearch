@@ -53,6 +53,7 @@ public abstract class TransportBroadcastAction<
     private final String transportShardAction;
     private final Executor executor;
 
+    @SuppressWarnings("this-escape")
     protected TransportBroadcastAction(
         String actionName,
         ClusterService clusterService,

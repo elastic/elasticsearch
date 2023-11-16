@@ -7,25 +7,30 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public final class ExchangeResponse extends TransportResponse {
+public final class ExchangeResponse extends TransportResponse implements Releasable {
+    private final RefCounted counted = AbstractRefCounted.of(this::close);
     private final Page page;
     private final boolean finished;
+    private boolean pageTaken;
 
     public ExchangeResponse(Page page, boolean finished) {
         this.page = page;
         this.finished = finished;
     }
 
-    public ExchangeResponse(StreamInput in) throws IOException {
+    public ExchangeResponse(BlockStreamInput in) throws IOException {
         super(in);
         this.page = in.readOptionalWriteable(Page::new);
         this.finished = in.readBoolean();
@@ -38,10 +43,15 @@ public final class ExchangeResponse extends TransportResponse {
     }
 
     /**
-     * Returns a page responded by {@link RemoteSink}. This can be null and out of order.
+     * Take the ownership of the page responded by {@link RemoteSink}. This can be null and out of order.
      */
     @Nullable
-    public Page page() {
+    public Page takePage() {
+        if (pageTaken) {
+            assert false : "Page was taken already";
+            throw new IllegalStateException("Page was taken already");
+        }
+        pageTaken = true;
         return page;
     }
 
@@ -64,5 +74,32 @@ public final class ExchangeResponse extends TransportResponse {
     @Override
     public int hashCode() {
         return Objects.hash(page, finished);
+    }
+
+    @Override
+    public void incRef() {
+        counted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return counted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return counted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return counted.hasReferences();
+    }
+
+    @Override
+    public void close() {
+        if (pageTaken == false && page != null) {
+            page.releaseBlocks();
+        }
     }
 }

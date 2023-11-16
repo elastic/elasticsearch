@@ -35,50 +35,48 @@ public final class GreaterThanOrEqualLongsEvaluator implements EvalOperator.Expr
   }
 
   @Override
-  public Block eval(Page page) {
-    Block lhsUncastBlock = lhs.eval(page);
-    if (lhsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref lhsRef = lhs.eval(page)) {
+      LongBlock lhsBlock = (LongBlock) lhsRef.block();
+      try (Block.Ref rhsRef = rhs.eval(page)) {
+        LongBlock rhsBlock = (LongBlock) rhsRef.block();
+        LongVector lhsVector = lhsBlock.asVector();
+        if (lhsVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+        }
+        LongVector rhsVector = rhsBlock.asVector();
+        if (rhsVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector).asBlock());
+      }
     }
-    LongBlock lhsBlock = (LongBlock) lhsUncastBlock;
-    Block rhsUncastBlock = rhs.eval(page);
-    if (rhsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    LongBlock rhsBlock = (LongBlock) rhsUncastBlock;
-    LongVector lhsVector = lhsBlock.asVector();
-    if (lhsVector == null) {
-      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-    }
-    LongVector rhsVector = rhsBlock.asVector();
-    if (rhsVector == null) {
-      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-    }
-    return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(GreaterThanOrEqual.processLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
       }
-      if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBoolean(GreaterThanOrEqual.processLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBoolean(GreaterThanOrEqual.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(GreaterThanOrEqual.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -89,5 +87,27 @@ public final class GreaterThanOrEqualLongsEvaluator implements EvalOperator.Expr
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+
+    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs) {
+      this.lhs = lhs;
+      this.rhs = rhs;
+    }
+
+    @Override
+    public GreaterThanOrEqualLongsEvaluator get(DriverContext context) {
+      return new GreaterThanOrEqualLongsEvaluator(lhs.get(context), rhs.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "GreaterThanOrEqualLongsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
   }
 }

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.env;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -126,7 +126,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         );
         assertThat(
             illegalStateException.getMessage(),
-            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Version.CURRENT + "]"))
+            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Build.current().version() + "]"))
         );
     }
 
@@ -140,9 +140,9 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                 startsWith("cannot upgrade a node from version ["),
                 endsWith(
                     "] directly to version ["
-                        + Version.CURRENT
+                        + Build.current().version()
                         + "], upgrade to version ["
-                        + Version.CURRENT.minimumCompatibilityVersion()
+                        + Build.current().minWireCompatVersion()
                         + "] first."
                 )
             )
@@ -238,7 +238,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         assertEquals(nodeId, clusterAdmin().prepareState().get().getState().nodes().getMasterNodeId());
         assertTrue(indexExists("test"));
         ensureYellow("test");
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
+        assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);
     }
 
     public void testFailsToStartOnDataPathsFromMultipleNodes() throws IOException {

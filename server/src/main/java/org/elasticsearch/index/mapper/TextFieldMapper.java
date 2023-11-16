@@ -54,6 +54,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -86,7 +87,7 @@ import java.util.function.IntPredicate;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** A {@link FieldMapper} for full-text fields. */
-public class TextFieldMapper extends FieldMapper {
+public final class TextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
@@ -382,7 +383,7 @@ public class TextFieldMapper extends FieldMapper {
             return ft;
         }
 
-        private KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
+        private static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
             if (fieldType.stored()) {
                 return null;
             }
@@ -411,7 +412,7 @@ public class TextFieldMapper extends FieldMapper {
              * or a multi-field). This way search will continue to work on old indices and new indices
              * will use the expected full name.
              */
-            String fullName = indexCreatedVersion.before(IndexVersion.V_7_2_1) ? name() : context.buildFullName(name);
+            String fullName = indexCreatedVersion.before(IndexVersions.V_7_2_1) ? name() : context.buildFullName(name);
             // Copy the index options of the main field to allow phrase queries on
             // the prefix field.
             FieldType pft = new FieldType(fieldType);
@@ -936,6 +937,30 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (syntheticSourceDelegate != null) {
+                return syntheticSourceDelegate.blockLoader(blContext);
+            }
+            if (isSyntheticSource) {
+                if (isStored()) {
+                    return BlockStoredFieldsReader.bytesRefsFromStrings(name());
+                }
+                /*
+                 * We *shouldn't fall to this exception. The mapping should be
+                 * rejected because we've enabled synthetic source but not configured
+                 * the index properly. But we give it a nice message anyway just in
+                 * case.
+                 */
+                throw new IllegalArgumentException(
+                    "fetching values from a text field ["
+                        + name()
+                        + "] is not supported because synthetic _source is enabled and we don't have a way to load the fields"
+                );
+            }
+            return BlockSourceReader.bytesRefs(SourceValueFetcher.toString(blContext.sourcePaths(name())));
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
             if (operation == FielddataOperation.SEARCH) {
@@ -994,7 +1019,7 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(
                     "fetching values from a text field ["
                         + name()
-                        + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
+                        + "] is not supported because synthetic _source is enabled and we don't have a way to load the fields"
                 );
             }
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
@@ -1130,7 +1155,7 @@ public class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
-    protected TextFieldMapper(
+    private TextFieldMapper(
         String simpleName,
         FieldType fieldType,
         TextFieldType mappedFieldType,

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -108,6 +109,7 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVE
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -182,13 +184,13 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 }
 
                 @Override
-                public InputStream readBlob(String blobName) throws IOException {
+                public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     // Take into account only index files
                     if (blobName.startsWith("__") == false) {
-                        return super.readBlob(blobName);
+                        return super.readBlob(purpose, blobName);
                     }
 
-                    return new FilterInputStream(super.readBlob(blobName)) {
+                    return new FilterInputStream(super.readBlob(purpose, blobName)) {
                         @Override
                         public int read(byte[] b, int off, int len) throws IOException {
                             int read = super.read(b, off, len);
@@ -224,13 +226,13 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 }
 
                 @Override
-                public InputStream readBlob(String blobName) throws IOException {
+                public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     // Fail only in index files
                     if (blobName.startsWith("__") == false) {
-                        return super.readBlob(blobName);
+                        return super.readBlob(purpose, blobName);
                     }
 
-                    return new FilterInputStream(super.readBlob(blobName)) {
+                    return new FilterInputStream(super.readBlob(purpose, blobName)) {
                         @Override
                         public int read(byte[] b, int off, int len) throws IOException {
                             if (randomBoolean()) {
@@ -287,9 +289,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 }
 
                 @Override
-                public InputStream readBlob(String blobName) throws IOException {
+                public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     BiFunction<String, InputStream, InputStream> delegateSupplier = delegateSupplierRef.get();
-                    return delegateSupplier.apply(blobName, super.readBlob(blobName));
+                    return delegateSupplier.apply(blobName, super.readBlob(purpose, blobName));
                 }
             };
         }
@@ -316,19 +318,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         String targetNode = internalCluster().startDataOnlyNode();
 
-        MockTransportService sourceMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            sourceNode
-        );
-        MockTransportService targetMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            targetNode
-        );
-
-        sourceMockTransportService.addSendBehavior(targetMockTransportService, (connection, requestId, action, request, options) -> {
-            assertNotEquals(PeerRecoveryTargetService.Actions.FILE_CHUNK, action);
-            connection.sendRequest(requestId, action, request, options);
-        });
+        MockTransportService.getInstance(sourceNode)
+            .addSendBehavior(MockTransportService.getInstance(targetNode), (connection, requestId, action, request, options) -> {
+                assertNotEquals(PeerRecoveryTargetService.Actions.FILE_CHUNK, action);
+                connection.sendRequest(requestId, action, request, options);
+            });
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode), indexName);
 
@@ -596,23 +590,19 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 targetNode = internalCluster().startDataOnlyNode();
             }
 
-            MockTransportService targetMockTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                targetNode
-            );
-
             CountDownLatch recoverSnapshotFileRequestReceived = new CountDownLatch(1);
             CountDownLatch respondToRecoverSnapshotFile = new CountDownLatch(1);
             AtomicInteger numberOfRecoverSnapshotFileRequestsReceived = new AtomicInteger();
-            targetMockTransportService.addRequestHandlingBehavior(
-                PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT,
-                (handler, request, channel, task) -> {
-                    assertThat(numberOfRecoverSnapshotFileRequestsReceived.incrementAndGet(), is(equalTo(1)));
-                    recoverSnapshotFileRequestReceived.countDown();
-                    respondToRecoverSnapshotFile.await();
-                    handler.messageReceived(request, channel, task);
-                }
-            );
+            MockTransportService.getInstance(targetNode)
+                .addRequestHandlingBehavior(
+                    PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT,
+                    (handler, request, channel, task) -> {
+                        assertThat(numberOfRecoverSnapshotFileRequestsReceived.incrementAndGet(), is(equalTo(1)));
+                        recoverSnapshotFileRequestReceived.countDown();
+                        respondToRecoverSnapshotFile.await();
+                        handler.messageReceived(request, channel, task);
+                    }
+                );
 
             if (seqNoRecovery) {
                 ClusterState clusterState = clusterAdmin().prepareState().get().getState();
@@ -727,7 +717,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                                         try {
                                             channel.sendResponse(exception);
                                         } catch (IOException e) {
-                                            throw new AssertionError("unexpected", e);
+                                            fail(e);
                                         }
                                     });
                                 }
@@ -1256,10 +1246,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 recoverySnapshotFileRequests,
                 awaitForRecoverSnapshotFileRequestReceived,
                 respondToRecoverSnapshotFile) -> {
-                MockTransportService sourceMockTransportService = (MockTransportService) internalCluster().getInstance(
-                    TransportService.class,
-                    sourceNode
-                );
+                final var sourceMockTransportService = MockTransportService.getInstance(sourceNode);
 
                 CountDownLatch startRecoveryRetryReceived = new CountDownLatch(1);
                 AtomicBoolean delayRecoveryExceptionSent = new AtomicBoolean();
@@ -1362,15 +1349,8 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             .findFirst()
             .orElseThrow();
 
-        MockTransportService sourceMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            replicaNodeName
-        );
-
-        MockTransportService targetMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            newReplicaNodeName
-        );
+        final var sourceMockTransportService = MockTransportService.getInstance(replicaNodeName);
+        final var targetMockTransportService = MockTransportService.getInstance(newReplicaNodeName);
 
         final CountDownLatch firstDownloadStartLatch = new CountDownLatch(1);
         final CountDownLatch blockSnapshotFileDownload = new CountDownLatch(1);
@@ -1478,10 +1458,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             String sourceNode = dataNodes.get(0);
             String targetNode = dataNodes.get(1);
-            MockTransportService targetMockTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                targetNode
-            );
+            final var targetMockTransportService = MockTransportService.getInstance(targetNode);
 
             List<RecoverySnapshotFileRequest> recoverySnapshotFileRequests = Collections.synchronizedList(new ArrayList<>());
             CountDownLatch recoverSnapshotFileRequestReceived = new CountDownLatch(1);
@@ -1631,31 +1608,28 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     private void assertDocumentsAreEqual(String indexName, int docCount) {
         assertDocCount(indexName, docCount);
         for (int testCase = 0; testCase < 3; testCase++) {
-            final SearchRequestBuilder searchRequestBuilder = client().prepareSearch(indexName)
-                .addSort("field", SortOrder.ASC)
-                .setSize(10_000);
+            final SearchRequestBuilder searchRequestBuilder = prepareSearch(indexName).addSort("field", SortOrder.ASC).setSize(10_000);
 
-            SearchResponse searchResponse;
+            // SearchResponse searchResponse;
             switch (testCase) {
-                case 0 -> {
-                    searchResponse = searchRequestBuilder.setQuery(QueryBuilders.matchAllQuery()).get();
+                case 0 -> assertResponse(searchRequestBuilder.setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
                     assertSearchResponseContainsAllIndexedDocs(searchResponse, docCount);
-                }
+                });
                 case 1 -> {
                     int docIdToMatch = randomIntBetween(0, docCount - 1);
-                    searchResponse = searchRequestBuilder.setQuery(QueryBuilders.termQuery("field", docIdToMatch)).get();
-                    assertThat(searchResponse.getSuccessfulShards(), equalTo(1));
-                    assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-                    SearchHit searchHit = searchResponse.getHits().getAt(0);
-                    Map<String, Object> source = searchHit.getSourceAsMap();
-                    assertThat(source, is(notNullValue()));
-                    assertThat(source.get("field"), is(equalTo(docIdToMatch)));
-                    assertThat(source.get("field2"), is(equalTo("Some text " + docIdToMatch)));
+                    assertResponse(searchRequestBuilder.setQuery(QueryBuilders.termQuery("field", docIdToMatch)), searchResponse -> {
+                        assertThat(searchResponse.getSuccessfulShards(), equalTo(1));
+                        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+                        SearchHit searchHit = searchResponse.getHits().getAt(0);
+                        Map<String, Object> source = searchHit.getSourceAsMap();
+                        assertThat(source, is(notNullValue()));
+                        assertThat(source.get("field"), is(equalTo(docIdToMatch)));
+                        assertThat(source.get("field2"), is(equalTo("Some text " + docIdToMatch)));
+                    });
                 }
-                case 2 -> {
-                    searchResponse = searchRequestBuilder.setQuery(QueryBuilders.matchQuery("field2", "text")).get();
+                case 2 -> assertResponse(searchRequestBuilder.setQuery(QueryBuilders.matchQuery("field2", "text")), searchResponse -> {
                     assertSearchResponseContainsAllIndexedDocs(searchResponse, docCount);
-                }
+                });
                 default -> throw new IllegalStateException("Unexpected value: " + testCase);
             }
         }

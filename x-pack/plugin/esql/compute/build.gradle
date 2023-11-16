@@ -19,7 +19,7 @@ tasks.named('checkstyleMain').configure {
   excludes = [ "**/*.java.st" ]
 }
 
-spotlessJava.dependsOn stringTemplates
+tasks.named("spotlessJava") { dependsOn stringTemplates }
 
 spotless {
   java {
@@ -127,33 +127,6 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  bigArrayVectorInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanBigArrayVector.java"
   }
-  //  filter vectors
-  File filterVectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-FilterVector.java.st")
-  template {
-    it.properties = intProperties
-    it.inputFile =  filterVectorInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterIntVector.java"
-  }
-  template {
-    it.properties = longProperties
-    it.inputFile =  filterVectorInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterLongVector.java"
-  }
-  template {
-    it.properties = doubleProperties
-    it.inputFile =  filterVectorInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterDoubleVector.java"
-  }
-  template {
-    it.properties = bytesRefProperties
-    it.inputFile =  filterVectorInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterBytesRefVector.java"
-  }
-  template {
-    it.properties = booleanProperties
-    it.inputFile =  filterVectorInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterBooleanVector.java"
-  }
   // constant vectors
   File constantVectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-ConstantVector.java.st")
   template {
@@ -235,33 +208,6 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  arrayBlockInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanArrayBlock.java"
   }
-  // filter blocks
-  File filterBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-FilterBlock.java.st")
-  template {
-    it.properties = intProperties
-    it.inputFile =  filterBlockInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterIntBlock.java"
-  }
-  template {
-    it.properties = longProperties
-    it.inputFile =  filterBlockInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterLongBlock.java"
-  }
-  template {
-    it.properties = doubleProperties
-    it.inputFile =  filterBlockInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterDoubleBlock.java"
-  }
-  template {
-    it.properties = bytesRefProperties
-    it.inputFile =  filterBlockInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterBytesRefBlock.java"
-  }
-  template {
-    it.properties = booleanProperties
-    it.inputFile =  filterBlockInputFile
-    it.outputFile = "org/elasticsearch/compute/data/FilterBooleanBlock.java"
-  }
   // vector blocks
   File vectorBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-VectorBlock.java.st")
   template {
@@ -342,6 +288,27 @@ tasks.named('stringTemplates').configure {
     it.properties = booleanProperties
     it.inputFile =  vectorBuildersInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanVectorBuilder.java"
+  }
+  File vectorFixedBuildersInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-VectorFixedBuilder.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  vectorFixedBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntVectorFixedBuilder.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  vectorFixedBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongVectorFixedBuilder.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  vectorFixedBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleVectorFixedBuilder.java"
+  }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  vectorFixedBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BooleanVectorFixedBuilder.java"
   }
   File stateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-State.java.st")
   template {

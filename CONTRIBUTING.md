@@ -675,11 +675,27 @@ number, there are a few rules that need to be followed:
    once merged into `main`.
 2. To create a new component version, add a new constant to the respective class
    with a descriptive name of the change being made. Increment the integer
-   number according to the partciular `*Version` class.
+   number according to the particular `*Version` class.
 
 If your pull request has a conflict around your new version constant,
 you need to update your PR from `main` and change your PR to use the next
 available version number.
+
+### Checking for cluster features
+
+As part of developing a new feature or change, you might need to determine
+if all nodes in a cluster have been upgraded to support your new feature.
+This can be done using `FeatureService`. To define and check for a new
+feature in a cluster:
+
+1. Define a new `NodeFeature` constant with a unique id for the feature
+   in a class related to the change you're doing.
+2. Return that constant from an instance of `FeatureSpecification.getFeatures`,
+   either an existing implementation or a new implementation. Make sure
+   the implementation is added as a SPI implementation in `module-info.java`
+   and `META-INF/services`.
+3. To check if all nodes in the cluster support the new feature, call
+`FeatureService.clusterHasFeature(ClusterState, NodeFeature)`
 
 ### Creating A Distribution
 

@@ -8,6 +8,10 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.collect.Iterators;
+
+import java.util.Iterator;
+
 abstract class ParsedPercentileRanks extends ParsedPercentiles implements PercentileRanks {
 
     @Override
@@ -28,5 +32,10 @@ abstract class ParsedPercentileRanks extends ParsedPercentiles implements Percen
     @Override
     public Iterable<String> valueNames() {
         return percentiles.keySet().stream().map(d -> d.toString()).toList();
+    }
+
+    @Override
+    public Iterator<Percentile> iterator() {
+        return Iterators.map(super.iterator(), percentile -> new Percentile(percentile.value(), percentile.percent()));
     }
 }

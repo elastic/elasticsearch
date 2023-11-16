@@ -50,7 +50,7 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
     }
 
     protected RethrottleRequestBuilder rethrottle() {
-        return new RethrottleRequestBuilder(client(), RethrottleAction.INSTANCE);
+        return new RethrottleRequestBuilder(client(), ReindexPlugin.RETHROTTLE_ACTION);
     }
 
     public static BulkIndexByScrollResponseMatcher matcher() {

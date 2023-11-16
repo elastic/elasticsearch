@@ -26,7 +26,7 @@ import java.util.Objects;
 /**
  * Request to perform a search ranking evaluation.
  */
-public class RankEvalRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public final class RankEvalRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     private RankEvalSpec rankingEvaluationSpec;
 

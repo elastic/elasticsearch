@@ -413,6 +413,36 @@ c:long | languages:integer | still_hired:boolean
      4 |              null | true
 ;
 
+byUnmentionedIntAndBooleanFollowedByProjection
+from employees | stats c = count(gender) by languages, still_hired | where languages > 3 | sort languages | keep languages;
+
+languages:integer 
+                4 
+                4
+                5
+                5 
+;
+
+byTwoGroupReturnedInDifferentOrder
+from employees | stats c = count(emp_no) by gender, languages | rename languages as l, gender as g | where l > 3 | keep g, l | sort g, l;
+
+g:keyword  | l:integer
+ F         | 4        
+ F         | 5
+ M         | 4        
+ M         | 5
+ null      | 4
+ null      | 5
+;
+
+repetitiveAggregation
+from employees | stats m1 = max(salary), m2 = min(salary), m3 = min(salary), m4 = max(salary);
+
+m1:i | m2:i | m3:i | m4:i
+74999| 25324| 25324| 74999
+;
+
+
 byDateAndKeywordAndInt
 from employees | eval d = date_trunc(1 year, hire_date) | stats c = count(emp_no) by d, gender, languages | sort c desc, d, languages desc, gender desc | limit 10;
 
@@ -500,4 +530,170 @@ from employees | limit 10 | eval x = 1 | stats c = count(x);
 
 c:l
 10
+;
+
+
+
+countAllGrouped
+from employees | stats c = count(*) by languages | rename languages as l | sort l DESC ; 
+
+c:l | l:i
+10  |null
+21  |5 
+18  |4
+17  |3
+19  |2
+15  |1
+;
+
+countAllAndOtherStatGrouped
+from employees | stats c = count(*), min = min(emp_no) by languages | sort languages;
+
+c:l | min:i    | languages:i
+15  | 10005    | 1 
+19  | 10001    | 2
+17  | 10006    | 3
+18  | 10003    | 4
+21  | 10002    | 5
+10  | 10020    | null
+;
+
+countAllWithEval
+from employees | rename languages as l | stats min = min(salary) by l | eval x = min + 1 | stats ca = count(*), cx = count(x) by l | sort l; 
+
+ca:l | cx:l | l:i
+1    | 1    | 1 
+1    | 1    | 2
+1    | 1    | 3
+1    | 1    | 4
+1    | 1    | 5
+1    | 1    | null
+;
+
+aggsWithoutStats
+from employees | stats by gender | sort gender;
+
+gender:keyword
+F
+M
+null
+;
+
+countFieldNoGrouping
+from employees | where emp_no < 10050 | stats c = count(salary);
+
+c:l
+49
+;
+
+countFieldWithRenamingNoGrouping
+from employees | rename emp_no as e, salary as s | where e < 10050 | stats c = count(s);
+
+c:l
+49
+;
+
+
+countFieldWithAliasNoGrouping
+from employees | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050 | stats c = count(hidden_s);
+
+c:l
+49
+;
+
+countFieldWithGrouping
+from employees | rename languages as l | where emp_no < 10050 | stats c = count(emp_no) by l | sort l;
+
+c:l | l:i 
+9  | 1   
+7  | 2   
+6  | 3   
+9  | 4   
+8  | 5   
+10 | null
+;
+
+countFieldWithAliasWithGrouping
+from employees | rename languages as l | eval e = emp_no | where emp_no < 10050 | stats c = count(e) by l | sort l;
+
+c:l | l:i 
+9  | 1   
+7  | 2   
+6  | 3   
+9  | 4   
+8  | 5   
+10 | null
+;         
+
+countEvalExpNoGrouping
+from employees | eval e = case(emp_no < 10050, emp_no, null) | stats c = count(e);
+
+c:l 
+49  
+;         
+
+countEvalExpWithGrouping
+from employees | rename languages as l | eval e = case(emp_no < 10050, emp_no, null) | stats c = count(e) by l | sort l;
+
+c:l | l:i 
+9   | 1   
+7   | 2   
+6   | 3   
+9   | 4   
+8   | 5   
+10  | null
+;         
+
+countAllOnOrdinalField
+from employees | stats ca = count() by gender | sort gender;
+
+ca:l|gender:s
+33  |F
+57  |M
+10  |null
+;
+
+countFieldOnOrdinalField
+from employees | stats ca = count(gender) by gender | sort gender;
+
+ca:l|gender:s
+33  |F
+57  |M
+0   |null
+;
+
+
+countFieldVsAll
+from employees | stats ca = count(), cn = count(null), cf = count(gender) by gender | sort gender;
+
+ca:l|cn:l|cf:l|gender:s
+33  |33  |33  |F
+57  |57  |57  |M
+10  |10  |0   |null
+;
+
+countMultiValue
+from employees | where emp_no == 10010 | stats c = count(job_positions) by job_positions;
+
+c:l |  job_positions:s  
+4   |Architect        
+4   |Purchase Manager 
+4   |Reporting Analyst
+4   |Tech Lead    
+;
+
+duplicateAggregationsWithoutGrouping#[skip:-8.11.99]
+from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salary), c1 = count(1);
+
+c:l | m:i | m1:i | c1:l
+100 | 25324 | 25324  | 100
+;
+
+duplicateAggregationsWithGrouping#[skip:-8.11.99]
+from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salary), c1 = count(1) by gender | sort gender;
+
+c:l| m:i   | m1:i  | c1:l| gender:s
+33 | 25976 | 25976 | 33  | F
+57 | 25945 | 25945 | 57  | M
+10 | 25324 | 25324 | 10  | null
 ;

@@ -59,8 +59,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -201,16 +199,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     @Before
     public final void initPlugins() {
-        int numThreads = randomIntBetween(2, 4);
         threadPool = new TestThreadPool(AggregatorTestCase.class.getName());
-        threadPoolExecutor = EsExecutors.newFixed(
-            "test",
-            numThreads,
-            10,
-            EsExecutors.daemonThreadFactory("test"),
-            threadPool.getThreadContext(),
-            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
-        );
+        threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH_WORKER);
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
         plugins.add(new AggCardinalityUpperBoundPlugin());
         SearchModule searchModule = new SearchModule(Settings.EMPTY, plugins);
@@ -427,7 +417,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Build a {@link SubSearchContext}s to power {@code top_hits}.
      */
-    private SubSearchContext buildSubSearchContext(
+    private static SubSearchContext buildSubSearchContext(
         IndexSettings indexSettings,
         SearchExecutionContext searchExecutionContext,
         BitsetFilterCache bitsetFilterCache
@@ -845,7 +835,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    private void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {
+    private static void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {
         Map<String, Object> debug = new HashMap<>();
         aggregator.collectDebugInfo((key, value) -> {
             Object old = debug.put(key, value);
@@ -880,7 +870,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    private void verifyMetricNames(
+    private static void verifyMetricNames(
         ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?> aggregationBuilder,
         InternalAggregation agg
     ) {
@@ -1122,7 +1112,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
+    private static ValuesSourceType fieldToVST(MappedFieldType fieldType) {
         return fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null).getValuesSourceType();
     }
 
@@ -1132,7 +1122,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Throws an exception if it encounters an unknown field type, to prevent new ones from sneaking in without
      * being tested.
      */
-    private void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
+    private static void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
 
         String typeName = fieldType.typeName();
         ValuesSourceType vst = fieldToVST(fieldType);

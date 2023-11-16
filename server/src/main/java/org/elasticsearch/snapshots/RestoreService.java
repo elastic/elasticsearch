@@ -55,6 +55,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -135,7 +136,7 @@ import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VAL
  * which removes {@link RestoreInProgress} when all shards are completed. In case of
  * restore failure a normal recovery fail-over process kicks in.
  */
-public class RestoreService implements ClusterStateApplier {
+public final class RestoreService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
 
@@ -252,7 +253,10 @@ public class RestoreService implements ClusterStateApplier {
             final String repositoryName = request.repository();
             Repository repository = repositoriesService.repository(repositoryName);
             final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
-            repository.getRepositoryData(repositoryDataListener);
+            repository.getRepositoryData(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
+                repositoryDataListener
+            );
 
             repositoryDataListener.addListener(
                 listener.delegateFailureAndWrap(
@@ -515,17 +519,20 @@ public class RestoreService implements ClusterStateApplier {
                 if (repository instanceof BlobStoreRepository && repository.getMetadata().uuid().equals(RepositoryData.MISSING_UUID)) {
                     final var repositoryName = repository.getMetadata().name();
                     logger.info("refreshing repository UUID for repository [{}]", repositoryName);
-                    repository.getRepositoryData(ActionListener.releaseAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(RepositoryData repositoryData) {
-                            logger.debug(() -> format("repository UUID [{}] refresh completed", repositoryName));
-                        }
+                    repository.getRepositoryData(
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
+                        ActionListener.releaseAfter(new ActionListener<>() {
+                            @Override
+                            public void onResponse(RepositoryData repositoryData) {
+                                logger.debug(() -> format("repository UUID [{}] refresh completed", repositoryName));
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.debug(() -> format("repository UUID [{}] refresh failed", repositoryName), e);
-                        }
-                    }, refs.acquire()));
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.debug(() -> format("repository UUID [{}] refresh failed", repositoryName), e);
+                            }
+                        }, refs.acquire())
+                    );
                 }
             }
         }
@@ -708,7 +715,9 @@ public class RestoreService implements ClusterStateApplier {
             dataStream.isSystem(),
             dataStream.isAllowCustomRouting(),
             dataStream.getIndexMode(),
-            dataStream.getLifecycle()
+            dataStream.getLifecycle(),
+            dataStream.isFailureStore(),
+            dataStream.getFailureIndices()
         );
     }
 
@@ -1581,7 +1590,7 @@ public class RestoreService implements ClusterStateApplier {
         convertedIndexMetadataBuilder.settings(
             Settings.builder()
                 .put(snapshotIndexMetadata.getSettings())
-                .put(IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.getKey(), clusterState.getNodes().getSmallestNonClientNodeVersion())
+                .put(IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.getKey(), clusterState.getNodes().getMinSupportedIndexVersion())
                 .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
         );
         snapshotIndexMetadata = convertedIndexMetadataBuilder.build();

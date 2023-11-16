@@ -16,7 +16,7 @@ import java.util.Objects;
 /**
  * {@link Vector} where each entry references a lucene document.
  */
-public class DocVector extends AbstractVector implements Vector {
+public final class DocVector extends AbstractVector implements Vector {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
 
@@ -46,6 +46,8 @@ public class DocVector extends AbstractVector implements Vector {
      */
     private int[] shardSegmentDocMapBackwards;
 
+    final DocBlock block;
+
     public DocVector(IntVector shards, IntVector segments, IntVector docs, Boolean singleSegmentNonDecreasing) {
         super(shards.getPositionCount(), null);
         this.shards = shards;
@@ -62,6 +64,7 @@ public class DocVector extends AbstractVector implements Vector {
                 "invalid position count [" + shards.getPositionCount() + " != " + docs.getPositionCount() + "]"
             );
         }
+        block = new DocBlock(this);
     }
 
     public IntVector shards() {
@@ -168,7 +171,7 @@ public class DocVector extends AbstractVector implements Vector {
 
     @Override
     public DocBlock asBlock() {
-        return new DocBlock(this);
+        return block;
     }
 
     @Override
@@ -200,6 +203,10 @@ public class DocVector extends AbstractVector implements Vector {
         return shards.equals(other.shards) && segments.equals(other.segments) && docs.equals(other.docs);
     }
 
+    private static long ramBytesOrZero(int[] array) {
+        return array == null ? 0 : RamUsageEstimator.shallowSizeOf(array);
+    }
+
     public static long ramBytesEstimated(
         IntVector shards,
         IntVector segments,
@@ -208,7 +215,7 @@ public class DocVector extends AbstractVector implements Vector {
         int[] shardSegmentDocMapBackwards
     ) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(shards) + RamUsageEstimator.sizeOf(segments) + RamUsageEstimator.sizeOf(docs)
-            + RamUsageEstimator.shallowSizeOf(shardSegmentDocMapForwards) + RamUsageEstimator.shallowSizeOf(shardSegmentDocMapBackwards);
+            + ramBytesOrZero(shardSegmentDocMapForwards) + ramBytesOrZero(shardSegmentDocMapBackwards);
     }
 
     @Override
@@ -218,6 +225,6 @@ public class DocVector extends AbstractVector implements Vector {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(shards, segments, docs);
+        Releasables.closeExpectNoException(shards.asBlock(), segments.asBlock(), docs.asBlock()); // Ugh! we always close blocks
     }
 }

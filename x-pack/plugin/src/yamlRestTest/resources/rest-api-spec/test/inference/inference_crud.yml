@@ -17,7 +17,7 @@
         model_id: elser_model
         body: >
           {
-            "service": "elser_mlnode",
+            "service": "elser",
             "service_settings": {
               "num_allocations": 1,
               "num_threads": 1

@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationN
 /**
  * Evaluation of regression results.
  */
-public class Regression implements Evaluation {
+public final class Regression implements Evaluation {
 
     public static final ParseField NAME = new ParseField("regression");
 

@@ -137,7 +137,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -578,6 +578,24 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return BlockDocValuesReader.bytesRefsFromOrds(name());
+            }
+            if (isSyntheticSource) {
+                if (false == isStored()) {
+                    throw new IllegalStateException(
+                        "keyword field ["
+                            + name()
+                            + "] is only supported in synthetic _source index if it creates doc values or stored fields"
+                    );
+                }
+                return BlockStoredFieldsReader.bytesRefsFromBytesRefs(name());
+            }
+            return BlockSourceReader.bytesRefs(sourceValueFetcher(blContext.sourcePaths(name())));
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
 
@@ -989,7 +1007,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return syntheticFieldLoader(simpleName());
     }
 
-    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }

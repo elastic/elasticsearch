@@ -52,6 +52,7 @@ public abstract class AbstractScopedSettings {
     private final Setting.Property scope;
     private Settings lastSettingsApplied;
 
+    @SuppressWarnings("this-escape")
     protected AbstractScopedSettings(final Settings settings, final Set<Setting<?>> settingsSet, final Setting.Property scope) {
         this.logger = LogManager.getLogger(this.getClass());
         this.settings = settings;

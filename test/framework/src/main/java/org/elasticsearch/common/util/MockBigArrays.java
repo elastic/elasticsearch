@@ -678,6 +678,9 @@ public class MockBigArrays extends BigArrays {
             while (true) {
                 long old = used.get();
                 long total = old + bytes;
+                if (total < 0) {
+                    throw new AssertionError("total must be >= 0 but was [" + total + "]");
+                }
                 if (total > max.getBytes()) {
                     throw new CircuitBreakingException(ERROR_MESSAGE, bytes, max.getBytes(), Durability.TRANSIENT);
                 }
@@ -689,7 +692,10 @@ public class MockBigArrays extends BigArrays {
 
         @Override
         public void addWithoutBreaking(long bytes) {
-            used.addAndGet(bytes);
+            long total = used.addAndGet(bytes);
+            if (total < 0) {
+                throw new AssertionError("total must be >= 0 but was [" + total + "]");
+            }
         }
 
         @Override

@@ -142,9 +142,6 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     public abstract List<B> getBuckets();
 
     @Override
-    public abstract B getBucketByKey(String term);
-
-    @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         throw new UnsupportedOperationException();
     }
@@ -165,11 +162,6 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     }
 
     protected abstract A createWithFilter(String name, List<B> buckets, SetBackedScalingCuckooFilter filter);
-
-    /**
-     * Create an array to hold some buckets. Used in collecting the results.
-     */
-    protected abstract B[] createBucketsArray(int size);
 
     @Override
     public boolean equals(Object obj) {

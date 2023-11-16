@@ -157,7 +157,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     protected abstract T buildSearchRequest(SearchSourceBuilder searchRequestBuilder);
 
-    private Aggregations validateAggs(@Nullable Aggregations aggs) {
+    private static Aggregations validateAggs(@Nullable Aggregations aggs) {
         if (aggs == null) {
             return null;
         }

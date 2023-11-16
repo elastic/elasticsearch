@@ -33,6 +33,7 @@ module org.elasticsearch.ml {
 
     provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.xpack.ml.MachineLearningPainlessExtension;
     provides org.elasticsearch.xpack.autoscaling.AutoscalingExtension with org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingExtension;
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.ml.MlFeatures;
 
     exports org.elasticsearch.xpack.ml;
     exports org.elasticsearch.xpack.ml.action;

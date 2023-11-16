@@ -49,7 +49,7 @@ public class TransportExecuteSnapshotRetentionAction extends AcknowledgedTranspo
             actionFilters,
             ExecuteSnapshotRetentionAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.retentionService = retentionService;
     }

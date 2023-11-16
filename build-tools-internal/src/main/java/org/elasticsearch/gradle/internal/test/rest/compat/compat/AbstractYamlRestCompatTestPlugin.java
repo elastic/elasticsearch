@@ -221,6 +221,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
             testTask.setTestClassesDirs(
                 yamlTestSourceSet.getOutput().getClassesDirs().plus(yamlCompatTestSourceSet.getOutput().getClassesDirs())
             );
+            testTask.onlyIf("Compatibility tests are available", t -> yamlCompatTestSourceSet.getAllSource().isEmpty() == false);
             testTask.setClasspath(
                 yamlCompatTestSourceSet.getRuntimeClasspath()
                     // remove the "normal" api and tests

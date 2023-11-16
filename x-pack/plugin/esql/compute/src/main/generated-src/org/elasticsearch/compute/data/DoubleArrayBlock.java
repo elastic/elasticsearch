@@ -11,7 +11,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.stream.IntStream;
 
 /**
  * Block implementation that stores an array of double.
@@ -51,7 +50,26 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
 
     @Override
     public DoubleBlock filter(int... positions) {
-        return new FilterDoubleBlock(this, positions);
+        try (var builder = blockFactory.newDoubleBlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.appendDouble(getDouble(getFirstValueIndex(pos)));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.appendDouble(getDouble(first + c));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.mvOrdering(mvOrdering()).build();
+        }
     }
 
     @Override
@@ -64,17 +82,26 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
         if (firstValueIndexes == null) {
             return this;
         }
-        int end = firstValueIndexes[getPositionCount()];
-        if (nullsMask == null) {
-            return new DoubleArrayVector(values, end).asBlock();
+        // TODO use reference counting to share the values
+        try (var builder = blockFactory.newDoubleBlockBuilder(firstValueIndexes[getPositionCount()])) {
+            for (int pos = 0; pos < getPositionCount(); pos++) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int first = getFirstValueIndex(pos);
+                int end = first + getValueCount(pos);
+                for (int i = first; i < end; i++) {
+                    builder.appendDouble(getDouble(i));
+                }
+            }
+            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
         }
-        int[] firstValues = IntStream.range(0, end + 1).toArray();
-        return new DoubleArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED, blockFactory);
     }
 
     public static long ramBytesEstimated(double[] values, int[] firstValueIndexes, BitSet nullsMask) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override
@@ -109,6 +136,10 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

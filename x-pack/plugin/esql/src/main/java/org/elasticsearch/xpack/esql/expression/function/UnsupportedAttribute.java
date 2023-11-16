@@ -25,7 +25,7 @@ import java.util.Objects;
  * the engine).
  * As such the field is marked as unresolved (so the verifier can pick up its usage outside project).
  */
-public class UnsupportedAttribute extends FieldAttribute implements Unresolvable {
+public final class UnsupportedAttribute extends FieldAttribute implements Unresolvable {
 
     private final String message;
     private final boolean hasCustomMessage;

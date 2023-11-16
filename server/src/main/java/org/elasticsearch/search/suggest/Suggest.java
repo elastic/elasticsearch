@@ -44,7 +44,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * Top level suggest result, containing the result for each suggestion.
  */
-public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Writeable, ToXContentFragment {
+public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Writeable, ToXContentFragment {
 
     public static final String NAME = "suggest";
 
@@ -70,7 +70,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         this.hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings({ "rawtypes", "unchecked", "this-escape" })
     public Suggest(StreamInput in) throws IOException {
         suggestions = (List) in.readNamedWriteableCollectionAsList(Suggestion.class);
         hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
@@ -206,7 +206,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     @SuppressWarnings("rawtypes")
     public abstract static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, NamedWriteable, ToXContentFragment {
 
-        public static final int TYPE = 0;
         protected final String name;
         protected final int size;
         protected final List<T> entries = new ArrayList<>(5);
@@ -216,6 +215,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             this.size = size; // The suggested term size specified in request, only used for merging shard responses
         }
 
+        @SuppressWarnings("this-escape")
         public Suggestion(StreamInput in) throws IOException {
             name = in.readString();
             size = in.readVInt();
@@ -405,6 +405,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
             protected Entry() {}
 
+            @SuppressWarnings("this-escape")
             public Entry(StreamInput in) throws IOException {
                 text = in.readText();
                 offset = in.readVInt();
@@ -631,10 +632,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                  */
                 public boolean collateMatch() {
                     return (collateMatch != null) ? collateMatch : true;
-                }
-
-                protected void setScore(float score) {
-                    this.score = score;
                 }
 
                 @Override

@@ -84,7 +84,7 @@ public class ThrottledIteratorTests extends ESTestCase {
                                     try {
                                         assertTrue(itemStartLatch.await(30, TimeUnit.SECONDS));
                                     } catch (InterruptedException e) {
-                                        throw new AssertionError("unexpected", e);
+                                        fail(e);
                                     } finally {
                                         blockPermits.release();
                                     }
@@ -99,7 +99,7 @@ public class ThrottledIteratorTests extends ESTestCase {
 
                             @Override
                             public void onFailure(Exception e) {
-                                throw new AssertionError("unexpected", e);
+                                fail(e);
                             }
                         });
                     } else {

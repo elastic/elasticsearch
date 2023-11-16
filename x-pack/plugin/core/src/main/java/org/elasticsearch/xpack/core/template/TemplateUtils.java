@@ -98,7 +98,7 @@ public class TemplateUtils {
         }
     }
 
-    private static String replaceVariables(String input, String version, String versionProperty, Map<String, String> variables) {
+    public static String replaceVariables(String input, String version, String versionProperty, Map<String, String> variables) {
         String template = replaceVariable(input, versionProperty, version);
         for (Map.Entry<String, String> variable : variables.entrySet()) {
             template = replaceVariable(template, variable.getKey(), variable.getValue());
@@ -117,14 +117,15 @@ public class TemplateUtils {
      * Checks if a versioned template exists, and if it exists checks if the version is greater than or equal to the current version.
      * @param templateName Name of the index template
      * @param state Cluster state
+     * @param currentVersion The current version to check against
      */
-    public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state) {
+    public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state, long currentVersion) {
         ComposableIndexTemplate templateMetadata = state.metadata().templatesV2().get(templateName);
         if (templateMetadata == null) {
             return false;
         }
 
-        return templateMetadata.version() != null && templateMetadata.version() >= Version.CURRENT.id;
+        return templateMetadata.version() != null && templateMetadata.version() >= currentVersion;
     }
 
     /**

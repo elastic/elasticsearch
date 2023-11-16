@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.datastreams.action.DataStreamsActionUtil;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -46,14 +47,14 @@ public class TransportDeleteDataStreamLifecycleAction extends AcknowledgedTransp
         SystemIndices systemIndices
     ) {
         super(
-            DeleteDataStreamLifecycleAction.NAME,
+            DeleteDataStreamLifecycleAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             DeleteDataStreamLifecycleAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.metadataDataStreamsService = metadataDataStreamsService;
         this.systemIndices = systemIndices;

@@ -23,6 +23,8 @@ abstract class AbstractBlock implements Block {
 
     protected final BlockFactory blockFactory;
 
+    protected boolean released = false;
+
     /**
      * @param positionCount the number of values in this block
      */
@@ -43,7 +45,7 @@ abstract class AbstractBlock implements Block {
         this.blockFactory = blockFactory;
         this.firstValueIndexes = firstValueIndexes;
         this.nullsMask = nullsMask == null || nullsMask.isEmpty() ? null : nullsMask;
-        assert (firstValueIndexes == null && this.nullsMask == null) == false;
+        assert nullsMask != null || firstValueIndexes != null : "Create VectorBlock instead";
     }
 
     @Override
@@ -93,5 +95,10 @@ abstract class AbstractBlock implements Block {
     @Override
     public BlockFactory blockFactory() {
         return blockFactory;
+    }
+
+    @Override
+    public boolean isReleased() {
+        return released;
     }
 }

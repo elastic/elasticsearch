@@ -29,7 +29,7 @@ import java.util.Arrays;
  * <p>
  * The request requires the query to be set using {@link #query(QueryBuilder)}
  */
-public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> implements ToXContentObject {
+public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> implements ToXContentObject {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false);
 

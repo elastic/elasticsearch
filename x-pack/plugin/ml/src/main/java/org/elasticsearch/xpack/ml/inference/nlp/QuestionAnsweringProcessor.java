@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfig;

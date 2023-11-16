@@ -81,30 +81,38 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    queryResult.size(2); // the size of the result set
-                    listener.onResponse(queryResult);
+                    try {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        queryResult.size(2); // the size of the result set
+                        listener.onResponse(queryResult);
+                    } finally {
+                        queryResult.decRef();
+                    }
                 } else if (request.contextId().getId() == 2) {
                     QuerySearchResult queryResult = new QuerySearchResult(
                         new ShardSearchContextId("", 123),
                         new SearchShardTarget("node2", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(84, 2.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    queryResult.size(2); // the size of the result set
-                    listener.onResponse(queryResult);
+                    try {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(84, 2.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        queryResult.size(2); // the size of the result set
+                        listener.onResponse(queryResult);
+                    } finally {
+                        queryResult.decRef();
+                    }
                 } else {
                     fail("no such request ID: " + request.contextId());
                 }
@@ -172,15 +180,19 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    queryResult.size(2); // the size of the result set
-                    listener.onResponse(queryResult);
+                    try {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        queryResult.size(2); // the size of the result set
+                        listener.onResponse(queryResult);
+                    } finally {
+                        queryResult.decRef();
+                    }
                 } else if (request.contextId().getId() == 2) {
                     listener.onFailure(new MockDirectoryWrapper.FakeIOException());
                 } else {
@@ -252,15 +264,19 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    queryResult.size(2); // the size of the result set
-                    listener.onResponse(queryResult);
+                    try {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        queryResult.size(2); // the size of the result set
+                        listener.onResponse(queryResult);
+                    } finally {
+                        queryResult.decRef();
+                    }
                 } else if (request.contextId().getId() == 2) {
                     throw new UncheckedIOException(new MockDirectoryWrapper.FakeIOException());
                 } else {
@@ -293,8 +309,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
 
     public void testRewriteShardSearchRequestWithRank() {
         List<DfsKnnResults> dkrs = List.of(
-            new DfsKnnResults(new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1), new ScoreDoc(7, 0.1f, 2) }),
+            new DfsKnnResults(null, new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1), new ScoreDoc(7, 0.1f, 2) }),
             new DfsKnnResults(
+                null,
                 new ScoreDoc[] { new ScoreDoc(2, 1.75f, 2), new ScoreDoc(1, 2.0f, 1), new ScoreDoc(3, 0.25f, 2), new ScoreDoc(6, 2.5f, 2) }
             )
         );

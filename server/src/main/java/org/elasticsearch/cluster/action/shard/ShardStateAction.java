@@ -841,7 +841,7 @@ public class ShardStateAction {
         }
     }
 
-    public static class NoLongerPrimaryShardException extends ElasticsearchException {
+    public static final class NoLongerPrimaryShardException extends ElasticsearchException {
 
         public NoLongerPrimaryShardException(ShardId shardId, String msg) {
             super(msg);

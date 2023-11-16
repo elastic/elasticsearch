@@ -10,9 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.ml.dataframe.steps.DataFrameAnalyticsStep;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -178,7 +179,8 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(
                 DataFrameAnalyticsState.FAILED,
                 getAllocationId(),
-                reason
+                reason,
+                Instant.now()
             );
             updatePersistentTaskState(newTaskState, ActionListener.wrap(updatedTask -> {
                 String message = Messages.getMessage(
@@ -215,7 +217,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
         String progressDocId = StoredProgress.documentId(jobId);
 
         // Step 4: Run the runnable provided as the argument
-        ActionListener<IndexResponse> indexProgressDocListener = ActionListener.wrap(indexResponse -> {
+        ActionListener<DocWriteResponse> indexProgressDocListener = ActionListener.wrap(indexResponse -> {
             LOGGER.debug("[{}] Successfully indexed progress document: {}", jobId, storedProgress.get().get());
             runnable.run();
         }, indexError -> {

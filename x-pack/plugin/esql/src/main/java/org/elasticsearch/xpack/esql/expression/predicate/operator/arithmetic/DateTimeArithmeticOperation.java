@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.esql.EsqlClientException;
+import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,6 +18,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
+import java.util.Collection;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -29,33 +28,9 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTempor
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
-
-    /**
-     * Custom exception to handle e.g. overflows when folding temporal values; we want to set the correct HTTP status (400).
-     */
-    private static class IllegalTemporalValueException extends EsqlClientException {
-        protected IllegalTemporalValueException(String message, Object... args) {
-            super(message, args);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.BAD_REQUEST;
-        }
-
-        public static IllegalTemporalValueException fromArithmeticException(Source source, ArithmeticException e) {
-            return new IllegalTemporalValueException("arithmetic exception in expression [{}]: [{}]", source.text(), e.getMessage());
-        }
-    }
-
     /** Arithmetic (quad) function. */
     interface DatetimeArithmeticEvaluator {
-        ExpressionEvaluator apply(
-            Source source,
-            ExpressionEvaluator expressionEvaluator,
-            TemporalAmount temporalAmount,
-            DriverContext driverContext
-        );
+        ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory expressionEvaluator, TemporalAmount temporalAmount);
     }
 
     private final DatetimeArithmeticEvaluator datetimes;
@@ -126,14 +101,17 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         DataType rightDataType = right().dataType();
         if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
-            Period l = (Period) left().fold();
-            Period r = (Period) right().fold();
+            var l = left().fold();
+            var r = right().fold();
+            if (l instanceof Collection<?> || r instanceof Collection<?>) {
+                return null;
+            }
             try {
-                return fold(l, r);
+                return fold((Period) l, (Period) r);
             } catch (ArithmeticException e) {
                 // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
                 // manually and provide a user-friendly error message.
-                throw IllegalTemporalValueException.fromArithmeticException(source(), e);
+                throw ExceptionUtils.math(source(), e);
             }
         }
         if (leftDataType == TIME_DURATION && rightDataType == TIME_DURATION) {
@@ -145,7 +123,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             } catch (ArithmeticException e) {
                 // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
                 // manually and provide a user-friendly error message.
-                throw IllegalTemporalValueException.fromArithmeticException(source(), e);
+                throw ExceptionUtils.math(source(), e);
             }
         }
         return super.fold();
@@ -165,12 +143,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
                 temporalAmountArgument = left();
             }
 
-            return dvrCtx -> datetimes.apply(
-                source(),
-                toEvaluator.apply(datetimeArgument).get(dvrCtx),
-                (TemporalAmount) temporalAmountArgument.fold(),
-                dvrCtx
-            );
+            return datetimes.apply(source(), toEvaluator.apply(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
         } else {
             return super.toEvaluator(toEvaluator);
         }

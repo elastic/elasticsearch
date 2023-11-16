@@ -62,7 +62,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         if (obj instanceof DocBlock == false) {
             return false;
         }
-        return vector.equals(((DocBlock) obj).vector);
+        return this == obj || vector.equals(((DocBlock) obj).vector);
     }
 
     @Override
@@ -72,14 +72,18 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
         Releasables.closeExpectNoException(vector);
     }
 
     /**
      * A builder the for {@link DocBlock}.
      */
-    public static Builder newBlockBuilder(int estimatedSize) {
-        return new Builder(estimatedSize);
+    public static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return new Builder(estimatedSize, blockFactory);
     }
 
     public static class Builder implements Block.Builder {
@@ -87,10 +91,10 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
 
-        private Builder(int estimatedSize) {
-            shards = IntVector.newVectorBuilder(estimatedSize);
-            segments = IntVector.newVectorBuilder(estimatedSize);
-            docs = IntVector.newVectorBuilder(estimatedSize);
+        private Builder(int estimatedSize, BlockFactory blockFactory) {
+            shards = IntVector.newVectorBuilder(estimatedSize, blockFactory);
+            segments = IntVector.newVectorBuilder(estimatedSize, blockFactory);
+            docs = IntVector.newVectorBuilder(estimatedSize, blockFactory);
         }
 
         public Builder appendShard(int shard) {
@@ -141,13 +145,24 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
         @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
-            throw new UnsupportedOperationException("doc blocks only contain one value per position");
+            /*
+             * This is called when copying but otherwise doesn't do
+             * anything because there aren't multivalue fields in a
+             * block containing doc references. Every position can
+             * only reference one doc.
+             */
+            return this;
         }
 
         @Override
         public DocBlock build() {
             // Pass null for singleSegmentNonDecreasing so we calculate it when we first need it.
             return new DocVector(shards.build(), segments.build(), docs.build(), null).asBlock();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(shards, segments, docs);
         }
     }
 }

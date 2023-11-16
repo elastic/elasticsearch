@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -84,11 +85,11 @@ public class CoalesceTests extends AbstractFunctionTestCase {
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, exp);
         Layout layout = builder.build();
-        assertThat(toJavaObject(exp.toEvaluator(child -> {
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> map = child -> {
             if (child == evil) {
                 return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
                     @Override
-                    public Block eval(Page page) {
+                    public Block.Ref eval(Page page) {
                         throw new AssertionError("shouldn't be called");
                     }
 
@@ -97,7 +98,13 @@ public class CoalesceTests extends AbstractFunctionTestCase {
                 };
             }
             return EvalMapper.toEvaluator(child, layout);
-        }).get(driverContext()).eval(row(testCase.getDataValues())), 0), testCase.getMatcher());
+        };
+        try (
+            EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(map).get(driverContext());
+            Block.Ref ref = eval.eval(row(testCase.getDataValues()))
+        ) {
+            assertThat(toJavaObject(ref.block(), 0), testCase.getMatcher());
+        }
     }
 
     public void testCoalesceNullabilityIsUnknown() {

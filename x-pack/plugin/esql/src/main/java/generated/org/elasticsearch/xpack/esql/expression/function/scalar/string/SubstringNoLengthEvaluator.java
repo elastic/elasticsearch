@@ -36,52 +36,50 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
   }
 
   @Override
-  public Block eval(Page page) {
-    Block strUncastBlock = str.eval(page);
-    if (strUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref strRef = str.eval(page)) {
+      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
+      try (Block.Ref startRef = start.eval(page)) {
+        IntBlock startBlock = (IntBlock) startRef.block();
+        BytesRefVector strVector = strBlock.asVector();
+        if (strVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, startBlock));
+        }
+        IntVector startVector = startBlock.asVector();
+        if (startVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, startBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), strVector, startVector).asBlock());
+      }
     }
-    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
-    Block startUncastBlock = start.eval(page);
-    if (startUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    IntBlock startBlock = (IntBlock) startUncastBlock;
-    BytesRefVector strVector = strBlock.asVector();
-    if (strVector == null) {
-      return eval(page.getPositionCount(), strBlock, startBlock);
-    }
-    IntVector startVector = startBlock.asVector();
-    if (startVector == null) {
-      return eval(page.getPositionCount(), strBlock, startBlock);
-    }
-    return eval(page.getPositionCount(), strVector, startVector).asBlock();
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, IntBlock startBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (startBlock.isNull(p) || startBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBytesRef(Substring.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), startBlock.getInt(startBlock.getFirstValueIndex(p))));
       }
-      if (startBlock.isNull(p) || startBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBytesRef(Substring.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), startBlock.getInt(startBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector strVector, IntVector startVector) {
-    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBytesRef(Substring.process(strVector.getBytesRef(p, strScratch), startVector.getInt(p)));
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBytesRef(Substring.process(strVector.getBytesRef(p, strScratch), startVector.getInt(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -92,5 +90,27 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, start);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory start;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory start) {
+      this.str = str;
+      this.start = start;
+    }
+
+    @Override
+    public SubstringNoLengthEvaluator get(DriverContext context) {
+      return new SubstringNoLengthEvaluator(str.get(context), start.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SubstringNoLengthEvaluator[" + "str=" + str + ", start=" + start + "]";
+    }
   }
 }

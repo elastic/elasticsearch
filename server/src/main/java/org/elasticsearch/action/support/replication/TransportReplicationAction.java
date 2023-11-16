@@ -158,6 +158,7 @@ public abstract class TransportReplicationAction<
         );
     }
 
+    @SuppressWarnings("this-escape")
     protected TransportReplicationAction(
         Settings settings,
         String actionName,
@@ -604,7 +605,7 @@ public abstract class TransportReplicationAction<
         return () -> {};
     }
 
-    public static class RetryOnReplicaException extends ElasticsearchException {
+    public static final class RetryOnReplicaException extends ElasticsearchException {
 
         public RetryOnReplicaException(ShardId shardId, String msg) {
             super(msg);

@@ -24,6 +24,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -505,13 +506,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     CachedBlobContainerIndexInput cachedIndexInput = (CachedBlobContainerIndexInput) input;
 
                     final AtomicBoolean alreadyCached = new AtomicBoolean();
-                    try (var fileListener = new RefCountingListener(ActionListener.runBefore(completionListener.acquire().map(v -> {
+                    try (var fileListener = new RefCountingListener(ActionListener.runBefore(completionListener.acquire(v -> {
                         if (alreadyCached.get()) {
                             recoveryState.markIndexFileAsReused(file.physicalName());
                         } else {
                             recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(file.physicalName(), file.length());
                         }
-                        return v;
                     }), () -> IOUtils.closeWhileHandlingException(cachedIndexInput)))) {
                         if (cachedIndexInput.getPersistentCacheInitialLength() == file.length()) {
                             alreadyCached.set(true);
@@ -526,7 +526,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
                         for (int p = 0; p < file.numberOfParts(); p++) {
                             final int part = p;
-                            prewarmTaskRunner.enqueueTask(fileListener.acquire().map(releasable -> {
+                            prewarmTaskRunner.enqueueTask(fileListener.acquire(releasable -> {
                                 try (releasable) {
                                     var fileName = file.physicalName();
                                     final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
@@ -542,7 +542,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                                             prefetchedPartBytes
                                         );
                                     }
-                                    return null;
                                 }
                             }));
                         }
@@ -720,13 +719,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
 
         @Override
-        public InputStream readBlob(String blobName) throws IOException {
-            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName));
+        public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(purpose, blobName));
         }
 
         @Override
-        public InputStream readBlob(String blobName, long position, long length) throws IOException {
-            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName, position, length));
+        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(purpose, blobName, position, length));
         }
     }
 }

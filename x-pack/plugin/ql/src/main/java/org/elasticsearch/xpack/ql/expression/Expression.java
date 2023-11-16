@@ -50,6 +50,10 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
             return failed == false;
         }
 
+        public TypeResolution and(TypeResolution other) {
+            return failed ? this : other;
+        }
+
         public String message() {
             return message;
         }

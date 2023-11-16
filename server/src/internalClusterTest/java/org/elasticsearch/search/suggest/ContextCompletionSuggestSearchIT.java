@@ -10,8 +10,8 @@ package org.elasticsearch.search.suggest;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -168,7 +168,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
-        IndexResponse indexResponse = client().prepareIndex(INDEX)
+        DocWriteResponse indexResponse = client().prepareIndex(INDEX)
             .setId("1")
             .setSource(
                 jsonBuilder().startObject()
@@ -619,9 +619,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     Collections.singletonList(GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.52, 13.4)).build())
                 )
             );
-        SearchResponse searchResponse = client().prepareSearch(INDEX)
-            .suggest(new SuggestBuilder().addSuggestion(suggestionName, context))
-            .get();
+        SearchResponse searchResponse = prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, context)).get();
 
         assertEquals(searchResponse.getSuggest().size(), 1);
         assertEquals(
@@ -671,8 +669,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void assertSuggestions(String suggestionName, SuggestionBuilder<?> suggestBuilder, String... suggestions) {
-        SearchResponse searchResponse = client().prepareSearch(INDEX)
-            .suggest(new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder))
+        SearchResponse searchResponse = prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder))
             .get();
         CompletionSuggestSearchIT.assertSuggestions(searchResponse, suggestionName, suggestions);
     }
@@ -728,7 +725,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         mapping.endObject().endObject().endObject();
 
         assertAcked(
-            indicesAdmin().prepareCreate(INDEX).setSettings(Settings.builder().put(indexSettings()).put(settings)).setMapping(mapping).get()
+            indicesAdmin().prepareCreate(INDEX).setSettings(Settings.builder().put(indexSettings()).put(settings)).setMapping(mapping)
         );
     }
 }

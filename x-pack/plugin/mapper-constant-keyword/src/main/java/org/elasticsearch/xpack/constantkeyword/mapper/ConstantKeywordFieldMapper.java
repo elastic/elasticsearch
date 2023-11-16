@@ -19,9 +19,9 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -30,6 +30,8 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -131,6 +133,49 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public String familyTypeName() {
             return KeywordFieldMapper.CONTENT_TYPE;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // TODO build a constant block directly
+            if (value == null) {
+                return BlockDocValuesReader.nulls();
+            }
+            BytesRef bytes = new BytesRef(value);
+            return context -> new BlockDocValuesReader() {
+                private int docId;
+
+                @Override
+                public int docID() {
+                    return docId;
+                }
+
+                @Override
+                public BlockLoader.BytesRefBuilder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+                    return factory.bytesRefs(expectedCount);
+                }
+
+                @Override
+                public BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
+                    try (BlockLoader.BytesRefBuilder builder = builder(factory, docs.count())) {
+                        for (int i = 0; i < docs.count(); i++) {
+                            builder.appendBytesRef(bytes);
+                        }
+                        return builder.build();
+                    }
+                }
+
+                @Override
+                public void readValuesFromSingleDoc(int docId, BlockLoader.Builder builder) {
+                    this.docId = docId;
+                    ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(bytes);
+                }
+
+                @Override
+                public String toString() {
+                    return "ConstantKeyword";
+                }
+            };
         }
 
         @Override

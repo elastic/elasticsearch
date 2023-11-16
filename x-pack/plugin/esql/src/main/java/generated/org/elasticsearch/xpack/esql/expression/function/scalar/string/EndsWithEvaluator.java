@@ -36,55 +36,53 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   @Override
-  public Block eval(Page page) {
-    Block strUncastBlock = str.eval(page);
-    if (strUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref strRef = str.eval(page)) {
+      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
+      try (Block.Ref suffixRef = suffix.eval(page)) {
+        BytesRefBlock suffixBlock = (BytesRefBlock) suffixRef.block();
+        BytesRefVector strVector = strBlock.asVector();
+        if (strVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, suffixBlock));
+        }
+        BytesRefVector suffixVector = suffixBlock.asVector();
+        if (suffixVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, suffixBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), strVector, suffixVector).asBlock());
+      }
     }
-    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
-    Block suffixUncastBlock = suffix.eval(page);
-    if (suffixUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock suffixBlock = (BytesRefBlock) suffixUncastBlock;
-    BytesRefVector strVector = strBlock.asVector();
-    if (strVector == null) {
-      return eval(page.getPositionCount(), strBlock, suffixBlock);
-    }
-    BytesRefVector suffixVector = suffixBlock.asVector();
-    if (suffixVector == null) {
-      return eval(page.getPositionCount(), strBlock, suffixBlock);
-    }
-    return eval(page.getPositionCount(), strVector, suffixVector).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock suffixBlock) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    BytesRef suffixScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef suffixScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (suffixBlock.isNull(p) || suffixBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(EndsWith.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), suffixBlock.getBytesRef(suffixBlock.getFirstValueIndex(p), suffixScratch)));
       }
-      if (suffixBlock.isNull(p) || suffixBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBoolean(EndsWith.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), suffixBlock.getBytesRef(suffixBlock.getFirstValueIndex(p), suffixScratch)));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector strVector,
       BytesRefVector suffixVector) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    BytesRef suffixScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBoolean(EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)));
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef suffixScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -95,5 +93,27 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, suffix);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory suffix;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory suffix) {
+      this.str = str;
+      this.suffix = suffix;
+    }
+
+    @Override
+    public EndsWithEvaluator get(DriverContext context) {
+      return new EndsWithEvaluator(str.get(context), suffix.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "EndsWithEvaluator[" + "str=" + str + ", suffix=" + suffix + "]";
+    }
   }
 }

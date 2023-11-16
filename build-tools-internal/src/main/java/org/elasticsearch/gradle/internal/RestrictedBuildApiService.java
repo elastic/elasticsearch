@@ -76,6 +76,7 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":qa:verify-version-constants");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-delayed-aggs");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-die-with-dignity");
+        map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-apm-integration");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-error-query");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-latency-simulating-directory");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-seek-tracking-directory");
@@ -142,6 +143,7 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:multi-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:single-node");
+        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:esql:qa:server:mixed-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:fleet:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:graph:qa:with-security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:identity-provider:qa:idp-rest-tests");

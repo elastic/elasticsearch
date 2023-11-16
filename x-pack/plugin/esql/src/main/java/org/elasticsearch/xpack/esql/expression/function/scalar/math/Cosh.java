@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -21,13 +21,14 @@ import java.util.List;
  * Cosine hyperbolic function.
  */
 public class Cosh extends AbstractTrigonometricFunction {
-    public Cosh(Source source, @Named("n") Expression n) {
+    @FunctionInfo(returnType = "double")
+    public Cosh(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext dvrCtx) {
-        return new CoshEvaluator(source(), field, dvrCtx);
+    protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
+        return new CoshEvaluator.Factory(source(), field);
     }
 
     @Override

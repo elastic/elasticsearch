@@ -1,5 +1,7 @@
 ---
 setup:
+  - skip:
+      features: allowed_warnings_regex
   - do:
       indices.create:
         index:  test
@@ -109,6 +111,8 @@ setup:
 ---
 "Test From":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -266,6 +270,8 @@ setup:
 ---
 "Test Input Params":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'row a = ? | eval b = ?, c = 1 + ?'
@@ -283,6 +289,8 @@ setup:
 
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where color == ? and count == ? and time == ? | keep data, count, color'

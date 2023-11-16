@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -198,13 +199,17 @@ public class RightTests extends AbstractScalarFunctionTestCase {
     }
 
     private String process(String str, int length) {
-        Block result = evaluator(
-            new Right(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, length, DataTypes.INTEGER))
-        ).get(driverContext()).eval(row(List.of(new BytesRef(str))));
-        if (null == result) {
-            return null;
+        try (
+            EvalOperator.ExpressionEvaluator eval = evaluator(
+                new Right(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, length, DataTypes.INTEGER))
+            ).get(driverContext());
+            Block.Ref ref = eval.eval(row(List.of(new BytesRef(str))))
+        ) {
+            if (ref.block().isNull(0)) {
+                return null;
+            }
+            BytesRef resultByteRef = ((BytesRef) toJavaObject(ref.block(), 0));
+            return resultByteRef == null ? null : resultByteRef.utf8ToString();
         }
-        BytesRef resultByteRef = ((BytesRef) toJavaObject(result, 0));
-        return resultByteRef == null ? null : resultByteRef.utf8ToString();
     }
 }

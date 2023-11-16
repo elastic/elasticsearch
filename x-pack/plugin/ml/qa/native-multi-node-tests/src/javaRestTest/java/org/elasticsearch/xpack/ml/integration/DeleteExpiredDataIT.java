@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
@@ -20,7 +19,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -55,6 +53,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.ml.annotations.AnnotationTests.randomAnnotation;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -269,14 +268,12 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         retainAllSnapshots("snapshots-retention-with-retain");
 
-        long totalModelSizeStatsBeforeDelete = client().prepareSearch("*")
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+        long totalModelSizeStatsBeforeDelete = prepareSearch("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
             .get()
             .getHits()
             .getTotalHits().value;
-        long totalNotificationsCountBeforeDelete = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-            .get()
+        long totalNotificationsCountBeforeDelete = prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).get()
             .getHits()
             .getTotalHits().value;
         assertThat(totalModelSizeStatsBeforeDelete, greaterThan(0L));
@@ -290,7 +287,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
 
         // Before we call the delete-expired-data action we need to make sure the unused state docs were indexed
-        assertThat(indexUnusedStateDocsResponse.get().status(), equalTo(RestStatus.OK));
+        assertFalse(indexUnusedStateDocsResponse.get().hasFailures());
 
         // Now call the action under test
         assertThat(deleteExpiredData(customThrottle).isDeleted(), is(true));
@@ -322,14 +319,12 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getRecords("results-and-snapshots-retention").size(), equalTo(0));
         assertThat(getModelSnapshots("results-and-snapshots-retention").size(), equalTo(1));
 
-        long totalModelSizeStatsAfterDelete = client().prepareSearch("*")
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+        long totalModelSizeStatsAfterDelete = prepareSearch("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
             .get()
             .getHits()
             .getTotalHits().value;
-        long totalNotificationsCountAfterDelete = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-            .get()
+        long totalNotificationsCountAfterDelete = prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).get()
             .getHits()
             .getTotalHits().value;
         assertThat(totalModelSizeStatsAfterDelete, equalTo(totalModelSizeStatsBeforeDelete));
@@ -348,29 +343,27 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
 
         // Verify .ml-state doesn't contain unused state documents
-        SearchResponse stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setFetchSource(false)
-            .setTrackTotalHits(true)
-            .setSize(10000)
-            .get();
+        assertResponse(
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
+            stateDocsResponse -> {
+                assertThat(stateDocsResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(5L));
 
-        // Assert at least one state doc for each job
-        assertThat(stateDocsResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(5L));
-
-        int nonExistingJobDocsCount = 0;
-        List<String> nonExistingJobExampleIds = new ArrayList<>();
-        for (SearchHit hit : stateDocsResponse.getHits().getHits()) {
-            if (hit.getId().startsWith("non_existing_job")) {
-                nonExistingJobDocsCount++;
-                if (nonExistingJobExampleIds.size() < 10) {
-                    nonExistingJobExampleIds.add(hit.getId());
+                int nonExistingJobDocsCount = 0;
+                List<String> nonExistingJobExampleIds = new ArrayList<>();
+                for (SearchHit hit : stateDocsResponse.getHits().getHits()) {
+                    if (hit.getId().startsWith("non_existing_job")) {
+                        nonExistingJobDocsCount++;
+                        if (nonExistingJobExampleIds.size() < 10) {
+                            nonExistingJobExampleIds.add(hit.getId());
+                        }
+                    }
                 }
+                assertThat(
+                    "Documents for non_existing_job are still around; examples: " + nonExistingJobExampleIds,
+                    nonExistingJobDocsCount,
+                    equalTo(0)
+                );
             }
-        }
-        assertThat(
-            "Documents for non_existing_job are still around; examples: " + nonExistingJobExampleIds,
-            nonExistingJobDocsCount,
-            equalTo(0)
         );
     }
 

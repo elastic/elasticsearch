@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -108,8 +108,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         );
         assertThat(deleteError.getMessage(), containsString("Number of documents in the index can't exceed [" + maxDocs.get() + "]"));
         indicesAdmin().prepareRefresh("test").get();
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(new MatchAllQueryBuilder())
+        SearchResponse searchResponse = prepareSearch("test").setQuery(new MatchAllQueryBuilder())
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
             .setSize(0)
             .get();
@@ -121,8 +120,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         internalCluster().fullRestart();
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen("test");
-        searchResponse = client().prepareSearch("test")
-            .setQuery(new MatchAllQueryBuilder())
+        searchResponse = prepareSearch("test").setQuery(new MatchAllQueryBuilder())
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
             .setSize(0)
             .get();
@@ -137,8 +135,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         assertThat(indexingResult.numFailures, greaterThan(0));
         assertThat(indexingResult.numSuccess, both(greaterThan(0)).and(lessThanOrEqualTo(maxDocs.get())));
         indicesAdmin().prepareRefresh("test").get();
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(new MatchAllQueryBuilder())
+        SearchResponse searchResponse = prepareSearch("test").setQuery(new MatchAllQueryBuilder())
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
             .setSize(0)
             .get();
@@ -155,8 +152,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
             assertThat(indexingResult.numSuccess, equalTo(0));
         }
         indicesAdmin().prepareRefresh("test").get();
-        searchResponse = client().prepareSearch("test")
-            .setQuery(new MatchAllQueryBuilder())
+        searchResponse = prepareSearch("test").setQuery(new MatchAllQueryBuilder())
             .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
             .setSize(0)
             .get();
@@ -177,7 +173,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
                 phaser.arriveAndAwaitAdvance();
                 while (completedRequests.incrementAndGet() <= numRequests) {
                     try {
-                        final IndexResponse resp = client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
+                        final DocWriteResponse resp = client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
                         numSuccess.incrementAndGet();
                         assertThat(resp.status(), equalTo(RestStatus.CREATED));
                     } catch (IllegalArgumentException e) {

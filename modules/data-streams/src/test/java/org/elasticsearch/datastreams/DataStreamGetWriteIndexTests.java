@@ -290,7 +290,8 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
     }
 
     private ClusterState createInitialState() {
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("logs-*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )

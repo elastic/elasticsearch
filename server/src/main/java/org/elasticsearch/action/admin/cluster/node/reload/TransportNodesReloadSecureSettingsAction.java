@@ -55,11 +55,9 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     ) {
         super(
             NodesReloadSecureSettingsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesReloadSecureSettingsRequest::new,
             NodesReloadSecureSettingsRequest.NodeRequest::new,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );

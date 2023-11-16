@@ -54,8 +54,14 @@ public class MapParsingUtils {
         return value;
     }
 
+    public static void throwIfNotEmptyMap(Map<String, Object> settingsMap, String serviceName) {
+        if (settingsMap.isEmpty() == false) {
+            throw MapParsingUtils.unknownSettingsError(settingsMap, serviceName);
+        }
+    }
+
     public static ElasticsearchStatusException unknownSettingsError(Map<String, Object> config, String serviceName) {
-        // TOOD map as JSON
+        // TODO map as JSON
         return new ElasticsearchStatusException(
             "Model configuration contains settings [{}] unknown to the [{}] service",
             RestStatus.BAD_REQUEST,
@@ -66,5 +72,13 @@ public class MapParsingUtils {
 
     public static String missingSettingErrorMsg(String settingName, String scope) {
         return Strings.format("[%s] does not contain the required setting [%s]", scope, settingName);
+    }
+
+    public static String invalidUrlErrorMsg(String url, String settingName) {
+        return Strings.format("Invalid url [%s] received in setting [%s]", url, settingName);
+    }
+
+    public static String mustBeNonEmptyString(String settingName, String scope) {
+        return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 }

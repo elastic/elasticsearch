@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -64,6 +63,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -519,7 +519,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) mappings.get("_meta");
         assertThat(meta.keySet(), hasItem("version"));
-        assertThat(meta.get("version"), equalTo(Version.CURRENT.toString()));
+        assertThat(meta.get("version"), equalTo(MlIndexAndAlias.BWC_MAPPINGS_VERSION));
+        assertThat(meta.get("managed_index_mappings_version"), equalTo(AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");

@@ -48,7 +48,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         this.routingRequired = docMapper.routingFieldMapper().required();
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "this-escape", "unchecked" })
     public MappingMetadata(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
@@ -59,7 +59,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         this.routingRequired = routingRequired((Map<String, Object>) mappingMap.get(this.type));
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "this-escape", "unchecked" })
     public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
         try {

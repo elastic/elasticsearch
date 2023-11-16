@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.stats.Metrics;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 
 public final class AnalyzerTestUtils {
 
@@ -34,7 +37,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static Analyzer analyzer(IndexResolution indexResolution) {
-        return analyzer(indexResolution, new Verifier(new Metrics()));
+        return analyzer(indexResolution, TEST_VERIFIER);
     }
 
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier) {
@@ -42,6 +45,10 @@ public final class AnalyzerTestUtils {
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), indexResolution, defaultEnrichResolution()),
             verifier
         );
+    }
+
+    public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier, EsqlConfiguration config) {
+        return new Analyzer(new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, defaultEnrichResolution()), verifier);
     }
 
     public static Analyzer analyzer(Verifier verifier) {
@@ -56,7 +63,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyze(String query, String mapping) {
-        return analyze(query, analyzer(loadMapping(mapping, "test")));
+        return analyze(query, analyzer(loadMapping(mapping, "test"), TEST_VERIFIER, configuration(query)));
     }
 
     public static LogicalPlan analyze(String query, Analyzer analyzer) {

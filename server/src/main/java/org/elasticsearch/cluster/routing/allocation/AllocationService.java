@@ -78,6 +78,7 @@ public class AllocationService {
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
+    @SuppressWarnings("this-escape")
     public AllocationService(
         AllocationDeciders allocationDeciders,
         GatewayAllocator gatewayAllocator,

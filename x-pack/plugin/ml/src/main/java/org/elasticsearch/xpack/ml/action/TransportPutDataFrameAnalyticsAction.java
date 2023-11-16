@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
@@ -99,7 +100,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             PutDataFrameAnalyticsAction.Request::new,
             indexNameExpressionResolver,
             PutDataFrameAnalyticsAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.configProvider = configProvider;

@@ -101,6 +101,8 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_TRANSFORM_PATTERN = Set.of("cluster:monitor/data_frame/*", "cluster:monitor/transform/*");
     private static final Set<String> MONITOR_WATCHER_PATTERN = Set.of("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
+    private static final Set<String> MONITOR_ENRICH_PATTERN = Set.of("cluster:monitor/xpack/enrich/*", "cluster:admin/xpack/enrich/get");
+
     private static final Set<String> ALL_CLUSTER_PATTERN = Set.of(
         "cluster:*",
         "indices:admin/template/*",
@@ -163,16 +165,16 @@ public class ClusterPrivilegeResolver {
 
     private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-        RemoteClusterNodesAction.NAME,
+        RemoteClusterNodesAction.TYPE.name(),
         XPackInfoAction.NAME
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-        RemoteClusterNodesAction.NAME,
+        RemoteClusterNodesAction.TYPE.name(),
         XPackInfoAction.NAME,
         ClusterStateAction.NAME
     );
-    private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*");
+    private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*", "cluster:monitor/xpack/enrich/*");
 
     public static final NamedClusterPrivilege NONE = new ActionClusterPrivilege("none", Set.of(), Set.of());
     public static final NamedClusterPrivilege ALL = new ActionClusterPrivilege("all", ALL_CLUSTER_PATTERN);
@@ -192,6 +194,7 @@ public class ClusterPrivilegeResolver {
     );
     public static final NamedClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ROLLUP = new ActionClusterPrivilege("monitor_rollup", MONITOR_ROLLUP_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_ENRICH = new ActionClusterPrivilege("monitor_enrich", MONITOR_ENRICH_PATTERN);
     public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage", ALL_CLUSTER_PATTERN, ALL_SECURITY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
     public static final NamedClusterPrivilege MANAGE_TRANSFORM_DEPRECATED = new ActionClusterPrivilege(
@@ -333,6 +336,7 @@ public class ClusterPrivilegeResolver {
             MONITOR_TRANSFORM,
             MONITOR_WATCHER,
             MONITOR_ROLLUP,
+            MONITOR_ENRICH,
             MANAGE,
             MANAGE_ML,
             MANAGE_TRANSFORM_DEPRECATED,

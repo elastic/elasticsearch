@@ -21,7 +21,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -113,7 +112,7 @@ public class DatafeedConfigProvider {
     public void putDatafeedConfig(
         DatafeedConfig config,
         Map<String, String> headers,
-        ActionListener<Tuple<DatafeedConfig, IndexResponse>> listener
+        ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener
     ) {
 
         DatafeedConfig finalConfig;
@@ -353,7 +352,7 @@ public class DatafeedConfigProvider {
         });
     }
 
-    private void indexUpdatedConfig(DatafeedConfig updatedConfig, long seqNo, long primaryTerm, ActionListener<IndexResponse> listener) {
+    private void indexUpdatedConfig(DatafeedConfig updatedConfig, long seqNo, long primaryTerm, ActionListener<DocWriteResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
             IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(DatafeedConfig.documentId(updatedConfig.getId()))
@@ -521,7 +520,7 @@ public class DatafeedConfigProvider {
 
     }
 
-    private QueryBuilder buildDatafeedIdQuery(String[] tokens) {
+    private static QueryBuilder buildDatafeedIdQuery(String[] tokens) {
         QueryBuilder datafeedQuery = new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE);
         if (Strings.isAllOrWildcard(tokens)) {
             // match all
@@ -556,7 +555,7 @@ public class DatafeedConfigProvider {
         return MlStrings.findMatching(datafeedIdPatterns, MlTasks.startedDatafeedIds(tasksMetadata));
     }
 
-    private QueryBuilder buildDatafeedJobIdsQuery(Collection<String> jobIds) {
+    private static QueryBuilder buildDatafeedJobIdsQuery(Collection<String> jobIds) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE));
         boolQueryBuilder.filter(new TermsQueryBuilder(Job.ID.getPreferredName(), jobIds));

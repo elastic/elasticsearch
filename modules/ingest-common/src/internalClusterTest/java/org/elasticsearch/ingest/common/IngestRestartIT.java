@@ -9,7 +9,6 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -49,11 +48,6 @@ public class IngestRestartIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(IngestCommonPlugin.class, CustomScriptPlugin.class);
-    }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -321,7 +315,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         );
 
         // but this one should pass since it has a longer timeout
-        final PlainActionFuture<IndexResponse> future = new PlainActionFuture<>();
+        final PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
         client().prepareIndex("index")
             .setId("passes1")
             .setSource("x", 2)
@@ -333,7 +327,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), "1"));
         ensureYellow("index");
 
-        final IndexResponse indexResponse = future.actionGet(timeout);
+        final DocWriteResponse indexResponse = future.actionGet(timeout);
         assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
         assertThat(indexResponse.getResult(), equalTo(DocWriteResponse.Result.CREATED));
 

@@ -224,6 +224,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.xcontent.support;
     exports org.elasticsearch.discovery;
     exports org.elasticsearch.env;
+    exports org.elasticsearch.features;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
     exports org.elasticsearch.health.node;
@@ -278,6 +279,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.indices.recovery;
     exports org.elasticsearch.indices.recovery.plan;
     exports org.elasticsearch.indices.store;
+    exports org.elasticsearch.inference;
     exports org.elasticsearch.ingest;
     exports org.elasticsearch.internal
         to
@@ -384,6 +386,7 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;
+    exports org.elasticsearch.telemetry.metric;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
@@ -398,6 +401,16 @@ module org.elasticsearch.server {
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
+    uses org.elasticsearch.features.FeatureSpecification;
+
+    provides org.elasticsearch.features.FeatureSpecification
+        with
+            org.elasticsearch.features.FeatureInfrastructureFeatures,
+            org.elasticsearch.health.HealthFeatures,
+            org.elasticsearch.cluster.metadata.MetadataFeatures,
+            org.elasticsearch.rest.RestFeatures,
+            org.elasticsearch.indices.IndicesFeatures;
+
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
     uses org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
@@ -407,4 +420,6 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
     provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
+
+    exports org.elasticsearch.cluster.routing.allocation.shards to org.elasticsearch.shardhealth, org.elasticsearch.serverless.shardhealth;
 }

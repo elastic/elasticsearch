@@ -32,7 +32,7 @@ import static java.util.Collections.emptyMap;
  * Worth noting the {@link #combine(AttributeMap)}, {@link #intersect(AttributeMap)} and {@link #subtract(AttributeMap)} methods which
  * return copies, decoupled from the input maps. In other words the returned maps can be modified without affecting the input or vice-versa.
  */
-public class AttributeMap<E> implements Map<Attribute, E> {
+public final class AttributeMap<E> implements Map<Attribute, E> {
 
     static class AttributeWrapper {
 
@@ -155,7 +155,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     private static final AttributeMap EMPTY = new AttributeMap<>(emptyMap());
 
     @SuppressWarnings("unchecked")
-    public static final <E> AttributeMap<E> emptyAttributeMap() {
+    public static <E> AttributeMap<E> emptyAttributeMap() {
         return EMPTY;
     }
 

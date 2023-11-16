@@ -501,7 +501,7 @@ public class JobDataDeleter {
         );
     }
 
-    private IndicesAliasesRequest buildRemoveAliasesRequest(GetAliasesResponse getAliasesResponse) {
+    private static IndicesAliasesRequest buildRemoveAliasesRequest(GetAliasesResponse getAliasesResponse) {
         Set<String> aliases = new HashSet<>();
         List<String> indices = new ArrayList<>();
         for (var entry : getAliasesResponse.getAliases().entrySet()) {

@@ -33,50 +33,48 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block eval(Page page) {
-    Block yUncastBlock = y.eval(page);
-    if (yUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref yRef = y.eval(page)) {
+      DoubleBlock yBlock = (DoubleBlock) yRef.block();
+      try (Block.Ref xRef = x.eval(page)) {
+        DoubleBlock xBlock = (DoubleBlock) xRef.block();
+        DoubleVector yVector = yBlock.asVector();
+        if (yVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), yBlock, xBlock));
+        }
+        DoubleVector xVector = xBlock.asVector();
+        if (xVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), yBlock, xBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), yVector, xVector).asBlock());
+      }
     }
-    DoubleBlock yBlock = (DoubleBlock) yUncastBlock;
-    Block xUncastBlock = x.eval(page);
-    if (xUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    DoubleBlock xBlock = (DoubleBlock) xUncastBlock;
-    DoubleVector yVector = yBlock.asVector();
-    if (yVector == null) {
-      return eval(page.getPositionCount(), yBlock, xBlock);
-    }
-    DoubleVector xVector = xBlock.asVector();
-    if (xVector == null) {
-      return eval(page.getPositionCount(), yBlock, xBlock);
-    }
-    return eval(page.getPositionCount(), yVector, xVector).asBlock();
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock yBlock, DoubleBlock xBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (yBlock.isNull(p) || yBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (yBlock.isNull(p) || yBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (xBlock.isNull(p) || xBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendDouble(Atan2.process(yBlock.getDouble(yBlock.getFirstValueIndex(p)), xBlock.getDouble(xBlock.getFirstValueIndex(p))));
       }
-      if (xBlock.isNull(p) || xBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendDouble(Atan2.process(yBlock.getDouble(yBlock.getFirstValueIndex(p)), xBlock.getDouble(xBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, DoubleVector yVector, DoubleVector xVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Atan2.process(yVector.getDouble(p), xVector.getDouble(p)));
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(Atan2.process(yVector.getDouble(p), xVector.getDouble(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -87,5 +85,27 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(y, x);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory y;
+
+    private final EvalOperator.ExpressionEvaluator.Factory x;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory y,
+        EvalOperator.ExpressionEvaluator.Factory x) {
+      this.y = y;
+      this.x = x;
+    }
+
+    @Override
+    public Atan2Evaluator get(DriverContext context) {
+      return new Atan2Evaluator(y.get(context), x.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "Atan2Evaluator[" + "y=" + y + ", x=" + x + "]";
+    }
   }
 }

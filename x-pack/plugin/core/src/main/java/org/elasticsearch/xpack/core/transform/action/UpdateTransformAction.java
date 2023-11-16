@@ -42,7 +42,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         super(NAME, Response::new);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
 
         private final TransformConfigUpdate update;
         private final String id;

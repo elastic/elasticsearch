@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -58,7 +57,7 @@ public class ClusterAlertsUtil {
      * The last time that all watches were updated. For now, all watches have been updated in the same version and should all be replaced
      * together.
      */
-    public static final int LAST_UPDATED_VERSION = Version.V_7_5_0.id;
+    public static final int LAST_UPDATED_VERSION = 7_05_00_99;
 
     /**
      * An unsorted list of Watch IDs representing resource files for Monitoring Cluster Alerts.

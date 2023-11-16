@@ -185,4 +185,24 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         AssertionError e = expectThrows(AssertionError.class, () -> existsAssertion.doAssert(null, existsAssertion.getExpectedValue()));
         assertThat(e.getMessage(), containsString("field [get.fields._timestamp] does not exist"));
     }
+
+    public void testDoesNotExist() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent, "get.fields._timestamp");
+
+        NotExistsAssertion existnotExistsAssertion = NotExistsAssertion.parse(parser);
+
+        assertThat(existnotExistsAssertion, notNullValue());
+        assertThat(existnotExistsAssertion.getField(), equalTo("get.fields._timestamp"));
+
+        existnotExistsAssertion.doAssert(null, existnotExistsAssertion.getExpectedValue());
+
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> existnotExistsAssertion.doAssert(
+                randomFrom(1, "", "non-empty", List.of(), Map.of(), 0, false),
+                existnotExistsAssertion.getExpectedValue()
+            )
+        );
+        assertThat(e.getMessage(), containsString("field [get.fields._timestamp] exists, but should not"));
+    }
 }

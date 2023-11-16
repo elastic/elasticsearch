@@ -814,8 +814,8 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         updateMappingForNumericValuesTests("test", singletonList(UNSIGNED_LONG_FIELD));
 
         byte randomNonNegativeByte = randomNonNegativeByte();
-        short randomNonNegativeShort = (short) (Math.abs(randomShort()) - 1);
-        int randomNonNegativeInt = Math.abs(randomInt()) - 1;
+        short randomNonNegativeShort = (short) (randomShort() & Short.MAX_VALUE);
+        int randomNonNegativeInt = randomNonNegativeInt();
         long randomNonNegativeLong = randomNonNegativeLong();
         double randomNonNegativeFloat = (float) randomDoubleBetween(0, UNSIGNED_LONG_MAX.doubleValue(), true);
         double randomNonNegativeDouble = randomDoubleBetween(0, UNSIGNED_LONG_MAX.doubleValue(), true);

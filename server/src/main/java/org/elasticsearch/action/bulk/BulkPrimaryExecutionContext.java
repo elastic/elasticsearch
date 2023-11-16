@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * This is a utility class that holds the per request state needed to perform bulk operations on the primary.
@@ -238,13 +240,20 @@ class BulkPrimaryExecutionContext {
                 final DocWriteResponse response;
                 if (result.getOperationType() == Engine.Operation.TYPE.INDEX) {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
+                    List<String> executedPipelines;
+                    if (docWriteRequest instanceof IndexRequest indexRequest) {
+                        executedPipelines = indexRequest.getExecutedPipelines();
+                    } else {
+                        executedPipelines = null;
+                    }
                     response = new IndexResponse(
                         primary.shardId(),
                         indexResult.getId(),
                         result.getSeqNo(),
                         result.getTerm(),
                         indexResult.getVersion(),
-                        indexResult.isCreated()
+                        indexResult.isCreated(),
+                        executedPipelines
                     );
                 } else if (result.getOperationType() == Engine.Operation.TYPE.DELETE) {
                     Engine.DeleteResult deleteResult = (Engine.DeleteResult) result;

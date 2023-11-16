@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -29,35 +31,38 @@ public class MultivalueDedupeBoolean {
      */
     public static final int TRUE_ORD = 2;
 
+    private final Block.Ref ref;
     private final BooleanBlock block;
     private boolean seenTrue;
     private boolean seenFalse;
 
-    public MultivalueDedupeBoolean(BooleanBlock block) {
-        this.block = block;
+    public MultivalueDedupeBoolean(Block.Ref ref) {
+        this.ref = ref;
+        this.block = (BooleanBlock) ref.block();
     }
 
     /**
      * Dedupe values using an adaptive algorithm based on the size of the input list.
      */
-    public BooleanBlock dedupeToBlock() {
+    public Block.Ref dedupeToBlock(BlockFactory blockFactory) {
         if (false == block.mayHaveMultivaluedFields()) {
-            return block;
+            return ref;
         }
-        BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> builder.appendNull();
-                case 1 -> builder.appendBoolean(block.getBoolean(first));
-                default -> {
-                    readValues(first, count);
-                    writeValues(builder);
+        try (ref; BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendBoolean(block.getBoolean(first));
+                    default -> {
+                        readValues(first, count);
+                        writeValues(builder);
+                    }
                 }
             }
+            return Block.Ref.floating(builder.build());
         }
-        return builder.build();
     }
 
     /**
@@ -66,23 +71,24 @@ public class MultivalueDedupeBoolean {
      * @param everSeen array tracking if the values {@code false} and {@code true} are ever seen
      */
     public IntBlock hash(boolean[] everSeen) {
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> {
-                    everSeen[NULL_ORD] = true;
-                    builder.appendInt(NULL_ORD);
-                }
-                case 1 -> builder.appendInt(hashOrd(everSeen, block.getBoolean(first)));
-                default -> {
-                    readValues(first, count);
-                    hashValues(everSeen, builder);
+        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> {
+                        everSeen[NULL_ORD] = true;
+                        builder.appendInt(NULL_ORD);
+                    }
+                    case 1 -> builder.appendInt(hashOrd(everSeen, block.getBoolean(first)));
+                    default -> {
+                        readValues(first, count);
+                        hashValues(everSeen, builder);
+                    }
                 }
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     /**

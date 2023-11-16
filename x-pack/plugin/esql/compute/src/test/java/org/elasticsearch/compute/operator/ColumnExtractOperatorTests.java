@@ -12,6 +12,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -21,14 +22,16 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class ColumnExtractOperatorTests extends OperatorTestCase {
 
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         List<BytesRef> input = LongStream.range(0, end)
             .mapToObj(l -> new BytesRef("word1_" + l + " word2_" + l + " word3_" + l))
             .collect(Collectors.toList());
-        return new BytesRefBlockSourceOperator(input);
+        return new BytesRefBlockSourceOperator(blockFactory, input);
     }
 
     record FirstWord(int channelA) implements ColumnExtractOperator.Evaluator {
@@ -51,8 +54,14 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
             new ElementType[] { ElementType.BYTES_REF },
             dvrCtx -> new EvalOperator.ExpressionEvaluator() {
                 @Override
-                public Block eval(Page page) {
-                    return page.getBlock(0);
+                public Block.Ref eval(Page page) {
+                    BytesRefBlock input = page.getBlock(0);
+                    for (int i = 0; i < input.getPositionCount(); i++) {
+                        if (input.getBytesRef(i, new BytesRef()).utf8ToString().startsWith("no_")) {
+                            return Block.Ref.floating(Block.constantNullBlock(input.getPositionCount(), input.blockFactory()));
+                        }
+                    }
+                    return new Block.Ref(input, page);
                 }
 
                 @Override
@@ -88,7 +97,19 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
 
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+        return ByteSizeValue.ofBytes(between(1, 32));
+    }
+
+    public void testAllNullValues() {
+        DriverContext driverContext = driverContext();
+        BytesRef scratch = new BytesRef();
+        Block input1 = BytesRefBlock.newBlockBuilder(1, driverContext.blockFactory()).appendBytesRef(new BytesRef("can_match")).build();
+        Block input2 = BytesRefBlock.newBlockBuilder(1, driverContext.blockFactory()).appendBytesRef(new BytesRef("no_match")).build();
+        List<Page> inputPages = List.of(new Page(input1), new Page(input2));
+        List<Page> outputPages = drive(simple(driverContext.bigArrays()).get(driverContext), inputPages.iterator(), driverContext);
+        BytesRefBlock output1 = outputPages.get(0).getBlock(1);
+        BytesRefBlock output2 = outputPages.get(1).getBlock(1);
+        assertThat(output1.getBytesRef(0, scratch), equalTo(new BytesRef("can_match")));
+        assertTrue(output2.areAllValuesNull());
     }
 }

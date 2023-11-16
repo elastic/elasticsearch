@@ -126,6 +126,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             } else {
                 UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
                     indexShardRoutingTable,
+                    replicaRequest.primaryRefreshResult.primaryTerm(),
                     replicaRequest.primaryRefreshResult.generation(),
                     false
                 );

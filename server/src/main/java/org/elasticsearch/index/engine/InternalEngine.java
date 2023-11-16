@@ -221,10 +221,12 @@ public class InternalEngine extends Engine {
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
 
+    @SuppressWarnings("this-escape")
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
 
+    @SuppressWarnings("this-escape")
     InternalEngine(EngineConfig engineConfig, int maxDocs, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
         this.maxDocs = maxDocs;
@@ -757,13 +759,11 @@ public class InternalEngine extends Engine {
 
     private ExternalReaderManager createReaderManager(RefreshWarmerListener externalRefreshListener) throws EngineException {
         boolean success = false;
+        ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager internalReaderManager = null;
         try {
             try {
-                final ElasticsearchDirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(
-                    DirectoryReader.open(indexWriter),
-                    shardId
-                );
+                directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
                 lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 internalReaderManager = createInternalReaderManager(directoryReader);
                 ExternalReaderManager externalReaderManager = new ExternalReaderManager(internalReaderManager, externalRefreshListener);
@@ -780,7 +780,9 @@ public class InternalEngine extends Engine {
             }
         } finally {
             if (success == false) { // release everything we created on a failure
-                IOUtils.closeWhileHandlingException(internalReaderManager, indexWriter);
+                // make sure that we close the directory reader even if the internal reader manager has failed to initialize
+                var reader = internalReaderManager == null ? directoryReader : internalReaderManager;
+                IOUtils.closeWhileHandlingException(reader, indexWriter);
             }
         }
     }
@@ -876,6 +878,18 @@ public class InternalEngine extends Engine {
         }
         boolean getFromSearcherIfNotInTranslog = getFromSearcher;
         if (versionValue != null) {
+            /*
+             * Once we've seen the ID in the live version map, in two cases it is still possible not to
+             * be able to follow up with serving the get from the translog:
+             *  1. It is possible that once attempt handling the get, we won't see the doc in the translog
+             *     since it might have been moved out.
+             *     TODO: ideally we should keep around translog entries long enough to cover this case
+             *  2. We might not be tracking translog locations in the live version map (see @link{trackTranslogLocation})
+             *
+             * In these cases, we should always fall back to get the doc from the internal searcher.
+             */
+
+            getFromSearcherIfNotInTranslog = true;
             if (versionValue.isDelete()) {
                 return GetResult.NOT_EXISTS;
             }
@@ -909,11 +923,8 @@ public class InternalEngine extends Engine {
                         throw new EngineException(shardId, "failed to read operation from translog", e);
                     }
                 } else {
+                    // We need to start tracking translog locations in the live version map.
                     trackTranslogLocation.set(true);
-                    // We need to start tracking translog locations in the live version map. Refresh and
-                    // serve all the real-time gets with a missing translog location from the internal searcher
-                    // (until a flush happens) even if we're supposed to only get from translog.
-                    getFromSearcherIfNotInTranslog = true;
                 }
             }
             assert versionValue.seqNo >= 0 : versionValue;
@@ -1028,11 +1039,19 @@ public class InternalEngine extends Engine {
                 // but we only need to do this once since the last operation per ID is to add to the version
                 // map so once we pass this point we can safely lookup from the version map.
                 if (versionMap.isUnsafe()) {
-                    lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration() + 1);
                     refreshInternalSearcher(UNSAFE_VERSION_MAP_REFRESH_SOURCE, true);
+                    // After the refresh, the doc that triggered it must now be part of the last commit.
+                    // In rare cases, there could be other flush cycles completed in between the above line
+                    // and the line below which push the last commit generation further. But that's OK.
+                    // The invariant here is that doc is available within the generations of commits upto
+                    // lastUnsafeSegmentGenerationForGets (inclusive). Therefore it is ok for it be larger
+                    // which means the search shard needs to wait for extra generations and these generations
+                    // are guaranteed to happen since they are all committed.
+                    lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration());
                 }
                 versionMap.enforceSafeAccess();
             }
+            // The versionMap can still be unsafe at this point due to archive being unsafe
         }
         return versionMap.getUnderLock(id);
     }
@@ -2064,7 +2083,8 @@ public class InternalEngine extends Engine {
         // for a long time:
         maybePruneDeletes();
         mergeScheduler.refreshConfig();
-        return new RefreshResult(refreshed, segmentGeneration);
+        long primaryTerm = config().getPrimaryTermSupplier().getAsLong();
+        return new RefreshResult(refreshed, primaryTerm, segmentGeneration);
     }
 
     @Override
@@ -2449,7 +2469,7 @@ public class InternalEngine extends Engine {
         if (flushFirst) {
             logger.trace("start flush for snapshot");
             // TODO: Split acquireLastIndexCommit into two apis one with blocking flushes one without
-            PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+            PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
             flush(false, true, future);
             future.actionGet();
             logger.trace("finish flush for snapshot");

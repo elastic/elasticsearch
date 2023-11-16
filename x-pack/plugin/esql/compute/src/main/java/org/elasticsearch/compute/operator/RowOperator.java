@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.data.BlockFactory;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -20,7 +22,8 @@ public class RowOperator extends LocalSourceOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new RowOperator(objects);
+            // We aren't yet ready to use the read block factory
+            return new RowOperator(BlockFactory.getNonBreakingInstance(), objects);
         }
 
         @Override
@@ -29,8 +32,8 @@ public class RowOperator extends LocalSourceOperator {
         }
     }
 
-    public RowOperator(List<Object> objects) {
-        super(() -> objects);
+    public RowOperator(BlockFactory blockFactory, List<Object> objects) {
+        super(blockFactory, () -> objects);
         this.objects = objects;
     }
 

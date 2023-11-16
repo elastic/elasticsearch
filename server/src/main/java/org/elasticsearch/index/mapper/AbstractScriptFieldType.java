@@ -41,13 +41,13 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Abstract base {@linkplain MappedFieldType} for runtime fields based on a script.
  */
-abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
+public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
     private final boolean isResultDeterministic;
 
-    AbstractScriptFieldType(
+    protected AbstractScriptFieldType(
         String name,
         Function<SearchLookup, LeafFactory> factory,
         Script script,
@@ -221,7 +221,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     // TODO rework things so that we don't need this
     protected static final Script DEFAULT_SCRIPT = new Script("");
 
-    abstract static class Builder<Factory> extends RuntimeField.Builder {
+    protected abstract static class Builder<Factory> extends RuntimeField.Builder {
         private final ScriptContext<Factory> scriptContext;
 
         private final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
@@ -239,14 +239,14 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             script
         );
 
-        Builder(String name, ScriptContext<Factory> scriptContext) {
+        protected Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);
             this.scriptContext = scriptContext;
         }
 
-        abstract Factory getParseFromSourceFactory();
+        protected abstract Factory getParseFromSourceFactory();
 
-        abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
+        protected abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
 
         @Override
         protected final RuntimeField createRuntimeField(MappingParserContext parserContext) {
@@ -286,7 +286,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 
-        abstract AbstractScriptFieldType<?> createFieldType(
+        protected abstract AbstractScriptFieldType<?> createFieldType(
             String name,
             Factory factory,
             Script script,
@@ -294,7 +294,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             OnScriptError onScriptError
         );
 
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             Factory factory,
             Script script,

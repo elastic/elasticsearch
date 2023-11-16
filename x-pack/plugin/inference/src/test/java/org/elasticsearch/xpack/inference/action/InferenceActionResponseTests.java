@@ -10,16 +10,22 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultTests;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class InferenceActionResponseTests extends AbstractWireSerializingTestCase<InferenceAction.Response> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(InferenceNamedWriteablesProvider.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
+        return new NamedWriteableRegistry(entries);
     }
 
     @Override
@@ -29,7 +35,7 @@ public class InferenceActionResponseTests extends AbstractWireSerializingTestCas
 
     @Override
     protected InferenceAction.Response createTestInstance() {
-        return new InferenceAction.Response(SparseEmbeddingResultTests.createRandomResult());
+        return new InferenceAction.Response(List.of(TextExpansionResultsTests.createRandomResults()));
     }
 
     @Override

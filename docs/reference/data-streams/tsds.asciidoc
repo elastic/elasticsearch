@@ -218,10 +218,17 @@ if the index isn't the most recent backing index.
 
 image::images/data-streams/time-bound-indices.svg[align="center"]
 
-TIP: Some {ilm-init} actions, such as <<ilm-forcemerge,`forcemerge`>>,
-<<ilm-shrink,`shrink`>>, and <<ilm-searchable-snapshot,`searchable_snapshot`>>,
-make a backing index read-only. You cannot add documents to read-only indices.
-Keep this in mind when defining the index lifecycle policy for your TSDS.
+TIP: Some {ilm-init} actions mark the source index as read-only, or expect the index
+to not be actively written anymore in order to provide good performance. These actions are:
+- <<ilm-delete>>
+- <<ilm-downsample>>
+- <<ilm-forcemerge>>
+- <<ilm-readonly>>
+- <<ilm-searchable-snapshot>>
+- <<ilm-shrink>>
+{ilm-cap} will **not** proceed with executing these actions until the upper time-bound 
+for accepting writes, represented by the <<index-time-series-end-time,`index.time_series.end_time`>> 
+index setting, has lapsed. 
 
 If no backing index can accept a document's `@timestamp` value, {es} rejects the
 document.

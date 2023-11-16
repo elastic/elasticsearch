@@ -15,6 +15,7 @@ import com.amazonaws.services.s3.model.MultipartUpload;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,6 +65,26 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         secureSettings.setString("s3.client.default.access_key", System.getProperty("test.s3.account"));
         secureSettings.setString("s3.client.default.secret_key", System.getProperty("test.s3.key"));
         return secureSettings;
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        final var settings = Settings.builder().put(super.nodeSettings());
+        if (randomBoolean()) {
+            final var defaultMillis = S3Service.REPOSITORY_S3_CAS_TTL_SETTING.get(Settings.EMPTY).millis();
+            settings.put(
+                S3Service.REPOSITORY_S3_CAS_TTL_SETTING.getKey(),
+                TimeValue.timeValueMillis(randomLongBetween(defaultMillis, defaultMillis * 2))
+            );
+        }
+        if (randomBoolean()) {
+            final var defaultMillis = S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(Settings.EMPTY).millis();
+            settings.put(
+                S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.getKey(),
+                TimeValue.timeValueMillis(randomLongBetween(defaultMillis, defaultMillis * 2))
+            );
+        }
+        return settings.build();
     }
 
     @Override
@@ -107,10 +129,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             var repository = new S3Repository(
                 node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata(),
                 xContentRegistry(),
-                node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).get(0).getService(),
+                node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).findFirst().get().getService(),
                 ClusterServiceUtils.createClusterService(threadpool),
                 BigArrays.NON_RECYCLING_INSTANCE,
-                new RecoverySettings(node().settings(), node().injector().getInstance(ClusterService.class).getClusterSettings())
+                new RecoverySettings(node().settings(), node().injector().getInstance(ClusterService.class).getClusterSettings()),
+                MeterRegistry.NOOP
             )
         ) {
             repository.start();
@@ -126,7 +149,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 class TestHarness {
                     boolean tryCompareAndSet(BytesReference expected, BytesReference updated) {
                         return PlainActionFuture.<Boolean, RuntimeException>get(
-                            future -> blobContainer.compareAndSetRegister("key", expected, updated, future),
+                            future -> blobContainer.compareAndSetRegister(OperationPurpose.SNAPSHOT, "key", expected, updated, future),
                             10,
                             TimeUnit.SECONDS
                         );
@@ -134,7 +157,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
                     BytesReference readRegister() {
                         return PlainActionFuture.get(
-                            future -> blobContainer.getRegister("key", future.map(OptionalBytesReference::bytesReference)),
+                            future -> blobContainer.getRegister(
+                                OperationPurpose.SNAPSHOT,
+                                "key",
+                                future.map(OptionalBytesReference::bytesReference)
+                            ),
                             10,
                             TimeUnit.SECONDS
                         );
@@ -181,7 +208,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 assertThat(testHarness.listMultipartUploads(), hasSize(0));
                 assertEquals(bytes2, testHarness.readRegister());
             } finally {
-                blobContainer.delete();
+                blobContainer.delete(OperationPurpose.SNAPSHOT);
             }
         } finally {
             ThreadPool.terminate(threadpool, 10, TimeUnit.SECONDS);

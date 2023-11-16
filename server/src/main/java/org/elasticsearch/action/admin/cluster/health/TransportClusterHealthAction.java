@@ -70,7 +70,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             ClusterHealthRequest::new,
             indexNameExpressionResolver,
             ClusterHealthResponse::new,
-            ThreadPool.Names.MANAGEMENT // fork to management since the health computation can become expensive for large cluster states
+            // fork to management since the health computation can become expensive for large cluster states.
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.allocationService = allocationService;
     }

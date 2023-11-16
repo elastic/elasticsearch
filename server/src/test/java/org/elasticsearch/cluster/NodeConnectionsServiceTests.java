@@ -546,7 +546,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 transport,
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID()),
+                boundAddress -> DiscoveryNodeUtils.create(UUIDs.randomBase64UUID()),
                 null,
                 emptySet()
             );

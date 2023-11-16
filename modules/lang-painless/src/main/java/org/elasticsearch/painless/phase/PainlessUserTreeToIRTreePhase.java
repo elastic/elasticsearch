@@ -262,7 +262,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
     // requires the gets method name be modified from "getExample" to "example"
     // if a get method variable isn't used it's declaration node is removed from
     // the ir tree permanently so there is no frivolous variable slotting
-    protected void injectGetsDeclarations(BlockNode irBlockNode, ScriptScope scriptScope) {
+    protected static void injectGetsDeclarations(BlockNode irBlockNode, ScriptScope scriptScope) {
         Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectGetsDeclarations", 0);
 
         for (int i = 0; i < scriptScope.getScriptClassInfo().getGetMethods().size(); ++i) {
@@ -345,7 +345,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
      * }
      *
      */
-    protected void injectSandboxExceptions(FunctionNode irFunctionNode) {
+    protected static void injectSandboxExceptions(FunctionNode irFunctionNode) {
         try {
             Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectSandboxExceptions", 0);
             BlockNode irBlockNode = irFunctionNode.getBlockNode();
@@ -513,7 +513,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         injectConverter(userReturnNode, scriptScope);
     }
 
-    public void injectConverter(AStatement userStatementNode, ScriptScope scriptScope) {
+    public static void injectConverter(AStatement userStatementNode, ScriptScope scriptScope) {
         Converter converter = scriptScope.getDecoration(userStatementNode, Converter.class);
         if (converter == null) {
             return;

@@ -295,7 +295,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return TransportVersions.V_7_6_0;
     }
 
-    public static class Builder {
+    public static final class Builder {
         private List<String> featureNames;
         private ArrayList<TreeNode.Builder> nodes;
         private int numNodes;

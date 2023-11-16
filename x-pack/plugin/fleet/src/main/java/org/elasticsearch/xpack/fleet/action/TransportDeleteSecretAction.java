@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -27,7 +28,7 @@ public class TransportDeleteSecretAction extends HandledTransportAction<DeleteSe
 
     @Inject
     public TransportDeleteSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(DeleteSecretAction.NAME, transportService, actionFilters, DeleteSecretRequest::new);
+        super(DeleteSecretAction.NAME, transportService, actionFilters, DeleteSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, FLEET_ORIGIN);
     }
 

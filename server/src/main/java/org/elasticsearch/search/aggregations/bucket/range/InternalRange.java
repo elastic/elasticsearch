@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -117,11 +116,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return aggregations;
         }
 
-        @SuppressWarnings("unchecked")
-        protected Factory<? extends Bucket, ?> getFactory() {
-            return FACTORY;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             final String key = getKeyAsString();
@@ -206,10 +200,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return CoreValuesSourceType.NUMERIC;
         }
 
-        public ValueType getValueType() {
-            return ValueType.NUMERIC;
-        }
-
         @SuppressWarnings("unchecked")
         public R create(String name, List<B> ranges, DocValueFormat format, boolean keyed, Map<String, Object> metadata) {
             return (R) new InternalRange<B, R>(name, ranges, format, keyed, metadata);
@@ -261,6 +251,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     public InternalRange(StreamInput in) throws IOException {
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);

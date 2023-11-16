@@ -168,6 +168,10 @@ Example response:
       "enterprise_search": {
          "available": true,
          "enabled": true
+      },
+      "universal_profiling": {
+         "available": true,
+         "enabled": true
       }
    },
    "tagline" : "You know, for X"

@@ -154,10 +154,10 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
             final LoopControl loopControl = new LoopControl();
             while (loopControl.isRunning()) {
                 loopControl.exiting();
-                // finish other sinks if one of them failed or sources no longer need pages.
+                // finish other sinks if one of them failed or source no longer need pages.
                 boolean toFinishSinks = buffer.noMoreInputs() || failure.get() != null;
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
-                    Page page = resp.page();
+                    Page page = resp.takePage();
                     if (page != null) {
                         buffer.addPage(page);
                     }
@@ -249,7 +249,7 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
 
     /**
      * Add a listener, which will be notified when this exchange source handler is completed. An exchange source
-     * handler is consider completed when all exchange sources and sinks are completed and de-attached.
+     * handler is consider completed when all exchange factories and sinks are completed and de-attached.
      */
     public void addCompletionListener(ActionListener<Void> listener) {
         completionFuture.addListener(listener);

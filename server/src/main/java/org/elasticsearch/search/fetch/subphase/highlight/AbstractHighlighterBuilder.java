@@ -131,6 +131,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     protected AbstractHighlighterBuilder(StreamInput in) throws IOException {
         preTags(in.readOptionalStringArray());
         postTags(in.readOptionalStringArray());
@@ -448,13 +449,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             this.boundaryScannerLocale = Locale.forLanguageTag(boundaryScannerLocale);
         }
         return (HB) this;
-    }
-
-    /**
-     * @return the value set by {@link #boundaryScannerLocale(String)}
-     */
-    public Locale boundaryScannerLocale() {
-        return this.boundaryScannerLocale;
     }
 
     /**

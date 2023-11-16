@@ -17,41 +17,68 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 
 public class GetTopNFunctionsResponse extends ActionResponse implements ChunkedToXContentObject {
-    private final int size;
     private final double samplingRate;
+    private final long totalCount;
+    private final long selfCPU;
+    private final long totalCPU;
+    private final List<TopNFunction> topNFunctions;
 
     public GetTopNFunctionsResponse(StreamInput in) throws IOException {
-        this.size = in.readInt();
         this.samplingRate = in.readDouble();
+        this.totalCount = in.readLong();
+        this.selfCPU = in.readLong();
+        this.totalCPU = in.readLong();
+        this.topNFunctions = in.readCollectionAsList(TopNFunction::new);
     }
 
-    public GetTopNFunctionsResponse(int size, double samplingRate) {
-        this.size = size;
+    public GetTopNFunctionsResponse(double samplingRate, long totalCount, long selfCPU, long totalCPU, List<TopNFunction> topNFunctions) {
         this.samplingRate = samplingRate;
+        this.totalCount = totalCount;
+        this.selfCPU = selfCPU;
+        this.totalCPU = totalCPU;
+        this.topNFunctions = topNFunctions;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(this.size);
         out.writeDouble(this.samplingRate);
-    }
-
-    public int getSize() {
-        return size;
+        out.writeLong(this.totalCount);
+        out.writeLong(this.selfCPU);
+        out.writeLong(this.totalCPU);
+        out.writeCollection(this.topNFunctions);
     }
 
     public double getSamplingRate() {
         return samplingRate;
     }
 
+    public long getTotalCount() {
+        return totalCount;
+    }
+
+    public long getSelfCPU() {
+        return selfCPU;
+    }
+
+    public long getTotalCPU() {
+        return totalCPU;
+    }
+
+    public List<TopNFunction> getTopN() {
+        return topNFunctions;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
-            Iterators.single((b, p) -> b.field("Size", size)),
             Iterators.single((b, p) -> b.field("SamplingRate", samplingRate)),
+            Iterators.single((b, p) -> b.field("TotalCount", totalCount)),
+            Iterators.single((b, p) -> b.field("SelfCPU", selfCPU)),
+            Iterators.single((b, p) -> b.field("TotalCPU", totalCPU)),
             ChunkedToXContentHelper.endObject()
         );
     }

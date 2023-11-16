@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.profiling;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-final class StackFrameMetadata implements ToXContentObject {
+final class StackFrameMetadata implements Writeable, ToXContentObject {
     String frameID;
     String fileID;
     int frameType;
@@ -24,6 +27,19 @@ final class StackFrameMetadata implements ToXContentObject {
     String sourceFilename;
     int sourceLine;
     String exeFilename;
+
+    StackFrameMetadata(StreamInput in) throws IOException {
+        this.frameID = in.readString();
+        this.fileID = in.readString();
+        this.frameType = in.readInt();
+        this.inline = in.readBoolean();
+        this.addressOrLine = in.readInt();
+        this.functionName = in.readString();
+        this.functionOffset = in.readInt();
+        this.sourceFilename = in.readString();
+        this.sourceLine = in.readInt();
+        this.exeFilename = in.readString();
+    }
 
     StackFrameMetadata(
         String frameID,
@@ -47,6 +63,20 @@ final class StackFrameMetadata implements ToXContentObject {
         this.sourceFilename = sourceFilename;
         this.sourceLine = sourceLine;
         this.exeFilename = exeFilename;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(this.frameID);
+        out.writeString(this.fileID);
+        out.writeInt(this.frameType);
+        out.writeBoolean(this.inline);
+        out.writeInt(this.addressOrLine);
+        out.writeString(this.functionName);
+        out.writeInt(this.functionOffset);
+        out.writeString(this.sourceFilename);
+        out.writeInt(this.sourceLine);
+        out.writeString(this.exeFilename);
     }
 
     @Override

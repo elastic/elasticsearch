@@ -20,8 +20,17 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 public class TransportGetTopNFunctionsAction extends HandledTransportAction<GetStackTracesRequest, GetTopNFunctionsResponse> {
     private static final Logger log = LogManager.getLogger(TransportGetTopNFunctionsAction.class);
+    private static final StackFrame EMPTY_STACKFRAME = new StackFrame("", "", 0, 0);
 
     private final NodeClient nodeClient;
     private final TransportService transportService;
@@ -65,24 +74,110 @@ public class TransportGetTopNFunctionsAction extends HandledTransportAction<GetS
     }
 
     static GetTopNFunctionsResponse buildTopNFunctions(GetStackTracesResponse response) {
-        TopNFunctionsBuilder builder = new TopNFunctionsBuilder(0, response.getSamplingRate());
+        TopNFunctionsBuilder builder = new TopNFunctionsBuilder(response.getSamplingRate());
         if (response.getTotalFrames() == 0) {
             return builder.build();
+        }
+
+        for (Map.Entry<String, StackTrace> st : response.getStackTraces().entrySet()) {
+            Set<String> frameGroupsPerStackTrace = new HashSet<String>();
+            String stackTraceId = st.getKey();
+            StackTrace stackTrace = st.getValue();
+            long samples = response.getStackTraceEvents().getOrDefault(stackTraceId, 0L);
+            builder.addTotalCount(samples);
+
+            int frameCount = stackTrace.frameIds.size();
+            for (int i = 0; i < frameCount; i++) {
+                String frameId = stackTrace.frameIds.get(i);
+                String fileId = stackTrace.fileIds.get(i);
+                Integer frameType = stackTrace.typeIds.get(i);
+                Integer addressOrLine = stackTrace.addressOrLines.get(i);
+                StackFrame stackFrame = response.getStackFrames().getOrDefault(frameId, EMPTY_STACKFRAME);
+                String executable = response.getExecutables().getOrDefault(fileId, "");
+
+                for (Frame frame : stackFrame.frames()) {
+                    String frameGroupId = FrameGroupID.create(fileId, addressOrLine, executable, frame.fileName(), frame.functionName());
+                    if (builder.setCurrentTopNFunction(frameGroupId) == false) {
+                        builder.addTopNFunction(
+                            frameGroupId,
+                            new StackFrameMetadata(
+                                frameId,
+                                fileId,
+                                frameType,
+                                frame.inline(),
+                                addressOrLine,
+                                frame.functionName(),
+                                frame.functionOffset(),
+                                frame.fileName(),
+                                frame.lineNumber(),
+                                executable
+                            )
+                        );
+                    }
+                    if (frameGroupsPerStackTrace.contains(frameGroupId) == false) {
+                        frameGroupsPerStackTrace.add(frameGroupId);
+                        builder.addToCurrentInclusiveCount(samples);
+                    }
+                    if (i == frameCount - 1) {
+                        builder.addToCurrentExclusiveCount(samples);
+                    }
+                }
+            }
         }
 
         return builder.build();
     }
 
     private static class TopNFunctionsBuilder {
-        private int size = 0;
+        private long totalCount = 0;
+        private TopNFunction currentTopNFunction;
         private final double samplingRate;
+        private final HashMap<String, TopNFunction> topNFunctions;
 
-        TopNFunctionsBuilder(int frames, double samplingRate) {
+        TopNFunctionsBuilder(double samplingRate) {
             this.samplingRate = samplingRate;
+            this.topNFunctions = new HashMap<>();
         }
 
         public GetTopNFunctionsResponse build() {
-            return new GetTopNFunctionsResponse(size, samplingRate);
+            List<TopNFunction> functions = new ArrayList<>(topNFunctions.values());
+            Collections.sort(functions, Collections.reverseOrder());
+            long sumSelfCPU = 0;
+            long sumTotalCPU = 0;
+            for (int i = 0; i < functions.size(); i++) {
+                TopNFunction topNFunction = functions.get(i);
+                topNFunction.rank = i + 1;
+                sumSelfCPU += topNFunction.exclusiveCount;
+                sumTotalCPU += topNFunction.inclusiveCount;
+            }
+            return new GetTopNFunctionsResponse(samplingRate, totalCount, sumSelfCPU, sumTotalCPU, functions);
+        }
+
+        public void addTotalCount(long count) {
+            this.totalCount += count;
+        }
+
+        public boolean setCurrentTopNFunction(String frameGroupID) {
+            TopNFunction topNFunction = this.topNFunctions.get(frameGroupID);
+            if (topNFunction == null) {
+                return false;
+            }
+            this.currentTopNFunction = topNFunction;
+            return true;
+        }
+
+        public void addTopNFunction(String frameGroupID, StackFrameMetadata metadata) {
+            TopNFunction topNFunction = new TopNFunction(frameGroupID, metadata);
+            this.currentTopNFunction = topNFunction;
+            this.topNFunctions.put(frameGroupID, topNFunction);
+        }
+
+        public void addToCurrentExclusiveCount(long count) {
+            this.currentTopNFunction.exclusiveCount += count;
+        }
+
+        public void addToCurrentInclusiveCount(long count) {
+            this.currentTopNFunction.inclusiveCount += count;
         }
     }
 }

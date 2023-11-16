@@ -12,7 +12,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.query.IntervalQueryBuilder;
@@ -30,6 +29,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class IntervalQueriesIT extends ESIntegTestCase {
 
@@ -56,10 +56,11 @@ public class IntervalQueriesIT extends ESIntegTestCase {
             client().prepareIndex("nested").setId("3").setSource("text", "quick")
         );
 
-        SearchResponse resp = prepareSearch("nested").setQuery(
-            new IntervalQueryBuilder("empty_text", new IntervalsSourceProvider.Match("an empty query", 0, true, null, null, null))
-        ).get();
-        assertEquals(0, resp.getFailedShards());
+        assertNoFailures(
+            prepareSearch("nested").setQuery(
+                new IntervalQueryBuilder("empty_text", new IntervalsSourceProvider.Match("an empty query", 0, true, null, null, null))
+            )
+        );
     }
 
     private static class EmptyAnalyzer extends Analyzer {

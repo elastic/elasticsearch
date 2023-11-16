@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 
@@ -26,14 +27,8 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     private final RefCounted refCounted;
 
     public QueryFetchSearchResult(StreamInput in) throws IOException {
-        super(in);
         // These get a ref count of 1 when we create them, so we don't need to incRef here
-        queryResult = new QuerySearchResult(in);
-        fetchResult = new FetchSearchResult(in);
-        refCounted = AbstractRefCounted.of(() -> {
-            queryResult.decRef();
-            fetchResult.decRef();
-        });
+        this(new QuerySearchResult(in), new FetchSearchResult(in));
     }
 
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
@@ -42,10 +37,10 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
         // We're acquiring a copy, we should incRef it
         this.queryResult.incRef();
         this.fetchResult.incRef();
-        refCounted = AbstractRefCounted.of(() -> {
+        refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> {
             queryResult.decRef();
             fetchResult.decRef();
-        });
+        }));
     }
 
     @Override

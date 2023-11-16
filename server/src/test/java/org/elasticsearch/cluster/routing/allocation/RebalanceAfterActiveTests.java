@@ -20,10 +20,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -50,9 +50,9 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
                 .build(),
             () -> new ClusterInfo() {
                 @Override
-                public Long getShardSize(ShardRouting shardRouting) {
-                    if (shardRouting.getIndexName().equals("test")) {
-                        return sizes[shardRouting.getId()];
+                public Long getShardSize(ShardId shardId, boolean primary) {
+                    if (shardId.getIndexName().equals("test")) {
+                        return sizes[shardId.getId()];
                     }
                     return null;
                 }

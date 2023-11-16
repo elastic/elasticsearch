@@ -32,6 +32,7 @@ public class TrialLicenseVersionTests extends ESTestCase {
         assertThat(TrialLicenseVersion.fromXContent(randomVersion.toString()), equalTo(randomVersion));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102286")
     public void testNewTrialAllowed() {
         var randomVersion = new TrialLicenseVersion(randomNonNegativeInt());
         var subsequentVersion = new TrialLicenseVersion(

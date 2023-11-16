@@ -484,6 +484,19 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase);
         }
 
+        /**
+         * Called when a full reduction is done as part of CCS minimize_roundtrip=true.
+         * This may or may not be the final response. The final response (once all clusters have
+         * responded) will be sent to the ActionListener.onResponse callback below.
+         * @param response SearchResponse with fully merged aggs and tophits based on CCS responses
+         *                 received so far
+         */
+        @Override
+        public void onCcsReduce(SearchResponse response) {
+            // this is only used for MRT=true, so not passing to the MRT=false delegate
+            searchResponse.get().updatePartialResponse(response);
+        }
+
         @Override
         public void onResponse(SearchResponse response) {
             searchResponse.get().updateFinalResponse(response, ccsMinimizeRoundtrips);

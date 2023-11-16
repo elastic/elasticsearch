@@ -533,6 +533,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 emptyReduceContextBuilder(),
                 remoteClusterService,
                 threadPool,
+                null,  /// MP TODO: need to add SearchProgressListener to some of these tests (or a new one)
                 listener,
                 (r, l) -> setOnce.set(Tuple.tuple(r, l))
             );
@@ -599,6 +600,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
+                    null,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -641,6 +643,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
+                    null,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -701,6 +704,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
+                    null,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -747,6 +751,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
+                    null,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -811,6 +816,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
+                    null,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -1061,7 +1067,10 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                 source,
                 timeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                SearchResponse.Clusters.EMPTY, // MP: TODO: change this?
+                null,  // TODO: add SearchProgressListener?
+                null
             );
             assertEquals(0, merger.from);
             assertEquals(10, merger.size);
@@ -1071,7 +1080,14 @@ public class TransportSearchActionTests extends ESTestCase {
             assertNull(source.trackTotalHitsUpTo());
         }
         {
-            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(null, timeProvider, emptyReduceContextBuilder());
+            SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
+                null,
+                timeProvider,
+                emptyReduceContextBuilder(),
+                SearchResponse.Clusters.EMPTY, // MP: TODO: change this?
+                null,  // TODO: add SearchProgressListener?
+                null
+            );
             assertEquals(0, merger.from);
             assertEquals(10, merger.size);
             assertEquals(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO, merger.trackTotalHitsUpTo);
@@ -1087,7 +1103,10 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                 source,
                 timeProvider,
-                emptyReduceContextBuilder()
+                emptyReduceContextBuilder(),
+                SearchResponse.Clusters.EMPTY, // MP: TODO: change this?
+                null,  // TODO: add SearchProgressListener?
+                null
             );
             assertEquals(0, source.from());
             assertEquals(originalFrom + originalSize, source.size());

@@ -371,6 +371,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         aggregationReduceContextBuilder,
                         remoteClusterService,
                         threadPool,
+                        task.getProgressListener(),
                         delegate,
                         (r, l) -> executeLocalSearch(
                             task,
@@ -505,6 +506,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         AggregationReduceContext.Builder aggReduceContextBuilder,
         RemoteClusterService remoteClusterService,
         ThreadPool threadPool,
+        SearchProgressListener progressListener,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer
     ) {
@@ -578,13 +580,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             });
         } else {
+            int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
             SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
                 searchRequest.source(),
                 timeProvider,
-                aggReduceContextBuilder
+                aggReduceContextBuilder,
+                clusters,
+                progressListener,
+                totalClusters
             );
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
-            int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
             final CountDown countDown = new CountDown(totalClusters);
             for (Map.Entry<String, OriginalIndices> entry : remoteIndices.entrySet()) {
                 String clusterAlias = entry.getKey();
@@ -640,7 +645,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     static SearchResponseMerger createSearchResponseMerger(
         SearchSourceBuilder source,
         SearchTimeProvider timeProvider,
-        AggregationReduceContext.Builder aggReduceContextBuilder
+        AggregationReduceContext.Builder aggReduceContextBuilder,
+        SearchResponse.Clusters clusters,
+        SearchProgressListener progressListener,
+        Integer numRemoteClusters
     ) {
         final int from;
         final int size;
@@ -659,7 +667,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             source.from(0);
             source.size(from + size);
         }
-        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder);
+        int numExpectedResponses = numRemoteClusters == null ? -1 : numRemoteClusters;
+        return new SearchResponseMerger(
+            from,
+            size,
+            trackTotalHitsUpTo,
+            timeProvider,
+            aggReduceContextBuilder,
+            clusters,
+            progressListener,
+            numExpectedResponses
+        );
     }
 
     /**

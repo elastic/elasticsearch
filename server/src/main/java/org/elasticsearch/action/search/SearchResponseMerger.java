@@ -56,6 +56,13 @@ import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs
  * whether they belong to the local or the remote cluster. Assuming that there commonly is network latency when communicating with remote
  * clusters, limiting the number of requests to one per cluster is beneficial, and outweighs the downside of fetching many more hits than
  * needed downstream and returning bigger responses to the coordinating node.
+ *
+ * If a {@link SearchProgressListener} is provided (and is not SearchProgressListener.NOOP), the add
+ * method will do incremental updates as each SearchResponse from each cluster comes in. The merge
+ * will be a full merge - both aggs and tophits (unlike minimize_roundtrips=false, which only does incremental
+ * merges for aggregations). After each incremental merge, the SearchProgressListener.notifyCcsReduce method
+ * will be called with the result.
+ *
  * Known limitations:
  * - scroll requests are not supported
  * - field collapsing is supported, but whenever inner_hits are requested, they will be retrieved by each cluster locally after the fetch
@@ -71,19 +78,40 @@ final class SearchResponseMerger {
     private final SearchTimeProvider searchTimeProvider;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
+    private final SearchResponse.Clusters clusters;
+    private final SearchProgressListener progressListener;
+    private final int numExpectedResponses;
 
     SearchResponseMerger(
         int from,
         int size,
         int trackTotalHitsUpTo,
         SearchTimeProvider searchTimeProvider,
-        AggregationReduceContext.Builder aggReduceContextBuilder
+        AggregationReduceContext.Builder aggReduceContextBuilder,
+        SearchResponse.Clusters clusters,
+        SearchProgressListener progressListener
+    ) {
+        this(from, size, trackTotalHitsUpTo, searchTimeProvider, aggReduceContextBuilder, clusters, progressListener, -1);
+    }
+
+    SearchResponseMerger(
+        int from,
+        int size,
+        int trackTotalHitsUpTo,
+        SearchTimeProvider searchTimeProvider,
+        AggregationReduceContext.Builder aggReduceContextBuilder,
+        SearchResponse.Clusters clusters,
+        SearchProgressListener progressListener,
+        int numTotalClusters
     ) {
         this.from = from;
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
         this.aggReduceContextBuilder = aggReduceContextBuilder; // might be null if there are no aggregations
+        this.clusters = clusters;
+        this.progressListener = progressListener;
+        this.numExpectedResponses = numTotalClusters;
     }
 
     /**
@@ -91,9 +119,16 @@ final class SearchResponseMerger {
      * Merges currently happen at once when all responses are available and {@link #getMergedResponse(Clusters)} )} is called.
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
-    void add(SearchResponse searchResponse) {
+    synchronized void add(SearchResponse searchResponse) {
         assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
         searchResponses.add(searchResponse);
+        // sync-search uses a NOOP progress listener so only do incremental reductions for async-searches
+        // optimization: if all the responses have now been received (numExpectedResponses == numResponses()), then do not
+        // do an incremental merge, as the CCSActionListener will call getMergedResponse to create the final response
+        // after this method returns
+        if (progressListener != null && progressListener != SearchProgressListener.NOOP && numExpectedResponses != numResponses()) {
+            progressListener.notifyCcsReduce(getMergedResponse(clusters));
+        }
     }
 
     int numResponses() {
@@ -104,7 +139,8 @@ final class SearchResponseMerger {
      * Returns the merged response. To be called once all responses have been added through {@link #add(SearchResponse)}
      * so that all responses are merged into a single one.
      */
-    SearchResponse getMergedResponse(Clusters clusters) {
+    /// MP TODO: remove clusters arg and use the one passed into the ctor
+    synchronized SearchResponse getMergedResponse(Clusters clusters) {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {

@@ -1,0 +1,5 @@
+pr: 99134
+summary: Add ability to create a data stream failure store
+area: Data streams
+type: feature
+issues: []

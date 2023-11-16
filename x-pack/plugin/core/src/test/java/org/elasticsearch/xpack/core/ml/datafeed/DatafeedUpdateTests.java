@@ -8,13 +8,11 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -68,7 +66,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<DatafeedUpdate> {
 
@@ -77,9 +74,6 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     @Before
     public void init() {
         clusterState = mock(ClusterState.class);
-        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
-        when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
     }
 
     @Override

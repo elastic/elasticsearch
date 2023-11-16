@@ -127,7 +127,7 @@ public class DriverTests extends ESTestCase {
         }
 
         @Override
-        public void close() {
+        protected void doClose() {
 
         }
     }

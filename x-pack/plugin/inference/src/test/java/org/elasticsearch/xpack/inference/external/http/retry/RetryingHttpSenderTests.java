@@ -23,6 +23,9 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.Before;
+import org.mockito.stubbing.Answer;
+
+import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.createDefaultRetrySettings;
 import static org.hamcrest.Matchers.is;
@@ -56,11 +59,14 @@ public class RetryingHttpSenderTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any());
 
-        var inferenceResults = mock(InferenceResults.class);
+        var inferenceResults = List.of(mock(InferenceResults.class));
+        Answer<List<? extends InferenceResults>> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
         doThrow(new RetryException(true, "failed")).doNothing().when(handler).validateResponse(any(), any(), any(), any());
-        when(handler.parseResult(any())).thenReturn(inferenceResults);
+        // Mockito.thenReturn() does not compile when returning a
+        // bounded wild card list, thenAnswer must be used instead.
+        when(handler.parseResult(any())).thenAnswer(answer);
 
         var retrier = new RetryingHttpSender(
             sender,
@@ -71,7 +77,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        var listener = new PlainActionFuture<InferenceResults>();
+        var listener = new PlainActionFuture<List<? extends InferenceResults>>();
         executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
 
         assertThat(listener.actionGet(TIMEOUT), is(inferenceResults));
@@ -95,7 +101,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any());
 
-        var inferenceResults = mock(InferenceResults.class);
+        var inferenceResults = List.of(mock(InferenceResults.class));
 
         var handler = new AlwaysRetryingResponseHandler("test", result -> inferenceResults);
 
@@ -108,7 +114,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        var listener = new PlainActionFuture<InferenceResults>();
+        var listener = new PlainActionFuture<List<? extends InferenceResults>>();
         executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
 
         assertThat(listener.actionGet(TIMEOUT), is(inferenceResults));
@@ -127,10 +133,11 @@ public class RetryingHttpSenderTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any());
 
-        var inferenceResults = mock(InferenceResults.class);
+        var inferenceResults = List.of(mock(InferenceResults.class));
+        Answer<List<? extends InferenceResults>> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
-        when(handler.parseResult(any())).thenThrow(new RetryException(true, "failed")).thenReturn(inferenceResults);
+        when(handler.parseResult(any())).thenThrow(new RetryException(true, "failed")).thenAnswer(answer);
 
         var retrier = new RetryingHttpSender(
             sender,
@@ -141,7 +148,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        var listener = new PlainActionFuture<InferenceResults>();
+        var listener = new PlainActionFuture<List<? extends InferenceResults>>();
         executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
 
         assertThat(listener.actionGet(TIMEOUT), is(inferenceResults));
@@ -160,10 +167,11 @@ public class RetryingHttpSenderTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any());
 
-        var inferenceResults = mock(InferenceResults.class);
+        var inferenceResults = List.of(mock(InferenceResults.class));
+        Answer<List<? extends InferenceResults>> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
-        when(handler.parseResult(any())).thenThrow(new IllegalStateException("failed")).thenReturn(inferenceResults);
+        when(handler.parseResult(any())).thenThrow(new IllegalStateException("failed")).thenAnswer(answer);
 
         var retrier = new RetryingHttpSender(
             sender,
@@ -174,7 +182,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        var listener = new PlainActionFuture<InferenceResults>();
+        var listener = new PlainActionFuture<List<? extends InferenceResults>>();
         executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 0);
 
         var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
@@ -200,10 +208,11 @@ public class RetryingHttpSenderTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any());
 
-        var inferenceResults = mock(InferenceResults.class);
+        var inferenceResults = List.of(mock(InferenceResults.class));
+        Answer<List<? extends InferenceResults>> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
-        when(handler.parseResult(any())).thenReturn(inferenceResults);
+        when(handler.parseResult(any())).thenAnswer(answer);
 
         var retrier = new RetryingHttpSender(
             sender,
@@ -214,7 +223,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        var listener = new PlainActionFuture<InferenceResults>();
+        var listener = new PlainActionFuture<List<? extends InferenceResults>>();
         executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
 
         assertThat(listener.actionGet(TIMEOUT), is(inferenceResults));
@@ -238,10 +247,11 @@ public class RetryingHttpSenderTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any());
 
-        var inferenceResults = mock(InferenceResults.class);
+        var inferenceResults = List.of(mock(InferenceResults.class));
+        Answer<List<? extends InferenceResults>> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
-        when(handler.parseResult(any())).thenReturn(inferenceResults);
+        when(handler.parseResult(any())).thenAnswer(answer);
 
         var retrier = new RetryingHttpSender(
             sender,
@@ -252,7 +262,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        var listener = new PlainActionFuture<InferenceResults>();
+        var listener = new PlainActionFuture<List<? extends InferenceResults>>();
         executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
 
         assertThat(listener.actionGet(TIMEOUT), is(inferenceResults));
@@ -273,13 +283,14 @@ public class RetryingHttpSenderTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any());
 
-        var inferenceResults = mock(InferenceResults.class);
+        var inferenceResults = List.of(mock(InferenceResults.class));
+        Answer<List<? extends InferenceResults>> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
         doThrow(new RetryException(true, "failed")).doThrow(new IllegalStateException("failed again"))
             .when(handler)
             .validateResponse(any(), any(), any(), any());
-        when(handler.parseResult(any())).thenReturn(inferenceResults);
+        when(handler.parseResult(any())).thenAnswer(answer);
 
         var retrier = new RetryingHttpSender(
             sender,
@@ -290,7 +301,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        var listener = new PlainActionFuture<InferenceResults>();
+        var listener = new PlainActionFuture<List<? extends InferenceResults>>();
         executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
 
         var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
@@ -315,13 +326,14 @@ public class RetryingHttpSenderTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any());
 
-        var inferenceResults = mock(InferenceResults.class);
+        var inferenceResults = List.of(mock(InferenceResults.class));
+        Answer<List<? extends InferenceResults>> answer = (invocation) -> inferenceResults;
 
         var handler = mock(ResponseHandler.class);
         doThrow(new RetryException(true, "failed")).doThrow(new RetryException(false, "failed again"))
             .when(handler)
             .validateResponse(any(), any(), any(), any());
-        when(handler.parseResult(any())).thenReturn(inferenceResults);
+        when(handler.parseResult(any())).thenAnswer(answer);
 
         var retrier = new RetryingHttpSender(
             sender,
@@ -332,7 +344,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        var listener = new PlainActionFuture<InferenceResults>();
+        var listener = new PlainActionFuture<List<? extends InferenceResults>>();
         executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
 
         var thrownException = expectThrows(RetryException.class, () -> listener.actionGet(TIMEOUT));
@@ -373,7 +385,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        var listener = new PlainActionFuture<InferenceResults>();
+        var listener = new PlainActionFuture<List<? extends InferenceResults>>();
         executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 1);
 
         var thrownException = expectThrows(RetryException.class, () -> listener.actionGet(TIMEOUT));
@@ -408,7 +420,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        var listener = new PlainActionFuture<InferenceResults>();
+        var listener = new PlainActionFuture<List<? extends InferenceResults>>();
         executeTasks(() -> retrier.send(mock(HttpRequestBase.class), handler, listener), 0);
 
         var thrownException = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));

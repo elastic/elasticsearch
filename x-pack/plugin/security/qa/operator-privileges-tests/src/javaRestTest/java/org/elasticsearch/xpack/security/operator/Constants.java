@@ -522,6 +522,7 @@ public class Constants {
         "indices:data/read/xpack/rollup/get/index/caps",
         "indices:data/read/xpack/rollup/search",
         "indices:data/read/xpack/termsenum/list",
+        "indices:data/write/simulate/bulk",
         "indices:data/write/bulk",
         "indices:data/write/bulk[s]",
         "indices:data/write/bulk_shard_operations[s]",

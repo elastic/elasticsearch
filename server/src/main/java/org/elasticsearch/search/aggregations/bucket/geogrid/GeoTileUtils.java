@@ -203,7 +203,7 @@ public final class GeoTileUtils {
     public static String stringEncode(long hash) {
         final int[] res = parseHash(hash);
         validateZXY(res[0], res[1], res[2]);
-        return "" + res[0] + "/" + res[1] + "/" + res[2];
+        return res[0] + "/" + res[1] + "/" + res[2];
     }
 
     /**

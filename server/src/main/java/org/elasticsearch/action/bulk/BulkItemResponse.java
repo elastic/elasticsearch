@@ -15,6 +15,7 @@ import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -505,7 +506,9 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
     }
 
     private void writeResponseType(StreamOutput out) throws IOException {
-        if (response instanceof IndexResponse) {
+        if (response instanceof SimulateIndexResponse) {
+            out.writeByte((byte) 4);
+        } else if (response instanceof IndexResponse) {
             out.writeByte((byte) 0);
         } else if (response instanceof DeleteResponse) {
             out.writeByte((byte) 1);
@@ -523,6 +526,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             case 1 -> new DeleteResponse(shardId, in);
             case 2 -> null;
             case 3 -> new UpdateResponse(shardId, in);
+            case 4 -> new SimulateIndexResponse(in);
             default -> throw new IllegalArgumentException("Unexpected type [" + type + "]");
         };
     }
@@ -534,6 +538,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             case 1 -> new DeleteResponse(in);
             case 2 -> null;
             case 3 -> new UpdateResponse(in);
+            case 4 -> new SimulateIndexResponse(in);
             default -> throw new IllegalArgumentException("Unexpected type [" + type + "]");
         };
     }

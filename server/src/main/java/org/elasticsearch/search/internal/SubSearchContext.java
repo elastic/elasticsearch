@@ -41,8 +41,6 @@ public class SubSearchContext extends FilteredSearchContext {
     private final FetchSearchResult fetchSearchResult;
     private final QuerySearchResult querySearchResult;
 
-    private int[] docIdsToLoad;
-
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
@@ -274,17 +272,6 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
         this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
-    }
-
-    @Override
-    public int[] docIdsToLoad() {
-        return docIdsToLoad;
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        this.docIdsToLoad = docIdsToLoad;
-        return this;
     }
 
     @Override

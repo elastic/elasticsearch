@@ -483,16 +483,6 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public int[] docIdsToLoad() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         throw new UnsupportedOperationException();
     }

@@ -73,6 +73,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -84,6 +85,7 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -449,7 +451,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         PlainActionFuture<Map<String, Map<String, DocWriteResponse.Result>>> putFuture = new PlainActionFuture<>();
         store.putPrivileges(List.of(priv1c), WriteRequest.RefreshPolicy.IMMEDIATE, putFuture);
 
-        handleBulkRequest(1, true);
+        handleBulkRequest(1, item -> true);
 
         assertCacheCleared("app1");
 
@@ -464,7 +466,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         putFuture = new PlainActionFuture<>();
         store.putPrivileges(List.of(priv2a), WriteRequest.RefreshPolicy.IMMEDIATE, putFuture);
 
-        handleBulkRequest(1, false);
+        handleBulkRequest(1, item -> false);
         assertCacheCleared("app2");
 
         putResponse = putFuture.get();
@@ -472,6 +474,24 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(putResponse, hasKey("app2"));
         assertThat(putResponse.get("app2"), aMapWithSize(1));
         assertThat(putResponse.get("app2"), hasEntry("priv2a", DocWriteResponse.Result.UPDATED));
+
+        // modify a privilege in app1, add a privilege in app2
+        var priv1a = new ApplicationPrivilegeDescriptor("app1", "priv1a", Set.of("action:1*"), Map.of());
+        var priv2c = new ApplicationPrivilegeDescriptor("app2", "priv2c", Set.of("action:2c"), Map.of());
+        putFuture = new PlainActionFuture<>();
+        store.putPrivileges(List.of(priv1a, priv2c), WriteRequest.RefreshPolicy.IMMEDIATE, putFuture);
+
+        handleBulkRequest(2, item -> item.id().contains("app2"));
+        assertCacheCleared("app1", "app2");
+
+        putResponse = putFuture.get();
+        assertThat(putResponse, aMapWithSize(2));
+        assertThat(putResponse, hasKey("app1"));
+        assertThat(putResponse.get("app1"), aMapWithSize(1));
+        assertThat(putResponse.get("app1"), hasEntry("priv1a", DocWriteResponse.Result.UPDATED));
+        assertThat(putResponse, hasKey("app2"));
+        assertThat(putResponse.get("app2"), aMapWithSize(1));
+        assertThat(putResponse.get("app2"), hasEntry("priv2c", DocWriteResponse.Result.CREATED));
     }
 
     public void testStaleResultsWillNotBeCached() {
@@ -821,7 +841,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         );
     }
 
-    private void handleBulkRequest(int expectedCount, boolean created) {
+    private void handleBulkRequest(int expectedCount, Predicate<DocWriteRequest<?>> isCreated) {
         final BulkRequest bulkReq = getLastRequest(BulkRequest.class);
         assertThat(bulkReq.requests(), hasSize(expectedCount));
 
@@ -832,7 +852,14 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             items[i] = BulkItemResponse.success(
                 i,
                 itemReq.opType(),
-                new IndexResponse(new ShardId(SecuritySystemIndices.SECURITY_MAIN_ALIAS, uuid, 0), itemReq.id(), 1, 1, 1, created)
+                new IndexResponse(
+                    new ShardId(SecuritySystemIndices.SECURITY_MAIN_ALIAS, uuid, 0),
+                    itemReq.id(),
+                    1,
+                    1,
+                    1,
+                    isCreated.test(itemReq)
+                )
             );
         }
         listener.get().onResponse(new BulkResponse(items, randomIntBetween(1, 999)));
@@ -847,9 +874,9 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(new HashSet<>(getPrivileges), equalTo(new HashSet<>(sourcePrivileges)));
     }
 
-    private void assertCacheCleared(String applicationName) {
+    private void assertCacheCleared(String... applicationNames) {
         final ClearPrivilegesCacheRequest clearCacheReq = getLastRequest(ClearPrivilegesCacheRequest.class);
-        assertThat(clearCacheReq.applicationNames(), arrayContaining(applicationName));
+        assertThat(clearCacheReq.applicationNames(), arrayContainingInAnyOrder(applicationNames));
         assertThat(clearCacheReq.clearRolesCache(), is(true));
         listener.get().onResponse(new ClearPrivilegesCacheResponse(clusterService.getClusterName(), List.of(), List.of()));
     }

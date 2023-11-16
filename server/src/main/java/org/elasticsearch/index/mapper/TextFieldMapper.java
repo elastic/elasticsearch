@@ -21,8 +21,6 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -72,7 +70,6 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 

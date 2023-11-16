@@ -89,7 +89,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
         );
     }
 
-    public ShutdownShardMigrationStatus(
+    private ShutdownShardMigrationStatus(
         SingleNodeShutdownMetadata.Status status,
         long startedShards,
         long relocatingShards,

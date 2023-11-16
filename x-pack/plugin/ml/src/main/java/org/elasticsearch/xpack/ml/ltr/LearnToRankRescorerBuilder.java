@@ -102,19 +102,6 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         this.scriptService = null;
     }
 
-    public LearnToRankRescorerBuilder(StreamInput input, ModelLoadingService modelLoadingService, ScriptService scriptService)
-        throws IOException {
-        super(input);
-        this.modelId = input.readString();
-        this.params = input.readMap();
-        this.learnToRankConfig = input.readOptionalNamedWriteable(LearnToRankConfig.class);
-
-        this.modelLoadingService = modelLoadingService;
-        this.scriptService = scriptService;
-
-        this.localModel = null;
-    }
-
     LearnToRankRescorerBuilder(LearnToRankConfig learnToRankConfig, LocalModel localModel) {
         this.modelId = localModel.getModelId();
         this.learnToRankConfig = learnToRankConfig;
@@ -126,6 +113,19 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         // Template has been applied already, so we do not need params and script service anymore.
         this.params = null;
         this.scriptService = null;
+    }
+
+    public LearnToRankRescorerBuilder(StreamInput input, ModelLoadingService modelLoadingService, ScriptService scriptService)
+        throws IOException {
+        super(input);
+        this.modelId = input.readString();
+        this.params = input.readMap();
+        this.learnToRankConfig = input.readOptionalNamedWriteable(LearnToRankConfig.class);
+
+        this.modelLoadingService = modelLoadingService;
+        this.scriptService = scriptService;
+
+        this.localModel = null;
     }
 
     public String modelId() {
@@ -331,10 +331,6 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
     @Override
     protected LearnToRankRescorerContext innerBuildContext(int windowSize, SearchExecutionContext context) {
         rescoreOccurred = true;
-
-        assert learnToRankConfig != null;
-        assert localModel != null;
-
         return new LearnToRankRescorerContext(windowSize, LearnToRankRescorer.INSTANCE, learnToRankConfig, localModel, context);
     }
 

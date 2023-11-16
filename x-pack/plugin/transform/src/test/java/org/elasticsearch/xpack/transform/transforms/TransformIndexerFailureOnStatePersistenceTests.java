@@ -198,7 +198,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             public void failureCountChanged() {}
 
             @Override
-            public void fail(String failureMessage, ActionListener<Void> listener) {
+            public void fail(Throwable exception, String failureMessage, ActionListener<Void> listener) {
                 state.set(TransformTaskState.FAILED);
             }
         };
@@ -414,7 +414,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             public void failureCountChanged() {}
 
             @Override
-            public void fail(String failureMessage, ActionListener<Void> listener) {
+            public void fail(Throwable exception, String failureMessage, ActionListener<Void> listener) {
                 state.set(TransformTaskState.FAILED);
             }
         };

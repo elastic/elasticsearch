@@ -179,7 +179,7 @@ import static org.mockito.Mockito.when;
  */
 public abstract class AggregatorTestCase extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
-    private final List<AggregationContext> releasables = new ArrayList<>();
+    private final List<Releasable> releasables = new ArrayList<>();
     protected ValuesSourceRegistry valuesSourceRegistry;
     private AnalysisModule analysisModule;
 
@@ -328,7 +328,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         int maxBucket,
         boolean isInSortOrderExecutionRequired,
         MappedFieldType... fieldTypes
-    ) throws IOException {
+    ) {
         MappingLookup mappingLookup = MappingLookup.fromMappers(
             Mapping.EMPTY,
             Arrays.stream(fieldTypes).map(this::buildMockFieldMapper).collect(toList()),
@@ -416,7 +416,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Build a {@link SubSearchContext}s to power {@code top_hits}.
      */
-    private static SubSearchContext buildSubSearchContext(
+    private SubSearchContext buildSubSearchContext(
         IndexSettings indexSettings,
         SearchExecutionContext searchExecutionContext,
         BitsetFilterCache bitsetFilterCache
@@ -455,7 +455,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(ctx.indexShard()).thenReturn(indexShard);
         when(ctx.newSourceLoader()).thenAnswer(inv -> searchExecutionContext.newSourceLoader(false));
         when(ctx.newIdLoader()).thenReturn(IdLoader.fromLeafStoredFieldLoader());
-        return new SubSearchContext(ctx);
+        var res = new SubSearchContext(ctx);
+        releasables.add(res); // TODO: nasty workaround for not getting the standard resource handling behavior of a real search context
+        return res;
     }
 
     protected IndexSettings createIndexSettings() {

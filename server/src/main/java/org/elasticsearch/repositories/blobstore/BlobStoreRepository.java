@@ -176,6 +176,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected final ThreadPool threadPool;
 
+    public static final String STATELESS_SHARD_THREAD_NAME = "stateless_shard";
+    public static final String STATELESS_TRANSLOG_THREAD_NAME = "stateless_translog";
+
     public static final String SNAPSHOT_PREFIX = "snap-";
 
     public static final String INDEX_FILE_PREFIX = "index-";

@@ -56,8 +56,8 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         final Collection<DataStream> dataStreams = state.metadata().dataStreams().values();
         Tuple<Long, LongSummaryStatistics> stats = calculateStats(dataStreams);
 
-        long minRetention = stats.v1() == 0 ? 0 : stats.v2().getMin();
-        long maxRetention = stats.v1() == 0 ? 0 : stats.v2().getMax();
+        long minRetention = stats.v2().getCount() == 0 ? 0 : stats.v2().getMin();
+        long maxRetention = stats.v2().getCount() == 0 ? 0 : stats.v2().getMax();
         double averageRetention = stats.v2().getAverage();
         RolloverConfiguration rolloverConfiguration = clusterService.getClusterSettings()
             .get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);

@@ -146,7 +146,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         });
         int expectedMinimumRetention = minRetention.get() == Long.MAX_VALUE ? 0 : minRetention.intValue();
         int expectedMaximumRetention = maxRetention.get() == Long.MIN_VALUE ? 0 : maxRetention.intValue();
-        double expectedAverageRetention = totalCount.get() == 0
+        double expectedAverageRetention = countLifecycleWithRetention.get() == 0
             ? 0.0
             : totalRetentionTimes.doubleValue() / countLifecycleWithRetention.get();
         assertUsageResults(

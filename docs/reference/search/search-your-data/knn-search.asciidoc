@@ -265,8 +265,11 @@ PUT quantized-image-index
         "element_type": "float",
         "dims": 2,
         "index": true,
-        "quantization_options": {
-          "type": "byte"
+        "index_options": {
+          "type": "hnsw",
+          "quantization_options": {
+            "type": "byte"
+          }
         }
       },
       "title": {

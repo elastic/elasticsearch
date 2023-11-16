@@ -17,7 +17,6 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class NodeMetrics {
     private final NodeService nodeService;
@@ -34,85 +33,85 @@ public class NodeMetrics {
             "es.node.stats.indices.get.total",
             "Total number of get operations",
             "operation",
-            nodeStatsCache.indicesGetTotalSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getIndices().getGet().getCount(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.indices.get.time_in_millis",
             "Time in milliseconds spent performing get operations.",
             "time",
-            nodeStatsCache.indicesGetTimeInMillisSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getIndices().getGet().getTimeInMillis(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.indices.search.fetch.total",
             "Total number of fetch operations.",
             "operation",
-            nodeStatsCache.indicesSearchFetchTotalSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getIndices().getSearch().getTotal().getFetchCount(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.indices.search.fetch.time_in_millis",
             "Time in milliseconds spent performing fetch operations.",
             "time",
-            nodeStatsCache.indicesSearchFetchTimeInMillisSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getIndices().getSearch().getTotal().getFetchTimeInMillis(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.indices.merge.total",
             "Total number of merge operations.",
             "operation",
-            nodeStatsCache.indicesMergeTotalSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getIndices().getMerge().getTotal(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.indices.merge.time_in_millis",
             "Time in milliseconds spent performing merge operations.",
             "time",
-            nodeStatsCache.indicesMergeTotalTimeInMillisSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getIndices().getMerge().getTotalTimeInMillis(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.indices.translog.operations",
             "Number of transaction log operations.",
             "operation",
-            nodeStatsCache.indicesTranslogOperationSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getIndices().getTranslog().estimatedNumberOfOperations(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.indices.translog.size",
             "Size, in bytes, of the transaction log.",
             "bytes",
-            nodeStatsCache.indicesTranslogSizeInBytesSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getIndices().getTranslog().getTranslogSizeInBytes(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.indices.translog.uncommitted_operations",
             "Number of uncommitted transaction log operations.",
             "operations",
-            nodeStatsCache.indicesTranslogUncommittedOperationsSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getIndices().getTranslog().getUncommittedOperations(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.indices.translog.uncommitted_size_in_bytes",
             "Size, in bytes, of uncommitted transaction log operations.",
             "bytes",
-            nodeStatsCache.indicesTranslogUncommittedSizeInBytesSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getIndices().getTranslog().getUncommittedSizeInBytes(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.indices.translog.earliest_last_modified_age",
             "Earliest last modified age for the transaction log.",
             "time",
-            nodeStatsCache.indicesTranslogEariestLastModifiedAgeSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getIndices().getTranslog().getEarliestLastModifiedAge(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.http.current_open",
             "Current number of open HTTP connections for the node.",
             "connections",
-            nodeStatsCache.httpCurrentOpenSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getHttp().getServerOpen(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.transport.rx_size_in_bytes",
             "Size, in bytes, of RX packets received by the node during internal cluster communication.",
             "bytes",
-            nodeStatsCache.transportRxSizeInBytesSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getTransport().getRxSize().getBytes(), Map.of())
         );
         registry.registerLongGauge(
             "es.node.stats.transport.tx_size_in_bytes",
             "Size, in bytes, of TX packets sent by the node during internal cluster communication.",
             "bytes",
-            nodeStatsCache.transportTxSizeInBytesSupplier()
+            () -> new LongWithAttributes(nodeStatsCache.getOrRefresh().getTransport().getTxSize().getBytes(), Map.of())
         );
     }
 
@@ -153,62 +152,6 @@ public class NodeMetrics {
         @Override
         protected NodeStats refresh() {
             return getNodeStats();
-        }
-
-        public Supplier<LongWithAttributes> indicesGetTotalSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getIndices().getGet().getCount(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> indicesGetTimeInMillisSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getIndices().getGet().getTimeInMillis(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> indicesSearchFetchTotalSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getIndices().getSearch().getTotal().getFetchCount(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> indicesSearchFetchTimeInMillisSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getIndices().getSearch().getTotal().getFetchTimeInMillis(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> indicesMergeTotalSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getIndices().getMerge().getTotal(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> indicesMergeTotalTimeInMillisSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getIndices().getMerge().getTotalTimeInMillis(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> indicesTranslogOperationSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getIndices().getTranslog().estimatedNumberOfOperations(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> indicesTranslogSizeInBytesSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getIndices().getTranslog().getTranslogSizeInBytes(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> indicesTranslogUncommittedOperationsSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getIndices().getTranslog().getUncommittedOperations(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> indicesTranslogUncommittedSizeInBytesSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getIndices().getTranslog().getUncommittedSizeInBytes(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> indicesTranslogEariestLastModifiedAgeSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getIndices().getTranslog().getEarliestLastModifiedAge(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> httpCurrentOpenSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getHttp().getServerOpen(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> transportRxSizeInBytesSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getTransport().getRxSize().getBytes(), Map.of());
-        }
-
-        public Supplier<LongWithAttributes> transportTxSizeInBytesSupplier() {
-            return () -> new LongWithAttributes(getOrRefresh().getTransport().getTxSize().getBytes(), Map.of());
         }
     }
 }

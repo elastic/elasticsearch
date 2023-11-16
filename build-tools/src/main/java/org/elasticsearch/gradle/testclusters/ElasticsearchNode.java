@@ -295,11 +295,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void plugin(String pluginProjectPath) {
-        throw new IllegalStateException("Not Supported API");
+        throw new UnsupportedOperationException("Not Supported API");
     }
 
     public void plugin(TaskProvider<Zip> plugin) {
-        throw new IllegalStateException("Not Supported API");
+        throw new UnsupportedOperationException("Not Supported API");
     }
 
     @Override

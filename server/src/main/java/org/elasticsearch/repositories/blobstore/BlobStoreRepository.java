@@ -1983,8 +1983,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             ThreadPool.Names.SNAPSHOT,
             ThreadPool.Names.SNAPSHOT_META,
             ThreadPool.Names.GENERIC,
-            "stateless_shard",
-            "stateless_translog"
+            STATELESS_SHARD_THREAD_NAME,
+            STATELESS_TRANSLOG_THREAD_NAME
         );
     }
 

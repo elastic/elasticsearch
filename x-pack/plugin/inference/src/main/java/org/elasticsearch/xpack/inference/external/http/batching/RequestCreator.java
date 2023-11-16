@@ -19,7 +19,7 @@ import java.util.List;
  * Provides a contract for creating a {@link Runnable} to execute.
  */
 public interface RequestCreator<GroupingKey> {
-    Runnable create(List<String> input, Components components, ActionListener<HttpResult> listener);
+    Runnable createRequest(List<String> input, Components components, ActionListener<HttpResult> listener);
 
     GroupingKey key();
 

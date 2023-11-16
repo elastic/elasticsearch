@@ -26,6 +26,6 @@ import java.util.List;
  *      - A request can have multiple input but they should all be associated with a single request when onResponse is called for that listener
  *      - We'll need to track a range within the array for that
  */
-public interface RequestBatcher<T> {
-    void add(RequestCreator<T> creator, List<String> input, ActionListener<HttpResult> listener);
+public interface RequestBatcher<K, R> {
+    void add(Handler<K, R> handler, List<String> input, ActionListener<HttpResult> listener);
 }

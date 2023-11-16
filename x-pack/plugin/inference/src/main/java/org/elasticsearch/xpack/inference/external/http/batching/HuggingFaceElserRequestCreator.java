@@ -26,7 +26,7 @@ public record HuggingFaceElserRequestCreator(HuggingFaceAccount account) impleme
     private static final Logger logger = LogManager.getLogger(HuggingFaceElserRequestCreator.class);
 
     @Override
-    public Runnable create(List<String> input, Components components, ActionListener<HttpResult> listener) {
+    public Runnable createRequest(List<String> input, Components components, ActionListener<HttpResult> listener) {
         var a = new HuggingFaceElserRequest(account, new HuggingFaceElserRequestEntity(input));
 
         return components.threadPool().getThreadContext().preserveContext(new Command(components, a.createRequest(), listener));

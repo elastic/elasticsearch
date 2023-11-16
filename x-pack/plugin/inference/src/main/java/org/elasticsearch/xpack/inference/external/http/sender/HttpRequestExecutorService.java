@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.batching.Handler;
 import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcher;
 
 import java.util.ArrayList;
@@ -50,10 +51,11 @@ import static org.elasticsearch.core.Strings.format;
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
-class HttpRequestExecutorService<T> implements ExecutorService {
+class HttpRequestExecutorService<K, R> implements ExecutorService {
     private static final Logger logger = LogManager.getLogger(HttpRequestExecutorService.class);
 
     private final String serviceName;
+    // TODO this will be BlockingQueue<Task> queue;
     private final BlockingQueue<HttpTask> queue;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
@@ -61,7 +63,7 @@ class HttpRequestExecutorService<T> implements ExecutorService {
     private final HttpClient httpClient;
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
-    private final RequestBatcher<T> requestBatcher;
+    private final RequestBatcher<K, R> requestBatcher;
 
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
     HttpRequestExecutorService(
@@ -69,7 +71,7 @@ class HttpRequestExecutorService<T> implements ExecutorService {
         HttpClient httpClient,
         ThreadPool threadPool,
         @Nullable CountDownLatch startupLatch,
-        RequestBatcher<T> requestBatcher
+        RequestBatcher<K, R> requestBatcher
     ) {
         this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(), startupLatch, requestBatcher);
     }
@@ -81,7 +83,7 @@ class HttpRequestExecutorService<T> implements ExecutorService {
         ThreadPool threadPool,
         int capacity,
         @Nullable CountDownLatch startupLatch,
-        RequestBatcher<T> requestBatcher
+        RequestBatcher<K, R> requestBatcher
     ) {
         this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity), startupLatch, requestBatcher);
     }
@@ -96,7 +98,7 @@ class HttpRequestExecutorService<T> implements ExecutorService {
         ThreadPool threadPool,
         BlockingQueue<HttpTask> queue,
         @Nullable CountDownLatch startupLatch,
-        RequestBatcher<T> requestCreator
+        RequestBatcher<K, R> requestCreator
     ) {
         this.serviceName = Objects.requireNonNull(serviceName);
         this.httpClient = Objects.requireNonNull(httpClient);
@@ -223,6 +225,13 @@ class HttpRequestExecutorService<T> implements ExecutorService {
     @Override
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         return terminationLatch.await(timeout, unit);
+    }
+
+    // TODO: change the listener type to be correct
+    public void send2(Handler<K, R> handler, List<String> input, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+        RequestTask2<K, R> task = new RequestTask2<>(handler, input, timeout, threadPool, listener);
+
+        // TODO the rest is the same as the old send
     }
 
     /**

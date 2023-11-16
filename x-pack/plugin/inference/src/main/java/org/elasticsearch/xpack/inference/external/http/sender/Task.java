@@ -9,16 +9,16 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.batching.RequestCreator;
+import org.elasticsearch.xpack.inference.external.http.batching.Handler;
 
 import java.util.List;
 
-public interface Task<T> {
+public interface Task<K, R> {
     boolean shouldShutdown();
 
     boolean hasFinished();
 
-    RequestCreator<T> requestCreator();
+    Handler<K, R> handler();
 
     List<String> input();
 

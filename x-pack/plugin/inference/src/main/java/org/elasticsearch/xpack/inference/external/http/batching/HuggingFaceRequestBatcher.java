@@ -8,19 +8,18 @@
 package org.elasticsearch.xpack.inference.external.http.batching;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
-import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcher;
-import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequest;
-import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequestEntity;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 
-public class HuggingFaceRequestBatcher implements RequestBatcher<HuggingFaceAccount>, Iterable<Runnable> {
+public class HuggingFaceRequestBatcher implements RequestBatcher<HuggingFaceAccount, TextExpansionResults>, Iterable<Runnable> {
     private final HashMap<HuggingFaceAccount, Entry> entries = new LinkedHashMap<>();
 
     public Iterator<Runnable> iterator() {
@@ -28,31 +27,30 @@ public class HuggingFaceRequestBatcher implements RequestBatcher<HuggingFaceAcco
     }
 
     @Override
-    public void add(RequestCreator<HuggingFaceAccount> creator, List<String> input, ActionListener<HttpResult> listener) {
-        entries.compute(creator.key(), (account, entry) -> {
+    public void add(Handler<HuggingFaceAccount, TextExpansionResults> handler, List<String> input, ActionListener<HttpResult> listener) {
+        entries.compute(handler.creator().key(), (account, entry) -> {
             if (entry == null) {
-                return new Entry(creator, new LinkedList<>(List.of(new InternalRequest(request.input()))));
+                return new Entry(
+                    handler.creator(),
+                    input.size(),
+                    new LinkedList<>(List.of(new InternalRequest(input, 0, input.size(), listener)))
+                );
             }
 
-            entry.requests().add(new InternalRequest(request.input()));
-            return entry;
+            entry.requests().add(new InternalRequest(input, entry.total, entry.total + input.size(), listener));
+            return new Entry(entry.creator, entry.total + input.size(), entry.requests);
         });
     }
 
-    public record Entry(RequestCreator<HuggingFaceAccount> creator, List<InternalRequest> requests) {
+    public record Entry(RequestCreator<HuggingFaceAccount> creator, int total, List<InternalRequest> requests) {
 
     }
 
-    public record IndividualRequest(RequestCreator<HuggingFaceAccount> creator, List<String> input) {
+    private record InternalRequest(List<String> input, int start, int end, ActionListener<HttpResult> listener) {
 
     }
 
-    private record InternalRequest(List<String> input, ActionListener<HttpResult> ) {
-
-    }
-
-
-    private record RequestIterator(Iterator<Entry> iterator) implements Iterator<Runnable> {
+    private record RequestIterator(Iterator<Entry> iterator, RequestCreator.Components components) implements Iterator<Runnable> {
 
         @Override
         public boolean hasNext() {
@@ -63,7 +61,16 @@ public class HuggingFaceRequestBatcher implements RequestBatcher<HuggingFaceAcco
         public Runnable next() {
             var entry = iterator.next();
 
-            return entry.creator().create(entry.);
+            var l = entry.requests.stream().map(InternalRequest::input).flatMap(Collection::stream).toList();
+
+            ActionListener<HttpResult> otherListener = ActionListener.wrap(result -> {
+                // TODO: loop through the entry.requests and use List.subList to to extract the results for each listener and call
+                // onResponse
+            }, e -> {
+                // TODO: loop over the entry.listener and call onFailure(e)
+            });
+
+            return entry.creator().createRequest(l, components, otherListener);
         }
     }
 }

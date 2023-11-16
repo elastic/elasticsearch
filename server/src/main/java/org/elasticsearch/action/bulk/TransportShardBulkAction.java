@@ -47,7 +47,6 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -380,7 +379,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             } catch (Exception e) {
                 logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
                 assert result.getId() != null;
-                onMappingUpdateFailure(e, primary, isDelete, version, result, context, updateResult);
+                onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
                 return true;
             }
 
@@ -404,7 +403,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                 @Override
                 public void onFailure(Exception e) {
-                    onMappingUpdateFailure(e, primary, isDelete, version, result, context, updateResult);
+                    onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
                     // Requesting mapping update failed, so we don't have to wait for a cluster state update
                     assert context.isInitial();
                     itemDoneListener.onResponse(null);
@@ -415,36 +414,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             onComplete(result, context, updateResult);
         }
         return true;
-    }
-
-    private static void onMappingUpdateFailure(
-        Exception e,
-        IndexShard primary,
-        boolean isDelete,
-        long version,
-        Engine.Result result,
-        BulkPrimaryExecutionContext context,
-        UpdateHelper.Result updateResult
-    ) {
-        Engine.Result r = exceptionToResult(e, primary, isDelete, version, result.getId());
-        DocumentMapper documentMapper = primary.mapperService().documentMapper();
-        boolean mappingWasConcurrentlyUpdated = false;
-        if (documentMapper != null) {
-            long currentMappingVersion = documentMapper.mappers().getMappingVersion();
-            mappingWasConcurrentlyUpdated = currentMappingVersion > result.getMappingVersionBeforeUpdate();
-        }
-        if (mappingWasConcurrentlyUpdated && context.isMappingUpdateRetry() == false) {
-            // retry mapping updates once if the number of fields has been updated concurrently
-            // as the errors may be a result of this concurrent update
-            // for example, when adding a dynamic field under the premise that the field limit has not been reached, yet
-            // (see Dynamic.TRUE_UNTIL_LIMIT)
-            // but the field limit has been reached by a another concurrent operation
-            // retrying once is enough to prevent the issue from happening again and avoids the risk of infinite retry loops
-            context.markOperationAsExecuted(r);
-            context.resetForMappingUpdateRetry();
-        } else {
-            onComplete(r, context, updateResult);
-        }
     }
 
     private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version, String id) {

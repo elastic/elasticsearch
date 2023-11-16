@@ -40,7 +40,7 @@ public final class MappingLookup {
      * A lookup representing an empty mapping. It can be used to look up fields, although it won't hold any, but it does not
      * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
      */
-    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of(), List.of(), 1);
+    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of(), List.of());
 
     private final CacheKey cacheKey = new CacheKey();
 
@@ -54,17 +54,15 @@ public final class MappingLookup {
     private final Map<String, NamedAnalyzer> indexAnalyzersMap;
     private final List<FieldMapper> indexTimeScriptMappers;
     private final Mapping mapping;
-    private final long mappingVersion;
     private final Set<String> completionFields;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
      *
      * @param mapping the mapping source
-     * @param mappingVersion the version of the mapping
      * @return the newly created lookup instance
      */
-    public static MappingLookup fromMapping(Mapping mapping, long mappingVersion) {
+    public static MappingLookup fromMapping(Mapping mapping) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -76,7 +74,7 @@ public final class MappingLookup {
         for (Mapper child : mapping.getRoot()) {
             collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers);
         }
-        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, mappingVersion);
+        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers);
     }
 
     private static void collect(
@@ -112,28 +110,24 @@ public final class MappingLookup {
      * @param mappers the field mappers
      * @param objectMappers the object mappers
      * @param aliasMappers the field alias mappers
-     * @param mappingVersion the version of the mapping
      * @return the newly created lookup instance
      */
     public static MappingLookup fromMappers(
         Mapping mapping,
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
-        Collection<FieldAliasMapper> aliasMappers,
-        long mappingVersion
+        Collection<FieldAliasMapper> aliasMappers
     ) {
-        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, mappingVersion);
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers);
     }
 
     private MappingLookup(
         Mapping mapping,
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
-        Collection<FieldAliasMapper> aliasMappers,
-        long mappingVersion
+        Collection<FieldAliasMapper> aliasMappers
     ) {
         this.mapping = mapping;
-        this.mappingVersion = mappingVersion;
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
 
@@ -483,10 +477,6 @@ public final class MappingLookup {
      */
     public Mapping getMapping() {
         return mapping;
-    }
-
-    public long getMappingVersion() {
-        return mappingVersion;
     }
 
     /**

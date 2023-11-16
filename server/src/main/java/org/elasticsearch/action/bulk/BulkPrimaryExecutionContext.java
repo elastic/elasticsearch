@@ -61,7 +61,6 @@ class BulkPrimaryExecutionContext {
     private DocWriteRequest<?> requestToExecute;
     private BulkItemResponse executionResult;
     private int updateRetryCounter;
-    private boolean mappingUpdateRetry;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
@@ -88,7 +87,6 @@ class BulkPrimaryExecutionContext {
         currentItemState = ItemProcessingState.INITIAL;
         currentIndex = findNextNonAborted(currentIndex + 1);
         updateRetryCounter = 0;
-        mappingUpdateRetry = false;
         requestToExecute = null;
         executionResult = null;
         assert assertInvariants(ItemProcessingState.INITIAL);
@@ -112,10 +110,6 @@ class BulkPrimaryExecutionContext {
     /** returns the number of times the current update operation has been retried */
     public int getUpdateRetryCounter() {
         return updateRetryCounter;
-    }
-
-    public boolean isMappingUpdateRetry() {
-        return mappingUpdateRetry;
     }
 
     /** returns true if the request needs to wait for a mapping update to arrive from the master */
@@ -193,8 +187,7 @@ class BulkPrimaryExecutionContext {
     }
 
     public void resetForMappingUpdateRetry() {
-        assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE, ItemProcessingState.EXECUTED);
-        mappingUpdateRetry = true;
+        assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
         resetForExecutionRetry();
     }
 

@@ -32,13 +32,13 @@ public class DocumentMapper {
         );
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
         Mapping mapping = new Mapping(root, metadata, null);
-        return new DocumentMapper(mapperService.documentParser(), mapping, mapping.toCompressedXContent(), IndexVersion.current(), 1);
+        return new DocumentMapper(mapperService.documentParser(), mapping, mapping.toCompressedXContent(), IndexVersion.current());
     }
 
-    DocumentMapper(DocumentParser documentParser, Mapping mapping, CompressedXContent source, IndexVersion version, long mappingVersion) {
+    DocumentMapper(DocumentParser documentParser, Mapping mapping, CompressedXContent source, IndexVersion version) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
-        this.mappingLookup = MappingLookup.fromMapping(mapping, mappingVersion);
+        this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = source;
 
         assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)

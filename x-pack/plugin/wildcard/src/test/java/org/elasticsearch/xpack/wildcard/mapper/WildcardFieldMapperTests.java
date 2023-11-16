@@ -1087,7 +1087,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, 1);
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY);
         return new SearchExecutionContext(
             0,
             0,

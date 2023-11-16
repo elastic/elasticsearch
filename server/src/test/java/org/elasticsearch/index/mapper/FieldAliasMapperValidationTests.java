@@ -185,6 +185,6 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, fieldAliasMappers, 1);
+        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, fieldAliasMappers);
     }
 }

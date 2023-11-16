@@ -118,8 +118,7 @@ public final class DocumentParser {
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
-            dynamicUpdate,
-            context.mappingLookup().getMappingVersion()
+            dynamicUpdate
         ) {
             @Override
             public String documentDescription() {

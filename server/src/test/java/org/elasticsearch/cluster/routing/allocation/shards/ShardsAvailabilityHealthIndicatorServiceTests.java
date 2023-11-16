@@ -1111,7 +1111,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is not allowed due to data tier filter
@@ -1121,7 +1121,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1169,7 +1170,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -1180,7 +1181,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState
+            clusterState,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1233,7 +1235,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -1244,7 +1246,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState
+            clusterState,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1292,7 +1295,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -1303,7 +1306,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState
+            clusterState,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1356,7 +1360,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -1367,7 +1371,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState
+            clusterState,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1391,7 +1396,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
@@ -1403,7 +1408,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1427,7 +1433,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
@@ -1439,7 +1445,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1462,7 +1469,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
@@ -1474,7 +1481,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         // checkDataTierRelatedIssues will leave list empty. Diagnosis methods upstream will add "Check allocation explain" action.
@@ -1497,7 +1505,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
@@ -1513,7 +1521,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1536,7 +1545,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkNodeRoleRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
@@ -1552,7 +1561,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));

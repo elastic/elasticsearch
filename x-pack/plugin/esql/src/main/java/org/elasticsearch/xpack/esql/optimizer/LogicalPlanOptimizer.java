@@ -281,13 +281,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     // eliminate lower project but first replace the aliases in the upper one
                     return p.withProjections(combineProjections(project.projections(), p.projections()));
                 } else if (child instanceof Aggregate a) {
-                    List<Expression> allProjections = new ArrayList<>(project.projections());
-                    for (Expression grouping : a.groupings()) {
-                        if (allProjections.contains(grouping) == false) {
-                            return plan;
-                        }
-                    }
-                    return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(allProjections, a.aggregates()));
+                    var aggs = a.aggregates();
+                    var newAggs = combineProjections(project.projections(), aggs);
+                    var newGroups = replacePrunedAliasesUsedInGroupBy(a.groupings(), aggs, newAggs);
+                    return new Aggregate(a.source(), a.child(), newGroups, newAggs);
                 }
             }
 
@@ -304,7 +301,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         // normally only the upper projections should survive but since the lower list might have aliases definitions
         // that might be reused by the upper one, these need to be replaced.
         // for example an alias defined in the lower list might be referred in the upper - without replacing it the alias becomes invalid
-        private List<NamedExpression> combineProjections(List<? extends Expression> upper, List<? extends NamedExpression> lower) {
+        private List<NamedExpression> combineProjections(List<? extends NamedExpression> upper, List<? extends NamedExpression> lower) {
 
             // collect aliases in the lower list
             AttributeMap.Builder<NamedExpression> aliasesBuilder = AttributeMap.builder();
@@ -319,11 +316,44 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             // replace any matching attribute with a lower alias (if there's a match)
             // but clean-up non-top aliases at the end
-            for (Expression ne : upper) {
+            for (NamedExpression ne : upper) {
                 NamedExpression replacedExp = (NamedExpression) ne.transformUp(Attribute.class, a -> aliases.resolve(a, a));
                 replaced.add((NamedExpression) trimNonTopLevelAliases(replacedExp));
             }
             return replaced;
+        }
+
+        /**
+         * Replace grouping alias previously contained in the aggregations that might have been projected away.
+         */
+        private List<Expression> replacePrunedAliasesUsedInGroupBy(
+            List<Expression> groupings,
+            List<? extends NamedExpression> oldAggs,
+            List<? extends NamedExpression> newAggs
+        ) {
+            AttributeMap<Expression> removedAliases = new AttributeMap<>();
+            AttributeSet currentAliases = new AttributeSet(Expressions.asAttributes(newAggs));
+
+            // record only removed aliases
+            for (NamedExpression ne : oldAggs) {
+                if (ne instanceof Alias alias) {
+                    var attr = ne.toAttribute();
+                    if (currentAliases.contains(attr) == false) {
+                        removedAliases.put(attr, alias.child());
+                    }
+                }
+            }
+
+            if (removedAliases.isEmpty()) {
+                return groupings;
+            }
+
+            var newGroupings = new ArrayList<Expression>(groupings.size());
+            for (Expression group : groupings) {
+                newGroupings.add(group.transformUp(Attribute.class, a -> removedAliases.resolve(a, a)));
+            }
+
+            return newGroupings;
         }
 
         public static Expression trimNonTopLevelAliases(Expression e) {
@@ -827,11 +857,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 do {
                     recheck = false;
                     if (p instanceof Aggregate aggregate) {
-                        for (Expression grouping : aggregate.groupings()) {
-                            if (grouping instanceof Attribute a) {
-                                used.add(a);
-                            }
-                        }
                         var remaining = seenProjection.get() ? removeUnused(aggregate.aggregates(), used) : null;
                         // no aggregates, no need
                         if (remaining != null) {

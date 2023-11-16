@@ -7,12 +7,19 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -43,14 +50,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/102184")
 public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     @Override
@@ -61,7 +71,15 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         plugins.add(LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
         plugins.add(ReindexPlugin.class);
+        plugins.add(InternalTransportSettingPlugin.class);
         return plugins;
+    }
+
+    public static class InternalTransportSettingPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(IGNORE_DESERIALIZATION_ERRORS_SETTING);
+        }
     }
 
     @Override
@@ -69,7 +87,46 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "128mb")
+            /*
+             * Force standard settings for the request breaker or we may not break at all.
+             * Without this we can randomly decide to use the `noop` breaker for request
+             * and it won't break.....
+             */
+            .put(
+                HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(),
+                HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.getDefault(Settings.EMPTY)
+            )
+            .put(
+                HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(),
+                HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getDefault(Settings.EMPTY)
+            )
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(500, 2000)))
+            // allow reading pages from network can trip the circuit breaker
+            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true)
             .build();
+    }
+
+    @Override
+    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+        final Client client;
+        if (randomBoolean()) {
+            client = client(randomFrom(clusterService().state().nodes().getCoordinatingOnlyNodes().values()).getName());
+        } else {
+            client = client();
+        }
+        if (randomBoolean()) {
+            setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 4096)));
+            try {
+                return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
+            } catch (Exception e) {
+                logger.info("request failed", e);
+                ensureBlocksReleased();
+            } finally {
+                setRequestCircuitBreakerLimit(null);
+            }
+        }
+        return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
     }
 
     @Before
@@ -127,6 +184,13 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
                 .get();
         }
         client().admin().indices().prepareRefresh("listens").get();
+    }
+
+    @Before
+    public void ensureAtLeastOneCoordinatingNodeOnly() {
+        if (clusterService().state().nodes().getCoordinatingOnlyNodes().isEmpty()) {
+            internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        }
     }
 
     record Listen(long timestamp, String songId, double duration) {

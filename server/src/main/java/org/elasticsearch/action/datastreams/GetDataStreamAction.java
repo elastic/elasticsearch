@@ -307,6 +307,24 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endArray();
                 }
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
+                if (DataStream.isFailureStoreEnabled()) {
+                    builder.field(DataStream.FAILURE_INDICES_FIELD.getPreferredName());
+                    builder.startArray();
+                    for (Index failureStore : dataStream.getFailureIndices()) {
+                        builder.startObject();
+                        failureStore.toXContentFragment(builder);
+                        IndexProperties indexProperties = indexSettingsValues.get(failureStore);
+                        if (indexProperties != null) {
+                            builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
+                            if (indexProperties.ilmPolicyName() != null) {
+                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
+                            }
+                            builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
+                        }
+                        builder.endObject();
+                    }
+                    builder.endArray();
+                }
                 if (dataStream.getMetadata() != null) {
                     builder.field(DataStream.METADATA_FIELD.getPreferredName(), dataStream.getMetadata());
                 }
@@ -327,6 +345,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(SYSTEM_FIELD.getPreferredName(), dataStream.isSystem());
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
+                if (DataStream.isFailureStoreEnabled()) {
+                    builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStore());
+                }
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());
                     builder.startArray(TEMPORAL_RANGES.getPreferredName());

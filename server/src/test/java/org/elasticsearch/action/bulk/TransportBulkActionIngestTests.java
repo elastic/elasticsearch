@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -46,7 +45,6 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -194,7 +192,6 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         nodes = mock(DiscoveryNodes.class);
         Map<String, DiscoveryNode> ingestNodes = Map.of("node1", remoteNode1, "node2", remoteNode2);
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
-        when(nodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
         Metadata metadata = Metadata.builder()

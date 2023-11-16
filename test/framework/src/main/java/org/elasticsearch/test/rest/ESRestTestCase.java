@@ -56,6 +56,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
@@ -1676,23 +1677,20 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(request);
     }
 
-    protected static void expectSoftDeletesWarning(Request request, String indexName) {
-        final List<String> expectedWarnings = List.of(
+    protected static void expectSoftDeletesWarning(Request request, String indexName) throws IOException {
+        final String expectedWarning =
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
                 + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
                 + indexName
-                + "]."
-        );
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            request.setOptions(
-                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false)
-            );
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            request.setOptions(
-                RequestOptions.DEFAULT.toBuilder()
-                    .setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false)
-            );
-        }
+                + "].";
+
+        final var softDeleteDisabledDeprecated = minimumIndexVersion().onOrAfter(IndexVersions.V_7_6_0);
+        request.setOptions(expectVersionSpecificWarnings(v -> {
+            if (softDeleteDisabledDeprecated) {
+                v.current(expectedWarning);
+            }
+            v.compatible(expectedWarning);
+        }));
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
@@ -1992,7 +1990,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
      */
     public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
-        boolean mustHavePRRLs = minimumNodeVersion().onOrAfter(Version.V_7_6_0);
+        boolean mustHavePRRLs = minimumIndexVersion().onOrAfter(IndexVersions.V_7_6_0);
         assertBusy(() -> {
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             @SuppressWarnings("unchecked")

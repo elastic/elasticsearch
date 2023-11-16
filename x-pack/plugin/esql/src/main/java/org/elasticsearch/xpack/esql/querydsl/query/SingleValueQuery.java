@@ -70,7 +70,7 @@ public class SingleValueQuery extends Query {
         Builder::new
     );
 
-    private static final String MULTI_VALUE_WARNING = "single-value function encountered multi-value";
+    public static final String MULTI_VALUE_WARNING = "single-value function encountered multi-value";
 
     private final Query next;
     private final String field;
@@ -191,7 +191,7 @@ public class SingleValueQuery extends Query {
                 next.toQuery(context),
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
                 stats,
-                source
+                new Warnings(source)
             );
         }
 
@@ -227,13 +227,13 @@ public class SingleValueQuery extends Query {
         final org.apache.lucene.search.Query next;
         private final IndexFieldData<?> fieldData;
         private final Stats stats;
-        private final Source source;
+        private final Warnings warnings;
 
-        LuceneQuery(org.apache.lucene.search.Query next, IndexFieldData<?> fieldData, Stats stats, Source source) {
+        LuceneQuery(org.apache.lucene.search.Query next, IndexFieldData<?> fieldData, Stats stats, Warnings warnings) {
             this.next = next;
             this.fieldData = fieldData;
             this.stats = stats;
-            this.source = source;
+            this.warnings = warnings;
         }
 
         @Override
@@ -253,12 +253,12 @@ public class SingleValueQuery extends Query {
             if (rewritten == next) {
                 return this;
             }
-            return new LuceneQuery(rewritten, fieldData, stats, source);
+            return new LuceneQuery(rewritten, fieldData, stats, warnings);
         }
 
         @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-            return new SingleValueWeight(this, next.createWeight(searcher, scoreMode, boost), fieldData, source);
+            return new SingleValueWeight(this, next.createWeight(searcher, scoreMode, boost), fieldData, warnings);
         }
 
         @Override
@@ -272,12 +272,12 @@ public class SingleValueQuery extends Query {
             SingleValueQuery.LuceneQuery other = (SingleValueQuery.LuceneQuery) obj;
             return next.equals(other.next)
                 && fieldData.getFieldName().equals(other.fieldData.getFieldName())
-                && source.equals(other.source);
+                && warnings.equals(other.warnings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classHash(), next, fieldData, source);
+            return Objects.hash(classHash(), next, fieldData, warnings);
         }
 
         @Override
@@ -288,8 +288,6 @@ public class SingleValueQuery extends Query {
                 builder.append(":");
             }
             builder.append(next);
-            builder.append(",");
-            builder.append(source.toString());
             return builder.append(")").toString();
         }
     }
@@ -300,12 +298,12 @@ public class SingleValueQuery extends Query {
         private final IndexFieldData<?> fieldData;
         private final Warnings warnings;
 
-        private SingleValueWeight(SingleValueQuery.LuceneQuery query, Weight next, IndexFieldData<?> fieldData, Source source) {
+        private SingleValueWeight(SingleValueQuery.LuceneQuery query, Weight next, IndexFieldData<?> fieldData, Warnings warnings) {
             super(query);
             this.stats = query.stats;
             this.next = next;
             this.fieldData = fieldData;
-            this.warnings = new Warnings(source);
+            this.warnings = warnings;
         }
 
         @Override

@@ -212,6 +212,7 @@ public class EvaluatorImplementer {
         builder.beginControlFlow("if ($N.getValueCount(p) != 1)", value);
         {
             builder.addStatement(
+                // TODO: reflection on SingleValueQuery.MULTI_VALUE_WARNING?
                 "warnings.registerException(new $T(\"single-value function encountered multi-value\"))",
                 IllegalArgumentException.class
             );

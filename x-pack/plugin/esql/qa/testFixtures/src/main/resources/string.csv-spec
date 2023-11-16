@@ -523,8 +523,8 @@ emp_no:integer |job_positions:keyword
 
 notLessThanMultivalue
 from employees | where not(job_positions < "C") | keep emp_no, job_positions | sort emp_no | limit 6;
-warning:Line 1:28: evaluation of [job_positions < \"C\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:24: evaluation of [not(job_positions < \"C\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [job_positions < \"C\"] failed, treating result as null. Only first 20 failures recorded.]
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -538,8 +538,8 @@ emp_no:integer |job_positions:keyword
 
 notGreaterThanMultivalue
 from employees | where not(job_positions > "C") | keep emp_no, job_positions | sort emp_no | limit 6;
-warning:Line 1:28: evaluation of [job_positions > \"C\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:24: evaluation of [not(job_positions > \"C\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [job_positions > \"C\"] failed, treating result as null. Only first 20 failures recorded.]
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
@@ -549,8 +549,8 @@ emp_no:integer |job_positions:keyword
 
 notEqualToMultivalue
 from employees | where not(job_positions == "Accountant") | keep emp_no, job_positions | sort emp_no | limit 6;
-warning:Line 1:28: evaluation of [job_positions == \"Accountant\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:24: evaluation of [not(job_positions == \"Accountant\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [job_positions == \"Accountant\"] failed, treating result as null. Only first 20 failures recorded.]
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword

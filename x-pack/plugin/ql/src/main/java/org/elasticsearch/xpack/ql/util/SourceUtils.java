@@ -21,31 +21,44 @@ public final class SourceUtils {
     private SourceUtils() {}
 
     public static void writeSource(StreamOutput out, Source source) throws IOException {
-        out.writeInt(source.source().getLineNumber());
-        out.writeInt(source.source().getColumnNumber());
-        out.writeString(source.text());
-    }
-
-    public static Source readSource(StreamInput in) throws IOException {
-        int line = in.readInt();
-        int column = in.readInt();
-        int charPositionInLine = column - 1;
-        String text = in.readString();
-        return new Source(new Location(line, charPositionInLine), text);
+        writeSource(out, source, true);
     }
 
     public static void writeSourceNoText(StreamOutput out, Source source) throws IOException {
-        out.writeInt(source.source().getLineNumber());
-        out.writeInt(source.source().getColumnNumber());
-        out.writeInt(source.text().length());
+        writeSource(out, source, false);
+    }
+
+    public static Source readSource(StreamInput in) throws IOException {
+        return readSource(in, null);
     }
 
     public static Source readSourceWithText(StreamInput in, String queryText) throws IOException {
+        return readSource(in, queryText);
+    }
+
+    private static void writeSource(StreamOutput out, Source source, boolean writeText) throws IOException {
+        out.writeInt(source.source().getLineNumber());
+        out.writeInt(source.source().getColumnNumber());
+        if (writeText) {
+            out.writeString(source.text());
+        } else {
+            out.writeInt(source.text().length());
+        }
+    }
+
+    private static Source readSource(StreamInput in, @Nullable String queryText) throws IOException {
         int line = in.readInt();
         int column = in.readInt();
-        int length = in.readInt();
         int charPositionInLine = column - 1;
-        return new Source(new Location(line, charPositionInLine), sourceText(queryText, line, column, length));
+
+        String text;
+        if (queryText == null) {
+            text = in.readString();
+        } else {
+            int length = in.readInt();
+            text = sourceText(queryText, line, column, length);
+        }
+        return new Source(new Location(line, charPositionInLine), text);
     }
 
     private static String sourceText(String query, int line, int column, int length) {

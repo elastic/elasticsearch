@@ -424,6 +424,6 @@ public class CsvTests extends ESTestCase {
         for (String w : warnings) {
             normalized.add(HeaderWarning.extractWarningValueFromWarningHeader(w, false));
         }
-        assertMap(normalized, matchesList(testCase.expectedWarnings));
+        assertMap(normalized, matchesList(testCase.expectedWarnings(true)));
     }
 }

@@ -153,8 +153,8 @@ emp_no:integer |salary_change:double
 
 notLessThanMultivalue
 from employees | where not(salary_change < 1) | keep emp_no, salary_change | sort emp_no | limit 5;
-warning:Line 1:28: evaluation of [salary_change < 1] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:24: evaluation of [not(salary_change < 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change < 1] failed, treating result as null. Only first 20 failures recorded.]
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -167,8 +167,8 @@ emp_no:integer |salary_change:double
 
 notGreaterThanMultivalue
 from employees | where not(salary_change > 1) | keep emp_no, salary_change | sort emp_no | limit 5;
-warning:Line 1:28: evaluation of [salary_change > 1] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:24: evaluation of [not(salary_change > 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change > 1] failed, treating result as null. Only first 20 failures recorded.]
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -181,8 +181,8 @@ emp_no:integer |salary_change:double
 
 notEqualToMultivalue
 from employees | where not(salary_change == 1.19) | keep emp_no, salary_change | sort emp_no | limit 5;
-warning:Line 1:28: evaluation of [salary_change == 1.19] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:24: evaluation of [not(salary_change == 1.19)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change == 1.19] failed, treating result as null. Only first 20 failures recorded.]
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double

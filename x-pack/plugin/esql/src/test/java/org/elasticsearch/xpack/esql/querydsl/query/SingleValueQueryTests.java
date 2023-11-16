@@ -82,7 +82,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     public void testMatchSome() throws IOException {
         int max = between(1, 100);
         testCase(
-            new SingleValueQuery.Builder(new RangeQueryBuilder("i").lt(max), "foo", new SingleValueQuery.Stats()),
+            new SingleValueQuery.Builder(new RangeQueryBuilder("i").lt(max), "foo", new SingleValueQuery.Stats(), Source.EMPTY),
             false,
             false,
             (fieldValues, count) -> {
@@ -99,7 +99,12 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
 
     public void testSubPhrase() throws IOException {
         testCase(
-            new SingleValueQuery.Builder(new MatchPhraseQueryBuilder("str", "fox jumped"), "foo", new SingleValueQuery.Stats()),
+            new SingleValueQuery.Builder(
+                new MatchPhraseQueryBuilder("str", "fox jumped"),
+                "foo",
+                new SingleValueQuery.Stats(),
+                Source.EMPTY
+            ),
             false,
             true,
             (fieldValues, count) -> assertThat(count, equalTo((int) fieldValues.stream().filter(l -> l.size() == 1).count()))
@@ -108,7 +113,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
 
     public void testMatchNone() throws IOException {
         testCase(
-            new SingleValueQuery.Builder(new MatchNoneQueryBuilder(), "foo", new SingleValueQuery.Stats()),
+            new SingleValueQuery.Builder(new MatchNoneQueryBuilder(), "foo", new SingleValueQuery.Stats(), Source.EMPTY),
             true,
             false,
             (fieldValues, count) -> assertThat(count, equalTo(0))
@@ -117,7 +122,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
 
     public void testRewritesToMatchNone() throws IOException {
         testCase(
-            new SingleValueQuery.Builder(new TermQueryBuilder("missing", 0), "foo", new SingleValueQuery.Stats()),
+            new SingleValueQuery.Builder(new TermQueryBuilder("missing", 0), "foo", new SingleValueQuery.Stats(), Source.EMPTY),
             true,
             false,
             (fieldValues, count) -> assertThat(count, equalTo(0))

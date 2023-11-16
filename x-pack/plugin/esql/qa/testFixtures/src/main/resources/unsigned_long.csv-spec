@@ -69,8 +69,8 @@ filterPushDownRange
 from ul_logs | where bytes_in >= to_ul(74330435873664882) | where bytes_in <= to_ul(316080452389500167)  | sort bytes_in | eval div = bytes_in / to_ul(pow(10., 15)) | keep bytes_in, div, id | limit 12;
 warning:Line 1:22: evaluation of [bytes_in >= to_ul(74330435873664882)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:22: java.lang.IllegalArgumentException: single-value function encountered multi-value
-warning:Line 1:67: evaluation of [bytes_in <= to_ul(316080452389500167)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:67: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:#[Emulated:Line 1:67: evaluation of [bytes_in <= to_ul(316080452389500167)] failed, treating result as null. Only first 20 failures recorded.]
+warning:#[Emulated:Line 1:67: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
      bytes_in:ul   |      div:ul   |id:i
 74330435873664882  |74             |82

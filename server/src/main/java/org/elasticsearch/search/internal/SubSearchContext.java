@@ -55,6 +55,7 @@ public class SubSearchContext extends FilteredSearchContext {
     private boolean version;
     private boolean seqNoAndPrimaryTerm;
 
+    @SuppressWarnings("this-escape")
     public SubSearchContext(SearchContext context) {
         super(context);
         context.addReleasable(this);

@@ -15,6 +15,7 @@ import com.avast.gradle.dockercompose.tasks.ComposeDown;
 import com.avast.gradle.dockercompose.tasks.ComposePull;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
 
+import org.elasticsearch.gradle.internal.docker.TestFixtureInfoService;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
@@ -33,6 +34,8 @@ import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.services.internal.BuildServiceProvider;
+import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
@@ -51,6 +54,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
     private static final Logger LOGGER = Logging.getLogger(TestFixturesPlugin.class);
     private static final String DOCKER_COMPOSE_THROTTLE = "dockerComposeThrottle";
+    private static final String FIXTURE_INFO_SERVICE = "testFixtureInfoService";
     static final String DOCKER_COMPOSE_YML = "docker-compose.yml";
 
     private final ProviderFactory providerFactory;
@@ -80,7 +84,12 @@ public class TestFixturesPlugin implements Plugin<Project> {
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
         );
 
+        Provider<TestFixtureInfoService> fixtureInfoService = project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent(FIXTURE_INFO_SERVICE, TestFixtureInfoService.class, spec -> {});
+
         ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
+
         File testfixturesDir = project.file("testfixtures_shared");
         ext.set("testFixturesDir", testfixturesDir);
 
@@ -103,13 +112,14 @@ public class TestFixturesPlugin implements Plugin<Project> {
             TaskProvider<Task> buildFixture = project.getTasks()
                 .register("buildFixture", t -> t.dependsOn(preProcessFixture, tasks.named("composeUp")));
 
-            TaskProvider<Task> postProcessFixture = project.getTasks().register("postProcessFixture", task -> {
-                task.dependsOn(buildFixture);
-                configureServiceInfoForTask(
-                    task,
-                    project,
+            TaskProvider<Task> postProcessFixture = project.getTasks().register("postProcessFixture", t -> {
+                t.usesService(fixtureInfoService);
+                t.dependsOn(buildFixture);
+                configureServiceInfoForTask(fixtureInfoService,
+                    t,
+                    project.getPath(),
                     false,
-                    (name, port) -> task.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
+                    (name, port) -> t.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
                 );
             });
 
@@ -135,6 +145,14 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 if (BuildParams.isCi()) {
                     t.usesService(dockerComposeThrottle);
                 }
+                t.doLast(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        ((ComposeUp)task).getServicesInfos().forEach((name, info) -> {
+                            fixtureInfoService.get().registerServiceInfo(name, info);
+                        });
+                    }
+                });
                 t.mustRunAfter(preProcessFixture);
             });
             tasks.named("composePull").configure(t -> t.mustRunAfter(preProcessFixture));
@@ -150,8 +168,8 @@ public class TestFixturesPlugin implements Plugin<Project> {
             });
         }
 
-        extension.fixtures.matching(fixtureProject -> fixtureProject.equals(project) == false)
-            .all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
+        extension.fixtures.stream().filter(fixtureProjectPath -> fixtureProjectPath.equals(project.getPath()) == false)
+            .forEach(project::evaluationDependsOn);
 
         // Skip docker compose tasks if it is unavailable
         maybeSkipTasks(tasks, dockerSupport, Test.class);
@@ -162,12 +180,13 @@ public class TestFixturesPlugin implements Plugin<Project> {
         maybeSkipTasks(tasks, dockerSupport, ComposePull.class);
         maybeSkipTasks(tasks, dockerSupport, ComposeDown.class);
 
-        tasks.withType(Test.class).configureEach(task -> extension.fixtures.all(fixtureProject -> {
-            task.dependsOn(fixtureProject.getTasks().named("postProcessFixture"));
-            task.finalizedBy(fixtureProject.getTasks().named("composeDown"));
+        tasks.withType(Test.class).configureEach(task -> extension.fixtures.forEach(fixtureProjectPath -> {
+            task.dependsOn(fixtureProjectPath + ":postProcessFixture");
+            task.finalizedBy(fixtureProjectPath + ":composeDown");
             configureServiceInfoForTask(
+                fixtureInfoService,
                 task,
-                fixtureProject,
+                fixtureProjectPath,
                 true,
                 (name, host) -> task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class).systemProperty(name, host)
             );
@@ -194,24 +213,22 @@ public class TestFixturesPlugin implements Plugin<Project> {
     }
 
     private void configureServiceInfoForTask(
+        Provider<TestFixtureInfoService> composeInfo,
         Task task,
-        Project fixtureProject,
+        String fixtureProjectPath,
         boolean enableFilter,
         BiConsumer<String, Integer> consumer
     ) {
         // Configure ports for the tests as system properties.
         // We only know these at execution time so we need to do it in doFirst
+        TestFixtureExtension extension = task.getProject().getExtensions().getByType(TestFixtureExtension.class);
+
         task.doFirst(new Action<Task>() {
             @Override
             public void execute(Task theTask) {
-                TestFixtureExtension extension = theTask.getProject().getExtensions().getByType(TestFixtureExtension.class);
-
-                fixtureProject.getExtensions()
-                    .getByType(ComposeExtension.class)
-                    .getServicesInfos()
-                    .entrySet()
+                composeInfo.get().getServiceInfo().entrySet()
                     .stream()
-                    .filter(entry -> enableFilter == false || extension.isServiceRequired(entry.getKey(), fixtureProject.getPath()))
+                    .filter(entry -> enableFilter == false || extension.isServiceRequired(entry.getKey(), fixtureProjectPath))
                     .forEach(entry -> {
                         String service = entry.getKey();
                         ServiceInfo infos = entry.getValue();

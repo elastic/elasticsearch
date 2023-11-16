@@ -99,22 +99,25 @@ public class DesiredBalanceReconciler {
         unassignedShards = LongGaugeMetric.create(
             meterRegistry,
             "es.allocator.desired_balance_reconciliation.unassigned_shards",
-            "Current unassigned shards count"
+            "Current unassigned shards count",
+            "count"
         );
         totalAllocations = LongGaugeMetric.create(
             meterRegistry,
             "es.allocator.desired_balance_reconciliation.total_allocations",
-            "Current total shards count in cluster"
+            "Current total shards count in cluster",
+            "count"
         );
         undesiredAllocations = LongGaugeMetric.create(
             meterRegistry,
             "es.allocator.desired_balance_reconciliation.undesired_allocations",
-            "Current number of shards allocated on undesired nodes"
+            "Current number of shards allocated on undesired nodes",
+            "count"
         );
         undesiredAllocationsFraction = meterRegistry.registerDoubleGauge(
             "es.allocator.desired_balance_reconciliation.undesired_allocations_fraction",
             "Current undesired_allocations / total_allocations fraction",
-            "",
+            "count",
             () -> {
                 var total = totalAllocations.get();
                 var undesired = undesiredAllocations.get();

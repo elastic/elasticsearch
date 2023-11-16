@@ -15,10 +15,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public record LongGaugeMetric(AtomicLong value, LongGauge gauge) {
 
-    public static LongGaugeMetric create(MeterRegistry meterRegistry, String name, String description) {
-        return create(meterRegistry, name, description, "");
-    }
-
     public static LongGaugeMetric create(MeterRegistry meterRegistry, String name, String description, String unit) {
         final AtomicLong value = new AtomicLong();
         return new LongGaugeMetric(

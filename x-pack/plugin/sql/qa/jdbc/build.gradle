@@ -97,7 +97,7 @@ subprojects {
 
       final String bwcVersionString = bwcVersion.toString()
       tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
-          useCluster cluster.get()
+          useCluster cluster
           classpath = sourceSets.javaRestTest.runtimeClasspath + driverConfiguration
           testClassesDirs = sourceSets.javaRestTest.output.classesDirs
           systemProperty 'jdbc.driver.version', bwcVersionString

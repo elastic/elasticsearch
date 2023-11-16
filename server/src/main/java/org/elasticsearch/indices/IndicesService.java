@@ -271,7 +271,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     @SuppressWarnings("this-escape")
-    public IndicesService(IndicesServiceBuilder builder) {
+    IndicesService(IndicesServiceBuilder builder) {
         this.settings = builder.settings;
         this.threadPool = builder.threadPool;
         this.pluginsService = builder.pluginsService;

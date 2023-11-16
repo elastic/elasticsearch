@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.rescorer;
+package org.elasticsearch.xpack.ml.ltr;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

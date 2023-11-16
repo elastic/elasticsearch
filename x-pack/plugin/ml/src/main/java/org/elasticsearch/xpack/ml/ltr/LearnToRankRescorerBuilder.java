@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.rescorer;
+package org.elasticsearch.xpack.ml.ltr;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
@@ -42,7 +42,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
@@ -60,10 +59,10 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
 
     public static LearnToRankRescorerBuilder fromXContent(
         XContentParser parser,
-        Supplier<ModelLoadingService> modelLoadingServiceSupplier,
-        Supplier<ScriptService> scriptServiceSupplier
+        ModelLoadingService modelLoadingService,
+        ScriptService scriptService
     ) {
-        return PARSER.apply(parser, null).build(modelLoadingServiceSupplier.get(), scriptServiceSupplier.get());
+        return PARSER.apply(parser, null).build(modelLoadingService, scriptService);
     }
 
     private final String modelId;
@@ -103,18 +102,15 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         this.scriptService = null;
     }
 
-    public LearnToRankRescorerBuilder(
-        StreamInput input,
-        Supplier<ModelLoadingService> modelLoadingServiceSupplier,
-        Supplier<ScriptService> scriptServiceSupplier
-    ) throws IOException {
+    public LearnToRankRescorerBuilder(StreamInput input, ModelLoadingService modelLoadingService, ScriptService scriptService)
+        throws IOException {
         super(input);
         this.modelId = input.readString();
         this.params = input.readMap();
         this.learnToRankConfig = input.readOptionalNamedWriteable(LearnToRankConfig.class);
 
-        this.modelLoadingService = modelLoadingServiceSupplier.get();
-        this.scriptService = scriptServiceSupplier.get();
+        this.modelLoadingService = modelLoadingService;
+        this.scriptService = scriptService;
 
         this.localModel = null;
     }

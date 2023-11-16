@@ -153,6 +153,7 @@ public class Grant implements Writeable {
                         RestStatus.BAD_REQUEST
                     );
                 }
+                // here we effectively assume it's an ES access token (from the {@code TokenService})
                 yield new BearerToken(accessToken);
             }
             default -> throw new ElasticsearchSecurityException("the grant type [{}] is not supported", type);

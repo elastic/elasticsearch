@@ -622,6 +622,8 @@ public class LocalExecutionPlanner {
         for (int index = 0; index < inverse.size(); index++) {
             Attribute prev = childOutput.get(index);
             if (prev.name().equals(expandedName)) {
+                // the layout looks the same, but it's actually not:
+                // the new field loses some of the properties of the original one, eg. it could no longer be foldable
                 layout.replace(prev.id(), mvExpandExec.expanded().id());
             }
         }

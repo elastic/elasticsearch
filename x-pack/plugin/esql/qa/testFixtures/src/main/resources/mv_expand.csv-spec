@@ -255,7 +255,7 @@ emp_no:integer  | first_name:keyword | generate_mv:keyword
 
 
 // see https://github.com/elastic/elasticsearch/issues/102120
-expandAfterDuplicateAggs
+expandAfterDuplicateAggs#[skip:-8.11.99]
 row a = 1 |  stats  a = count(*), b = count(*) | mv_expand b;
 
 a:long | b:long 
@@ -263,7 +263,7 @@ a:long | b:long
 ;
 
 
-expandAfterDuplicateAggsAndEval
+expandAfterDuplicateAggsAndEval#[skip:-8.11.99]
 row a = 1 |  stats  a = count(*), b = count(*) | eval c = 2 | mv_expand b;
 
 a:long | b:long | c:integer

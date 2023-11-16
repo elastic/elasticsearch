@@ -108,6 +108,8 @@ public interface Layout {
             int numberOfChannels = 0;
             for (ChannelSet set : channels) {
                 int channel = numberOfChannels++;
+                // the set can be null in case of multiple aggs with the same expression (eg. STATS a = count(*), b = count(*))
+                // This is a specific case of what is described in the comment below
                 if (set != null) {
                     for (NameId id : set.nameIds) {
                         ChannelAndType next = new ChannelAndType(channel, set.type);

@@ -28,7 +28,12 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     public QueryFetchSearchResult(StreamInput in) throws IOException {
         // These get a ref count of 1 when we create them, so we don't need to incRef here
-        this(new QuerySearchResult(in), new FetchSearchResult(in));
+        this.queryResult = new QuerySearchResult(in);
+        this.fetchResult = new FetchSearchResult(in);
+        refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> {
+            queryResult.decRef();
+            fetchResult.decRef();
+        }));
     }
 
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {

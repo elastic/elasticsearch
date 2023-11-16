@@ -103,8 +103,12 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                                 @Override
                                 protected void innerOnResponse(FetchSearchResult response) {
                                     fetchResults.setOnce(response.getShardIndex(), response);
+                                    response.incRef();
                                     if (counter.countDown()) {
                                         sendResponse(reducedQueryPhase, fetchResults);
+                                        for (FetchSearchResult fetchSearchResult : fetchResults.asList()) {
+                                            fetchSearchResult.decRef();
+                                        }
                                     }
                                 }
 

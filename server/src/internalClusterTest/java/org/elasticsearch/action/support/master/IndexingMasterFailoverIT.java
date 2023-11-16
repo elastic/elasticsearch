@@ -97,7 +97,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
 
         ensureGreen("myindex");
         refresh();
-        assertThat(client().prepareSearch("myindex").get().getHits().getTotalHits().value, equalTo(10L));
+        assertThat(prepareSearch("myindex").get().getHits().getTotalHits().value, equalTo(10L));
     }
 
 }

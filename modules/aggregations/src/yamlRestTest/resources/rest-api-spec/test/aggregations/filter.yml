@@ -24,12 +24,7 @@ setup:
 
 ---
 "Terms lookup gets cached":
-  - skip:
-      features: node_selector
-
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         rest_total_hits_as_int: true
         size: 0
@@ -63,8 +58,6 @@ setup:
   - match: { indices.test.total.request_cache.miss_count: 1 }
 
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         rest_total_hits_as_int: true
         size: 0
@@ -99,12 +92,7 @@ setup:
 
 ---
 "Standard queries get cached":
-  - skip:
-      features: node_selector
-
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         rest_total_hits_as_int: true
         size: 0
@@ -137,8 +125,6 @@ setup:
 
   # Try again - it'll cache
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         rest_total_hits_as_int: true
         size: 0

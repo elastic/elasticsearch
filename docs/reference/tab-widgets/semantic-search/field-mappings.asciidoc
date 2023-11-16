@@ -63,9 +63,7 @@ PUT my-index
     "properties": {
       "my_embeddings.predicted_value": { <1>
         "type": "dense_vector", <2>
-        "dims": 384,<3>
-        "index": true,
-        "similarity": "cosine"
+        "dims": 384 <3>
       },
       "my_text_field": { <4>
         "type": "text" <5>

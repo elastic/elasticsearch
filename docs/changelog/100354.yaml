@@ -1,5 +1,0 @@
-pr: 100354
-summary: Search of remote clusters with no shards results in successful status
-area: Search
-type: bug
-issues: []

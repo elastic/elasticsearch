@@ -1,5 +1,7 @@
 ---
 setup:
+  - skip:
+      features: allowed_warnings_regex
   - do:
       indices.create:
         index: networks
@@ -73,6 +75,8 @@ setup:
 "IP strings":
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM events | eval ip_str = to_string(ip) | ENRICH networks-policy ON ip_str | sort @timestamp | KEEP ip, name, department, message'

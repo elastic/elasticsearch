@@ -28,10 +28,14 @@ first. If you cannot repair the repository in this way, first delete all the
 snapshots in the repository taken with version 8.9.0 or later. To do this will
 require using a cluster running version 8.10.0 or later.
 +
-If you wish to downgrade to a version in the 8.9 series, you must take or
-delete a snapshot using a cluster running version 8.11.0 or later to repair the
-repository format first.
+If you wish to downgrade to a version in the 8.9 series, you must take or delete
+a snapshot using a cluster running version 8.11.0 or later to repair the
+repository format first. If you cannot repair the repository in this way, first
+delete all the snapshots in the repository taken with version 8.10.0 or later
+using a cluster running version 8.10.4.
 // end::repositorydata-format-change[]
+
+include::8.7.1.asciidoc[tag=no-preventive-gc-issue]
 
 [[breaking-8.10.0]]
 [float]

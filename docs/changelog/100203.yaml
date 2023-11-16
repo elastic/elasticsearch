@@ -1,5 +1,0 @@
-pr: 100203
-summary: Shutdown the task immediately when `force` == `true`
-area: Transform
-type: bug
-issues: []

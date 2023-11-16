@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
 // TODO: test CRUD operations
@@ -217,26 +217,25 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         AsyncExecutionId id = new AsyncExecutionId("0", new TaskId("N/A", 0));
         AsyncSearchResponse resp = new AsyncSearchResponse(id.getEncoded(), true, true, 0L, 0L);
         {
-            PlainActionFuture<DocWriteResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
             indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             future.get();
             assertSettings();
         }
 
         // Delete the index, so we can test subsequent auto-create behaviour
-        AcknowledgedResponse ack = client().admin().indices().prepareDelete(index).get();
-        assertTrue(ack.isAcknowledged());
+        assertAcked(client().admin().indices().prepareDelete(index));
 
         // Subsequent response deletes throw a (wrapped) index not found exception
         {
-            PlainActionFuture<DeleteResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<DeleteResponse> future = new PlainActionFuture<>();
             indexService.deleteResponse(id, future);
             expectThrows(Exception.class, future::get);
         }
 
         // So do updates
         {
-            PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<UpdateResponse> future = new PlainActionFuture<>();
             indexService.updateResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             expectThrows(Exception.class, future::get);
             assertSettings();
@@ -244,7 +243,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
 
         // And so does updating the expiration time
         {
-            PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<UpdateResponse> future = new PlainActionFuture<>();
             indexService.updateExpirationTime("0", 10L, future);
             expectThrows(Exception.class, future::get);
             assertSettings();
@@ -252,7 +251,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
 
         // But the index is still auto-created
         {
-            PlainActionFuture<DocWriteResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
             indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             future.get();
             assertSettings();

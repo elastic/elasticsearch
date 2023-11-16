@@ -1,0 +1,5 @@
+pr: 102208
+summary: Add static node settings to set default values for max merged segment sizes
+area: Engine
+type: enhancement
+issues: []

@@ -31,12 +31,13 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
         booleans(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        bytesRefs(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        bytesRefs(cases, "mv_count", "MvCount", t -> DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         doubles(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         ints(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         longs(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         unsignedLongs(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        return parameterSuppliersFromTypedData(cases);
+        dateTimes(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, cases)));
     }
 
     @Override

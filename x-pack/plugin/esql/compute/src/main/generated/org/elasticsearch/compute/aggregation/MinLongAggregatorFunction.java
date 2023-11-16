@@ -56,11 +56,7 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    LongBlock block = (LongBlock) uncastBlock;
+    LongBlock block = page.getBlock(channels.get(0));
     LongVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -94,6 +90,10 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    Block uncastBlock = page.getBlock(channels.get(0));
+    if (uncastBlock.areAllValuesNull()) {
+      return;
+    }
     LongVector min = page.<LongBlock>getBlock(channels.get(0)).asVector();
     BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
     assert min.getPositionCount() == 1;

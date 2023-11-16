@@ -9,8 +9,8 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,10 +22,12 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -55,6 +57,7 @@ import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.yamlBuilder;
@@ -98,39 +101,41 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
         BytesReference source = BytesReference.bytes(jsonBuilder().startObject().endObject());
         logger.info("percolating empty doc");
-        SearchResponse response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        });
 
         source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject());
         logger.info("percolating doc with 1 field");
-        response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-        assertThat(response.getHits().getAt(1).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+        assertResponse(
+            prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 2);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+                assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+                assertThat(response.getHits().getAt(1).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+            }
+        );
 
         source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").field("field2", "value").endObject());
         logger.info("percolating doc with 2 fields");
-        response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 3);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-        assertThat(response.getHits().getAt(1).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
-        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
-        assertThat(response.getHits().getAt(2).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
-
+        assertResponse(
+            prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+                assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+                assertThat(response.getHits().getAt(1).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+                assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+                assertThat(response.getHits().getAt(2).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+            }
+        );
         logger.info("percolating doc with 2 fields");
-        response = client().prepareSearch()
-            .setQuery(
+        assertResponse(
+            prepareSearch().setQuery(
                 new PercolateQueryBuilder(
                     "query",
                     Arrays.asList(
@@ -139,16 +144,23 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     ),
                     XContentType.JSON
                 )
-            )
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 3);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0, 1)));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-        assertThat(response.getHits().getAt(1).getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0, 1)));
-        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
-        assertThat(response.getHits().getAt(2).getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(1)));
+            ).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(
+                    response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValues(),
+                    equalTo(Arrays.asList(0, 1))
+                );
+                assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+                assertThat(
+                    response.getHits().getAt(1).getFields().get("_percolator_document_slot").getValues(),
+                    equalTo(Arrays.asList(0, 1))
+                );
+                assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+                assertThat(response.getHits().getAt(2).getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(1)));
+            }
+        );
     }
 
     public void testPercolatorRangeQueries() throws Exception {
@@ -238,46 +250,52 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
         // Test long range:
         BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", 12).endObject());
-        SearchResponse response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
-        logger.info("response={}", response);
-        assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("1"));
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+            logger.info("response={}", response);
+            assertHitCount(response, 2);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
+            assertThat(response.getHits().getAt(1).getId(), equalTo("1"));
+        });
 
         source = BytesReference.bytes(jsonBuilder().startObject().field("field1", 11).endObject());
-        response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        });
         // Test double range:
         source = BytesReference.bytes(jsonBuilder().startObject().field("field2", 12).endObject());
-        response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
-        assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("6"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("4"));
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+            assertHitCount(response, 2);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("6"));
+            assertThat(response.getHits().getAt(1).getId(), equalTo("4"));
+        });
 
         source = BytesReference.bytes(jsonBuilder().startObject().field("field2", 11).endObject());
-        response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("4"));
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("4"));
+        });
 
         // Test IP range:
         source = BytesReference.bytes(jsonBuilder().startObject().field("field3", "192.168.1.5").endObject());
-        response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
-        assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("9"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("7"));
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+            assertHitCount(response, 2);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("9"));
+            assertThat(response.getHits().getAt(1).getId(), equalTo("7"));
+        });
 
         source = BytesReference.bytes(jsonBuilder().startObject().field("field3", "192.168.1.4").endObject());
-        response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("7"));
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("7"));
+        });
 
         // Test date range:
         source = BytesReference.bytes(jsonBuilder().startObject().field("field4", "2016-05-15").endObject());
-        response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("10"));
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("10"));
+        });
     }
 
     public void testPercolatorGeoQueries() throws Exception {
@@ -325,14 +343,15 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         BytesReference source = BytesReference.bytes(
             jsonBuilder().startObject().startObject("field1").field("lat", 52.20).field("lon", 4.51).endObject().endObject()
         );
-        SearchResponse response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 3);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+        assertResponse(
+            prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+                assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+            }
+        );
     }
 
     public void testPercolatorQueryExistingDocument() throws Exception {
@@ -365,30 +384,31 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         indicesAdmin().prepareRefresh().get();
 
         logger.info("percolating empty doc");
-        SearchResponse response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null))
-            .get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)), response -> {
+            assertHitCount(response, 1);
+            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        });
 
         logger.info("percolating doc with 1 field");
-        response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", "test", "5", null, null, null))
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+        assertResponse(
+            prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "5", null, null, null)).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 2);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+            }
+        );
 
         logger.info("percolating doc with 2 fields");
-        response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", "test", "6", null, null, null))
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 3);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+        assertResponse(
+            prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "6", null, null, null)).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+                assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+            }
+        );
     }
 
     public void testPercolatorQueryExistingDocumentSourceDisabled() throws Exception {
@@ -404,7 +424,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
         logger.info("percolating empty doc with source disabled");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)).get();
+            prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)).get();
         });
         assertThat(e.getMessage(), containsString("source disabled"));
     }
@@ -488,17 +508,18 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .field("field2", "the quick brown fox falls down into the well")
                 .endObject()
         );
-        SearchResponse response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 3);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getScore(), equalTo(Float.NaN));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-        assertThat(response.getHits().getAt(1).getScore(), equalTo(Float.NaN));
-        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
-        assertThat(response.getHits().getAt(2).getScore(), equalTo(Float.NaN));
+        assertResponse(
+            prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(0).getScore(), equalTo(Float.NaN));
+                assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+                assertThat(response.getHits().getAt(1).getScore(), equalTo(Float.NaN));
+                assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+                assertThat(response.getHits().getAt(2).getScore(), equalTo(Float.NaN));
+            }
+        );
     }
 
     public void testPercolatorQueryWithHighlighting() throws Exception {
@@ -542,72 +563,74 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         BytesReference document = BytesReference.bytes(
             jsonBuilder().startObject().field("field1", "The quick brown fox jumps over the lazy dog").endObject()
         );
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", document, XContentType.JSON))
-            .highlighter(new HighlightBuilder().field("field1"))
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(searchResponse, 5);
+        assertResponse(
+            prepareSearch().setQuery(new PercolateQueryBuilder("query", document, XContentType.JSON))
+                .highlighter(new HighlightBuilder().field("field1"))
+                .addSort("id", SortOrder.ASC),
+            searchResponse -> {
+                assertHitCount(searchResponse, 5);
 
-        assertThat(
-            searchResponse.getHits().getAt(0).getHighlightFields().get("field1").fragments()[0].string(),
-            equalTo("The quick <em>brown</em> <em>fox</em> jumps over the lazy dog")
-        );
-        assertThat(
-            searchResponse.getHits().getAt(1).getHighlightFields().get("field1").fragments()[0].string(),
-            equalTo("The quick brown fox jumps over the <em>lazy</em> <em>dog</em>")
-        );
-        assertThat(
-            searchResponse.getHits().getAt(2).getHighlightFields().get("field1").fragments()[0].string(),
-            equalTo("The quick brown fox <em>jumps</em> over the lazy dog")
-        );
-        assertThat(
-            searchResponse.getHits().getAt(3).getHighlightFields().get("field1").fragments()[0].string(),
-            equalTo("The quick brown fox jumps over the lazy <em>dog</em>")
-        );
-        assertThat(
-            searchResponse.getHits().getAt(4).getHighlightFields().get("field1").fragments()[0].string(),
-            equalTo("The quick brown <em>fox</em> jumps over the lazy dog")
+                assertThat(
+                    searchResponse.getHits().getAt(0).getHighlightFields().get("field1").fragments()[0].string(),
+                    equalTo("The quick <em>brown</em> <em>fox</em> jumps over the lazy dog")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(1).getHighlightFields().get("field1").fragments()[0].string(),
+                    equalTo("The quick brown fox jumps over the <em>lazy</em> <em>dog</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(2).getHighlightFields().get("field1").fragments()[0].string(),
+                    equalTo("The quick brown fox <em>jumps</em> over the lazy dog")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(3).getHighlightFields().get("field1").fragments()[0].string(),
+                    equalTo("The quick brown fox jumps over the lazy <em>dog</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(4).getHighlightFields().get("field1").fragments()[0].string(),
+                    equalTo("The quick brown <em>fox</em> jumps over the lazy dog")
+                );
+            }
         );
 
         BytesReference document1 = BytesReference.bytes(
             jsonBuilder().startObject().field("field1", "The quick brown fox jumps").endObject()
         );
         BytesReference document2 = BytesReference.bytes(jsonBuilder().startObject().field("field1", "over the lazy dog").endObject());
-        searchResponse = client().prepareSearch()
-            .setQuery(
+        assertResponse(
+            prepareSearch().setQuery(
                 boolQuery().should(new PercolateQueryBuilder("query", document1, XContentType.JSON).setName("query1"))
                     .should(new PercolateQueryBuilder("query", document2, XContentType.JSON).setName("query2"))
-            )
-            .highlighter(new HighlightBuilder().field("field1"))
-            .addSort("id", SortOrder.ASC)
-            .get();
-        logger.info("searchResponse={}", searchResponse);
-        assertHitCount(searchResponse, 5);
+            ).highlighter(new HighlightBuilder().field("field1")).addSort("id", SortOrder.ASC),
+            searchResponse -> {
+                logger.info("searchResponse={}", searchResponse);
+                assertHitCount(searchResponse, 5);
 
-        assertThat(
-            searchResponse.getHits().getAt(0).getHighlightFields().get("query1_field1").fragments()[0].string(),
-            equalTo("The quick <em>brown</em> <em>fox</em> jumps")
-        );
-        assertThat(
-            searchResponse.getHits().getAt(1).getHighlightFields().get("query2_field1").fragments()[0].string(),
-            equalTo("over the <em>lazy</em> <em>dog</em>")
-        );
-        assertThat(
-            searchResponse.getHits().getAt(2).getHighlightFields().get("query1_field1").fragments()[0].string(),
-            equalTo("The quick brown fox <em>jumps</em>")
-        );
-        assertThat(
-            searchResponse.getHits().getAt(3).getHighlightFields().get("query2_field1").fragments()[0].string(),
-            equalTo("over the lazy <em>dog</em>")
-        );
-        assertThat(
-            searchResponse.getHits().getAt(4).getHighlightFields().get("query1_field1").fragments()[0].string(),
-            equalTo("The quick brown <em>fox</em> jumps")
+                assertThat(
+                    searchResponse.getHits().getAt(0).getHighlightFields().get("query1_field1").fragments()[0].string(),
+                    equalTo("The quick <em>brown</em> <em>fox</em> jumps")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(1).getHighlightFields().get("query2_field1").fragments()[0].string(),
+                    equalTo("over the <em>lazy</em> <em>dog</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(2).getHighlightFields().get("query1_field1").fragments()[0].string(),
+                    equalTo("The quick brown fox <em>jumps</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(3).getHighlightFields().get("query2_field1").fragments()[0].string(),
+                    equalTo("over the lazy <em>dog</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(4).getHighlightFields().get("query1_field1").fragments()[0].string(),
+                    equalTo("The quick brown <em>fox</em> jumps")
+                );
+            }
         );
 
-        searchResponse = client().prepareSearch()
-            .setQuery(
+        assertResponse(
+            prepareSearch().setQuery(
                 new PercolateQueryBuilder(
                     "query",
                     Arrays.asList(
@@ -618,50 +641,62 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     ),
                     XContentType.JSON
                 )
-            )
-            .highlighter(new HighlightBuilder().field("field1"))
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(searchResponse, 5);
-        assertThat(
-            searchResponse.getHits().getAt(0).getFields().get("_percolator_document_slot").getValues(),
-            equalTo(Arrays.asList(1, 3))
-        );
-        assertThat(searchResponse.getHits().getAt(0).getHighlightFields().get("1_field1").fragments()[0].string(), equalTo("<em>fox</em>"));
-        assertThat(
-            searchResponse.getHits().getAt(0).getHighlightFields().get("3_field1").fragments()[0].string(),
-            equalTo("<em>brown</em> <em>fox</em>")
-        );
-        assertThat(
-            searchResponse.getHits().getAt(1).getFields().get("_percolator_document_slot").getValues(),
-            equalTo(Collections.singletonList(0))
-        );
-        assertThat(searchResponse.getHits().getAt(1).getHighlightFields().get("0_field1").fragments()[0].string(), equalTo("<em>dog</em>"));
-        assertThat(
-            searchResponse.getHits().getAt(2).getFields().get("_percolator_document_slot").getValues(),
-            equalTo(Collections.singletonList(2))
-        );
-        assertThat(
-            searchResponse.getHits().getAt(2).getHighlightFields().get("2_field1").fragments()[0].string(),
-            equalTo("<em>jumps</em>")
-        );
-        assertThat(
-            searchResponse.getHits().getAt(3).getFields().get("_percolator_document_slot").getValues(),
-            equalTo(Collections.singletonList(0))
-        );
-        assertThat(searchResponse.getHits().getAt(3).getHighlightFields().get("0_field1").fragments()[0].string(), equalTo("<em>dog</em>"));
-        assertThat(
-            searchResponse.getHits().getAt(4).getFields().get("_percolator_document_slot").getValues(),
-            equalTo(Arrays.asList(1, 3))
-        );
-        assertThat(searchResponse.getHits().getAt(4).getHighlightFields().get("1_field1").fragments()[0].string(), equalTo("<em>fox</em>"));
-        assertThat(
-            searchResponse.getHits().getAt(4).getHighlightFields().get("3_field1").fragments()[0].string(),
-            equalTo("brown <em>fox</em>")
+            ).highlighter(new HighlightBuilder().field("field1")).addSort("id", SortOrder.ASC),
+            searchResponse -> {
+                assertHitCount(searchResponse, 5);
+                assertThat(
+                    searchResponse.getHits().getAt(0).getFields().get("_percolator_document_slot").getValues(),
+                    equalTo(Arrays.asList(1, 3))
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(0).getHighlightFields().get("1_field1").fragments()[0].string(),
+                    equalTo("<em>fox</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(0).getHighlightFields().get("3_field1").fragments()[0].string(),
+                    equalTo("<em>brown</em> <em>fox</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(1).getFields().get("_percolator_document_slot").getValues(),
+                    equalTo(Collections.singletonList(0))
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(1).getHighlightFields().get("0_field1").fragments()[0].string(),
+                    equalTo("<em>dog</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(2).getFields().get("_percolator_document_slot").getValues(),
+                    equalTo(Collections.singletonList(2))
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(2).getHighlightFields().get("2_field1").fragments()[0].string(),
+                    equalTo("<em>jumps</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(3).getFields().get("_percolator_document_slot").getValues(),
+                    equalTo(Collections.singletonList(0))
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(3).getHighlightFields().get("0_field1").fragments()[0].string(),
+                    equalTo("<em>dog</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(4).getFields().get("_percolator_document_slot").getValues(),
+                    equalTo(Arrays.asList(1, 3))
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(4).getHighlightFields().get("1_field1").fragments()[0].string(),
+                    equalTo("<em>fox</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(4).getHighlightFields().get("3_field1").fragments()[0].string(),
+                    equalTo("brown <em>fox</em>")
+                );
+            }
         );
 
-        searchResponse = client().prepareSearch()
-            .setQuery(
+        assertResponse(
+            prepareSearch().setQuery(
                 boolQuery().should(
                     new PercolateQueryBuilder(
                         "query",
@@ -682,71 +717,71 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                             XContentType.JSON
                         ).setName("query2")
                     )
-            )
-            .highlighter(new HighlightBuilder().field("field1"))
-            .addSort("id", SortOrder.ASC)
-            .get();
-        logger.info("searchResponse={}", searchResponse);
-        assertHitCount(searchResponse, 5);
-        assertThat(
-            searchResponse.getHits().getAt(0).getFields().get("_percolator_document_slot_query1").getValues(),
-            equalTo(Collections.singletonList(1))
-        );
-        assertThat(
-            searchResponse.getHits().getAt(0).getFields().get("_percolator_document_slot_query2").getValues(),
-            equalTo(Collections.singletonList(1))
-        );
-        assertThat(
-            searchResponse.getHits().getAt(0).getHighlightFields().get("query1_1_field1").fragments()[0].string(),
-            equalTo("<em>fox</em>")
-        );
-        assertThat(
-            searchResponse.getHits().getAt(0).getHighlightFields().get("query2_1_field1").fragments()[0].string(),
-            equalTo("<em>brown</em> <em>fox</em>")
-        );
+            ).highlighter(new HighlightBuilder().field("field1")).addSort("id", SortOrder.ASC),
+            searchResponse -> {
+                logger.info("searchResponse={}", searchResponse);
+                assertHitCount(searchResponse, 5);
+                assertThat(
+                    searchResponse.getHits().getAt(0).getFields().get("_percolator_document_slot_query1").getValues(),
+                    equalTo(Collections.singletonList(1))
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(0).getFields().get("_percolator_document_slot_query2").getValues(),
+                    equalTo(Collections.singletonList(1))
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(0).getHighlightFields().get("query1_1_field1").fragments()[0].string(),
+                    equalTo("<em>fox</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(0).getHighlightFields().get("query2_1_field1").fragments()[0].string(),
+                    equalTo("<em>brown</em> <em>fox</em>")
+                );
 
-        assertThat(
-            searchResponse.getHits().getAt(1).getFields().get("_percolator_document_slot_query1").getValues(),
-            equalTo(Collections.singletonList(0))
-        );
-        assertThat(
-            searchResponse.getHits().getAt(1).getHighlightFields().get("query1_0_field1").fragments()[0].string(),
-            equalTo("<em>dog</em>")
-        );
+                assertThat(
+                    searchResponse.getHits().getAt(1).getFields().get("_percolator_document_slot_query1").getValues(),
+                    equalTo(Collections.singletonList(0))
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(1).getHighlightFields().get("query1_0_field1").fragments()[0].string(),
+                    equalTo("<em>dog</em>")
+                );
 
-        assertThat(
-            searchResponse.getHits().getAt(2).getFields().get("_percolator_document_slot_query2").getValues(),
-            equalTo(Collections.singletonList(0))
-        );
-        assertThat(
-            searchResponse.getHits().getAt(2).getHighlightFields().get("query2_0_field1").fragments()[0].string(),
-            equalTo("<em>jumps</em>")
-        );
+                assertThat(
+                    searchResponse.getHits().getAt(2).getFields().get("_percolator_document_slot_query2").getValues(),
+                    equalTo(Collections.singletonList(0))
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(2).getHighlightFields().get("query2_0_field1").fragments()[0].string(),
+                    equalTo("<em>jumps</em>")
+                );
 
-        assertThat(
-            searchResponse.getHits().getAt(3).getFields().get("_percolator_document_slot_query1").getValues(),
-            equalTo(Collections.singletonList(0))
-        );
-        assertThat(
-            searchResponse.getHits().getAt(3).getHighlightFields().get("query1_0_field1").fragments()[0].string(),
-            equalTo("<em>dog</em>")
-        );
+                assertThat(
+                    searchResponse.getHits().getAt(3).getFields().get("_percolator_document_slot_query1").getValues(),
+                    equalTo(Collections.singletonList(0))
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(3).getHighlightFields().get("query1_0_field1").fragments()[0].string(),
+                    equalTo("<em>dog</em>")
+                );
 
-        assertThat(
-            searchResponse.getHits().getAt(4).getFields().get("_percolator_document_slot_query1").getValues(),
-            equalTo(Collections.singletonList(1))
-        );
-        assertThat(
-            searchResponse.getHits().getAt(4).getFields().get("_percolator_document_slot_query2").getValues(),
-            equalTo(Collections.singletonList(1))
-        );
-        assertThat(
-            searchResponse.getHits().getAt(4).getHighlightFields().get("query1_1_field1").fragments()[0].string(),
-            equalTo("<em>fox</em>")
-        );
-        assertThat(
-            searchResponse.getHits().getAt(4).getHighlightFields().get("query2_1_field1").fragments()[0].string(),
-            equalTo("brown <em>fox</em>")
+                assertThat(
+                    searchResponse.getHits().getAt(4).getFields().get("_percolator_document_slot_query1").getValues(),
+                    equalTo(Collections.singletonList(1))
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(4).getFields().get("_percolator_document_slot_query2").getValues(),
+                    equalTo(Collections.singletonList(1))
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(4).getHighlightFields().get("query1_1_field1").fragments()[0].string(),
+                    equalTo("<em>fox</em>")
+                );
+                assertThat(
+                    searchResponse.getHits().getAt(4).getHighlightFields().get("query2_1_field1").fragments()[0].string(),
+                    equalTo("brown <em>fox</em>")
+                );
+            }
         );
     }
 
@@ -764,11 +799,15 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .get();
         indicesAdmin().prepareRefresh().get();
 
-        SearchResponse response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", new BytesArray("{\"field\" : [\"brown\", \"fox\"]}"), XContentType.JSON))
-            .get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+        assertResponse(
+            prepareSearch().setQuery(
+                new PercolateQueryBuilder("query", new BytesArray("{\"field\" : [\"brown\", \"fox\"]}"), XContentType.JSON)
+            ),
+            response -> {
+                assertHitCount(response, 1);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+            }
+        );
     }
 
     public void testManyPercolatorFields() throws Exception {
@@ -846,21 +885,24 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         indicesAdmin().prepareRefresh().get();
 
         BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field", "value").endObject());
-        SearchResponse response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder(queryFieldName, source, XContentType.JSON))
-            .setIndices("test1")
-            .get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getIndex(), equalTo("test1"));
+        assertResponse(
+            prepareSearch().setQuery(new PercolateQueryBuilder(queryFieldName, source, XContentType.JSON)).setIndices("test1"),
+            response -> {
+                assertHitCount(response, 1);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(0).getIndex(), equalTo("test1"));
+            }
+        );
 
-        response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("object_field." + queryFieldName, source, XContentType.JSON))
-            .setIndices("test2")
-            .get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getIndex(), equalTo("test2"));
+        assertResponse(
+            prepareSearch().setQuery(new PercolateQueryBuilder("object_field." + queryFieldName, source, XContentType.JSON))
+                .setIndices("test2"),
+            response -> {
+                assertHitCount(response, 1);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(0).getIndex(), equalTo("test2"));
+            }
+        );
 
         // Unacceptable:
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> {
@@ -942,8 +984,8 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .get();
         indicesAdmin().prepareRefresh().get();
 
-        SearchResponse response = client().prepareSearch()
-            .setQuery(
+        assertResponse(
+            prepareSearch().setQuery(
                 new PercolateQueryBuilder(
                     "query",
                     BytesReference.bytes(
@@ -962,15 +1004,16 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     ),
                     XContentType.JSON
                 )
-            )
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("q1"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("q3"));
+            ).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 2);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("q1"));
+                assertThat(response.getHits().getAt(1).getId(), equalTo("q3"));
+            }
+        );
 
-        response = client().prepareSearch()
-            .setQuery(
+        assertResponse(
+            prepareSearch().setQuery(
                 new PercolateQueryBuilder(
                     "query",
                     BytesReference.bytes(
@@ -989,27 +1032,29 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     ),
                     XContentType.JSON
                 )
-            )
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("q3"));
+            ).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 1);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("q3"));
+            }
+        );
 
-        response = client().prepareSearch()
-            .setQuery(
+        assertResponse(
+            prepareSearch().setQuery(
                 new PercolateQueryBuilder(
                     "query",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("companyname", "notstark").endObject()),
                     XContentType.JSON
                 )
-            )
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("q3"));
+            ).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 1);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("q3"));
+            }
+        );
 
-        response = client().prepareSearch()
-            .setQuery(
+        assertResponse(
+            prepareSearch().setQuery(
                 new PercolateQueryBuilder(
                     "query",
                     Arrays.asList(
@@ -1055,14 +1100,21 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     ),
                     XContentType.JSON
                 )
-            )
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("q1"));
-        assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0, 1)));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("q3"));
-        assertThat(response.getHits().getAt(1).getFields().get("_percolator_document_slot").getValues(), equalTo(Arrays.asList(0, 1, 2)));
+            ).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 2);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("q1"));
+                assertThat(
+                    response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValues(),
+                    equalTo(Arrays.asList(0, 1))
+                );
+                assertThat(response.getHits().getAt(1).getId(), equalTo("q3"));
+                assertThat(
+                    response.getHits().getAt(1).getFields().get("_percolator_document_slot").getValues(),
+                    equalTo(Arrays.asList(0, 1, 2))
+                );
+            }
+        );
     }
 
     public void testPercolatorQueryViaMultiSearch() throws Exception {
@@ -1101,48 +1153,44 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
         MultiSearchResponse response = client().prepareMultiSearch()
             .add(
-                client().prepareSearch("test")
-                    .setQuery(
-                        new PercolateQueryBuilder(
-                            "query",
-                            BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
-                            XContentType.JSON
-                        )
+                prepareSearch("test").setQuery(
+                    new PercolateQueryBuilder(
+                        "query",
+                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
+                        XContentType.JSON
                     )
+                )
             )
             .add(
-                client().prepareSearch("test")
-                    .setQuery(
-                        new PercolateQueryBuilder(
-                            "query",
-                            BytesReference.bytes(yamlBuilder().startObject().field("field1", "c").endObject()),
-                            XContentType.YAML
-                        )
+                prepareSearch("test").setQuery(
+                    new PercolateQueryBuilder(
+                        "query",
+                        BytesReference.bytes(yamlBuilder().startObject().field("field1", "c").endObject()),
+                        XContentType.YAML
                     )
+                )
             )
             .add(
-                client().prepareSearch("test")
-                    .setQuery(
-                        new PercolateQueryBuilder(
-                            "query",
-                            BytesReference.bytes(jsonBuilder().startObject().field("field1", "b c").endObject()),
-                            XContentType.JSON
-                        )
+                prepareSearch("test").setQuery(
+                    new PercolateQueryBuilder(
+                        "query",
+                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "b c").endObject()),
+                        XContentType.JSON
                     )
+                )
             )
             .add(
-                client().prepareSearch("test")
-                    .setQuery(
-                        new PercolateQueryBuilder(
-                            "query",
-                            BytesReference.bytes(jsonBuilder().startObject().field("field1", "d").endObject()),
-                            XContentType.JSON
-                        )
+                prepareSearch("test").setQuery(
+                    new PercolateQueryBuilder(
+                        "query",
+                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "d").endObject()),
+                        XContentType.JSON
                     )
+                )
             )
-            .add(client().prepareSearch("test").setQuery(new PercolateQueryBuilder("query", "test", "5", null, null, null)))
+            .add(prepareSearch("test").setQuery(new PercolateQueryBuilder("query", "test", "5", null, null, null)))
             .add(
-                client().prepareSearch("test") // non existing doc, so error element
+                prepareSearch("test") // non existing doc, so error element
                     .setQuery(new PercolateQueryBuilder("query", "test", "6", null, null, null))
             )
             .get();
@@ -1192,19 +1240,18 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
             // Execute with search.allow_expensive_queries = null => default value = false => success
             BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject());
-            SearchResponse response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
-                .get();
-            assertHitCount(response, 1);
-            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-            assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+            assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+                assertHitCount(response, 1);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+            });
 
             // Set search.allow_expensive_queries to "false" => assert failure
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", false));
 
             ElasticsearchException e = expectThrows(
                 ElasticsearchException.class,
-                () -> client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get()
+                () -> prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get()
             );
             assertEquals(
                 "[percolate] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
@@ -1214,10 +1261,11 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             // Set search.allow_expensive_queries setting to "true" ==> success
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", true));
 
-            response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
-            assertHitCount(response, 1);
-            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-            assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+            assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+                assertHitCount(response, 1);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
+            });
         } finally {
             updateClusterSettings(Settings.builder().putNull("search.allow_expensive_queries"));
         }
@@ -1241,31 +1289,30 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(
+        assertHitCount(
+            prepareSearch("test").setQuery(
                 new PercolateQueryBuilder(
                     "q",
                     BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
                     XContentType.JSON
                 )
-            )
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+            ),
+            1
+        );
 
-        response = client().prepareSearch("test")
-            .setQuery(
+        assertHitCount(
+            prepareSearch("test").setQuery(
                 new PercolateQueryBuilder(
                     "q",
                     BytesReference.bytes(jsonBuilder().startObject().field("d", "2020-02-01T15:00:00.000+11:00").endObject()),
                     XContentType.JSON
                 )
-            )
-            .addSort("_doc", SortOrder.ASC)
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+            ).addSort("_doc", SortOrder.ASC),
+            1
+        );
 
-        response = client().prepareSearch("test")
-            .setQuery(
+        assertHitCount(
+            prepareSearch("test").setQuery(
                 constantScoreQuery(
                     new PercolateQueryBuilder(
                         "q",
@@ -1273,10 +1320,9 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                         XContentType.JSON
                     )
                 )
-            )
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
-
+            ),
+            1
+        );
     }
 
     public void testWithWildcardFieldNames() throws Exception {
@@ -1310,48 +1356,78 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .execute()
             .actionGet();
 
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(
+        assertHitCount(
+            prepareSearch("test").setQuery(
                 new PercolateQueryBuilder(
                     "q_simple",
                     BytesReference.bytes(jsonBuilder().startObject().field("text_1", "yada").endObject()),
                     XContentType.JSON
                 )
-            )
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+            ),
+            1
+        );
 
-        response = client().prepareSearch("test")
-            .setQuery(
+        assertHitCount(
+            prepareSearch("test").setQuery(
                 new PercolateQueryBuilder(
                     "q_string",
                     BytesReference.bytes(jsonBuilder().startObject().field("text_1", "yada").endObject()),
                     XContentType.JSON
                 )
-            )
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+            ),
+            1
+        );
 
-        response = client().prepareSearch("test")
-            .setQuery(
+        assertHitCount(
+            prepareSearch("test").setQuery(
                 new PercolateQueryBuilder(
                     "q_match",
                     BytesReference.bytes(jsonBuilder().startObject().field("text_1", "yada").endObject()),
                     XContentType.JSON
                 )
-            )
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+            ),
+            1
+        );
 
-        response = client().prepareSearch("test")
-            .setQuery(
+        assertHitCount(
+            prepareSearch("test").setQuery(
                 new PercolateQueryBuilder(
                     "q_combo",
                     BytesReference.bytes(jsonBuilder().startObject().field("text_1", "yada").endObject()),
                     XContentType.JSON
                 )
-            )
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+            ),
+            1
+        );
     }
+
+    public void testKnnQueryNotSupportedInPercolator() throws IOException {
+        String mappings = org.elasticsearch.common.Strings.format("""
+            {
+              "properties": {
+                "my_query" : {
+                  "type" : "percolator"
+                },
+                "my_vector" : {
+                  "type" : "dense_vector",
+                  "dims" : 5,
+                  "index" : true,
+                  "similarity" : "l2_norm"
+                }
+
+              }
+            }
+            """);
+        indicesAdmin().prepareCreate("index1").setMapping(mappings).get();
+        ensureGreen();
+        QueryBuilder knnVectorQueryBuilder = new KnnVectorQueryBuilder("my_vector", new float[] { 1, 1, 1, 1, 1 }, 10, null);
+
+        IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index1")
+            .setId("knn_query1")
+            .setSource(jsonBuilder().startObject().field("my_query", knnVectorQueryBuilder).endObject());
+
+        DocumentParsingException exception = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get());
+        assertThat(exception.getMessage(), containsString("the [knn] query is unsupported inside a percolator"));
+    }
+
 }

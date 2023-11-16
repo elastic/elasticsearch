@@ -1,3 +1,7 @@
+setup:
+  - skip:
+      features: allowed_warnings_regex
+
 ---
 disjoint_mappings:
   - do:
@@ -40,6 +44,8 @@ disjoint_mappings:
           - { "message2": 2 }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1'
@@ -82,6 +88,8 @@ disjoint_mappings:
   - match: { values.0.1: null }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1, message2'
@@ -147,6 +155,8 @@ disjoint_mappings:
   - match: { values.1.1: null }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1 nulls first, message2'
@@ -165,6 +175,8 @@ disjoint_mappings:
   - match: { values.3.1: null }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1 nulls first, message2 nulls first'
@@ -183,6 +195,8 @@ disjoint_mappings:
   - match: { values.3.1: null }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test1,test2 | keep message1, message2 | sort message1 desc nulls first, message2 desc nulls first'
@@ -201,6 +215,8 @@ disjoint_mappings:
   - match: { values.3.1: null }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test1,test2 | where message1 == "foo1" | keep message1, message2 | sort message1, message2'
@@ -213,6 +229,8 @@ disjoint_mappings:
   - match: { values.0.1: null }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test1,test2 | where message1 == "foo1" or message2 == 2 | keep message1, message2 | sort message1, message2'
@@ -227,6 +245,8 @@ disjoint_mappings:
   - match: { values.1.1: 2 }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test1,test2 | stats x = max(message2)'
@@ -236,6 +256,8 @@ disjoint_mappings:
   - match: { values.0.0: 2 }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test1,test2 | sort message1, message2 | eval x = message1, y = message2 + 1 | keep message1, message2, x, y'
@@ -311,6 +333,7 @@ same_name_different_type:
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test1,test2  '
@@ -360,6 +383,8 @@ same_name_different_type_same_family:
           - { "message": "foo4" }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test1,test2 | sort message | keep message'

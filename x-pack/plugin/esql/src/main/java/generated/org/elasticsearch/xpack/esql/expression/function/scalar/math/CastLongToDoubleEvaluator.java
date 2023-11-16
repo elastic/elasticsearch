@@ -34,9 +34,6 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock vBlock = (LongBlock) vRef.block();
       LongVector vVector = vBlock.asVector();
       if (vVector == null) {
@@ -47,7 +44,7 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
   }
 
   public DoubleBlock eval(int positionCount, LongBlock vBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -60,7 +57,7 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
   }
 
   public DoubleVector eval(int positionCount, LongVector vVector) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Cast.castLongToDouble(vVector.getLong(p)));
       }
@@ -76,5 +73,23 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+      this.v = v;
+    }
+
+    @Override
+    public CastLongToDoubleEvaluator get(DriverContext context) {
+      return new CastLongToDoubleEvaluator(v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "CastLongToDoubleEvaluator[" + "v=" + v + "]";
+    }
   }
 }

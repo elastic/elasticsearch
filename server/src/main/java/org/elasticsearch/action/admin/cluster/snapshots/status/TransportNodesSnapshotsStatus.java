@@ -95,15 +95,15 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         try {
             final String nodeId = clusterService.localNode().getId();
             for (Snapshot snapshot : request.snapshots) {
-                Map<ShardId, IndexShardSnapshotStatus> shardsStatus = snapshotShardsService.currentSnapshotShards(snapshot);
+                final var shardsStatus = snapshotShardsService.currentSnapshotShards(snapshot);
                 if (shardsStatus == null) {
                     continue;
                 }
                 Map<ShardId, SnapshotIndexShardStatus> shardMapBuilder = new HashMap<>();
-                for (Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : shardsStatus.entrySet()) {
+                for (final var shardEntry : shardsStatus.entrySet()) {
                     final ShardId shardId = shardEntry.getKey();
 
-                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardEntry.getValue().asCopy();
+                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardEntry.getValue();
                     final IndexShardSnapshotStatus.Stage stage = lastSnapshotStatus.getStage();
 
                     String shardNodeId = null;

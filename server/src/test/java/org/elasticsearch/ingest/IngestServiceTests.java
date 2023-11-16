@@ -23,6 +23,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
@@ -1573,9 +1574,13 @@ public class IngestServiceTests extends ESTestCase {
 
         logger.info("Using [{}], not randomly determined default [{}]", xContentType, Requests.INDEX_CONTENT_TYPE);
         int numRequest = scaledRandomIntBetween(8, 64);
+        List<Boolean> executedPipelinesExpected = new ArrayList<>();
         for (int i = 0; i < numRequest; i++) {
             IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
             indexRequest.source(xContentType, "field1", "value1");
+            boolean shouldListExecutedPiplines = randomBoolean();
+            executedPipelinesExpected.add(shouldListExecutedPiplines);
+            indexRequest.setListExecutedPipelines(shouldListExecutedPiplines);
             bulkRequest.add(indexRequest);
         }
 
@@ -1614,10 +1619,18 @@ public class IngestServiceTests extends ESTestCase {
 
         verify(requestItemErrorHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
-        for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests()) {
+        for (int i = 0; i < bulkRequest.requests().size(); i++) {
+            DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(i);
             IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(docWriteRequest);
             assertThat(indexRequest, notNullValue());
             assertThat(indexRequest.getContentType(), equalTo(xContentType.canonical()));
+            if (executedPipelinesExpected.get(i)) {
+                assertThat(indexRequest.getExecutedPipelines(), equalTo(List.of(pipelineId)));
+            } else if (indexRequest.getListExecutedPipelines()) {
+                assertThat(indexRequest.getExecutedPipelines(), equalTo(List.of()));
+            } else {
+                assertThat(indexRequest.getExecutedPipelines(), nullValue());
+            }
         }
     }
 
@@ -2592,12 +2605,32 @@ public class IngestServiceTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        return new IngestService(mock(ClusterService.class), threadPool, null, null, null, List.of(new IngestPlugin() {
-            @Override
-            public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
-                return processors;
-            }
-        }), client, null, documentParsingObserverSupplier);
+        IngestService ingestService = new IngestService(
+            mock(ClusterService.class),
+            threadPool,
+            null,
+            null,
+            null,
+            List.of(new IngestPlugin() {
+                @Override
+                public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
+                    return processors;
+                }
+            }),
+            client,
+            null,
+            documentParsingObserverSupplier
+        );
+        if (randomBoolean()) {
+            /*
+             * Testing the copy constructor directly is difficult because there is no equals() method in IngestService, but there is a lot
+             * of private internal state. Here we use the copy constructor half the time in all of the unit tests, with the assumption that
+             * if none of our tests observe any difference then the copy constructor is working as expected.
+             */
+            return new IngestService(ingestService);
+        } else {
+            return ingestService;
+        }
     }
 
     private CompoundProcessor mockCompoundProcessor() {
@@ -2652,7 +2685,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(DeletePipelineRequest request) {
-        return List.of(new IngestService.DeletePipelineClusterStateUpdateTask(ActionListener.running(() -> fail("not called")), request));
+        return List.of(new IngestService.DeletePipelineClusterStateUpdateTask(ActionTestUtils.assertNoFailureListener(t -> {}), request));
     }
 
     private static ClusterState executeDelete(DeletePipelineRequest request, ClusterState clusterState) {
@@ -2668,7 +2701,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(PutPipelineRequest request) {
-        return List.of(new IngestService.PutPipelineClusterStateUpdateTask(ActionListener.running(() -> fail("not called")), request));
+        return List.of(new IngestService.PutPipelineClusterStateUpdateTask(ActionTestUtils.assertNoFailureListener(t -> {}), request));
     }
 
     private static ClusterState executePut(PutPipelineRequest request, ClusterState clusterState) {

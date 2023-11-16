@@ -71,13 +71,6 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     /**
-     * Gets the lag to use when calculating the serial difference.
-     */
-    public int lag() {
-        return lag;
-    }
-
-    /**
      * Sets the format to use on the output of this aggregation.
      */
     public SerialDiffPipelineAggregationBuilder format(String format) {
@@ -89,13 +82,6 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     /**
-     * Gets the format to use on the output of this aggregation.
-     */
-    public String format() {
-        return format;
-    }
-
-    /**
      * Sets the GapPolicy to use on the output of this aggregation.
      */
     public SerialDiffPipelineAggregationBuilder gapPolicy(GapPolicy gapPolicy) {
@@ -104,13 +90,6 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
         }
         this.gapPolicy = gapPolicy;
         return this;
-    }
-
-    /**
-     * Gets the GapPolicy to use on the output of this aggregation.
-     */
-    public GapPolicy gapPolicy() {
-        return gapPolicy;
     }
 
     protected DocValueFormat formatter() {

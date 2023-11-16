@@ -17,14 +17,7 @@ import java.io.IOException;
 //TODO public for tests
 public abstract class CandidateGenerator {
 
-    public abstract boolean isKnownWord(BytesRef term) throws IOException;
-
     public abstract TermStats termStats(BytesRef term) throws IOException;
-
-    public CandidateSet drawCandidates(BytesRef term) throws IOException {
-        CandidateSet set = new CandidateSet(Candidate.EMPTY, createCandidate(term, true));
-        return drawCandidates(set);
-    }
 
     public Candidate createCandidate(BytesRef term, boolean userInput) throws IOException {
         return createCandidate(term, termStats(term), 1.0, userInput);

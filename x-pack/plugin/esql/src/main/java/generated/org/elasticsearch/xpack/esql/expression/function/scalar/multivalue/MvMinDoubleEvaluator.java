@@ -40,7 +40,7 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           if (valueCount == 0) {
@@ -73,7 +73,7 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+      try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           int first = v.getFirstValueIndex(p);
@@ -98,7 +98,7 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           if (valueCount == 0) {
@@ -122,7 +122,7 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+      try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           int first = v.getFirstValueIndex(p);
@@ -132,6 +132,24 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
         }
         return Block.Ref.floating(builder.build().asBlock());
       }
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMinDoubleEvaluator get(DriverContext context) {
+      return new MvMinDoubleEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMin[field=" + field + "]";
     }
   }
 }

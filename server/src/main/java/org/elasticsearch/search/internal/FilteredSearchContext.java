@@ -175,11 +175,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFetchSourceContext() {
-        return in.hasFetchSourceContext();
-    }
-
-    @Override
     public FetchSourceContext fetchSourceContext() {
         return in.fetchSourceContext();
     }

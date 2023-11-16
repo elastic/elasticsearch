@@ -263,6 +263,18 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         }
     }
 
+    public void testBlockLoader() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                LongScriptFieldType fieldType = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
+                assertThat(blockLoaderReadValues(reader, fieldType), equalTo(List.of(2L, 3L)));
+                assertThat(blockLoaderReadValuesFromSingleDoc(reader, fieldType), equalTo(List.of(2L, 3L)));
+            }
+        }
+    }
+
     @Override
     protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termsQuery(List.of(randomLong()), ctx);

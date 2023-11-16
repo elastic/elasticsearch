@@ -30,6 +30,9 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -301,6 +304,19 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 hi = Math.round(Math.floor(dValue));
             }
             return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, isIndexed());
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
+                // Counters are not supported by ESQL so we load them in null
+                return BlockDocValuesReader.nulls();
+            }
+            if (hasDocValues()) {
+                double scalingFactorInverse = 1d / scalingFactor;
+                return BlockDocValuesReader.doubles(name(), l -> l * scalingFactorInverse);
+            }
+            return BlockSourceReader.doubles(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

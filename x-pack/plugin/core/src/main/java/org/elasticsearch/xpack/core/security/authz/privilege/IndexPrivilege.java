@@ -80,17 +80,23 @@ public final class IndexPrivilege extends Privilege {
         ClusterSearchShardsAction.NAME,
         SearchShardsAction.NAME
     );
-    private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*");
+    private static final Automaton CREATE_AUTOMATON = patterns(
+        "indices:data/write/index*",
+        "indices:data/write/bulk*",
+        "indices:data/write/simulate/bulk*"
+    );
     private static final Automaton CREATE_DOC_AUTOMATON = patterns(
         "indices:data/write/index",
         "indices:data/write/index[*",
         "indices:data/write/index:op_type/create",
-        "indices:data/write/bulk*"
+        "indices:data/write/bulk*",
+        "indices:data/write/simulate/bulk*"
     );
     private static final Automaton INDEX_AUTOMATON = patterns(
         "indices:data/write/index*",
         "indices:data/write/bulk*",
-        "indices:data/write/update*"
+        "indices:data/write/update*",
+        "indices:data/write/simulate/bulk*"
     );
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", AutoPutMappingAction.NAME);

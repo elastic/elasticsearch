@@ -55,6 +55,7 @@ public class SubSearchContext extends FilteredSearchContext {
 
     public SubSearchContext(SearchContext context) {
         super(context);
+        context.addReleasable(this);
         this.fetchSearchResult = new FetchSearchResult();
         this.querySearchResult = new QuerySearchResult();
     }
@@ -103,11 +104,6 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public boolean sourceRequested() {
         return fetchSourceContext != null && fetchSourceContext.fetchSource();
-    }
-
-    @Override
-    public boolean hasFetchSourceContext() {
-        return fetchSourceContext != null;
     }
 
     @Override

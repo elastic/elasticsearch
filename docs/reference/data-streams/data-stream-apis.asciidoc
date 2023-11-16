@@ -15,6 +15,8 @@ The following APIs are available for managing <<data-streams,data streams>>:
 [[data-stream-lifecycle-api]]
 The following APIs are available for managing the built-in lifecycle of data streams:
 
+preview::[]
+
 * <<data-streams-put-lifecycle,Update data stream lifecycle>> 
 preview:[]
 * <<data-streams-get-lifecycle,Get data stream lifecycle>> 

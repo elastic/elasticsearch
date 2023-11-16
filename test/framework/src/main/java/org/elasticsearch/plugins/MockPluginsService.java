@@ -10,7 +10,7 @@ package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -55,7 +55,7 @@ public class MockPluginsService extends PluginsService {
                 pluginClass.getName(),
                 "classpath plugin",
                 "NA",
-                Version.CURRENT,
+                Build.current().version(),
                 Integer.toString(Runtime.version().feature()),
                 pluginClass.getName(),
                 null,

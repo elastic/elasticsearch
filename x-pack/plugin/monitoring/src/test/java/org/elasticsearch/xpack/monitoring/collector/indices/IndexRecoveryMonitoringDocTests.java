@@ -22,6 +22,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -100,7 +101,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
             .version(
                 new VersionInformation(
                     Version.CURRENT.minimumCompatibilityVersion(),
-                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersion.current()
                 )
             )

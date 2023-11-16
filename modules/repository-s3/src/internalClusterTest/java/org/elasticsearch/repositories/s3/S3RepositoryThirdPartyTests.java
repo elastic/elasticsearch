@@ -29,7 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,6 +68,26 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     }
 
     @Override
+    protected Settings nodeSettings() {
+        final var settings = Settings.builder().put(super.nodeSettings());
+        if (randomBoolean()) {
+            final var defaultMillis = S3Service.REPOSITORY_S3_CAS_TTL_SETTING.get(Settings.EMPTY).millis();
+            settings.put(
+                S3Service.REPOSITORY_S3_CAS_TTL_SETTING.getKey(),
+                TimeValue.timeValueMillis(randomLongBetween(defaultMillis, defaultMillis * 2))
+            );
+        }
+        if (randomBoolean()) {
+            final var defaultMillis = S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(Settings.EMPTY).millis();
+            settings.put(
+                S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.getKey(),
+                TimeValue.timeValueMillis(randomLongBetween(defaultMillis, defaultMillis * 2))
+            );
+        }
+        return settings.build();
+    }
+
+    @Override
     protected void createRepository(String repoName) {
         Settings.Builder settings = Settings.builder()
             .put("bucket", System.getProperty("test.s3.bucket"))
@@ -89,7 +109,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
-        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(repoName)
             .setType("s3")
             .setSettings(settings)
             .get();
@@ -109,11 +129,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             var repository = new S3Repository(
                 node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata(),
                 xContentRegistry(),
-                node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).get(0).getService(),
+                node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).findFirst().get().getService(),
                 ClusterServiceUtils.createClusterService(threadpool),
                 BigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(node().settings(), node().injector().getInstance(ClusterService.class).getClusterSettings()),
-                Meter.NOOP
+                MeterRegistry.NOOP
             )
         ) {
             repository.start();

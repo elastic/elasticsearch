@@ -5,8 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'Ingest processor that extracts information from a user agent'
@@ -17,10 +17,6 @@ restResources {
   restApi {
     include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
   }
-}
-
-testClusters.configureEach {
-  extraConfigFile 'ingest-user-agent/test-regexes.yml', file('src/test/test-regexes.yml')
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure {task ->

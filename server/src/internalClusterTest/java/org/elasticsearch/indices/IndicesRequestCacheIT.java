@@ -35,7 +35,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHist
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -48,7 +48,6 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("index")
                 .setMapping("f", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                .get()
         );
         indexRandom(
             true,
@@ -67,7 +66,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 dateHistogram("histo").field("f").timeZone(ZoneId.of("+01:00")).minDocCount(0).calendarInterval(DateHistogramInterval.MONTH)
             )
             .get();
-        assertSearchResponse(r1);
+        assertNoFailures(r1);
 
         // The cached is actually used
         assertThat(
@@ -86,7 +85,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                         .calendarInterval(DateHistogramInterval.MONTH)
                 )
                 .get();
-            assertSearchResponse(r2);
+            assertNoFailures(r2);
             Histogram h1 = r1.getAggregations().get("histo");
             Histogram h2 = r2.getAggregations().get("histo");
             final List<? extends Bucket> buckets1 = h1.getBuckets();
@@ -110,7 +109,6 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                     indexSettings(5, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
                         .put("index.number_of_routing_shards", 5)
                 )
-                .get()
         );
         indexRandom(
             true,
@@ -173,7 +171,6 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("index")
                 .setMapping("s", "type=date")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                .get()
         );
         indexRandom(
             true,
@@ -232,7 +229,6 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("index")
                 .setMapping("d", "type=date")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                .get()
         );
         indexRandom(
             true,
@@ -470,7 +466,6 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setMapping("created_at", "type=date")
                 .setSettings(settings)
                 .addAlias(new Alias("last_week").filter(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")))
-                .get()
         );
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         client.prepareIndex("index").setId("1").setRouting("1").setSource("created_at", DateTimeFormatter.ISO_LOCAL_DATE.format(now)).get();
@@ -516,7 +511,6 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("index")
                 .setMapping("k", "type=keyword")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                .get()
         );
         indexRandom(true, client.prepareIndex("index").setSource("k", "hello"));
         ensureSearchable("index");
@@ -530,7 +524,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setProfile(profile)
                 .setQuery(QueryBuilders.termQuery("k", "hello"))
                 .get();
-            assertSearchResponse(resp);
+            assertNoFailures(resp);
             ElasticsearchAssertions.assertAllSuccessful(resp);
             assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
             if (profile == false) {

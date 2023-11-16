@@ -33,6 +33,13 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
     private final ServiceSettings serviceSettings;
     private final TaskSettings taskSettings;
 
+    /**
+     * Allows no task settings to be defined. This will default to the {@link EmptyTaskSettings} object.
+     */
+    public ModelConfigurations(String modelId, TaskType taskType, String service, ServiceSettings serviceSettings) {
+        this(modelId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE);
+    }
+
     public ModelConfigurations(
         String modelId,
         TaskType taskType,
@@ -40,11 +47,11 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         ServiceSettings serviceSettings,
         TaskSettings taskSettings
     ) {
-        this.modelId = modelId;
-        this.taskType = taskType;
-        this.service = service;
-        this.serviceSettings = serviceSettings;
-        this.taskSettings = taskSettings;
+        this.modelId = Objects.requireNonNull(modelId);
+        this.taskType = Objects.requireNonNull(taskType);
+        this.service = Objects.requireNonNull(service);
+        this.serviceSettings = Objects.requireNonNull(serviceSettings);
+        this.taskSettings = Objects.requireNonNull(taskSettings);
     }
 
     public ModelConfigurations(StreamInput in) throws IOException {

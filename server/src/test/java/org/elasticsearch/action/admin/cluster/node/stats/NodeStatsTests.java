@@ -34,7 +34,7 @@ import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.HttpStatsTests;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -664,7 +664,7 @@ public class NodeStatsTests extends ESTestCase {
     public static NodeStats createNodeStats() {
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
-            .version(VersionUtils.randomVersion(random()), IndexVersion.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         NodeIndicesStats nodeIndicesStats = null;
         if (frequently()) {

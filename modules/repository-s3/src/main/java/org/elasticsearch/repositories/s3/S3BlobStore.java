@@ -32,7 +32,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -80,7 +80,7 @@ class S3BlobStore implements BlobStore {
 
     private final ThreadPool threadPool;
     private final Executor snapshotExecutor;
-    private final Meter meter;
+    private final MeterRegistry meterRegistry;
     private final LongCounter requestCounter;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
@@ -99,7 +99,7 @@ class S3BlobStore implements BlobStore {
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
         ThreadPool threadPool,
-        Meter meter
+        MeterRegistry meterRegistry
     ) {
         this.service = service;
         this.bigArrays = bigArrays;
@@ -111,8 +111,8 @@ class S3BlobStore implements BlobStore {
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        this.meter = meter;
-        this.requestCounter = this.meter.getLongCounter(METRIC_REQUESTS_COUNT);
+        this.meterRegistry = meterRegistry;
+        this.requestCounter = this.meterRegistry.getLongCounter(METRIC_REQUESTS_COUNT);
         s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
         threadPool.scheduleWithFixedDelay(() -> {
             var priorRetryStats = s3RequestRetryStats;
@@ -138,6 +138,10 @@ class S3BlobStore implements BlobStore {
 
     public TimeValue getCompareAndExchangeTimeToLive() {
         return service.compareAndExchangeTimeToLive;
+    }
+
+    public TimeValue getCompareAndExchangeAntiContentionDelay() {
+        return service.compareAndExchangeAntiContentionDelay;
     }
 
     // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network

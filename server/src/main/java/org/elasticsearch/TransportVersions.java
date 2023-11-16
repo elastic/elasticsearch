@@ -20,6 +20,12 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+/**
+ * <p>Transport version is used to coordinate compatible wire protocol communication between nodes, at a fine-grained level.  This replaces
+ * and supersedes the old Version constants.</p>
+ *
+ * <p>Before adding a new version constant, please read the block comment at the end of the list of constants.</p>
+ */
 public class TransportVersions {
 
     /*
@@ -141,6 +147,31 @@ public class TransportVersions {
     public static final TransportVersion NODE_STATS_HTTP_ROUTE_STATS_ADDED = def(8_516_00_0);
     public static final TransportVersion INCLUDE_SHARDS_STATS_ADDED = def(8_517_00_0);
     public static final TransportVersion BUILD_QUALIFIER_SEPARATED = def(8_518_00_0);
+    public static final TransportVersion PIPELINES_IN_BULK_RESPONSE_ADDED = def(8_519_00_0);
+    public static final TransportVersion PLUGIN_DESCRIPTOR_STRING_VERSION = def(8_520_00_0);
+    public static final TransportVersion TOO_MANY_SCROLL_CONTEXTS_EXCEPTION_ADDED = def(8_521_00_0);
+    public static final TransportVersion UNCONTENDED_REGISTER_ANALYSIS_ADDED = def(8_522_00_0);
+    public static final TransportVersion TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED = def(8_523_00_0);
+    public static final TransportVersion IP_ADDRESS_WRITEABLE = def(8_524_00_0);
+    public static final TransportVersion PRIMARY_TERM_ADDED = def(8_525_00_0);
+    public static final TransportVersion CLUSTER_FEATURES_ADDED = def(8_526_00_0);
+    public static final TransportVersion DSL_ERROR_STORE_INFORMATION_ENHANCED = def(8_527_00_0);
+    public static final TransportVersion INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED = def(8_528_00_0);
+    public static final TransportVersion KNN_AS_QUERY_ADDED = def(8_529_00_0);
+    public static final TransportVersion UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED = def(8_530_00_0);
+    public static final TransportVersion ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED = def(8_531_00_0);
+    public static final TransportVersion DEPRECATED_COMPONENT_TEMPLATES_ADDED = def(8_532_00_0);
+    public static final TransportVersion UPDATE_NON_DYNAMIC_SETTINGS_ADDED = def(8_533_00_0);
+    public static final TransportVersion REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED = def(8_534_00_0);
+    public static final TransportVersion ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED = def(8_535_00_0);
+    public static final TransportVersion COUNTED_KEYWORD_ADDED = def(8_536_00_0);
+    public static final TransportVersion SHAPE_VALUE_SERIALIZATION_ADDED = def(8_537_00_0);
+    public static final TransportVersion INFERENCE_MULTIPLE_INPUTS = def(8_538_00_0);
+    public static final TransportVersion ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS = def(8_539_00_0);
+    public static final TransportVersion ML_STATE_CHANGE_TIMESTAMPS = def(8_540_00_0);
+    public static final TransportVersion DATA_STREAM_FAILURE_STORE_ADDED = def(8_541_00_0);
+    public static final TransportVersion ML_INFERENCE_OPENAI_ADDED = def(8_542_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -181,15 +212,17 @@ public class TransportVersions {
      * If your git checkout has the expected minor-version-numbered branches and the expected release-version tags then you can find the
      * transport versions known by a particular release ...
      *
-     *     git show v8.9.1:server/src/main/java/org/elasticsearch/TransportVersions.java | grep def
+     *     git show v8.11.0:server/src/main/java/org/elasticsearch/TransportVersions.java | grep '= def'
      *
      * ... or by a particular branch ...
      *
-     *     git show 8.10:server/src/main/java/org/elasticsearch/TransportVersions.java | grep def
+     *     git show 8.11:server/src/main/java/org/elasticsearch/TransportVersions.java | grep '= def'
      *
      * ... and you can see which versions were added in between two versions too ...
      *
-     *     git diff 8.10..main -- server/src/main/java/org/elasticsearch/TransportVersions.java
+     *     git diff v8.11.0..main -- server/src/main/java/org/elasticsearch/TransportVersions.java
+     *
+     * In branches 8.7-8.10 see server/src/main/java/org/elasticsearch/TransportVersion.java for the equivalent definitions.
      */
 
     /**

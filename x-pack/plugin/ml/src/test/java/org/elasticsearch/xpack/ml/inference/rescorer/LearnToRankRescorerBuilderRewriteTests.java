@@ -99,7 +99,7 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
         TestModelLoader testModelLoader = new TestModelLoader();
         LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
             GOOD_MODEL,
-            () -> testModelLoader,
+            testModelLoader,
             () -> LearnToRankConfigTests.randomLearnToRankConfig()
         );
         SearchExecutionContext context = createSearchExecutionContext();
@@ -119,12 +119,7 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
     public void testRewriteOnCoordinator() throws IOException {
         TestModelLoader testModelLoader = new TestModelLoader();
         ScriptService scriptService = mock(ScriptService.class);
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
-            GOOD_MODEL,
-            null,
-            () -> testModelLoader,
-            () -> scriptService
-        );
+        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(GOOD_MODEL, null, testModelLoader, scriptService);
         rescorerBuilder.windowSize(4);
         CoordinatorRewriteContext context = createCoordinatorRewriteContext(
             new DateFieldMapper.DateFieldType("@timestamp"),
@@ -153,12 +148,7 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
     public void testRewriteOnCoordinatorWithBadModel() throws IOException {
         TestModelLoader testModelLoader = new TestModelLoader();
         ScriptService scriptService = mock(ScriptService.class);
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
-            BAD_MODEL,
-            null,
-            () -> testModelLoader,
-            () -> scriptService
-        );
+        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(BAD_MODEL, null, testModelLoader, scriptService);
         CoordinatorRewriteContext context = createCoordinatorRewriteContext(
             new DateFieldMapper.DateFieldType("@timestamp"),
             randomIntBetween(0, 1_100_000),
@@ -171,12 +161,7 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
     public void testRewriteOnCoordinatorWithMissingModel() {
         TestModelLoader testModelLoader = new TestModelLoader();
         ScriptService scriptService = mock(ScriptService.class);
-        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
-            "missing_model",
-            null,
-            () -> testModelLoader,
-            () -> scriptService
-        );
+        LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder("missing_model", null, testModelLoader, scriptService);
         CoordinatorRewriteContext context = createCoordinatorRewriteContext(
             new DateFieldMapper.DateFieldType("@timestamp"),
             randomIntBetween(0, 1_100_000),
@@ -234,7 +219,7 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
         TestModelLoader testModelLoader = new TestModelLoader();
         LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
             GOOD_MODEL,
-            () -> testModelLoader,
+            testModelLoader,
             () -> (LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig()
         );
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
@@ -247,7 +232,7 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
         TestModelLoader testModelLoader = new TestModelLoader();
         LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
             GOOD_MODEL,
-            () -> testModelLoader,
+            testModelLoader,
             () -> LearnToRankConfigTests.randomLearnToRankConfig()
         );
         boolean setWindowSize = randomBoolean();

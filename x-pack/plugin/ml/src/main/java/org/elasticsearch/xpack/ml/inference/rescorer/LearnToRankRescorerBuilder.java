@@ -63,13 +63,13 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         Supplier<ModelLoadingService> modelLoadingServiceSupplier,
         Supplier<ScriptService> scriptServiceSupplier
     ) {
-        return PARSER.apply(parser, null).build(modelLoadingServiceSupplier, scriptServiceSupplier);
+        return PARSER.apply(parser, null).build(modelLoadingServiceSupplier.get(), scriptServiceSupplier.get());
     }
 
     private final String modelId;
     private final Map<String, Object> params;
-    private final Supplier<ScriptService> scriptServiceSupplier;
-    private final Supplier<ModelLoadingService> modelLoadingServiceSupplier;
+    private final ScriptService scriptService;
+    private final ModelLoadingService modelLoadingService;
     private final Supplier<LocalModel> localModelSupplier;
     private final Supplier<LearnToRankConfig> learnToRankConfigSupplier;
     private boolean rescoreOccurred = false;
@@ -77,13 +77,13 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
     LearnToRankRescorerBuilder(
         String modelId,
         Map<String, Object> params,
-        Supplier<ModelLoadingService> modelLoadingServiceSupplier,
-        Supplier<ScriptService> scriptServiceSupplier
+        ModelLoadingService modelLoadingService,
+        ScriptService scriptService
     ) {
         this.modelId = modelId;
         this.params = params;
-        this.scriptServiceSupplier = scriptServiceSupplier;
-        this.modelLoadingServiceSupplier = modelLoadingServiceSupplier;
+        this.scriptService = scriptService;
+        this.modelLoadingService = modelLoadingService;
 
         // Config and model will be set during successive rewrite phases.
         this.learnToRankConfigSupplier = null;
@@ -92,11 +92,11 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
 
     LearnToRankRescorerBuilder(
         String modelId,
-        Supplier<ModelLoadingService> modelLoadingServiceSupplier,
+        ModelLoadingService modelLoadingService,
         Supplier<LearnToRankConfig> learnToRankConfigSupplier
     ) {
         this.modelId = modelId;
-        this.modelLoadingServiceSupplier = modelLoadingServiceSupplier;
+        this.modelLoadingService = modelLoadingService;
         this.learnToRankConfigSupplier = learnToRankConfigSupplier;
 
         // Local inference model is not loaded yet. Will be done in a later rewrite.
@@ -104,7 +104,7 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
 
         // Templates has been applied already, so we do not need params and script service anymore.
         this.params = null;
-        this.scriptServiceSupplier = null;
+        this.scriptService = null;
     }
 
     LearnToRankRescorerBuilder(Supplier<LearnToRankConfig> learnToRankConfigSupplier, Supplier<LocalModel> localModelSupplier) {
@@ -113,11 +113,11 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         this.localModelSupplier = localModelSupplier;
 
         // Model is loaded already, so we do not need the model loading service anymore.
-        this.modelLoadingServiceSupplier = null;
+        this.modelLoadingService = null;
 
         // Template has been applied already, so we do not need params and script service anymore.
         this.params = null;
-        this.scriptServiceSupplier = null;
+        this.scriptService = null;
     }
 
     public LearnToRankRescorerBuilder(
@@ -132,8 +132,8 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         LearnToRankConfig learnToRankConfig = input.readOptionalNamedWriteable(LearnToRankConfig.class);
         this.learnToRankConfigSupplier = learnToRankConfig != null ? () -> learnToRankConfig : null;
 
-        this.modelLoadingServiceSupplier = modelLoadingServiceSupplier;
-        this.scriptServiceSupplier = scriptServiceSupplier;
+        this.modelLoadingService = modelLoadingServiceSupplier.get();
+        this.scriptService = scriptServiceSupplier.get();
 
         this.localModelSupplier = null;
     }
@@ -150,8 +150,8 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         return learnToRankConfigSupplier;
     }
 
-    public Supplier<ModelLoadingService> modelLoadingServiceSupplier() {
-        return modelLoadingServiceSupplier;
+    public ModelLoadingService modelLoadingServiceSupplier() {
+        return modelLoadingService;
     }
 
     public Supplier<LocalModel> localModelSupplier() {
@@ -190,11 +190,7 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
             if (rewrittenConfig == learnToRankConfigSupplier.get()) {
                 return this;
             }
-            LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(
-                modelId,
-                modelLoadingServiceSupplier,
-                () -> rewrittenConfig
-            );
+            LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(modelId, modelLoadingService, () -> rewrittenConfig);
             if (windowSize != null) {
                 builder.windowSize(windowSize);
             }
@@ -232,7 +228,7 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
                 }, l::onFailure)
             )
         );
-        LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(modelId, modelLoadingServiceSupplier, configSetOnce::get);
+        LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(modelId, modelLoadingService, configSetOnce::get);
         if (windowSize() != null) {
             builder.windowSize(windowSize);
         }
@@ -240,7 +236,7 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
     }
 
     private LearnToRankConfig applyParams(LearnToRankConfig config, QueryRewriteContext ctx) throws IOException {
-        if (scriptServiceSupplier.get().isLangSupported(DEFAULT_TEMPLATE_LANG) == false) {
+        if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) == false) {
             return config;
         }
 
@@ -254,7 +250,7 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
                 return config;
             }
             Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, templateSource, Collections.emptyMap());
-            String parsedTemplate = scriptServiceSupplier.get().compile(script, TemplateScript.CONTEXT).newInstance(params).execute();
+            String parsedTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(params).execute();
 
             XContentParser parser = XContentType.JSON.xContent().createParser(ctx.getParserConfig(), parsedTemplate);
 
@@ -275,12 +271,12 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
             return this;
         }
 
-        if (modelLoadingServiceSupplier == null || modelLoadingServiceSupplier.get() == null) {
+        if (modelLoadingService == null) {
             throw new IllegalStateException("Model loading service must be available");
         }
         LearnToRankConfig rewrittenConfig = Rewriteable.rewrite(learnToRankConfigSupplier.get(), ctx);
         SetOnce<LocalModel> inferenceDefinitionSetOnce = new SetOnce<>();
-        ctx.registerAsyncAction((c, l) -> modelLoadingServiceSupplier.get().getModelForLearnToRank(modelId, ActionListener.wrap(lm -> {
+        ctx.registerAsyncAction((c, l) -> modelLoadingService.getModelForLearnToRank(modelId, ActionListener.wrap(lm -> {
             inferenceDefinitionSetOnce.set(lm);
             l.onResponse(null);
         }, l::onFailure)));
@@ -369,17 +365,9 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
 
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(params, that.params)
-            && Objects.equals(modelLoadingServiceSupplier, that.modelLoadingServiceSupplier)
-            && Objects.equals(scriptServiceSupplier, that.scriptServiceSupplier)
+            && Objects.equals(modelLoadingService, that.modelLoadingService)
+            && Objects.equals(scriptService, that.scriptService)
             && rescoreOccurred == that.rescoreOccurred;
-    }
-
-    boolean areSuppliersEquals(Supplier<?> a, Supplier<?> b) {
-        if (a != null && b != null) {
-            return Objects.equals(a.get(), b.get());
-        }
-
-        return a == b;
     }
 
     @Override
@@ -388,8 +376,8 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
             super.hashCode(),
             modelId,
             params,
-            modelLoadingServiceSupplier != null ? modelLoadingServiceSupplier.get() : null,
-            scriptServiceSupplier != null ? scriptServiceSupplier.get() : null,
+            modelLoadingService,
+            scriptService,
             learnToRankConfigSupplier != null ? learnToRankConfigSupplier.get() : null,
             localModelSupplier != null ? localModelSupplier.get() : null,
             rescoreOccurred
@@ -408,11 +396,8 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
             this.params = params;
         }
 
-        LearnToRankRescorerBuilder build(
-            Supplier<ModelLoadingService> modelLoadingServiceSupplier,
-            Supplier<ScriptService> scriptServiceSupplier
-        ) {
-            return new LearnToRankRescorerBuilder(modelId, params, modelLoadingServiceSupplier, scriptServiceSupplier);
+        LearnToRankRescorerBuilder build(ModelLoadingService modelLoadingService, ScriptService scriptService) {
+            return new LearnToRankRescorerBuilder(modelId, params, modelLoadingService, scriptService);
         }
     }
 }

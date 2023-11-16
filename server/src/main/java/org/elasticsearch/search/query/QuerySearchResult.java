@@ -31,6 +31,7 @@ import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -104,8 +105,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
         setSearchShardTarget(shardTarget);
         isNull = false;
         setShardSearchRequest(shardSearchRequest);
-        this.refCounted = AbstractRefCounted.of(this::close);
         this.toRelease = new ArrayList<>();
+        this.refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> Releasables.close(toRelease)));
     }
 
     private QuerySearchResult(boolean isNull) {
@@ -243,10 +244,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
             aggregations.close();
             aggregations = null;
         }
-    }
-
-    private void close() {
-        Releasables.close(toRelease);
     }
 
     public void addReleasable(Releasable releasable) {

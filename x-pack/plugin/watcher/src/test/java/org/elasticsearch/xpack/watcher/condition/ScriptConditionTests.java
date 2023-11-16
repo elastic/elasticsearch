@@ -105,8 +105,12 @@ public class ScriptConditionTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
-        assertFalse(condition.execute(ctx).met());
+        try {
+            WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
+            assertFalse(condition.execute(ctx).met());
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testExecuteMergedParams() throws Exception {
@@ -127,8 +131,12 @@ public class ScriptConditionTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
-        assertFalse(executable.execute(ctx).met());
+        try {
+            WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
+            assertFalse(executable.execute(ctx).met());
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testParserValid() throws Exception {
@@ -149,18 +157,22 @@ public class ScriptConditionTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
+        try {
+            WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
 
-        assertFalse(executable.execute(ctx).met());
+            assertFalse(executable.execute(ctx).met());
 
-        builder = createConditionContent("return true", "mockscript", ScriptType.INLINE);
-        parser = createParser(builder);
-        parser.nextToken();
-        executable = ScriptCondition.parse(scriptService, "_watch", parser);
+            builder = createConditionContent("return true", "mockscript", ScriptType.INLINE);
+            parser = createParser(builder);
+            parser.nextToken();
+            executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
-        ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
+            ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
 
-        assertTrue(executable.execute(ctx).met());
+            assertTrue(executable.execute(ctx).met());
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testParserInvalid() throws Exception {
@@ -221,9 +233,13 @@ public class ScriptConditionTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
-        ScriptException exception = expectThrows(ScriptException.class, () -> condition.execute(ctx));
-        assertThat(exception.getMessage(), containsString("Error evaluating null.foo"));
+        try {
+            WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
+            ScriptException exception = expectThrows(ScriptException.class, () -> condition.execute(ctx));
+            assertThat(exception.getMessage(), containsString("Error evaluating null.foo"));
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testScriptConditionAccessCtx() throws Exception {
@@ -241,13 +257,17 @@ public class ScriptConditionTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-        WatchExecutionContext ctx = mockExecutionContext(
-            "_name",
-            ZonedDateTime.now(ZoneOffset.UTC),
-            new Payload.XContent(response, ToXContent.EMPTY_PARAMS)
-        );
-        Thread.sleep(10);
-        assertThat(condition.execute(ctx).met(), is(true));
+        try {
+            WatchExecutionContext ctx = mockExecutionContext(
+                "_name",
+                ZonedDateTime.now(ZoneOffset.UTC),
+                new Payload.XContent(response, ToXContent.EMPTY_PARAMS)
+            );
+            Thread.sleep(10);
+            assertThat(condition.execute(ctx).met(), is(true));
+        } finally {
+            response.decRef();
+        }
     }
 
     private static XContentBuilder createConditionContent(String script, String scriptLang, ScriptType scriptType) throws IOException {

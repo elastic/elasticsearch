@@ -278,7 +278,7 @@ docsWhereFunction
 // tag::whereFunction[]
 FROM employees
 | KEEP first_name, last_name, height
-| WHERE length(first_name) < 4
+| WHERE LENGTH(first_name) < 4
 // end::whereFunction[]
 | SORT first_name
 ;
@@ -431,7 +431,7 @@ Hello Universe
 docsCase
 // tag::case[]
 FROM employees
-| EVAL type = case(
+| EVAL type = CASE(
     languages <= 1, "monolingual",
     languages <= 2, "bilingual",
      "polyglot")

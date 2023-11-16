@@ -106,7 +106,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setInferenceConfig(randomFrom(inferenceConfigs))
             .setTags(tags)
             .setLocation(randomBoolean() ? null : IndexLocationTests.randomInstance())
-            .setPlatformArchitecture(randomBoolean() ? null : randomAlphaOfLength(10));
+            .setPlatformArchitecture(randomBoolean() ? null : randomAlphaOfLength(10))
+            .setPrefixStrings(randomBoolean() ? null : TrainedModelPrefixStringsTests.randomInstance());
     }
 
     @Before
@@ -194,7 +195,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
             null,
             ModelPackageConfigTests.randomModulePackageConfig(),
-            randomAlphaOfLength(10)
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : TrainedModelPrefixStringsTests.randomInstance()
         );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
@@ -245,7 +247,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
             null,
             ModelPackageConfigTests.randomModulePackageConfig(),
-            randomAlphaOfLength(10)
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : TrainedModelPrefixStringsTests.randomInstance()
         );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
@@ -459,6 +462,9 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         }
         if (version.before(TransportVersions.ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED)) {
             builder.setPlatformArchitecture(null);
+        }
+        if (version.before(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+            builder.setPrefixStrings(null);
         }
         return builder.build();
     }

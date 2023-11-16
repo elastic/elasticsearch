@@ -88,9 +88,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+`ignore_throttled`::
+(Optional, Boolean) If `true`, concrete, expanded or aliased indices are
+ignored when frozen. Defaults to `false`.
 +
-Defaults to `false`.
+deprecated:[7.16.0]
 
 [[resolve-index-api-example]]
 ==== {api-examples-title}

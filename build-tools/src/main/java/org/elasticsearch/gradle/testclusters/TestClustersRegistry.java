@@ -67,6 +67,7 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
             }
         } else {
             int currentClaims = claimsInventory.getOrDefault(cluster, 0) - 1;
+            System.out.println("currentClaims = " + currentClaims);
             claimsInventory.put(cluster, currentClaims);
 
             if (currentClaims <= 0 && runningClusters.contains(cluster)) {

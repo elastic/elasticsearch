@@ -56,6 +56,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final String LIST_TASK_NAME = "listTestClusters";
     public static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
     private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
+    public static final String TEST_CLUSTER_TASKS_SERVICE = "testClusterTasksService";
     private final ProviderFactory providerFactory;
     private Provider<File> runtimeJavaProvider;
     private Function<Version, Boolean> isReleasedVersion = v -> true;
@@ -198,7 +199,7 @@ public class TestClustersPlugin implements Plugin<Project> {
 
             Provider<TaskEventsService> testClusterTasksService = project.getGradle()
                 .getSharedServices()
-                .registerIfAbsent("testClusterTasksService", TaskEventsService.class, spec -> {});
+                .registerIfAbsent(TEST_CLUSTER_TASKS_SERVICE, TaskEventsService.class, spec -> {});
 
             TestClustersRegistry registry = registryProvider.get();
 
@@ -240,7 +241,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                     .filter(task -> task instanceof TestClustersAware)
                     .map(task -> (TestClustersAware) task)
                     .forEach(awareTask -> {
-                        testClusterTasksService.get().register(awareTask.getPath(), awareTask);
                         awareTask.doFirst(task -> {
                             awareTask.beforeStart();
                             awareTask.getClusters().forEach(awareTask.getRegistery().get()::maybeStartCluster);
@@ -255,8 +255,9 @@ public class TestClustersPlugin implements Plugin<Project> {
         Map<String, TestClustersAware> tasksMap = new HashMap<>();
         private TestClustersRegistry registryProvider;
 
-        public void register(String path, TestClustersAware task) {
-            tasksMap.put(path, task);
+        public void register(TestClustersAware task) {
+            System.out.println("TaskEventsService.register " + task.getPath());
+            tasksMap.put(task.getPath(), task);
         }
 
         public void registry(TestClustersRegistry registry) {

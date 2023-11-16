@@ -227,7 +227,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             // TODO: do not use the same error message as for loading the last checkpoint
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
             logger.error(msg, error);
-            markAsFailed(buildTask, msg);
+            markAsFailed(buildTask, error, msg);
         });
 
         // <5> load last checkpoint
@@ -241,7 +241,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }, error -> {
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
             logger.error(msg, error);
-            markAsFailed(buildTask, msg);
+            markAsFailed(buildTask, error, msg);
         });
 
         // <4> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
@@ -286,7 +286,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 if (error instanceof ResourceNotFoundException == false) {
                     String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_STATE, transformId);
                     logger.error(msg, error);
-                    markAsFailed(buildTask, msg);
+                    markAsFailed(buildTask, error, msg);
                 } else {
                     logger.trace("[{}] No stats found (new transform), starting the task", transformId);
                     startTask(buildTask, indexerBuilder, null, null, startTaskListener);
@@ -307,7 +307,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     TransformDeprecations.MIN_TRANSFORM_VERSION
                 );
                 auditor.error(transformId, transformTooOldError);
-                markAsFailed(buildTask, transformTooOldError);
+                markAsFailed(buildTask, null, transformTooOldError);
                 return;
             }
 
@@ -319,6 +319,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 auditor.error(transformId, validationException.getMessage());
                 markAsFailed(
                     buildTask,
+                    validationException,
                     TransformMessages.getMessage(
                         TransformMessages.TRANSFORM_CONFIGURATION_INVALID,
                         transformId,
@@ -328,8 +329,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         }, error -> {
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId);
-            logger.error(msg, error);
-            markAsFailed(buildTask, msg);
+            markAsFailed(buildTask, error, msg);
         });
 
         // <2> Get the transform config
@@ -338,8 +338,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             error -> {
                 Throwable cause = ExceptionsHelper.unwrapCause(error);
                 String msg = "Failed to create internal index mappings";
-                logger.error(msg, cause);
-                markAsFailed(buildTask, msg + "[" + cause + "]");
+                markAsFailed(buildTask, error, msg + "[" + cause + "]");
             }
         );
 
@@ -366,10 +365,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         };
     }
 
-    private void markAsFailed(TransformTask task, String reason) {
+    private static void markAsFailed(TransformTask task, Throwable exception, String reason) {
         CountDownLatch latch = new CountDownLatch(1);
 
         task.fail(
+            exception,
             reason,
             new LatchedActionListener<>(
                 ActionListener.wrap(

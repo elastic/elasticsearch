@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
@@ -384,7 +385,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 TimeValue.timeValueSeconds(5),
                 TimeValue.timeValueMillis(Long.MAX_VALUE),
                 listener,
-                threadPool.executor(ThreadPool.Names.GENERIC)
+                threadPool.executor(Stateless.SHARD_THREAD_POOL)
             );
             this.shardCommitState = shardCommitState;
             this.reference = reference;

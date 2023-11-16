@@ -131,6 +131,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -167,8 +168,11 @@ import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -223,6 +227,11 @@ public class Stateless extends Plugin
         false,
         Setting.Property.NodeScope
     );
+
+    public static final String SHARD_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_THREAD_NAME;
+    public static final String SHARD_THREAD_POOL_SETTING = "stateless." + SHARD_THREAD_POOL + "_thread_pool";
+    public static final String TRANSLOG_THREAD_POOL = BlobStoreRepository.STATELESS_TRANSLOG_THREAD_NAME;
+    public static final String TRANSLOG_THREAD_POOL_SETTING = "stateless." + TRANSLOG_THREAD_POOL + "_thread_pool";
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
@@ -362,16 +371,14 @@ public class Stateless extends Plugin
             createObjectStoreService(settings, services.repositoriesServiceSupplier(), threadPool, clusterService)
         );
         components.add(objectStoreService);
-        // TODO: figure out a better/correct threadpool for this
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(
-            // TODO: figure out a better/correct threadpool for this
             setAndGet(
                 this.sharedBlobCacheService,
                 new SharedBlobCacheService<>(
                     nodeEnvironment,
                     settings,
                     threadPool,
-                    ThreadPool.Names.GENERIC,
+                    SHARD_THREAD_POOL,
                     new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
                 )
             )
@@ -499,6 +506,46 @@ public class Stateless extends Plugin
     @Override
     public Collection<HealthIndicatorService> getHealthIndicatorServices() {
         return List.of(blobStoreHealthIndicator.get());
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return List.of(statelessExecutorBuilders(settings, hasIndexRole));
+    }
+
+    public static ExecutorBuilder<?>[] statelessExecutorBuilders(Settings settings, boolean hasIndexRole) {
+        final int processors = EsExecutors.allocatedProcessors(settings);
+        final int shardMaxThreads;
+        final int translogCoreThreads;
+        final int translogMaxThreads;
+
+        if (hasIndexRole) {
+            shardMaxThreads = Math.min(processors * 4, 20);
+            translogCoreThreads = 2;
+            translogMaxThreads = Math.min(processors * 2, 8);
+        } else {
+            shardMaxThreads = Math.min(processors * 4, 28);
+            translogCoreThreads = 0;
+            translogMaxThreads = 1;
+        }
+
+        return new ExecutorBuilder<?>[] {
+            new ScalingExecutorBuilder(
+                SHARD_THREAD_POOL,
+                4,
+                shardMaxThreads,
+                TimeValue.timeValueSeconds(30L),
+                true,
+                SHARD_THREAD_POOL_SETTING
+            ),
+            new ScalingExecutorBuilder(
+                TRANSLOG_THREAD_POOL,
+                translogCoreThreads,
+                translogMaxThreads,
+                TimeValue.timeValueSeconds(30L),
+                true,
+                TRANSLOG_THREAD_POOL_SETTING
+            ) };
     }
 
     /**
@@ -638,6 +685,7 @@ public class Stateless extends Plugin
         if (hasSearchRole) {
             final var collector = shardSizeCollector.get();
             indexModule.addIndexEventListener(new IndexEventListener() {
+
                 @Override
                 public void afterIndexShardStarted(IndexShard indexShard) {
                     collector.collectShardSize(indexShard.shardId());

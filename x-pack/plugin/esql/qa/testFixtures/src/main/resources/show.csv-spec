@@ -5,7 +5,7 @@ v:long
 1
 ;
 
-showFunctions
+showFunctions#[skip:-8.11.99]
 show functions;
 
        name:keyword      |                        synopsis:keyword          |       argNames:keyword  | argTypes:keyword |             argDescriptions:keyword                |returnType:keyword   |    description:keyword  | optionalArgs:boolean | variadic:boolean                
@@ -94,7 +94,7 @@ trim                     |? trim(arg1:?)                                        
 ;
 
 
-showFunctionsSynopsis
+showFunctionsSynopsis#[skip:-8.11.99]
 show functions | keep synopsis;
 
 synopsis:keyword          

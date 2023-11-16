@@ -58,7 +58,7 @@ public class ValuesSourceRegistry {
 
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
-        private Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();
+        private final Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();
 
         public Builder() {
             this.usageServiceBuilder = new AggregationUsageService.Builder();

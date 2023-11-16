@@ -595,13 +595,17 @@ class S3BlobContainer extends AbstractBlobContainer {
             // Step 1: Start our upload and upload the new contents as its unique part.
 
             final var uploadId = initiateMultipartUpload();
+            logger.trace("[{}] initiated upload [{}]", blobKey, uploadId);
             final var partETag = uploadPart(updated, uploadId);
+            logger.trace("[{}] uploaded update to [{}]", blobKey, uploadId);
 
             // Step 2: List all uploads that are racing to complete, and compute our position in the list. This definitely includes all the
             // uploads that started before us and are still in-progress, and may include some later-started in-progress ones too.
 
             final var currentUploads = listMultipartUploads();
+            logUploads("uploads before current", currentUploads);
             final var uploadIndex = getUploadIndex(uploadId, currentUploads);
+            logger.trace("[{}] upload [{}] has index [{}]", blobKey, uploadId, uploadIndex);
 
             if (uploadIndex < 0) {
                 // already aborted by someone else
@@ -623,9 +627,11 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                 .<OptionalBytesReference>andThen((l, currentValue) -> ActionListener.completeWith(l, () -> {
                     if (currentValue.isPresent() && currentValue.bytesReference().equals(expected)) {
+                        logger.trace("[{}] completing upload [{}]", blobKey, uploadId);
                         completeMultipartUpload(uploadId, partETag);
                     } else {
                         // Best-effort attempt to clean up after ourselves.
+                        logger.trace("[{}] aborting upload [{}]", blobKey, uploadId);
                         safeAbortMultipartUpload(uploadId);
                     }
                     return currentValue;
@@ -635,6 +641,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                 .addListener(listener.delegateResponse((l, e) -> {
                     // Best-effort attempt to clean up after ourselves.
+                    logger.trace(Strings.format("[%s] aborting upload [%s] on exception", blobKey, uploadId), e);
                     safeAbortMultipartUpload(uploadId);
                     l.onFailure(e);
                 }));
@@ -651,7 +658,10 @@ class S3BlobContainer extends AbstractBlobContainer {
          */
         private boolean hasPreexistingUploads() {
             final var uploads = listMultipartUploads();
+            logUploads("preexisting uploads", uploads);
+
             if (uploads.isEmpty()) {
+                logger.trace("[{}] no preexisting uploads", blobKey);
                 return false;
             }
 
@@ -661,6 +671,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 )
             );
             if (uploads.stream().anyMatch(upload -> upload.getInitiated().after(expiryDate))) {
+                logger.trace("[{}] fresh preexisting uploads vs {}", blobKey, expiryDate);
                 return true;
             }
 
@@ -674,7 +685,21 @@ class S3BlobContainer extends AbstractBlobContainer {
                 safeAbortMultipartUpload(upload.getUploadId());
             }
 
+            logger.trace("[{}] stale preexisting uploads vs {}", blobKey, expiryDate);
             return false;
+        }
+
+        private void logUploads(String description, List<MultipartUpload> uploads) {
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "[{}] {}: [{}]",
+                    blobKey,
+                    description,
+                    uploads.stream()
+                        .map(multipartUpload -> multipartUpload.getUploadId() + ": " + multipartUpload.getInitiated())
+                        .collect(Collectors.joining(","))
+                );
+            }
         }
 
         private List<MultipartUpload> listMultipartUploads() {
@@ -776,6 +801,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
 
         private void cancelOtherUploads(String uploadId, List<MultipartUpload> currentUploads, ActionListener<Void> listener) {
+            logger.trace("[{}] upload [{}] cancelling other uploads", blobKey, uploadId);
             final var executor = blobStore.getSnapshotExecutor();
             try (var listeners = new RefCountingListener(listener)) {
                 for (final var currentUpload : currentUploads) {

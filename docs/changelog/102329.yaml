@@ -1,0 +1,5 @@
+pr: 102329
+summary: Account for the minimum G1 region size on G1OverLimitStrategy
+area: Distributed
+type: bug
+issues: []

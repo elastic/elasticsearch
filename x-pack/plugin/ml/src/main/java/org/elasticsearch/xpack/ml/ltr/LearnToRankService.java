@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.ltr;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -19,9 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
@@ -29,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -40,24 +38,29 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class LearnToRankService {
     private final ModelLoadingService modelLoadingService;
+
+    private final TrainedModelProvider trainedModelProvider;
     private final ScriptService scriptService;
     private final XContentParserConfiguration parserConfiguration;
 
     public LearnToRankService(
         ModelLoadingService modelLoadingService,
+        TrainedModelProvider trainedModelProvider,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry
     ) {
-        this(modelLoadingService, scriptService, XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry));
+        this(modelLoadingService, trainedModelProvider, scriptService, XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry));
     }
 
     LearnToRankService(
         ModelLoadingService modelLoadingService,
+        TrainedModelProvider trainedModelProvider,
         ScriptService scriptService,
         XContentParserConfiguration parserConfiguration
     ) {
         this.modelLoadingService = modelLoadingService;
         this.scriptService = scriptService;
+        this.trainedModelProvider = trainedModelProvider;
         this.parserConfiguration = parserConfiguration;
     }
 
@@ -65,21 +68,13 @@ public class LearnToRankService {
         modelLoadingService.getModelForLearnToRank(modelId, listener);
     }
 
-    public void loadLearnToRankConfig(
-        Client client,
-        String modelId,
-        Map<String, Object> params,
-        ActionListener<LearnToRankConfig> listener
-    ) {
-        GetTrainedModelsAction.Request request = new GetTrainedModelsAction.Request(modelId);
-        ClientHelper.executeAsyncWithOrigin(
-            client,
-            ClientHelper.ML_ORIGIN,
-            GetTrainedModelsAction.INSTANCE,
-            request,
-            ActionListener.wrap(trainedModels -> {
-                TrainedModelConfig config = trainedModels.getResources().results().get(0);
-                if (config.getInferenceConfig() instanceof LearnToRankConfig retrievedInferenceConfig) {
+    public void loadLearnToRankConfig(String modelId, Map<String, Object> params, ActionListener<LearnToRankConfig> listener) {
+        trainedModelProvider.getTrainedModel(
+            modelId,
+            GetTrainedModelsAction.Includes.all(),
+            null,
+            ActionListener.wrap(trainedModelConfig -> {
+                if (trainedModelConfig.getInferenceConfig() instanceof LearnToRankConfig retrievedInferenceConfig) {
                     for (LearnToRankFeatureExtractorBuilder builder : retrievedInferenceConfig.getFeatureExtractorBuilders()) {
                         builder.validate();
                     }
@@ -90,12 +85,11 @@ public class LearnToRankService {
                     ExceptionsHelper.badRequestException(
                         Messages.getMessage(
                             Messages.INFERENCE_CONFIG_INCORRECT_TYPE,
-                            Optional.ofNullable(config.getInferenceConfig()).map(InferenceConfig::getName).orElse("null"),
+                            Optional.ofNullable(trainedModelConfig.getInferenceConfig()).map(InferenceConfig::getName).orElse("null"),
                             LearnToRankConfig.NAME.getPreferredName()
                         )
                     )
                 );
-                listener.onResponse(null);
             }, listener::onFailure)
         );
     }

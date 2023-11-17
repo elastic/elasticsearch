@@ -1105,7 +1105,9 @@ public class MachineLearning extends Plugin
             new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory, getMaxModelDeploymentsPerNode())
         );
 
-        this.learnToRankService.set(new LearnToRankService(modelLoadingService, services.scriptService(), services.xContentRegistry()));
+        this.learnToRankService.set(
+            new LearnToRankService(modelLoadingService, trainedModelProvider, services.scriptService(), services.xContentRegistry())
+        );
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(

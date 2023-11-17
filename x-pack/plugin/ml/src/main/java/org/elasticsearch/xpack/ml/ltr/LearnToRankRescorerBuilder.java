@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankRescorerBuilder> {
 
@@ -51,10 +52,6 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
     private final LearnToRankConfig learnToRankConfig;
 
     private boolean rescoreOccurred = false;
-
-    private LearnToRankRescorerBuilder() {
-        this(null, null, null);
-    }
 
     LearnToRankRescorerBuilder(String modelId, Map<String, Object> params, LearnToRankService learnToRankService) {
         this(modelId, null, params, learnToRankService);
@@ -160,34 +157,17 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         GetTrainedModelsAction.Request request = new GetTrainedModelsAction.Request(modelId);
         request.setAllowNoResources(false);
         ctx.registerAsyncAction(
-            (c, l) -> learnToRankService.loadLearnToRankConfig(c, modelId, params, ActionListener.wrap(learnToRankConfig -> {
+            (c, l) -> learnToRankService.loadLearnToRankConfig(modelId, params, ActionListener.wrap(learnToRankConfig -> {
                 configSetOnce.set(learnToRankConfig);
                 l.onResponse(null);
             }, l::onFailure))
         );
 
-        LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder() {
-            @Override
-            public RescorerBuilder<LearnToRankRescorerBuilder> rewrite(QueryRewriteContext ctx) throws IOException {
-                if (configSetOnce.get() == null) {
-                    // Still waiting for the model to be loaded.
-                    return this;
-                }
-
-                LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(
-                    modelId,
-                    configSetOnce.get(),
-                    params,
-                    learnToRankService
-                );
-
-                if (windowSize() != null) {
-                    builder.windowSize(windowSize());
-                }
-
-                return builder;
-            }
-        };
+        LearnToRankRescorerBuilder builder = new RewritingLearnToRankRescorerBuilder(
+            (rewritingBuilder) -> configSetOnce.get() == null
+                ? rewritingBuilder
+                : new LearnToRankRescorerBuilder(modelId, configSetOnce.get(), params, learnToRankService)
+        );
 
         if (windowSize() != null) {
             builder.windowSize(windowSize);
@@ -219,28 +199,11 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
             l.onResponse(null);
         }, l::onFailure)));
 
-        LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder() {
-            @Override
-            public RescorerBuilder<LearnToRankRescorerBuilder> rewrite(QueryRewriteContext ctx) throws IOException {
-                if (localModelSetOnce.get() == null) {
-                    // Still waiting for the model to be loaded.
-                    return this;
-                }
-
-                LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(
-                    localModelSetOnce.get(),
-                    rewrittenConfig,
-                    params,
-                    learnToRankService
-                );
-
-                if (windowSize() != null) {
-                    builder.windowSize(windowSize());
-                }
-
-                return builder;
-            }
-        };
+        LearnToRankRescorerBuilder builder = new RewritingLearnToRankRescorerBuilder(
+            (rewritingBuilder) -> localModelSetOnce.get() != null
+                ? new LearnToRankRescorerBuilder(localModelSetOnce.get(), rewrittenConfig, params, learnToRankService)
+                : rewritingBuilder
+        );
 
         if (windowSize() != null) {
             builder.windowSize(windowSize());
@@ -338,6 +301,27 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
 
         LearnToRankRescorerBuilder build(LearnToRankService learnToRankService) {
             return new LearnToRankRescorerBuilder(modelId, params, learnToRankService);
+        }
+    }
+
+    private static class RewritingLearnToRankRescorerBuilder extends LearnToRankRescorerBuilder {
+
+        private final Function<RewritingLearnToRankRescorerBuilder, LearnToRankRescorerBuilder> rewriteFunction;
+
+        RewritingLearnToRankRescorerBuilder(Function<RewritingLearnToRankRescorerBuilder, LearnToRankRescorerBuilder> rewriteFunction) {
+            super(null, null, null);
+            this.rewriteFunction = rewriteFunction;
+        }
+
+        @Override
+        public RescorerBuilder<LearnToRankRescorerBuilder> rewrite(QueryRewriteContext ctx) throws IOException {
+            LearnToRankRescorerBuilder builder = this.rewriteFunction.apply(this);
+
+            if (windowSize() != null) {
+                builder.windowSize(windowSize());
+            }
+
+            return builder;
         }
     }
 }

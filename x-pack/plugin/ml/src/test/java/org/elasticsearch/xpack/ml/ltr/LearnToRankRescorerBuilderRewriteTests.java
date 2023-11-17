@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.ltr;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
@@ -15,7 +16,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.DataRewriteContext;
@@ -46,7 +46,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -127,17 +126,21 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
     }
 
     public void testRewriteOnShard() throws IOException {
+        LocalModel localModel = mock(LocalModel.class);
+        when(localModel.getModelId()).thenReturn(GOOD_MODEL);
+
         LearnToRankService learnToRankService = learnToRankServiceMock();
         LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
-            GOOD_MODEL,
+            localModel,
             (LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig(),
             null,
             learnToRankService
         );
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         LearnToRankRescorerBuilder rewritten = (LearnToRankRescorerBuilder) rescorerBuilder.rewrite(createSearchExecutionContext());
-        assertSame(rescorerBuilder, rewritten);
         assertFalse(searchExecutionContext.hasAsyncActions());
+        assertSame(localModel, rewritten.localModel());
+        assertEquals(localModel.getModelId(), rewritten.modelId());
     }
 
     public void testRewriteAndFetchOnDataNode() throws IOException {
@@ -167,8 +170,8 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
         LearnToRankService learnToRankService = mock(LearnToRankService.class);
 
         doAnswer(invocation -> {
-            String modelId = invocation.getArgument(1);
-            ActionListener<InferenceConfig> l = invocation.getArgument(3, ActionListener.class);
+            String modelId = invocation.getArgument(0);
+            ActionListener<InferenceConfig> l = invocation.getArgument(2, ActionListener.class);
             if (modelId.equals(GOOD_MODEL)) {
                 l.onResponse(GOOD_MODEL_CONFIG.getInferenceConfig());
             } else if (modelId.equals(BAD_MODEL)) {
@@ -177,7 +180,7 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
                 l.onFailure(new ResourceNotFoundException("missing model"));
             }
             return null;
-        }).when(learnToRankService).loadLearnToRankConfig(isA(Client.class), anyString(), any(), any());
+        }).when(learnToRankService).loadLearnToRankConfig(anyString(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<LocalModel> l = invocation.getArgument(1, ActionListener.class);
@@ -192,11 +195,14 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
         LocalModel localModel = mock(LocalModel.class);
         List<String> inputFields = List.of(DOUBLE_FIELD_NAME, INT_FIELD_NAME);
         when(localModel.inputFields()).thenReturn(inputFields);
-        SearchExecutionContext context = createSearchExecutionContext();
+
+        IndexSearcher searcher = mock(IndexSearcher.class);
+        doAnswer(invocation -> invocation.getArgument(0)).when(searcher).rewrite(any(Query.class));
+        SearchExecutionContext context = createSearchExecutionContext(searcher);
 
         LearnToRankRescorerBuilder rescorerBuilder = new LearnToRankRescorerBuilder(
             localModel,
-            randomLearnToRankConfig(),
+            (LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig(),
             null,
             mock(LearnToRankService.class)
         );
@@ -205,10 +211,10 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
         assertNotNull(rescoreContext);
         assertThat(rescoreContext.getWindowSize(), equalTo(20));
         List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors(context.searcher());
-        assertThat(featureExtractors, hasSize(1));
+        assertThat(featureExtractors, hasSize(2));
         assertThat(
             featureExtractors.stream().flatMap(featureExtractor -> featureExtractor.featureNames().stream()).toList(),
-            containsInAnyOrder(DOUBLE_FIELD_NAME, INT_FIELD_NAME)
+            containsInAnyOrder("feature_1", "feature_2", DOUBLE_FIELD_NAME, INT_FIELD_NAME)
         );
     }
 

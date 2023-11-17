@@ -7,20 +7,14 @@
 
 package org.elasticsearch.xpack.ml.ltr;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -29,22 +23,25 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
+import org.elasticsearch.xpack.core.ml.utils.QueryProviderTests;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+import org.junit.AssumptionViolatedException;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isA;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 public class LearnToRankServiceTests extends ESTestCase {
     public static final String GOOD_MODEL = "modelId";
+
     public static final String BAD_MODEL = "badModel";
     public static final TrainedModelConfig GOOD_MODEL_CONFIG = TrainedModelConfig.builder()
         .setModelId(GOOD_MODEL)
@@ -56,8 +53,8 @@ public class LearnToRankServiceTests extends ESTestCase {
             new LearnToRankConfig(
                 2,
                 List.of(
-                    new QueryExtractorBuilder("feature_1", new QueryProvider(Collections.emptyMap(), null, null)),
-                    new QueryExtractorBuilder("feature_2", new QueryProvider(Collections.emptyMap(), null, null))
+                    new QueryExtractorBuilder("feature_1", QueryProviderTests.createRandomValidQueryProvider("field_1", "foo")),
+                    new QueryExtractorBuilder("feature_2", QueryProviderTests.createRandomValidQueryProvider("field_2", "bar"))
                 )
             )
         )
@@ -71,48 +68,54 @@ public class LearnToRankServiceTests extends ESTestCase {
         .setInferenceConfig(new RegressionConfig(null, null))
         .build();
 
-    private ThreadPool threadPool;
-    private Client client;
-
-    @Before
-    public void createRegistryAndClient() {
-        threadPool = new TestThreadPool(this.getClass().getName());
-        client = mockClient(threadPool);
-    }
-
-    @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        threadPool.shutdownNow();
+    @SuppressWarnings("unchecked")
+    public void testLoadLearnToRankConfig() throws Exception {
+        LearnToRankService learnToRankService = new LearnToRankService(
+            mockModelLoadingService(),
+            mockTrainedModelProvider(),
+            mockScriptService(),
+            xContentRegistry()
+        );
+        ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
+        learnToRankService.loadLearnToRankConfig(GOOD_MODEL, Collections.emptyMap(), listener);
+        assertBusy(() -> {
+            verify(listener).onResponse(eq((LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig()));
+        });
     }
 
     @SuppressWarnings("unchecked")
-    public void testLoadLearnToRankConfig() throws Exception {
-        LearnToRankService learnToRankService = new LearnToRankService(mockModelLoadingService(), mockScriptService(), xContentRegistry());
+    public void testLoadMissingLearnToRankConfig() throws Exception {
+        LearnToRankService learnToRankService = new LearnToRankService(
+            mockModelLoadingService(),
+            mockTrainedModelProvider(),
+            mockScriptService(),
+            xContentRegistry()
+        );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
-        learnToRankService.loadLearnToRankConfig(client, GOOD_MODEL, Collections.emptyMap(), listener);
-        assertBusy(() -> { verify(listener).onResponse((LearnToRankConfig) eq(GOOD_MODEL_CONFIG.getInferenceConfig())); });
+        learnToRankService.loadLearnToRankConfig("non-existing-model", Collections.emptyMap(), listener);
+        assertBusy(() -> {
+            verify(listener).onFailure(isA(ResourceNotFoundException.class));
+        });
     }
 
-    public void testLoadMissingLearnToRankConfig() {
-        // TODO
-    }
-
-    public void testLoadBadLearnToRankConfig() {
-        // TODO
+    @SuppressWarnings("unchecked")
+    public void testLoadBadLearnToRankConfig() throws Exception {
+        LearnToRankService learnToRankService = new LearnToRankService(
+            mockModelLoadingService(),
+            mockTrainedModelProvider(),
+            mockScriptService(),
+            xContentRegistry()
+        );
+        ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
+        learnToRankService.loadLearnToRankConfig(BAD_MODEL, Collections.emptyMap(), listener);
+        assertBusy(() -> {
+            verify(listener).onFailure(isA(ElasticsearchStatusException.class));
+        });
     }
 
     public void testLoadLearnToRankConfigWithTemplate() {
-        // TODO
-    }
-
-    private ModelLoadingService mockModelLoadingService() {
-        return mock(ModelLoadingService.class);
-    }
-
-    private ScriptService mockScriptService() {
-        return mock(ScriptService.class);
+        // TODO: write the test.
+        throw new AssumptionViolatedException("Test to be written");
     }
 
     @Override
@@ -124,33 +127,32 @@ public class LearnToRankServiceTests extends ESTestCase {
         return new NamedXContentRegistry(namedXContent);
     }
 
-    private Client mockClient(ThreadPool threadPool) {
-        return new NoOpClient(threadPool) {
-            @Override
-            @SuppressWarnings("unchecked")
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                if (action instanceof GetTrainedModelsAction) {
-                    // Ignore this, it's verified in another test
-                    GetTrainedModelsAction.Request getModelsRequest = (GetTrainedModelsAction.Request) request;
-                    if (getModelsRequest.getResourceId().equals(GOOD_MODEL)) {
-                        listener.onResponse(
-                            (Response) GetTrainedModelsAction.Response.builder().setModels(List.of(GOOD_MODEL_CONFIG)).build()
-                        );
-                    } else if (getModelsRequest.getResourceId().equals(BAD_MODEL)) {
-                        listener.onResponse(
-                            (Response) GetTrainedModelsAction.Response.builder().setModels(List.of(BAD_MODEL_CONFIG)).build()
-                        );
-                    } else {
-                        listener.onFailure(ExceptionsHelper.missingTrainedModel(getModelsRequest.getResourceId()));
-                    }
-                } else {
-                    fail("client called with unexpected request:" + request.toString());
-                }
+    private ModelLoadingService mockModelLoadingService() {
+        return mock(ModelLoadingService.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private TrainedModelProvider mockTrainedModelProvider() {
+        TrainedModelProvider trainedModelProvider = mock(TrainedModelProvider.class);
+
+        doAnswer(invocation -> {
+            String modelId = invocation.getArgument(0);
+            ActionListener<TrainedModelConfig> l = invocation.getArgument(3, ActionListener.class);
+            if (modelId.equals(GOOD_MODEL)) {
+                l.onResponse(GOOD_MODEL_CONFIG);
+            } else if (modelId.equals(BAD_MODEL)) {
+                l.onResponse(BAD_MODEL_CONFIG);
+            } else {
+                l.onFailure(new ResourceNotFoundException("missing model"));
             }
-        };
+            return null;
+
+        }).when(trainedModelProvider).getTrainedModel(any(), any(), any(), any());
+
+        return trainedModelProvider;
+    }
+
+    private ScriptService mockScriptService() {
+        return mock(ScriptService.class);
     }
 }

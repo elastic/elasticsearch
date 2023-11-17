@@ -78,9 +78,7 @@ public class LearnToRankServiceTests extends ESTestCase {
         );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
         learnToRankService.loadLearnToRankConfig(GOOD_MODEL, Collections.emptyMap(), listener);
-        assertBusy(() -> {
-            verify(listener).onResponse(eq((LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig()));
-        });
+        assertBusy(() -> { verify(listener).onResponse(eq((LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig())); });
     }
 
     @SuppressWarnings("unchecked")
@@ -93,9 +91,7 @@ public class LearnToRankServiceTests extends ESTestCase {
         );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
         learnToRankService.loadLearnToRankConfig("non-existing-model", Collections.emptyMap(), listener);
-        assertBusy(() -> {
-            verify(listener).onFailure(isA(ResourceNotFoundException.class));
-        });
+        assertBusy(() -> { verify(listener).onFailure(isA(ResourceNotFoundException.class)); });
     }
 
     @SuppressWarnings("unchecked")
@@ -108,9 +104,7 @@ public class LearnToRankServiceTests extends ESTestCase {
         );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
         learnToRankService.loadLearnToRankConfig(BAD_MODEL, Collections.emptyMap(), listener);
-        assertBusy(() -> {
-            verify(listener).onFailure(isA(ElasticsearchStatusException.class));
-        });
+        assertBusy(() -> { verify(listener).onFailure(isA(ElasticsearchStatusException.class)); });
     }
 
     public void testLoadLearnToRankConfigWithTemplate() {

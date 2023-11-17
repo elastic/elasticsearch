@@ -161,7 +161,7 @@ public class MvExpandOperator implements Operator {
                     prev.releaseBlocks();
                     prev = null;
                 }
-            }, expandedBlock::decRef);
+            }, expandedBlock);
             expandingBlock = null;
             expandedBlock = null;
         }
@@ -240,11 +240,7 @@ public class MvExpandOperator implements Operator {
             if (prev != null) {
                 prev.releaseBlocks();
             }
-        }, () -> {
-            if (expandedBlock != null) {
-                expandedBlock.decRef();
-            }
-        });
+        }, expandedBlock);
     }
 
     @Override

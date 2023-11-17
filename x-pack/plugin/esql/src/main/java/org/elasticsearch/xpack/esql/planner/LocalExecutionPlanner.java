@@ -362,15 +362,12 @@ public class LocalExecutionPlanner {
                 // the outputs are going to be similar except for the bool "seen" flags which are added in below
                 List<Block> blocks = new ArrayList<>(asList(localExec.supplier().get()));
                 if (blocks.size() > 0) {
-                    Block boolBlock = BooleanBlock.newConstantBlockWith(true, 1);
                     for (int i = 0, s = output.size(); i < s; i++) {
                         var out = output.get(i);
                         if (out.dataType() == DataTypes.BOOLEAN) {
-                            boolBlock.incRef();
-                            blocks.add(i, boolBlock);
+                            blocks.add(i, BooleanBlock.newConstantBlockWith(true, 1));
                         }
                     }
-                    boolBlock.decRef();
                 }
                 var newSupplier = LocalSupplier.of(blocks.toArray(Block[]::new));
 

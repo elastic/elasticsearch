@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.license.internal.TrialLicenseVersion.TRIAL_VERSION_CUTOVER;
-import static org.elasticsearch.license.internal.TrialLicenseVersion.TRIAL_VERSION_CUTOVER_MAJOR;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TrialLicenseVersionTests extends ESTestCase {
@@ -19,10 +18,9 @@ public class TrialLicenseVersionTests extends ESTestCase {
     public void testCanParseAllVersions() {
         for (var version : Version.getDeclaredVersions(Version.class)) {
             TrialLicenseVersion parsedVersion = TrialLicenseVersion.fromXContent(version.toString());
-            if (version.major < TRIAL_VERSION_CUTOVER_MAJOR) {
-                assertTrue(new TrialLicenseVersion(TRIAL_VERSION_CUTOVER).ableToStartNewTrialSince(parsedVersion));
-            } else {
-                assertFalse(new TrialLicenseVersion(TRIAL_VERSION_CUTOVER).ableToStartNewTrialSince(parsedVersion));
+            // TODO clean up
+            if (version.onOrBefore(Version.V_8_12_0)) {
+                assertFalse(parsedVersion.ableToStartNewTrial());
             }
         }
     }
@@ -32,13 +30,11 @@ public class TrialLicenseVersionTests extends ESTestCase {
         assertThat(TrialLicenseVersion.fromXContent(randomVersion.toString()), equalTo(randomVersion));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102286")
     public void testNewTrialAllowed() {
-        var randomVersion = new TrialLicenseVersion(randomNonNegativeInt());
-        var subsequentVersion = new TrialLicenseVersion(
-            randomVersion.asInt() + randomIntBetween(0, Integer.MAX_VALUE - randomVersion.asInt())
-        );
-        assertFalse(randomVersion.ableToStartNewTrialSince(randomVersion));
-        assertTrue(subsequentVersion.ableToStartNewTrialSince(randomVersion));
+        // explicit boundary case
+        assertFalse(new TrialLicenseVersion(TRIAL_VERSION_CUTOVER).ableToStartNewTrial());
+
+        assertFalse(new TrialLicenseVersion(randomIntBetween(0, TRIAL_VERSION_CUTOVER)).ableToStartNewTrial());
+        assertTrue(new TrialLicenseVersion(randomIntBetween(TRIAL_VERSION_CUTOVER + 1, Integer.MAX_VALUE)).ableToStartNewTrial());
     }
 }

@@ -95,7 +95,7 @@ final class DfsQueryPhase extends SearchPhase {
                 connection,
                 querySearchRequest,
                 context.getTask(),
-                new SearchActionListener<QuerySearchResult>(shardTarget, shardIndex) {
+                new SearchActionListener<>(shardTarget, shardIndex) {
 
                     @Override
                     protected void innerOnResponse(QuerySearchResult response) {

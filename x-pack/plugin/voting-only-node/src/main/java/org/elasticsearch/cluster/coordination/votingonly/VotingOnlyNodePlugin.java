@@ -150,15 +150,15 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
         }
 
         private static Predicate<Join> fullMasterWithSameState(long localAcceptedTerm, long localAcceptedVersion) {
-            return join -> isFullMasterNode(join.getVotingNode())
-                && join.getLastAcceptedTerm() == localAcceptedTerm
-                && join.getLastAcceptedVersion() == localAcceptedVersion;
+            return join -> isFullMasterNode(join.votingNode())
+                && join.lastAcceptedTerm() == localAcceptedTerm
+                && join.lastAcceptedVersion() == localAcceptedVersion;
         }
 
         private static Predicate<Join> fullMasterWithOlderState(long localAcceptedTerm, long localAcceptedVersion) {
-            return join -> isFullMasterNode(join.getVotingNode())
-                && (join.getLastAcceptedTerm() < localAcceptedTerm
-                    || (join.getLastAcceptedTerm() == localAcceptedTerm && join.getLastAcceptedVersion() < localAcceptedVersion));
+            return join -> isFullMasterNode(join.votingNode())
+                && (join.lastAcceptedTerm() < localAcceptedTerm
+                    || (join.lastAcceptedTerm() == localAcceptedTerm && join.lastAcceptedVersion() < localAcceptedVersion));
         }
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -34,10 +35,11 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
                 }
             ]""";
 
-        TextExpansionResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
+        List<TextExpansionResults> parsedResults = HuggingFaceElserResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        Map<String, Float> tokenWeightMap = parsedResults.getWeightedTokens()
+        Map<String, Float> tokenWeightMap = parsedResults.get(0)
+            .getWeightedTokens()
             .stream()
             .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));
 
@@ -45,7 +47,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         assertThat(tokenWeightMap.size(), is(2));
         assertThat(tokenWeightMap.get("."), is(0.13315596f));
         assertThat(tokenWeightMap.get("the"), is(0.67472112f));
-        assertFalse(parsedResults.isTruncated());
+        assertFalse(parsedResults.get(0).isTruncated());
     }
 
     public void testFromResponse_CreatesTextExpansionResultsForFirstItem() throws IOException {
@@ -61,18 +63,33 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
                 }
             ]""";
 
-        TextExpansionResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
+        List<TextExpansionResults> parsedResults = HuggingFaceElserResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        Map<String, Float> tokenWeightMap = parsedResults.getWeightedTokens()
-            .stream()
-            .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));
+        {
+            var parsedResult = parsedResults.get(0);
+            Map<String, Float> tokenWeightMap = parsedResult.getWeightedTokens()
+                .stream()
+                .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));
 
-        // the results get truncated because weighted token stores them as a float
-        assertThat(tokenWeightMap.size(), is(2));
-        assertThat(tokenWeightMap.get("."), is(0.13315596f));
-        assertThat(tokenWeightMap.get("the"), is(0.67472112f));
-        assertFalse(parsedResults.isTruncated());
+            // the results get truncated because weighted token stores them as a float
+            assertThat(tokenWeightMap.size(), is(2));
+            assertThat(tokenWeightMap.get("."), is(0.13315596f));
+            assertThat(tokenWeightMap.get("the"), is(0.67472112f));
+            assertFalse(parsedResult.isTruncated());
+        }
+        {
+            var parsedResult = parsedResults.get(1);
+            Map<String, Float> tokenWeightMap = parsedResult.getWeightedTokens()
+                .stream()
+                .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));
+
+            // the results get truncated because weighted token stores them as a float
+            assertThat(tokenWeightMap.size(), is(2));
+            assertThat(tokenWeightMap.get("hi"), is(0.13315596f));
+            assertThat(tokenWeightMap.get("super"), is(0.67472112f));
+            assertFalse(parsedResult.isTruncated());
+        }
     }
 
     public void testFails_NotAnArray() {
@@ -117,7 +134,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         );
     }
 
-    public void testFails_ValueInt() throws IOException {
+    public void testFromResponse_CreatesResultsWithValueInt() throws IOException {
         String responseJson = """
             [
               {
@@ -128,7 +145,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
 
         TextExpansionResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
-        );
+        ).get(0);
         Map<String, Float> tokenWeightMap = parsedResults.getWeightedTokens()
             .stream()
             .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));
@@ -138,7 +155,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         assertFalse(parsedResults.isTruncated());
     }
 
-    public void testFails_ValueLong() throws IOException {
+    public void testFromResponse_CreatesResultsWithValueLong() throws IOException {
         String responseJson = """
             [
               {
@@ -149,7 +166,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
 
         TextExpansionResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
-        );
+        ).get(0);
         Map<String, Float> tokenWeightMap = parsedResults.getWeightedTokens()
             .stream()
             .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));

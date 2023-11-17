@@ -580,7 +580,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             } else if (regionSize > ByteSizeUnit.MB.toBytes(32)) {
                 regionSize = ByteSizeUnit.MB.toBytes(32);
             }
-            return regionSize;
+            // elasticsearch overrides the region size for small heaps so the smallest region size possible is 4MiB
+            return Math.max(ByteSizeUnit.MB.toBytes(4), regionSize);
         }
 
         @Override

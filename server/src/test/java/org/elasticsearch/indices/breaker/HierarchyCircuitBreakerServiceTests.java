@@ -464,7 +464,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         assertThat(
             HierarchyCircuitBreakerService.G1OverLimitStrategy.fallbackRegionSize(JvmInfo.jvmInfo()),
-            equalTo(JvmInfo.jvmInfo().getG1RegionSize())
+            equalTo(Math.max(ByteSizeUnit.MB.toBytes(4), JvmInfo.jvmInfo().getG1RegionSize()))
         );
     }
 

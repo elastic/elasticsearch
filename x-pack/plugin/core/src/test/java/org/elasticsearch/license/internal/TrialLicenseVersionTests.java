@@ -10,7 +10,9 @@ package org.elasticsearch.license.internal;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.license.internal.TrialLicenseVersion.CURRENT;
 import static org.elasticsearch.license.internal.TrialLicenseVersion.TRIAL_VERSION_CUTOVER;
+import static org.elasticsearch.license.internal.TrialLicenseVersion.TRIAL_VERSION_CUTOVER_MAJOR;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TrialLicenseVersionTests extends ESTestCase {
@@ -18,8 +20,9 @@ public class TrialLicenseVersionTests extends ESTestCase {
     public void testCanParseAllVersions() {
         for (var version : Version.getDeclaredVersions(Version.class)) {
             TrialLicenseVersion parsedVersion = TrialLicenseVersion.fromXContent(version.toString());
-            // TODO clean up
-            if (version.onOrBefore(Version.V_8_12_0)) {
+            if (version.major < TRIAL_VERSION_CUTOVER_MAJOR) {
+                assertTrue(parsedVersion.ableToStartNewTrial());
+            } else {
                 assertFalse(parsedVersion.ableToStartNewTrial());
             }
         }
@@ -31,10 +34,8 @@ public class TrialLicenseVersionTests extends ESTestCase {
     }
 
     public void testNewTrialAllowed() {
-        // explicit boundary case
-        assertFalse(new TrialLicenseVersion(TRIAL_VERSION_CUTOVER).ableToStartNewTrial());
-
-        assertFalse(new TrialLicenseVersion(randomIntBetween(0, TRIAL_VERSION_CUTOVER)).ableToStartNewTrial());
-        assertTrue(new TrialLicenseVersion(randomIntBetween(TRIAL_VERSION_CUTOVER + 1, Integer.MAX_VALUE)).ableToStartNewTrial());
+        assertTrue(new TrialLicenseVersion(randomIntBetween(7_00_00_00, 7_99_99_99)).ableToStartNewTrial());
+        assertFalse(new TrialLicenseVersion(CURRENT.asInt()).ableToStartNewTrial());
+        assertFalse(new TrialLicenseVersion(randomIntBetween(8_00_00_00, TRIAL_VERSION_CUTOVER)).ableToStartNewTrial());
     }
 }

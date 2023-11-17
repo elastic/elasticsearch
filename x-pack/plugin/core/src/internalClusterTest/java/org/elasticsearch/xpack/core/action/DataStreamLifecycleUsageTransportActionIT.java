@@ -71,7 +71,8 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testAction() throws Exception {
         assertUsageResults(0, 0, 0, 0.0, true);
-        AtomicLong count = new AtomicLong(0);
+        AtomicLong totalCount = new AtomicLong(0);
+        AtomicLong countLifecycleWithRetention = new AtomicLong(0);
         AtomicLong totalRetentionTimes = new AtomicLong(0);
         AtomicLong minRetention = new AtomicLong(Long.MAX_VALUE);
         AtomicLong maxRetention = new AtomicLong(Long.MIN_VALUE);
@@ -94,11 +95,13 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                 if (hasLifecycle) {
                     if (randomBoolean()) {
                         lifecycle = new DataStreamLifecycle(null, null, null);
+                        totalCount.incrementAndGet();
                     } else {
                         long retentionMillis = randomLongBetween(1000, 100000);
                         boolean isEnabled = randomBoolean();
                         if (isEnabled) {
-                            count.incrementAndGet();
+                            totalCount.incrementAndGet();
+                            countLifecycleWithRetention.incrementAndGet();
                             totalRetentionTimes.addAndGet(retentionMillis);
 
                             if (retentionMillis < minRetention.get()) {
@@ -141,9 +144,11 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         });
         int expectedMinimumRetention = minRetention.get() == Long.MAX_VALUE ? 0 : minRetention.intValue();
         int expectedMaximumRetention = maxRetention.get() == Long.MIN_VALUE ? 0 : maxRetention.intValue();
-        double expectedAverageRetention = count.get() == 0 ? 0.0 : totalRetentionTimes.doubleValue() / count.get();
+        double expectedAverageRetention = countLifecycleWithRetention.get() == 0
+            ? 0.0
+            : totalRetentionTimes.doubleValue() / countLifecycleWithRetention.get();
         assertUsageResults(
-            count.intValue(),
+            totalCount.intValue(),
             expectedMinimumRetention,
             expectedMaximumRetention,
             expectedAverageRetention,

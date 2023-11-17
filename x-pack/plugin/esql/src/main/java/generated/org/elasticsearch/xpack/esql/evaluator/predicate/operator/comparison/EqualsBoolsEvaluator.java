@@ -41,14 +41,8 @@ public final class EqualsBoolsEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
-      if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-      }
       BooleanBlock lhsBlock = (BooleanBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
-        if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-        }
         BooleanBlock rhsBlock = (BooleanBlock) rhsRef.block();
         BooleanVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
@@ -64,37 +58,39 @@ public final class EqualsBoolsEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public BooleanBlock eval(int positionCount, BooleanBlock lhsBlock, BooleanBlock rhsBlock) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (lhsBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (lhsBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(Equals.processBools(lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)), rhsBlock.getBoolean(rhsBlock.getFirstValueIndex(p))));
       }
-      if (lhsBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      if (rhsBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
-      }
-      if (rhsBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      result.appendBoolean(Equals.processBools(lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)), rhsBlock.getBoolean(rhsBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, BooleanVector lhsVector, BooleanVector rhsVector) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBoolean(Equals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)));
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(Equals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -105,5 +101,30 @@ public final class EqualsBoolsEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+
+    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs) {
+      this.source = source;
+      this.lhs = lhs;
+      this.rhs = rhs;
+    }
+
+    @Override
+    public EqualsBoolsEvaluator get(DriverContext context) {
+      return new EqualsBoolsEvaluator(source, lhs.get(context), rhs.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "EqualsBoolsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
   }
 }

@@ -120,7 +120,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         });
     }
 
-    private DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
+    private static DeleteByQueryRequest createDBQRequest(Job job, float requestsPerSec, long cutoffEpochMs) {
         QueryBuilder excludeFilter = QueryBuilders.termsQuery(
             Result.RESULT_TYPE.getPreferredName(),
             ModelSizeStats.RESULT_TYPE_VALUE,

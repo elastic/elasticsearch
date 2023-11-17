@@ -16,7 +16,7 @@ import java.io.IOException;
  * Vector that stores long values.
  * This class is generated. Do not edit it.
  */
-public sealed interface LongVector extends Vector permits ConstantLongVector, FilterLongVector, LongArrayVector, LongBigArrayVector {
+public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector, ConstantNullVector {
 
     long getLong(int position);
 
@@ -73,17 +73,18 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static LongVector of(StreamInput in) throws IOException {
+    static LongVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return new ConstantLongVector(in.readLong(), positions);
+            return blockFactory.newConstantLongVector(in.readLong(), positions);
         } else {
-            var builder = LongVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendLong(in.readLong());
+            try (var builder = blockFactory.newLongVectorFixedBuilder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.appendLong(in.readLong());
+                }
+                return builder.build();
             }
-            return builder.build();
         }
     }
 
@@ -101,8 +102,12 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
         }
     }
 
-    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    /**
+     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
+     * @deprecated use {@link BlockFactory#newLongVectorBuilder}
+     */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    @Deprecated
     static Builder newVectorBuilder(int estimatedSize) {
         return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
@@ -110,7 +115,9 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
     /**
      * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
      * if you know the size up front because it's faster.
+     * @deprecated use {@link BlockFactory#newLongVectorBuilder}
      */
+    @Deprecated
     static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return blockFactory.newLongVectorBuilder(estimatedSize);
     }
@@ -118,7 +125,9 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
     /**
      * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
      * if you know the size up front because it's faster.
+     * @deprecated use {@link BlockFactory#newLongVectorFixedBuilder}
      */
+    @Deprecated
     static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
         return blockFactory.newLongVectorFixedBuilder(size);
     }

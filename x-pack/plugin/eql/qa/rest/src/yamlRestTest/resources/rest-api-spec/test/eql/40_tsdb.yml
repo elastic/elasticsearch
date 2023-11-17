@@ -1,0 +1,174 @@
+setup:
+  - do:
+      indices.create:
+          index: test1
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [metricset, k8s.pod.uid]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                event.category:
+                  type: keyword
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          time_series_dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                              time_series_metric: counter
+                            rx:
+                              type: long
+                              time_series_metric: counter
+  - do:
+      bulk:
+        refresh: true
+        index: test1
+        body:
+          - '{"index": {}}'
+          - '{"id":1, "@timestamp": "2021-04-28T18:50:04.467Z", "event.category": "process", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"id":2, "@timestamp": "2021-04-28T18:50:24.467Z", "event.category": "process", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
+          - '{"index": {}}'
+          - '{"id":3, "@timestamp": "2021-04-28T18:50:44.467Z", "event.category": "process", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
+          - '{"index": {}}'
+          - '{"id":4, "@timestamp": "2021-04-28T18:51:04.467Z", "event.category": "process", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
+          - '{"index": {}}'
+          - '{"id":5, "@timestamp": "2021-04-28T18:50:03.142Z", "event.category": "process", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"id":6, "@timestamp": "2021-04-28T18:50:23.142Z", "event.category": "process", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"id":7, "@timestamp": "2021-04-28T18:50:53.142Z", "event.category": "network", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"id":8, "@timestamp": "2021-04-28T18:51:03.142Z", "event.category": "network", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ dim ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              event.category:
+                type: keyword
+              dim:
+                type: keyword
+                time_series_dimension: true
+              agg_metric:
+                type: aggregate_metric_double
+                metrics:
+                  - max
+                default_metric: max
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      ip:
+                        type: ip
+                      network:
+                        properties:
+                          tx:
+                            type: long
+  - do:
+      bulk:
+        refresh: true
+        index: test2
+        body:
+          - '{"index": {}}'
+          - '{"id":100, "@timestamp": "2021-04-28T18:49:04.467Z", "event.category": "network", "dim": "A", "agg_metric": {"max": 10}}'
+          - '{"index": {}}'
+          - '{"id":200, "@timestamp": "2021-04-28T18:49:24.467Z", "event.category": "process", "dim": "B", "agg_metric": {"max": 20}, "k8s.pod.network.tx": 2000000001}'
+          - '{"index": {}}'
+          - '{"id":300, "@timestamp": "2021-04-28T18:49:34.467Z", "event.category": "process", "dim": "B", "agg_metric": {"max": 20}, "k8s.pod.network.tx": 1}'
+
+---
+test* where counter:
+  - do:
+      eql.search:
+        index: test*
+        body:
+          query: 'process where k8s.pod.network.tx > 2000000000'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 5}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.id: 200}
+  - match: {hits.events.1._source.id: 1}
+  - match: {hits.events.2._source.id: 2}
+  - match: {hits.events.3._source.id: 3}
+  - match: {hits.events.4._source.id: 4}
+
+---
+test1 where counter:
+  - do:
+      eql.search:
+        index: test1
+        body:
+          query: 'process where k8s.pod.network.tx > 2000000000'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 4}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.id: 1}
+  - match: {hits.events.1._source.id: 2}
+  - match: {hits.events.2._source.id: 3}
+  - match: {hits.events.3._source.id: 4}
+
+---
+test2 where counter:
+  - do:
+      eql.search:
+        index: test2
+        body:
+          query: 'process where k8s.pod.network.tx > 2000000000'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.id: 200}
+
+---
+test* where true:
+  - do:
+      eql.search:
+        index: test*
+        body:
+          query: 'process where true'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 8}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.id: 200}
+  - match: {hits.events.1._source.id: 300}
+  - match: {hits.events.2._source.id: 5}
+  - match: {hits.events.3._source.id: 1}
+  - match: {hits.events.4._source.id: 6}
+  - match: {hits.events.5._source.id: 2}
+  - match: {hits.events.6._source.id: 3}
+  - match: {hits.events.7._source.id: 4}

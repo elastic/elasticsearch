@@ -71,7 +71,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext),
                     simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)
                 ),
-                new ResultPageSinkOperator(page -> results.add(page)),
+                new TestResultPageSinkOperator(page -> results.add(page)),
                 () -> {}
             )
         ) {
@@ -93,7 +93,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(partials.iterator()),
                 List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)),
-                new ResultPageSinkOperator(results::add),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
@@ -119,7 +119,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driverContext),
                     simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)
                 ),
-                new ResultPageSinkOperator(page -> results.add(page)),
+                new TestResultPageSinkOperator(page -> results.add(page)),
                 () -> {}
             )
         ) {
@@ -129,7 +129,6 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99160")
     public final void testManyInitialManyPartialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
@@ -149,7 +148,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(intermediates.iterator()),
                 List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)),
-                new ResultPageSinkOperator(results::add),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
@@ -170,7 +169,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -184,7 +183,6 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // operator that throws - fails. The primary motivation for this is to ensure that the driver
     // runner behaves correctly and also releases all resources (bigArrays) appropriately.
     // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100145")
     public final void testManyInitialManyPartialFinalRunnerThrowing() throws Exception {
         DriverContext driverContext = driverContext();
         BigArrays bigArrays = nonBreakingBigArrays();
@@ -195,7 +193,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -257,7 +255,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driver2Context),
                     intermediateOperatorItr.next()
                 ),
-                new ResultPageSinkOperator(results::add),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         );

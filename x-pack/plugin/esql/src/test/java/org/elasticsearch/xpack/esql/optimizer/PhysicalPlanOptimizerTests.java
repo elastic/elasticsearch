@@ -89,6 +89,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
@@ -103,7 +104,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer:TRACE", reason = "debug")
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -157,7 +158,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             .sum();
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        logicalOptimizer = new LogicalPlanOptimizer();
+        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);
@@ -244,6 +245,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(query.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
     }
 
+    /**
+     * Expects
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SUM(salary{f}#882) AS x],FINAL,null]
+     *   \_ExchangeExec[[sum{r}#887, seen{r}#888],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
+     * Aggregate[[],[SUM(salary{f}#882) AS x]]
+     * \_Filter[ROUND(emp_no{f}#877) > 10[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#883, emp_no{f}#877, first_name{f}#87..]]]
+     */
     public void testDoubleExtractorPerFieldEvenWithAliasNoPruningDueToImplicitProjection() {
         var plan = physicalPlan("""
             from test
@@ -261,9 +272,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         aggregate = as(exchange.child(), AggregateExec.class);
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
 
-        var eval = as(aggregate.child(), EvalExec.class);
-
-        var extract = as(eval.child(), FieldExtractExec.class);
+        var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("salary"));
 
         var filter = as(extract.child(), FilterExec.class);
@@ -271,7 +280,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
 
         var query = source(extract.child());
-        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 4 /* for doc id, emp_no, salary, and c */));
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no and salary*/));
     }
 
     public void testTripleExtractorPerField() {
@@ -903,16 +912,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
-     *
-     * ProjectExec[[emp_no{f}#7, x{r}#4]]
-     * \_TopNExec[[Order[emp_no{f}#7,ASC,LAST]],5[INTEGER]]
-     *   \_ExchangeExec[]
-     *     \_ProjectExec[[emp_no{f}#7, x{r}#4]]
-     *       \_TopNExec[[Order[emp_no{f}#7,ASC,LAST]],5[INTEGER]]
-     *         \_FieldExtractExec[emp_no{f}#7]
-     *           \_EvalExec[[first_name{f}#8 AS x]]
-     *             \_FieldExtractExec[first_name{f}#8]
-     *               \_EsQueryExec[test], query[][_doc{f}#14], limit[]
+     * ProjectExec[[emp_no{f}#7, first_name{f}#8 AS x]]
+     * \_TopNExec[[Order[emp_no{f}#7,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[],false]
+     *     \_ProjectExec[[emp_no{f}#7, first_name{f}#8]]
+     *       \_FieldExtractExec[emp_no{f}#7, first_name{f}#8]
+     *         \_EsQueryExec[test], query[][_doc{f}#28], limit[5], sort[[FieldSort[field=emp_no{f}#7, direction=ASC, nulls=LAST]]]...
      */
     public void testLocalProjectIncludeLocalAlias() throws Exception {
         var optimized = optimizedPlan(physicalPlan("""
@@ -928,11 +933,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("emp_no", "x"));
-        topN = as(project.child(), TopNExec.class);
-        var extract = as(topN.child(), FieldExtractExec.class);
-        var eval = as(extract.child(), EvalExec.class);
-        extract = as(eval.child(), FieldExtractExec.class);
+        assertThat(names(project.projections()), contains("emp_no", "first_name"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = as(extract.child(), EsQueryExec.class);
     }
 
     /**
@@ -1858,6 +1861,37 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit().fold(), equalTo(10));
     }
 
+    /**
+     * Expects
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[languages{f}#9],[MIN(salary{f}#11) AS m, languages{f}#9],FINAL,8]
+     *   \_ExchangeExec[[languages{f}#9, min{r}#16, seen{r}#17],true]
+     *     \_LocalSourceExec[[languages{f}#9, min{r}#16, seen{r}#17],EMPTY]
+     */
+    public void testAggToLocalRelationOnDataNode() {
+        var plan = physicalPlan("""
+            from test
+            | where first_name is not null
+            | stats m = min(salary) by languages
+            """);
+
+        var stats = new EsqlTestUtils.TestSearchStats() {
+            public boolean exists(String field) {
+                return "salary".equals(field);
+            }
+        };
+        var optimized = optimizedPlan(plan, stats);
+
+        var limit = as(optimized, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+        assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
+
+        var exchange = asRemoteExchange(aggregate.child());
+        var localSourceExec = as(exchange.child(), LocalSourceExec.class);
+        assertThat(Expressions.names(localSourceExec.output()), contains("languages", "min", "seen"));
+    }
+
     private static EsQueryExec source(PhysicalPlan plan) {
         if (plan instanceof ExchangeExec exchange) {
             plan = exchange.child();
@@ -1882,8 +1916,25 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });
 
+        // handle local reduction alignment
+        l = localRelationshipAlignment(l);
         // System.out.println("* Localized DataNode Plan\n" + l);
         return l;
+    }
+
+    static PhysicalPlan localRelationshipAlignment(PhysicalPlan l) {
+        // handle local reduction alignment
+        return l.transformUp(ExchangeExec.class, exg -> {
+            PhysicalPlan pl = exg;
+            if (exg.isInBetweenAggs() && exg.child() instanceof LocalSourceExec lse) {
+                var output = exg.output();
+                if (lse.output().equals(output) == false) {
+                    pl = exg.replaceChild(new LocalSourceExec(lse.source(), output, lse.supplier()));
+                }
+            }
+            return pl;
+        });
+
     }
 
     private PhysicalPlan physicalPlan(String query) {
@@ -1913,4 +1964,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return sv.next();
     }
 
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
+    }
 }

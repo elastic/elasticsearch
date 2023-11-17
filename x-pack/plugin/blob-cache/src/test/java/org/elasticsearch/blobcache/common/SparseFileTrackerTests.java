@@ -373,12 +373,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         final Set<AtomicBoolean> listenersCalled = newConcurrentSet();
         for (int threadIndex = 0; threadIndex < threads.length; threadIndex++) {
             threads[threadIndex] = new Thread(() -> {
-                try {
-                    startLatch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-
+                safeAwait(startLatch);
                 while (countDown.tryAcquire()) {
                     waitForRandomRange(fileContents, sparseFileTracker, listenersCalled::add, gap -> processGap(fileContents, gap));
                 }
@@ -419,17 +414,14 @@ public class SparseFileTrackerTests extends ESTestCase {
             assertThat(sparseFileTracker.getAbsentRangeWithin(completedRange), nullValue());
 
             final AtomicBoolean listenerCalled = new AtomicBoolean();
-            assertThat(sparseFileTracker.waitForRange(completedRange, completedRange, new ActionListener<>() {
-                @Override
-                public void onResponse(Void aVoid) {
-                    listenerCalled.set(true);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError(e);
-                }
-            }), hasSize(0));
+            assertThat(
+                sparseFileTracker.waitForRange(
+                    completedRange,
+                    completedRange,
+                    ActionTestUtils.assertNoFailureListener(ignored -> listenerCalled.set(true))
+                ),
+                hasSize(0)
+            );
             assertThat(listenerCalled.get(), is(true));
         }
     }

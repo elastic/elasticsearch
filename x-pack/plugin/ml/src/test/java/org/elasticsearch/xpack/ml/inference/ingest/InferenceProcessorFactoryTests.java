@@ -647,10 +647,16 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             randomBoolean()
         );
 
-        Map<String, Object> inputMap = new HashMap<>() {
+        Map<String, Object> inputMap1 = new HashMap<>() {
             {
-                put(InferenceProcessor.INPUT_FIELD, "in");
-                put(InferenceProcessor.OUTPUT_FIELD, "out");
+                put(InferenceProcessor.INPUT_FIELD, "in1");
+                put(InferenceProcessor.OUTPUT_FIELD, "out1");
+            }
+        };
+        Map<String, Object> inputMap2 = new HashMap<>() {
+            {
+                put(InferenceProcessor.INPUT_FIELD, "in2");
+                put(InferenceProcessor.OUTPUT_FIELD, "out2");
             }
         };
 
@@ -671,8 +677,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>() {
             {
                 put(InferenceProcessor.MODEL_ID, "my_model");
-                put(InferenceProcessor.INPUT_OUTPUT, List.of(inputMap));
-                put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(inferenceConfigType, Collections.emptyMap()));
+                put(InferenceProcessor.INPUT_OUTPUT, List.of(inputMap1, inputMap2));
             }
         };
         // create valid inference configs with required fields
@@ -693,11 +698,113 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         assertTrue(inferenceProcessor.isConfiguredWithInputsFields());
 
         var inputs = inferenceProcessor.getInputs();
-        assertThat(inputs, hasSize(1));
-        assertEquals(inputs.get(0), new InferenceProcessor.Factory.InputConfig("in", null, "out", Map.of()));
+        assertThat(inputs, hasSize(2));
+        assertEquals(inputs.get(0), new InferenceProcessor.Factory.InputConfig("in1", null, "out1", Map.of()));
+        assertEquals(inputs.get(1), new InferenceProcessor.Factory.InputConfig("in2", null, "out2", Map.of()));
 
         assertNull(inferenceProcessor.getFieldMap());
         assertNull(inferenceProcessor.getTargetField());
+    }
+
+    public void testCreateProcessorWithInputFieldSingleOrList() {
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(
+            client,
+            clusterService,
+            Settings.EMPTY,
+            randomBoolean()
+        );
+
+        for (var isList : new boolean[] { true, false }) {
+            Map<String, Object> inputMap = new HashMap<>() {
+                {
+                    put(InferenceProcessor.INPUT_FIELD, "in");
+                    put(InferenceProcessor.OUTPUT_FIELD, "out");
+                }
+            };
+
+            Map<String, Object> config = new HashMap<>();
+            config.put(InferenceProcessor.MODEL_ID, "my_model");
+            if (isList) {
+                config.put(InferenceProcessor.INPUT_OUTPUT, List.of(inputMap));
+            } else {
+                config.put(InferenceProcessor.INPUT_OUTPUT, inputMap);
+            }
+
+            if (randomBoolean()) {
+                config.put(
+                    InferenceProcessor.INFERENCE_CONFIG,
+                    Collections.singletonMap(TextExpansionConfigUpdate.NAME, Collections.emptyMap())
+                );
+            }
+
+            var inferenceProcessor = processorFactory.create(Collections.emptyMap(), "processor_with_single_input", null, config);
+            assertEquals("my_model", inferenceProcessor.getModelId());
+            assertTrue(inferenceProcessor.isConfiguredWithInputsFields());
+
+            var inputs = inferenceProcessor.getInputs();
+            assertThat(inputs, hasSize(1));
+            assertEquals(inputs.get(0), new InferenceProcessor.Factory.InputConfig("in", null, "out", Map.of()));
+
+            assertNull(inferenceProcessor.getFieldMap());
+            assertNull(inferenceProcessor.getTargetField());
+        }
+    }
+
+    public void testCreateProcessorWithInputFieldWrongType() {
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(
+            client,
+            clusterService,
+            Settings.EMPTY,
+            randomBoolean()
+        );
+
+        {
+            Map<String, Object> config = new HashMap<>();
+            config.put(InferenceProcessor.MODEL_ID, "my_model");
+            config.put(InferenceProcessor.INPUT_OUTPUT, List.of(1, 2, 3));
+
+            var e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config)
+            );
+            assertThat(e.getMessage(), containsString("[input_output] property isn't a list of maps"));
+        }
+        {
+            Map<String, Object> config = new HashMap<>();
+            config.put(InferenceProcessor.MODEL_ID, "my_model");
+            config.put(InferenceProcessor.INPUT_OUTPUT, Boolean.TRUE);
+
+            var e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config)
+            );
+            assertThat(e.getMessage(), containsString("[input_output] property isn't a map or list of maps"));
+        }
+        {
+            Map<Boolean, String> badMap = new HashMap<>();
+            badMap.put(Boolean.TRUE, "foo");
+            Map<String, Object> config = new HashMap<>();
+            config.put(InferenceProcessor.MODEL_ID, "my_model");
+            config.put(InferenceProcessor.INPUT_OUTPUT, badMap);
+
+            var e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config)
+            );
+            assertThat(e.getMessage(), containsString("[input_field] required property is missing"));
+        }
+        {
+            // empty list
+            Map<String, Object> config = new HashMap<>();
+            config.put(InferenceProcessor.MODEL_ID, "my_model");
+            config.put(InferenceProcessor.INPUT_OUTPUT, List.of());
+
+            var e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config)
+            );
+            assertThat(e.getMessage(), containsString("[input_output] property cannot be empty at least one is required"));
+        }
     }
 
     public void testParsingInputFields() {
@@ -785,7 +892,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         );
 
         var e = expectThrows(ElasticsearchParseException.class, () -> processorFactory.parseInputFields("my_processor", List.of()));
-        assertThat(e.getMessage(), containsString("[input_output] cannot be empty at least one is required"));
+        assertThat(e.getMessage(), containsString("[input_output] property cannot be empty at least one is required"));
     }
 
     private static ClusterState buildClusterStateWithModelReferences(String... modelId) throws IOException {
@@ -815,8 +922,22 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.DATA_ROLE)
                         )
                     )
-                    .add(DiscoveryNodeUtils.create("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302)))
-                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304)))
+                    .add(
+                        DiscoveryNodeUtils.create(
+                            "current_node",
+                            new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
+                            Map.of(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.CURRENT.toString()),
+                            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.DATA_ROLE)
+                        )
+                    )
+                    .add(
+                        DiscoveryNodeUtils.create(
+                            "_node_id",
+                            new TransportAddress(InetAddress.getLoopbackAddress(), 9304),
+                            Map.of(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.CURRENT.toString()),
+                            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.DATA_ROLE)
+                        )
+                    )
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )

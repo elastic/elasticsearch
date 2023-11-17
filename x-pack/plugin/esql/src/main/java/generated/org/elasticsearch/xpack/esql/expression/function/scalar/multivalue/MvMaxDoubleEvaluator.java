@@ -40,24 +40,25 @@ public final class MvMaxDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
-          builder.appendNull();
-          continue;
+      try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          double value = v.getDouble(first);
+          for (int i = first + 1; i < end; i++) {
+            double next = v.getDouble(i);
+            value = MvMax.process(value, next);
+          }
+          double result = value;
+          builder.appendDouble(result);
         }
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        double value = v.getDouble(first);
-        for (int i = first + 1; i < end; i++) {
-          double next = v.getDouble(i);
-          value = MvMax.process(value, next);
-        }
-        double result = value;
-        builder.appendDouble(result);
+        return Block.Ref.floating(builder.build());
       }
-      return Block.Ref.floating(builder.build());
     }
   }
 
@@ -72,20 +73,21 @@ public final class MvMaxDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        double value = v.getDouble(first);
-        for (int i = first + 1; i < end; i++) {
-          double next = v.getDouble(i);
-          value = MvMax.process(value, next);
+      try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          double value = v.getDouble(first);
+          for (int i = first + 1; i < end; i++) {
+            double next = v.getDouble(i);
+            value = MvMax.process(value, next);
+          }
+          double result = value;
+          builder.appendDouble(result);
         }
-        double result = value;
-        builder.appendDouble(result);
+        return Block.Ref.floating(builder.build().asBlock());
       }
-      return Block.Ref.floating(builder.build().asBlock());
     }
   }
 
@@ -96,19 +98,20 @@ public final class MvMaxDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
-          builder.appendNull();
-          continue;
+      try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int idx = MvMax.ascendingIndex(valueCount);
+          double result = v.getDouble(first + idx);
+          builder.appendDouble(result);
         }
-        int first = v.getFirstValueIndex(p);
-        int idx = MvMax.ascendingIndex(valueCount);
-        double result = v.getDouble(first + idx);
-        builder.appendDouble(result);
+        return Block.Ref.floating(builder.build());
       }
-      return Block.Ref.floating(builder.build());
     }
   }
 
@@ -119,15 +122,34 @@ public final class MvMaxDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        int first = v.getFirstValueIndex(p);
-        int idx = MvMax.ascendingIndex(valueCount);
-        double result = v.getDouble(first + idx);
-        builder.appendDouble(result);
+      try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int idx = MvMax.ascendingIndex(valueCount);
+          double result = v.getDouble(first + idx);
+          builder.appendDouble(result);
+        }
+        return Block.Ref.floating(builder.build().asBlock());
       }
-      return Block.Ref.floating(builder.build().asBlock());
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMaxDoubleEvaluator get(DriverContext context) {
+      return new MvMaxDoubleEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMax[field=" + field + "]";
     }
   }
 }

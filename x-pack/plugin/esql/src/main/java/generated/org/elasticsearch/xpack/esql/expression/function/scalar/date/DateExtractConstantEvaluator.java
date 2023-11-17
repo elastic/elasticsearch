@@ -46,9 +46,6 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valueRef = value.eval(page)) {
-      if (valueRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-      }
       LongBlock valueBlock = (LongBlock) valueRef.block();
       LongVector valueVector = valueBlock.asVector();
       if (valueVector == null) {
@@ -59,28 +56,30 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valueBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (valueBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        result.appendLong(DateExtract.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), chronoField, zone));
       }
-      if (valueBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      result.appendLong(DateExtract.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), chronoField, zone));
+      return result.build();
     }
-    return result.build();
   }
 
   public LongVector eval(int positionCount, LongVector valueVector) {
-    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendLong(DateExtract.process(valueVector.getLong(p), chronoField, zone));
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendLong(DateExtract.process(valueVector.getLong(p), chronoField, zone));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -91,5 +90,33 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   @Override
   public void close() {
     Releasables.closeExpectNoException(value);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory value;
+
+    private final ChronoField chronoField;
+
+    private final ZoneId zone;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value,
+        ChronoField chronoField, ZoneId zone) {
+      this.source = source;
+      this.value = value;
+      this.chronoField = chronoField;
+      this.zone = zone;
+    }
+
+    @Override
+    public DateExtractConstantEvaluator get(DriverContext context) {
+      return new DateExtractConstantEvaluator(source, value.get(context), chronoField, zone, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateExtractConstantEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
+    }
   }
 }

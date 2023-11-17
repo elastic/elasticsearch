@@ -40,9 +40,6 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-      }
       IntBlock vBlock = (IntBlock) vRef.block();
       IntVector vVector = vBlock.asVector();
       if (vVector == null) {
@@ -53,28 +50,30 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   }
 
   public DoubleBlock eval(int positionCount, IntBlock vBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (vBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (vBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (vBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        result.appendDouble(Cast.castIntToDouble(vBlock.getInt(vBlock.getFirstValueIndex(p))));
       }
-      if (vBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      result.appendDouble(Cast.castIntToDouble(vBlock.getInt(vBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, IntVector vVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Cast.castIntToDouble(vVector.getInt(p)));
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(Cast.castIntToDouble(vVector.getInt(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -85,5 +84,26 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory v) {
+      this.source = source;
+      this.v = v;
+    }
+
+    @Override
+    public CastIntToDoubleEvaluator get(DriverContext context) {
+      return new CastIntToDoubleEvaluator(source, v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "CastIntToDoubleEvaluator[" + "v=" + v + "]";
+    }
   }
 }

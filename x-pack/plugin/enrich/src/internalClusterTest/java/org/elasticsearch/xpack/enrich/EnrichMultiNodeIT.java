@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
@@ -21,7 +20,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -46,12 +44,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.NodeRoles.ingestOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -85,7 +85,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testEnrichAPIs() {
+    public void testEnrichAPIs() throws ExecutionException, InterruptedException {
         final int numPolicies = randomIntBetween(2, 4);
         internalCluster().startNodes(randomIntBetween(2, 3));
         int numDocsInSourceIndex = randomIntBetween(8, 32);
@@ -111,9 +111,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             assertThat(result, equalTo(new EnrichPolicy.NamedPolicy(policyName, enrichPolicy)));
             String enrichIndexPrefix = EnrichPolicy.getBaseName(policyName) + "*";
             refresh(enrichIndexPrefix);
-            SearchResponse searchResponse = client().search(new SearchRequest(enrichIndexPrefix)).actionGet();
-            assertThat(searchResponse.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsInSourceIndex));
+            assertHitCount(client().search(new SearchRequest(enrichIndexPrefix)), numDocsInSourceIndex);
         }
 
         GetEnrichPolicyAction.Response response = client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request())

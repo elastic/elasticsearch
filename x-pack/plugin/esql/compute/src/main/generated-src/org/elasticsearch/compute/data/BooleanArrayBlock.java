@@ -11,7 +11,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.stream.IntStream;
 
 /**
  * Block implementation that stores an array of boolean.
@@ -51,7 +50,26 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
 
     @Override
     public BooleanBlock filter(int... positions) {
-        return new FilterBooleanBlock(this, positions);
+        try (var builder = blockFactory.newBooleanBlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.appendBoolean(getBoolean(getFirstValueIndex(pos)));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.appendBoolean(getBoolean(first + c));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.mvOrdering(mvOrdering()).build();
+        }
     }
 
     @Override
@@ -64,18 +82,26 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
         if (firstValueIndexes == null) {
             return this;
         }
-        int end = firstValueIndexes[getPositionCount()];
-        if (nullsMask == null) {
-            return new BooleanArrayVector(values, end).asBlock();
+        // TODO use reference counting to share the values
+        try (var builder = blockFactory.newBooleanBlockBuilder(firstValueIndexes[getPositionCount()])) {
+            for (int pos = 0; pos < getPositionCount(); pos++) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int first = getFirstValueIndex(pos);
+                int end = first + getValueCount(pos);
+                for (int i = first; i < end; i++) {
+                    builder.appendBoolean(getBoolean(i));
+                }
+            }
+            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
         }
-        int[] firstValues = IntStream.range(0, end + 1).toArray();
-        return new BooleanArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED, blockFactory);
     }
 
     public static long ramBytesEstimated(boolean[] values, int[] firstValueIndexes, BitSet nullsMask) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
-        // TODO mvordering is shared
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override

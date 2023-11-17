@@ -177,7 +177,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
      * @param remaining The counter used to determine if any other operations are in flight
      * @param results A thread-safe collection to hold results
      */
-    private ActionListener<ExporterResourceStatus> resultCollector(
+    private static ActionListener<ExporterResourceStatus> resultCollector(
         final Exporter.Config exporterConfig,
         final ActionListener<MonitoringMigrateAlertsResponse> listener,
         final AtomicInteger remaining,
@@ -224,7 +224,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
                 }
             }
 
-            private Exception compileReason(ExporterResourceStatus status) {
+            private static Exception compileReason(ExporterResourceStatus status) {
                 // The reason for unsuccessful setup could be multiple exceptions: one or more watches
                 // may fail to be removed for any reason.
                 List<Exception> exceptions = status.getExceptions();
@@ -247,7 +247,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
      * @param exporter The exporter to migrate
      * @param listener Notified of success or failure
      */
-    private void deleteAlertsFromOpenExporter(Exporter exporter, ActionListener<ExporterResourceStatus> listener) {
+    private static void deleteAlertsFromOpenExporter(Exporter exporter, ActionListener<ExporterResourceStatus> listener) {
         assert exporter.isOpen();
         try {
             exporter.removeAlerts(status -> {

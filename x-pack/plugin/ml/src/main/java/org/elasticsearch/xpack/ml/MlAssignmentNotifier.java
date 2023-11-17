@@ -75,7 +75,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
         clusterService.addListener(this);
     }
 
-    private String executorName() {
+    private static String executorName() {
         return ThreadPool.Names.GENERIC;
     }
 
@@ -267,8 +267,9 @@ public class MlAssignmentNotifier implements ClusterStateListener {
         }
 
         List<String> itemsToReport = findLongTimeUnassignedTasks(now, tasks);
-
-        logger.warn("ML persistent tasks unassigned for a long time [{}]", String.join("|", itemsToReport));
+        if (itemsToReport.isEmpty() == false) {
+            logger.warn("ML persistent tasks unassigned for a long time [{}]", String.join("|", itemsToReport));
+        }
     }
 
     /**

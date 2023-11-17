@@ -181,14 +181,13 @@ public class AutoExpandReplicasTests extends ESTestCase {
 
                 List<DiscoveryNode> nodesToAdd = conflictingNodes.stream()
                     .map(
-                        n -> new DiscoveryNode(
-                            n.getName(),
-                            n.getId(),
-                            buildNewFakeTransportAddress(),
-                            n.getAttributes(),
-                            n.getRoles(),
-                            n.getVersionInformation()
-                        )
+                        n -> DiscoveryNodeUtils.builder(n.getId())
+                            .name(n.getName())
+                            .address(buildNewFakeTransportAddress())
+                            .attributes(n.getAttributes())
+                            .roles(n.getRoles())
+                            .version(n.getVersionInformation())
+                            .build()
                     )
                     .collect(Collectors.toCollection(ArrayList::new));
 

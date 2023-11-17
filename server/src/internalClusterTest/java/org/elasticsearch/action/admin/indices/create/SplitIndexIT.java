@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -60,7 +60,8 @@ import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -186,10 +187,9 @@ public class SplitIndexIT extends ESIntegTestCase {
             indicesAdmin().prepareResizeIndex("source", "first_split")
                 .setResizeType(ResizeType.SPLIT)
                 .setSettings(firstSplitSettingsBuilder.build())
-                .get()
         );
         ensureGreen();
-        assertHitCount(client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertHitCount(prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
         assertNoResizeSourceIndexSettings("first_split");
 
         for (int i = 0; i < numDocs; i++) { // now update
@@ -200,8 +200,8 @@ public class SplitIndexIT extends ESIntegTestCase {
             builder.get();
         }
         flushAndRefresh();
-        assertHitCount(client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
-        assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertHitCount(prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
+        assertHitCount(prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
         for (int i = 0; i < numDocs; i++) {
             GetResponse getResponse = client().prepareGet("first_split", Integer.toString(i)).setRouting(routingValue[i]).get();
             assertTrue(getResponse.isExists());
@@ -214,16 +214,15 @@ public class SplitIndexIT extends ESIntegTestCase {
             indicesAdmin().prepareResizeIndex("first_split", "second_split")
                 .setResizeType(ResizeType.SPLIT)
                 .setSettings(indexSettings(secondSplitShards, 0).putNull("index.blocks.write").build())
-                .get()
         );
         ensureGreen();
-        assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertHitCount(prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
         assertNoResizeSourceIndexSettings("second_split");
 
         // let it be allocated anywhere and bump replicas
         setReplicaCount(1, "second_split");
         ensureGreen();
-        assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertHitCount(prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
 
         for (int i = 0; i < numDocs; i++) { // now update
             IndexRequestBuilder builder = indexFunc.apply("second_split", i);
@@ -237,41 +236,36 @@ public class SplitIndexIT extends ESIntegTestCase {
             GetResponse getResponse = client().prepareGet("second_split", Integer.toString(i)).setRouting(routingValue[i]).get();
             assertTrue(getResponse.isExists());
         }
-        assertHitCount(client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
-        assertHitCount(client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
-        assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertHitCount(prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
+        assertHitCount(prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
+        assertHitCount(prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
         if (useNested) {
             assertNested("source", numDocs);
             assertNested("first_split", numDocs);
             assertNested("second_split", numDocs);
         }
-        assertAllUniqueDocs(
-            client().prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(),
-            numDocs
-        );
-        assertAllUniqueDocs(
-            client().prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(),
-            numDocs
-        );
-        assertAllUniqueDocs(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), numDocs);
+        assertAllUniqueDocs(prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
+        assertAllUniqueDocs(prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
+        assertAllUniqueDocs(prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
     }
 
     public void assertNested(String index, int numDocs) {
         // now, do a nested query
-        SearchResponse searchResponse = client().prepareSearch(index)
-            .setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg))
-            .get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocs));
+        assertNoFailuresAndResponse(
+            prepareSearch(index).setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)),
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocs))
+        );
     }
 
-    public void assertAllUniqueDocs(SearchResponse response, int numDocs) {
-        Set<String> ids = new HashSet<>();
-        for (int i = 0; i < response.getHits().getHits().length; i++) {
-            String id = response.getHits().getHits()[i].getId();
-            assertTrue("found ID " + id + " more than once", ids.add(id));
-        }
-        assertEquals(numDocs, ids.size());
+    public void assertAllUniqueDocs(SearchRequestBuilder request, int numDocs) {
+        assertResponse(request, response -> {
+            Set<String> ids = new HashSet<>();
+            for (int i = 0; i < response.getHits().getHits().length; i++) {
+                String id = response.getHits().getHits()[i].getId();
+                assertTrue("found ID " + id + " more than once", ids.add(id));
+            }
+            assertEquals(numDocs, ids.size());
+        });
     }
 
     public void testSplitIndexPrimaryTerm() throws Exception {
@@ -373,7 +367,6 @@ public class SplitIndexIT extends ESIntegTestCase {
                 indicesAdmin().prepareResizeIndex("source", "target")
                     .setResizeType(ResizeType.SPLIT)
                     .setSettings(indexSettings(2, createWithReplicas ? 1 : 0).putNull("index.blocks.write").build())
-                    .get()
             );
             ensureGreen();
             assertNoResizeSourceIndexSettings("target");
@@ -410,24 +403,21 @@ public class SplitIndexIT extends ESIntegTestCase {
             }
 
             final int size = docs > 0 ? 2 * docs : 1;
-            assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
+            assertHitCount(prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")), docs);
 
             if (createWithReplicas == false) {
                 // bump replicas
                 setReplicaCount(1, "target");
                 ensureGreen();
-                assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
+                assertHitCount(prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")), docs);
             }
 
             for (int i = docs; i < 2 * docs; i++) {
                 client().prepareIndex("target").setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
             }
             flushAndRefresh();
-            assertHitCount(
-                client().prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")).get(),
-                2 * docs
-            );
-            assertHitCount(client().prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
+            assertHitCount(prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")), 2 * docs);
+            assertHitCount(prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")), docs);
             GetSettingsResponse target = indicesAdmin().prepareGetSettings("target").get();
             assertThat(
                 target.getIndexToSettings().get("target").getAsVersionId("index.version.created", IndexVersion::fromId),
@@ -487,7 +477,6 @@ public class SplitIndexIT extends ESIntegTestCase {
             indicesAdmin().prepareResizeIndex("source", "target")
                 .setResizeType(ResizeType.SPLIT)
                 .setSettings(indexSettings(4, 0).putNull("index.blocks.write").build())
-                .get()
         );
         ensureGreen();
         flushAndRefresh();

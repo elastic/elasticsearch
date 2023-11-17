@@ -3,7 +3,8 @@
     name: elastic+elasticsearch+%BRANCH%+periodic+eql-correctness
     workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+periodic+eql-correctness
     display-name: "elastic / elasticsearch # %BRANCH% - eql correctness tests"
-    description: "Testing of Elasticsearch %BRANCH% EQL.\n"
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

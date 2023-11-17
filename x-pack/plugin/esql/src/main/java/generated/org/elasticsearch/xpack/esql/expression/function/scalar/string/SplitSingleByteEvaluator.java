@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -45,9 +46,6 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       BytesRefVector strVector = strBlock.asVector();
       if (strVector == null) {
@@ -58,30 +56,32 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (strBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        Split.process(result, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), delim, scratch);
       }
-      if (strBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      Split.process(result, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), delim, scratch);
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      Split.process(result, strVector.getBytesRef(p, strScratch), delim, scratch);
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        Split.process(result, strVector.getBytesRef(p, strScratch), delim, scratch);
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -92,5 +92,33 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   @Override
   public void close() {
     Releasables.closeExpectNoException(str);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final byte delim;
+
+    private final Function<DriverContext, BytesRef> scratch;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str, byte delim,
+        Function<DriverContext, BytesRef> scratch) {
+      this.source = source;
+      this.str = str;
+      this.delim = delim;
+      this.scratch = scratch;
+    }
+
+    @Override
+    public SplitSingleByteEvaluator get(DriverContext context) {
+      return new SplitSingleByteEvaluator(source, str.get(context), delim, scratch.apply(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SplitSingleByteEvaluator[" + "str=" + str + ", delim=" + delim + "]";
+    }
   }
 }

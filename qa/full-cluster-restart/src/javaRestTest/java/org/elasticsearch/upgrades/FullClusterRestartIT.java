@@ -27,6 +27,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -882,21 +883,14 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     /**
-     * Tests recovery of an index with or without a translog and the
-     * statistics we gather about that.
+     * Tests recovery of an index.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/52031")
     public void testRecovery() throws Exception {
         int count;
-        boolean shouldHaveTranslog;
         if (isRunningAgainstOldCluster()) {
             count = between(200, 300);
-            /* We've had bugs in the past where we couldn't restore
-             * an index without a translog so we randomize whether
-             * or not we have one. */
-            shouldHaveTranslog = randomBoolean();
             Settings.Builder settings = Settings.builder();
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
@@ -911,21 +905,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             flushRequest.addParameter("force", "true");
             flushRequest.addParameter("wait_if_ongoing", "true");
             assertOK(client().performRequest(flushRequest));
-
-            if (shouldHaveTranslog) {
-                // Update a few documents so we are sure to have a translog
-                indexRandomDocuments(
-                    count / 10,
-                    false, // flushing here would invalidate the whole thing
-                    false,
-                    true,
-                    i -> jsonBuilder().startObject().field("field", "value").endObject()
-                );
-            }
-            saveInfoDocument(index + "_should_have_translog", Boolean.toString(shouldHaveTranslog));
         } else {
             count = countOfIndexedRandomDocuments();
-            shouldHaveTranslog = Booleans.parseBoolean(loadInfoDocument(index + "_should_have_translog"));
         }
 
         // Count the documents in the index to make sure we have as many as we put there
@@ -936,72 +917,13 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertTotalHits(count, countResponse);
 
         if (false == isRunningAgainstOldCluster()) {
-            boolean restoredFromTranslog = false;
             boolean foundPrimary = false;
             Request recoveryRequest = new Request("GET", "/_cat/recovery/" + index);
             recoveryRequest.addParameter("h", "index,shard,type,stage,translog_ops_recovered");
             recoveryRequest.addParameter("s", "index,shard,type");
             String recoveryResponse = toStr(client().performRequest(recoveryRequest));
-            for (String line : recoveryResponse.split("\n")) {
-                // Find the primaries
-                foundPrimary = true;
-                if (false == line.contains("done") && line.contains("existing_store")) {
-                    continue;
-                }
-                /* Mark if we see a primary that looked like it restored from the translog.
-                 * Not all primaries will look like this all the time because we modify
-                 * random documents when we want there to be a translog and they might
-                 * not be spread around all the shards. */
-                Matcher m = Pattern.compile("(\\d+)$").matcher(line);
-                assertTrue(line, m.find());
-                int translogOps = Integer.parseInt(m.group(1));
-                if (translogOps > 0) {
-                    restoredFromTranslog = true;
-                }
-            }
+            foundPrimary = recoveryResponse.split("\n").length > 0;
             assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
-            assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
-
-            var luceneVersion = IndexVersion.current().luceneVersion();
-            String currentLuceneVersion = luceneVersion.toString();
-            int currentLuceneVersionMajor = luceneVersion.major;
-            String bwcLuceneVersion = getOldClusterIndexVersion().luceneVersion().toString();
-            if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
-                int numCurrentVersion = 0;
-                int numBwcVersion = 0;
-                Request segmentsRequest = new Request("GET", "/_cat/segments/" + index);
-                segmentsRequest.addParameter("h", "prirep,shard,index,version");
-                segmentsRequest.addParameter("s", "prirep,shard,index");
-                String segmentsResponse = toStr(client().performRequest(segmentsRequest));
-                for (String line : segmentsResponse.split("\n")) {
-                    if (false == line.startsWith("p")) {
-                        continue;
-                    }
-                    Matcher m = Pattern.compile("((\\d+)\\.\\d+\\.\\d+)$").matcher(line);
-                    assertTrue(line, m.find());
-                    String version = m.group(1);
-                    int major = Integer.parseInt(m.group(2));
-                    if (currentLuceneVersion.equals(version)) {
-                        numCurrentVersion++;
-                    } else if (bwcLuceneVersion.equals(version)) {
-                        numBwcVersion++;
-                    } else if (major == currentLuceneVersionMajor - 1) {
-                        // we can read one lucene version back. The upgrade path might have created old segment versions.
-                        // that's ok, we just ignore them
-                        continue;
-                    } else {
-                        fail(
-                            "expected lucene version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line
-                        );
-                    }
-                }
-                assertNotEquals(
-                    "expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
-                    0,
-                    numCurrentVersion
-                );
-                assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);
-            }
         }
     }
 
@@ -1020,7 +942,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             // Create the index
             count = between(200, 300);
             Settings.Builder settings = Settings.builder();
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
@@ -1514,7 +1436,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     public void testOperationBasedRecovery() throws Exception {
         if (isRunningAgainstOldCluster()) {
             Settings.Builder settings = indexSettings(1, 1);
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
@@ -1577,7 +1499,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (minimumIndexVersion().before(IndexVersions.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;

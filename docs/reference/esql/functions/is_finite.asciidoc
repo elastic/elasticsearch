@@ -1,3 +1,4 @@
+[discrete]
 [[esql-is_finite]]
 === `IS_FINITE`
 Returns a boolean that indicates whether its input is a finite number.

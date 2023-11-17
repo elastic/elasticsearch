@@ -1,0 +1,6 @@
+pr: 100642
+summary: "ESQL: Alias duplicated aggregations in a stats"
+area: ES|QL
+type: enhancement
+issues:
+ - 100544

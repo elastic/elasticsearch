@@ -65,7 +65,7 @@ import java.util.stream.Stream;
  */
 public class SamlServiceProviderIndex implements Closeable {
 
-    private final Logger logger = LogManager.getLogger(SamlServiceProviderIndex.class);
+    private static final Logger logger = LogManager.getLogger(SamlServiceProviderIndex.class);
 
     private final Client client;
     private final ClusterService clusterService;
@@ -215,7 +215,7 @@ public class SamlServiceProviderIndex implements Closeable {
     }
 
     private boolean isTemplateUpToDate(ClusterState state) {
-        return TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger, null);
+        return TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger);
     }
 
     public void deleteDocument(DocumentVersion version, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<DeleteResponse> listener) {
@@ -332,7 +332,7 @@ public class SamlServiceProviderIndex implements Closeable {
         }));
     }
 
-    private SamlServiceProviderDocument toDocument(String documentId, BytesReference source) {
+    private static SamlServiceProviderDocument toDocument(String documentId, BytesReference source) {
         try (
             StreamInput in = source.streamInput();
             XContentParser parser = XContentType.JSON.xContent()

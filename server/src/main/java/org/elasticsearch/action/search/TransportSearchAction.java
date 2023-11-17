@@ -10,11 +10,13 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -39,7 +41,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -159,13 +160,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         NamedWriteableRegistry namedWriteableRegistry,
         ExecutorSelector executorSelector
     ) {
-        super(
-            SearchAction.NAME,
-            transportService,
-            actionFilters,
-            (Writeable.Reader<SearchRequest>) SearchRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(SearchAction.NAME, transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.searchPhaseController = searchPhaseController;
@@ -285,7 +280,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        executeRequest((SearchTask) task, searchRequest, listener, AsyncSearchActionProvider::new);
+        ActionListener<SearchResponse> loggingListener = listener.delegateFailureAndWrap((l, searchResponse) -> {
+            if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+                // Deduplicate failures by exception message and index
+                ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                for (ShardOperationFailedException f : groupedFailures) {
+                    boolean causeHas500Status = false;
+                    if (f.getCause() != null) {
+                        causeHas500Status = ExceptionsHelper.status(f.getCause()).getStatus() >= 500;
+                    }
+                    if ((f.status().getStatus() >= 500 || causeHas500Status)
+                        && ExceptionsHelper.isNodeOrShardUnavailableTypeException(f.getCause()) == false) {
+                        logger.warn("TransportSearchAction shard failure (partial results response)", f);
+                    }
+                }
+            }
+            l.onResponse(searchResponse);
+        });
+        executeRequest((SearchTask) task, searchRequest, loggingListener, AsyncSearchActionProvider::new);
     }
 
     void executeRequest(
@@ -514,7 +526,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 clusterAlias,
                 remoteClientResponseExecutor
             );
-            remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
+            remoteClusterClient.search(ccsSearchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // TODO: in CCS fail fast ticket we may need to fail the query if the cluster is marked as FAILED
@@ -749,14 +761,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         ActionListener<SearchResponse> originalListener
     ) {
-        return new CCSActionListener<SearchResponse, SearchResponse>(
-            clusterAlias,
-            skipUnavailable,
-            countDown,
-            exceptions,
-            clusters,
-            originalListener
-        ) {
+        return new CCSActionListener<>(clusterAlias, skipUnavailable, countDown, exceptions, clusters, originalListener) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
                 // TODO: in CCS fail fast ticket we may need to fail the query if the cluster gets marked as FAILED
@@ -810,15 +815,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
         /*
          * Cluster Status logic:
-         * 1) FAILED if all shards failed and skip_unavailable=false
-         * 2) SKIPPED if all shards failed and skip_unavailable=true
+         * 1) FAILED if total_shards > 0 && all shards failed && skip_unavailable=false
+         * 2) SKIPPED if total_shards > 0 && all shards failed && skip_unavailable=true
          * 3) PARTIAL if it timed out
          * 4) PARTIAL if it at least one of the shards succeeded but not all
          * 5) SUCCESSFUL if no shards failed (and did not time out)
          */
         clusters.swapCluster(clusterAlias, (k, v) -> {
             SearchResponse.Cluster.Status status;
-            if (searchResponse.getFailedShards() >= searchResponse.getTotalShards()) {
+            int totalShards = searchResponse.getTotalShards();
+            if (totalShards > 0 && searchResponse.getFailedShards() >= totalShards) {
                 if (skipUnavailable) {
                     status = SearchResponse.Cluster.Status.SKIPPED;
                 } else {
@@ -832,7 +838,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 status = SearchResponse.Cluster.Status.SUCCESSFUL;
             }
             return new SearchResponse.Cluster.Builder(v).setStatus(status)
-                .setTotalShards(searchResponse.getTotalShards())
+                .setTotalShards(totalShards)
                 .setSuccessfulShards(searchResponse.getSuccessfulShards())
                 .setSkippedShards(searchResponse.getSkippedShards())
                 .setFailedShards(searchResponse.getFailedShards())
@@ -1416,7 +1422,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         private final AtomicReference<Exception> exceptions;
         protected final SearchResponse.Clusters clusters;
         private final ActionListener<FinalResponse> originalListener;
-        protected final long startTime;
 
         /**
          * Used by both minimize_roundtrips true and false
@@ -1435,7 +1440,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             this.exceptions = exceptions;
             this.clusters = clusters;
             this.originalListener = originalListener;
-            this.startTime = System.currentTimeMillis();
         }
 
         @Override
@@ -1453,12 +1457,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
             if (skipUnavailable) {
                 if (cluster != null) {
-                    ccsClusterInfoUpdate(f, clusters, clusterAlias, skipUnavailable);
+                    ccsClusterInfoUpdate(f, clusters, clusterAlias, true);
                 }
                 // skippedClusters.incrementAndGet();
             } else {
                 if (cluster != null) {
-                    ccsClusterInfoUpdate(f, clusters, clusterAlias, skipUnavailable);
+                    ccsClusterInfoUpdate(f, clusters, clusterAlias, false);
                 }
                 Exception exception = e;
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
@@ -1604,7 +1608,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             .searchShards(
                 clusterState,
                 concreteIndices,
-                Objects.requireNonNullElseGet(routingMap, Map::of),
+                routingMap,
                 searchRequest.preference(),
                 searchService.getResponseCollectorService(),
                 searchTransportService.getPendingSearchRequests()

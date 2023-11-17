@@ -40,24 +40,25 @@ public final class MvMaxIntEvaluator extends AbstractMultivalueFunction.Abstract
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
-          builder.appendNull();
-          continue;
+      try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          int value = v.getInt(first);
+          for (int i = first + 1; i < end; i++) {
+            int next = v.getInt(i);
+            value = MvMax.process(value, next);
+          }
+          int result = value;
+          builder.appendInt(result);
         }
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        int value = v.getInt(first);
-        for (int i = first + 1; i < end; i++) {
-          int next = v.getInt(i);
-          value = MvMax.process(value, next);
-        }
-        int result = value;
-        builder.appendInt(result);
+        return Block.Ref.floating(builder.build());
       }
-      return Block.Ref.floating(builder.build());
     }
   }
 
@@ -72,20 +73,21 @@ public final class MvMaxIntEvaluator extends AbstractMultivalueFunction.Abstract
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        int value = v.getInt(first);
-        for (int i = first + 1; i < end; i++) {
-          int next = v.getInt(i);
-          value = MvMax.process(value, next);
+      try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          int value = v.getInt(first);
+          for (int i = first + 1; i < end; i++) {
+            int next = v.getInt(i);
+            value = MvMax.process(value, next);
+          }
+          int result = value;
+          builder.appendInt(result);
         }
-        int result = value;
-        builder.appendInt(result);
+        return Block.Ref.floating(builder.build().asBlock());
       }
-      return Block.Ref.floating(builder.build().asBlock());
     }
   }
 
@@ -96,19 +98,20 @@ public final class MvMaxIntEvaluator extends AbstractMultivalueFunction.Abstract
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
-          builder.appendNull();
-          continue;
+      try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int idx = MvMax.ascendingIndex(valueCount);
+          int result = v.getInt(first + idx);
+          builder.appendInt(result);
         }
-        int first = v.getFirstValueIndex(p);
-        int idx = MvMax.ascendingIndex(valueCount);
-        int result = v.getInt(first + idx);
-        builder.appendInt(result);
+        return Block.Ref.floating(builder.build());
       }
-      return Block.Ref.floating(builder.build());
     }
   }
 
@@ -119,15 +122,34 @@ public final class MvMaxIntEvaluator extends AbstractMultivalueFunction.Abstract
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        int first = v.getFirstValueIndex(p);
-        int idx = MvMax.ascendingIndex(valueCount);
-        int result = v.getInt(first + idx);
-        builder.appendInt(result);
+      try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int idx = MvMax.ascendingIndex(valueCount);
+          int result = v.getInt(first + idx);
+          builder.appendInt(result);
+        }
+        return Block.Ref.floating(builder.build().asBlock());
       }
-      return Block.Ref.floating(builder.build().asBlock());
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMaxIntEvaluator get(DriverContext context) {
+      return new MvMaxIntEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMax[field=" + field + "]";
     }
   }
 }

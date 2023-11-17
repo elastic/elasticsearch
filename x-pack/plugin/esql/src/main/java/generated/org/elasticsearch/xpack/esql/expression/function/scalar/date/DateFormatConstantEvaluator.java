@@ -44,9 +44,6 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-      }
       LongBlock valBlock = (LongBlock) valRef.block();
       LongVector valVector = valBlock.asVector();
       if (valVector == null) {
@@ -57,28 +54,30 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
   }
 
   public BytesRefBlock eval(int positionCount, LongBlock valBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (valBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatter));
       }
-      if (valBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatter));
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefVector eval(int positionCount, LongVector valVector) {
-    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatter));
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatter));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -89,5 +88,30 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    private final DateFormatter formatter;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
+        DateFormatter formatter) {
+      this.source = source;
+      this.val = val;
+      this.formatter = formatter;
+    }
+
+    @Override
+    public DateFormatConstantEvaluator get(DriverContext context) {
+      return new DateFormatConstantEvaluator(source, val.get(context), formatter, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateFormatConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+    }
   }
 }

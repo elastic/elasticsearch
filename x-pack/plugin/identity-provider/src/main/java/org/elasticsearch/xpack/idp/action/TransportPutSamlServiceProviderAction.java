@@ -35,7 +35,7 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
     PutSamlServiceProviderRequest,
     PutSamlServiceProviderResponse> {
 
-    private final Logger logger = LogManager.getLogger(TransportPutSamlServiceProviderAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportPutSamlServiceProviderAction.class);
     private final SamlServiceProviderIndex index;
     private final SamlIdentityProvider identityProvider;
     private final Clock clock;
@@ -153,7 +153,7 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
         );
     }
 
-    private String deriveDocumentId(SamlServiceProviderDocument document) {
+    private static String deriveDocumentId(SamlServiceProviderDocument document) {
         final byte[] sha256 = MessageDigests.sha256().digest(document.entityId.getBytes(StandardCharsets.UTF_8));
         return Base64.getUrlEncoder().withoutPadding().encodeToString(sha256);
     }

@@ -179,7 +179,7 @@ import static org.mockito.Mockito.when;
  */
 public abstract class AggregatorTestCase extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
-    private final List<AggregationContext> releasables = new ArrayList<>();
+    private final List<Releasable> releasables = new ArrayList<>();
     protected ValuesSourceRegistry valuesSourceRegistry;
     private AnalysisModule analysisModule;
 
@@ -328,7 +328,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         int maxBucket,
         boolean isInSortOrderExecutionRequired,
         MappedFieldType... fieldTypes
-    ) throws IOException {
+    ) {
         MappingLookup mappingLookup = MappingLookup.fromMappers(
             Mapping.EMPTY,
             Arrays.stream(fieldTypes).map(this::buildMockFieldMapper).collect(toList()),
@@ -455,7 +455,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(ctx.indexShard()).thenReturn(indexShard);
         when(ctx.newSourceLoader()).thenAnswer(inv -> searchExecutionContext.newSourceLoader(false));
         when(ctx.newIdLoader()).thenReturn(IdLoader.fromLeafStoredFieldLoader());
-        return new SubSearchContext(ctx);
+        var res = new SubSearchContext(ctx);
+        releasables.add(res); // TODO: nasty workaround for not getting the standard resource handling behavior of a real search context
+        return res;
     }
 
     protected IndexSettings createIndexSettings() {
@@ -834,7 +836,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    private void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {
+    private static void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {
         Map<String, Object> debug = new HashMap<>();
         aggregator.collectDebugInfo((key, value) -> {
             Object old = debug.put(key, value);
@@ -869,7 +871,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    private void verifyMetricNames(
+    private static void verifyMetricNames(
         ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?> aggregationBuilder,
         InternalAggregation agg
     ) {
@@ -1111,7 +1113,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
+    private static ValuesSourceType fieldToVST(MappedFieldType fieldType) {
         return fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null).getValuesSourceType();
     }
 
@@ -1121,7 +1123,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Throws an exception if it encounters an unknown field type, to prevent new ones from sneaking in without
      * being tested.
      */
-    private void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
+    private static void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
 
         String typeName = fieldType.typeName();
         ValuesSourceType vst = fieldToVST(fieldType);

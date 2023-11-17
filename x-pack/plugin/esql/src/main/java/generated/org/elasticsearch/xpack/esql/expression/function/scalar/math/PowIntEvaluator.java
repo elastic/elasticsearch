@@ -43,14 +43,8 @@ public final class PowIntEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref baseRef = base.eval(page)) {
-      if (baseRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-      }
       DoubleBlock baseBlock = (DoubleBlock) baseRef.block();
       try (Block.Ref exponentRef = exponent.eval(page)) {
-        if (exponentRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-        }
         DoubleBlock exponentBlock = (DoubleBlock) exponentRef.block();
         DoubleVector baseVector = baseBlock.asVector();
         if (baseVector == null) {
@@ -66,47 +60,49 @@ public final class PowIntEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (baseBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (baseBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (baseBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        if (exponentBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (exponentBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendInt(Pow.processInt(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      if (baseBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      if (exponentBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
-      }
-      if (exponentBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      try {
-        result.appendInt(Pow.processInt(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p))));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public IntBlock eval(int positionCount, DoubleVector baseVector, DoubleVector exponentVector) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendInt(Pow.processInt(baseVector.getDouble(p), exponentVector.getDouble(p)));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendInt(Pow.processInt(baseVector.getDouble(p), exponentVector.getDouble(p)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -117,5 +113,30 @@ public final class PowIntEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(base, exponent);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory base;
+
+    private final EvalOperator.ExpressionEvaluator.Factory exponent;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory base,
+        EvalOperator.ExpressionEvaluator.Factory exponent) {
+      this.source = source;
+      this.base = base;
+      this.exponent = exponent;
+    }
+
+    @Override
+    public PowIntEvaluator get(DriverContext context) {
+      return new PowIntEvaluator(source, base.get(context), exponent.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "PowIntEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
+    }
   }
 }

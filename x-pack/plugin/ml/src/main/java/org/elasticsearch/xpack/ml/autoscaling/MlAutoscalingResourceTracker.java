@@ -10,29 +10,27 @@ package org.elasticsearch.xpack.ml.autoscaling;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.MlProcessors;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -67,79 +65,44 @@ public final class MlAutoscalingResourceTracker {
     public static void getMlAutoscalingStats(
         ClusterState clusterState,
         ClusterSettings clusterSettings,
-        Client client,
-        TimeValue timeout,
         MlMemoryTracker mlMemoryTracker,
         Settings settings,
         ActionListener<MlAutoscalingStats> listener
     ) {
-        String[] mlNodes = clusterState.nodes()
+        Map<String, Long> nodeSizeByMlNode = clusterState.nodes()
             .stream()
             .filter(node -> node.getRoles().contains(DiscoveryNodeRole.ML_ROLE))
-            .map(DiscoveryNode::getId)
-            .toArray(String[]::new);
+            .collect(Collectors.toMap(DiscoveryNode::getId, node -> NodeLoadDetector.getNodeSize(node).orElse(0L)));
+
+        String firstMlNode = (nodeSizeByMlNode.size() > 0) ? nodeSizeByMlNode.keySet().iterator().next() : null;
 
         // the next 2 values are only used iff > 0 and iff all nodes have the same container size
-        long modelMemoryAvailableFirstNode = mlNodes.length > 0
-            ? NativeMemoryCalculator.allowedBytesForMl(clusterState.nodes().get(mlNodes[0]), settings).orElse(0L)
+        long modelMemoryAvailableFirstNode = (firstMlNode != null)
+            ? NativeMemoryCalculator.allowedBytesForMl(clusterState.nodes().get(firstMlNode), settings).orElse(0L)
             : 0L;
-        int processorsAvailableFirstNode = mlNodes.length > 0
-            ? MlProcessors.get(clusterState.nodes().get(mlNodes[0]), clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE))
+        int processorsAvailableFirstNode = (firstMlNode != null)
+            ? MlProcessors.get(clusterState.nodes().get(firstMlNode), clusterSettings.get(MachineLearning.ALLOCATED_PROCESSORS_SCALE))
                 .roundDown()
             : 0;
 
         // Todo: MAX_LOW_PRIORITY_MODELS_PER_NODE not checked yet
         int maxOpenJobsPerNode = MAX_OPEN_JOBS_PER_NODE.get(settings);
 
-        getMlNodeStats(
-            mlNodes,
-            client,
-            timeout,
-            ActionListener.wrap(
-                osStatsPerNode -> getMemoryAndProcessors(
-                    new MlAutoscalingContext(clusterState),
-                    mlMemoryTracker,
-                    osStatsPerNode,
-                    modelMemoryAvailableFirstNode,
-                    processorsAvailableFirstNode,
-                    maxOpenJobsPerNode,
-                    listener
-                ),
-                listener::onFailure
-            )
+        getMemoryAndProcessors(
+            new MlAutoscalingContext(clusterState),
+            mlMemoryTracker,
+            nodeSizeByMlNode,
+            modelMemoryAvailableFirstNode,
+            processorsAvailableFirstNode,
+            maxOpenJobsPerNode,
+            listener
         );
-    }
-
-    static void getMlNodeStats(String[] mlNodes, Client client, TimeValue timeout, ActionListener<Map<String, OsStats>> listener) {
-
-        // if the client is configured with no nodes, it automatically calls all
-        if (mlNodes.length == 0) {
-            listener.onResponse(Collections.emptyMap());
-            return;
-        }
-
-        client.admin()
-            .cluster()
-            .prepareNodesStats(mlNodes)
-            .clear()
-            .setOs(true)
-            .setTimeout(timeout)
-            .execute(
-                ActionListener.wrap(
-                    nodesStatsResponse -> listener.onResponse(
-                        nodesStatsResponse.getNodes()
-                            .stream()
-                            .collect(Collectors.toMap(nodeStats -> nodeStats.getNode().getId(), NodeStats::getOs))
-                    ),
-                    listener::onFailure
-                )
-            );
     }
 
     static void getMemoryAndProcessors(
         MlAutoscalingContext autoscalingContext,
         MlMemoryTracker mlMemoryTracker,
-        Map<String, OsStats> osStatsPerNode,
+        Map<String, Long> nodeSizeByMlNode,
         long perNodeAvailableModelMemoryInBytes,
         int perNodeAvailableProcessors,
         int maxOpenJobsPerNode,
@@ -147,13 +110,13 @@ public final class MlAutoscalingResourceTracker {
     ) {
         Map<String, List<MlJobRequirements>> perNodeModelMemoryInBytes = new HashMap<>();
 
+        int numberMlNodes = nodeSizeByMlNode.size();
+
         // If the ML nodes in the cluster have different sizes, return 0.
         // Otherwise, return the size, in bytes, of the container size of the ML nodes for a single container.
-        long perNodeMemoryInBytes = osStatsPerNode.values()
-            .stream()
-            .map(s -> s.getMem().getAdjustedTotal().getBytes())
-            .distinct()
-            .count() != 1 ? 0 : osStatsPerNode.values().iterator().next().getMem().getAdjustedTotal().getBytes();
+        long perNodeMemoryInBytes = nodeSizeByMlNode.values().stream().distinct().count() != 1
+            ? 0L
+            : nodeSizeByMlNode.values().iterator().next();
 
         long modelMemoryBytesSum = 0;
         long extraSingleNodeModelMemoryInBytes = 0;
@@ -169,21 +132,26 @@ public final class MlAutoscalingResourceTracker {
             autoscalingContext.modelAssignments.size()
         );
 
-        // start with `minNodes = 1` if any ML job is started, further adjustments are made for trained models below
-        int minNodes = autoscalingContext.anomalyDetectionTasks.isEmpty()
-            && autoscalingContext.dataframeAnalyticsTasks.isEmpty()
-            && autoscalingContext.modelAssignments.isEmpty() ? 0 : 1;
+        // Start with `minNodes = 0`. If any ML job is started this will be increased to 1 in the loops below,
+        // and further adjustments are made for trained models depending on allocations.
+        int minNodes = 0;
 
         // anomaly detection
         for (var task : autoscalingContext.anomalyDetectionTasks) {
-            String jobId = ((OpenJobAction.JobParams) task.getParams()).getJobId();
-            Long jobMemory = mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId);
-
-            if (jobMemory == null) {
-                // TODO: this indicates a bug, should we indicate that the result is incomplete?
-                logger.debug("could not find memory requirement for job [{}], skipping", jobId);
+            MemoryTrackedTaskState state = MlTasks.getMemoryTrackedTaskState(task);
+            if (state != null && state.consumesMemory() == false) {
                 continue;
             }
+
+            String jobId = ((OpenJobAction.JobParams) task.getParams()).getJobId();
+            Long jobMemory = mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId);
+            if (jobMemory == null) {
+                logger.debug("could not find memory requirement for job [{}], returning no-scale", jobId);
+                listener.onResponse(noScaleStats(numberMlNodes));
+                return;
+            }
+
+            minNodes = 1;
 
             if (AWAITING_LAZY_ASSIGNMENT.equals(task.getAssignment())) {
                 logger.debug("job [{}] lacks assignment , memory required [{}]", jobId, jobMemory);
@@ -204,14 +172,20 @@ public final class MlAutoscalingResourceTracker {
 
         // data frame analytics
         for (var task : autoscalingContext.dataframeAnalyticsTasks) {
-            String jobId = MlTasks.dataFrameAnalyticsId(task.getId());
-            Long jobMemory = mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(jobId);
-
-            if (jobMemory == null) {
-                // TODO: this indicates a bug, should we indicate that the result is incomplete?
-                logger.debug("could not find memory requirement for job [{}], skipping", jobId);
+            MemoryTrackedTaskState state = MlTasks.getMemoryTrackedTaskState(task);
+            if (state != null && state.consumesMemory() == false) {
                 continue;
             }
+
+            String jobId = MlTasks.dataFrameAnalyticsId(task.getId());
+            Long jobMemory = mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(jobId);
+            if (jobMemory == null) {
+                logger.debug("could not find memory requirement for job [{}], returning no-scale", jobId);
+                listener.onResponse(noScaleStats(numberMlNodes));
+                return;
+            }
+
+            minNodes = 1;
 
             if (AWAITING_LAZY_ASSIGNMENT.equals(task.getAssignment())) {
                 logger.debug("dfa job [{}] lacks assignment , memory required [{}]", jobId, jobMemory);
@@ -231,12 +205,12 @@ public final class MlAutoscalingResourceTracker {
 
         // trained models
         for (var modelAssignment : autoscalingContext.modelAssignments.entrySet()) {
-            final int numberOfAllocations = modelAssignment.getValue().getTaskParams().getNumberOfAllocations();
-            final int numberOfThreadsPerAllocation = modelAssignment.getValue().getTaskParams().getThreadsPerAllocation();
-            final long estimatedMemoryUsage = modelAssignment.getValue().getTaskParams().estimateMemoryUsageBytes();
+            TrainedModelAssignment assignment = modelAssignment.getValue();
+            final int numberOfAllocations = assignment.getTaskParams().getNumberOfAllocations();
+            final int numberOfThreadsPerAllocation = assignment.getTaskParams().getThreadsPerAllocation();
+            final long estimatedMemoryUsage = assignment.getTaskParams().estimateMemoryUsageBytes();
 
-            if (AssignmentState.STARTING.equals(modelAssignment.getValue().getAssignmentState())
-                && modelAssignment.getValue().getNodeRoutingTable().isEmpty()) {
+            if (AssignmentState.STARTING.equals(assignment.getAssignmentState()) && assignment.getNodeRoutingTable().isEmpty()) {
 
                 logger.debug(
                     () -> format(
@@ -255,6 +229,9 @@ public final class MlAutoscalingResourceTracker {
                     extraSingleNodeProcessors = Math.max(extraSingleNodeProcessors, numberOfThreadsPerAllocation);
                     extraProcessors += numberOfAllocations * numberOfThreadsPerAllocation;
                 }
+            } else if (assignment.getNodeRoutingTable().values().stream().allMatch(r -> r.getState().consumesMemory() == false)) {
+                // Ignore states that don't consume memory, for example all allocations are failed
+                continue;
             } else {
                 logger.debug(
                     () -> format(
@@ -268,9 +245,6 @@ public final class MlAutoscalingResourceTracker {
                 modelMemoryBytesSum += estimatedMemoryUsage;
                 processorsSum += numberOfAllocations * numberOfThreadsPerAllocation;
 
-                // min(3, max(number of allocations over all deployed models)
-                minNodes = Math.min(3, Math.max(minNodes, numberOfAllocations));
-
                 for (String node : modelAssignment.getValue().getNodeRoutingTable().keySet()) {
                     perNodeModelMemoryInBytes.computeIfAbsent(node, k -> new ArrayList<>())
                         .add(
@@ -283,6 +257,9 @@ public final class MlAutoscalingResourceTracker {
                         );
                 }
             }
+
+            // min(3, max(number of allocations over all deployed models)
+            minNodes = Math.min(3, Math.max(minNodes, numberOfAllocations));
         }
 
         // check for downscaling
@@ -293,12 +270,14 @@ public final class MlAutoscalingResourceTracker {
         // - modelMemory on nodes is available
         // - no jobs wait for assignment
         // - the total memory usage is less than memory usage after taking away 1 node
+        // - the current number of nodes is greater than the minimum number of nodes
         if (perNodeMemoryInBytes > 0
             && perNodeAvailableModelMemoryInBytes > 0
             && extraModelMemoryInBytes == 0
             && extraProcessors == 0
-            && modelMemoryBytesSum <= perNodeMemoryInBytes * (osStatsPerNode.size() - 1)
-            && (perNodeModelMemoryInBytes.size() < osStatsPerNode.size() // a node has no assigned jobs
+            && modelMemoryBytesSum <= perNodeMemoryInBytes * (numberMlNodes - 1)
+            && minNodes < numberMlNodes
+            && (perNodeModelMemoryInBytes.size() < numberMlNodes // a node has no assigned jobs
                 || checkIfOneNodeCouldBeRemoved(
                     perNodeModelMemoryInBytes,
                     perNodeAvailableModelMemoryInBytes,
@@ -310,7 +289,7 @@ public final class MlAutoscalingResourceTracker {
 
         listener.onResponse(
             new MlAutoscalingStats(
-                osStatsPerNode.size(),
+                numberMlNodes,
                 perNodeMemoryInBytes,
                 modelMemoryBytesSum,
                 processorsSum,
@@ -322,6 +301,30 @@ public final class MlAutoscalingResourceTracker {
                 removeNodeMemoryInBytes,
                 MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()
             )
+        );
+    }
+
+    /**
+     * Return some autoscaling stats that tell the autoscaler not to change anything, but without making it think an error has occurred.
+     */
+    public static MlAutoscalingStats noScaleStats(ClusterState clusterState) {
+        int numberMlNodes = (int) clusterState.nodes().stream().filter(node -> node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)).count();
+        return noScaleStats(numberMlNodes);
+    }
+
+    private static MlAutoscalingStats noScaleStats(int numberMlNodes) {
+        return new MlAutoscalingStats(
+            numberMlNodes,
+            0,
+            0,
+            0,
+            Math.min(3, numberMlNodes),
+            0,
+            0,
+            0,
+            0,
+            0,
+            MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()
         );
     }
 

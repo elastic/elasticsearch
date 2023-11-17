@@ -45,9 +45,6 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref inputRef = input.eval(page)) {
-      if (inputRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-      }
       BytesRefBlock inputBlock = (BytesRefBlock) inputRef.block();
       BytesRefVector inputVector = inputBlock.asVector();
       if (inputVector == null) {
@@ -58,30 +55,32 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock inputBlock) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    BytesRef inputScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (inputBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef inputScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (inputBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (inputBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(RegexMatch.process(inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch), pattern));
       }
-      if (inputBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      result.appendBoolean(RegexMatch.process(inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch), pattern));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector inputVector) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    BytesRef inputScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBoolean(RegexMatch.process(inputVector.getBytesRef(p, inputScratch), pattern));
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+      BytesRef inputScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(RegexMatch.process(inputVector.getBytesRef(p, inputScratch), pattern));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -92,5 +91,30 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(input);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory input;
+
+    private final CharacterRunAutomaton pattern;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory input,
+        CharacterRunAutomaton pattern) {
+      this.source = source;
+      this.input = input;
+      this.pattern = pattern;
+    }
+
+    @Override
+    public RegexMatchEvaluator get(DriverContext context) {
+      return new RegexMatchEvaluator(source, input.get(context), pattern, context);
+    }
+
+    @Override
+    public String toString() {
+      return "RegexMatchEvaluator[" + "input=" + input + ", pattern=" + pattern + "]";
+    }
   }
 }

@@ -43,9 +43,9 @@ public class MultiSearchIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
         MultiSearchResponse response = client().prepareMultiSearch()
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
+            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
+            .add(prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
             .get();
 
         for (MultiSearchResponse.Item item : response) {
@@ -73,7 +73,7 @@ public class MultiSearchIT extends ESIntegTestCase {
             request.maxConcurrentSearchRequests(randomIntBetween(1, numSearchRequests));
         }
         for (int i = 0; i < numSearchRequests; i++) {
-            request.add(client().prepareSearch("test"));
+            request.add(prepareSearch("test"));
         }
 
         MultiSearchResponse response = client().multiSearch(request).actionGet();
@@ -96,9 +96,9 @@ public class MultiSearchIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
         MultiSearchResponse response = client().prepareMultiSearch()
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
-            .add(client().prepareSearch("test").setQuery(new DummyQueryBuilder() {
+            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
+            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
+            .add(prepareSearch("test").setQuery(new DummyQueryBuilder() {
                 @Override
                 public TransportVersion getMinimalSupportedVersion() {
                     return transportVersion;

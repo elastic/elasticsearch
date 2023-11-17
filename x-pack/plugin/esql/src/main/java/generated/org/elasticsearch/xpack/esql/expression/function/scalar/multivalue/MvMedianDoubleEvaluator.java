@@ -38,24 +38,25 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-      MvMedian.Doubles work = new MvMedian.Doubles();
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
-          builder.appendNull();
-          continue;
+      try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+        MvMedian.Doubles work = new MvMedian.Doubles();
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          for (int i = first; i < end; i++) {
+            double value = v.getDouble(i);
+            MvMedian.process(work, value);
+          }
+          double result = MvMedian.finish(work);
+          builder.appendDouble(result);
         }
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        for (int i = first; i < end; i++) {
-          double value = v.getDouble(i);
-          MvMedian.process(work, value);
-        }
-        double result = MvMedian.finish(work);
-        builder.appendDouble(result);
+        return Block.Ref.floating(builder.build());
       }
-      return Block.Ref.floating(builder.build());
     }
   }
 
@@ -67,20 +68,39 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-      MvMedian.Doubles work = new MvMedian.Doubles();
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        for (int i = first; i < end; i++) {
-          double value = v.getDouble(i);
-          MvMedian.process(work, value);
+      try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+        MvMedian.Doubles work = new MvMedian.Doubles();
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          for (int i = first; i < end; i++) {
+            double value = v.getDouble(i);
+            MvMedian.process(work, value);
+          }
+          double result = MvMedian.finish(work);
+          builder.appendDouble(result);
         }
-        double result = MvMedian.finish(work);
-        builder.appendDouble(result);
+        return Block.Ref.floating(builder.build().asBlock());
       }
-      return Block.Ref.floating(builder.build().asBlock());
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMedianDoubleEvaluator get(DriverContext context) {
+      return new MvMedianDoubleEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMedian[field=" + field + "]";
     }
   }
 }

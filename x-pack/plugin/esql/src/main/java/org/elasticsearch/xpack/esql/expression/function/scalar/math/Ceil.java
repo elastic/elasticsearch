@@ -40,7 +40,7 @@ public class Ceil extends UnaryScalarFunction implements EvaluatorMapper {
             return toEvaluator.apply(field());
         }
         var fieldEval = toEvaluator.apply(field());
-        return dvrCtx -> new CeilDoubleEvaluator(source(), fieldEval.get(dvrCtx), dvrCtx);
+        return new CeilDoubleEvaluator.Factory(source(), fieldEval);
     }
 
     @Override

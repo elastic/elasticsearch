@@ -351,7 +351,6 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                         .build()
                 )
                 .setWaitForActiveShards(ActiveShardCount.NONE)
-                .get()
         );
 
         // * 2 since worst case is no hard links, see DiskThresholdDecider.getExpectedShardSize.
@@ -468,7 +467,6 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                 )
                 .setWaitForActiveShards(ActiveShardCount.NONE)
                 .setResizeType(resizeType)
-                .get()
         );
 
         // * 2 since worst case is no hard links, see DiskThresholdDecider.getExpectedShardSize.

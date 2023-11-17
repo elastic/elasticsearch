@@ -414,7 +414,6 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98706")
     public void testGetStatusFromStoredSearchWithNonEmptyClustersStillRunning() {
         String searchId = randomSearchId();
 
@@ -426,6 +425,16 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int successful = randomInt(10);
         int partial = randomInt(10);
         int skipped = randomInt(10);
+
+        if (successful + partial + skipped == 0) {
+            int val = randomIntBetween(1, 10);
+            switch (randomInt(2)) {
+                case 0 -> successful = val;
+                case 1 -> partial = val;
+                case 2 -> skipped = val;
+                default -> throw new UnsupportedOperationException();
+            }
+        }
         SearchResponse.Clusters clusters = AsyncSearchResponseTests.createCCSClusterObjects(100, 99, true, successful, skipped, partial);
 
         SearchResponse searchResponse = new SearchResponse(

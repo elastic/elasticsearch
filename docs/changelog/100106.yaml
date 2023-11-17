@@ -1,5 +1,0 @@
-pr: 100106
-summary: Validate enrich index before completing policy execution
-area: Ingest Node
-type: bug
-issues: []

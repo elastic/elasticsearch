@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -49,11 +50,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
       BytesRefBlock[] valuesBlocks = new BytesRefBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-        }
-        valuesBlocks[i] = (BytesRefBlock) block;
+        valuesBlocks[i] = (BytesRefBlock) valuesRefs[i].block();
       }
       BytesRefVector[] valuesVectors = new BytesRefVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
@@ -67,49 +64,51 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock[] valuesBlocks) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef[] valuesValues = new BytesRef[values.length];
-    BytesRef[] valuesScratch = new BytesRef[values.length];
-    for (int i = 0; i < values.length; i++) {
-      valuesScratch[i] = new BytesRef();
-    }
-    position: for (int p = 0; p < positionCount; p++) {
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        if (valuesBlocks[i].isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (valuesBlocks[i].getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
-        }
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef[] valuesValues = new BytesRef[values.length];
+      BytesRef[] valuesScratch = new BytesRef[values.length];
+      for (int i = 0; i < values.length; i++) {
+        valuesScratch[i] = new BytesRef();
       }
-      // unpack valuesBlocks into valuesValues
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        int o = valuesBlocks[i].getFirstValueIndex(p);
-        valuesValues[i] = valuesBlocks[i].getBytesRef(o, valuesScratch[i]);
+      position: for (int p = 0; p < positionCount; p++) {
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          if (valuesBlocks[i].isNull(p)) {
+            result.appendNull();
+            continue position;
+          }
+          if (valuesBlocks[i].getValueCount(p) != 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            result.appendNull();
+            continue position;
+          }
+        }
+        // unpack valuesBlocks into valuesValues
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          int o = valuesBlocks[i].getFirstValueIndex(p);
+          valuesValues[i] = valuesBlocks[i].getBytesRef(o, valuesScratch[i]);
+        }
+        result.appendBytesRef(Concat.process(scratch, valuesValues));
       }
-      result.appendBytesRef(Concat.process(scratch, valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector[] valuesVectors) {
-    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
-    BytesRef[] valuesValues = new BytesRef[values.length];
-    BytesRef[] valuesScratch = new BytesRef[values.length];
-    for (int i = 0; i < values.length; i++) {
-      valuesScratch[i] = new BytesRef();
-    }
-    position: for (int p = 0; p < positionCount; p++) {
-      // unpack valuesVectors into valuesValues
-      for (int i = 0; i < valuesVectors.length; i++) {
-        valuesValues[i] = valuesVectors[i].getBytesRef(p, valuesScratch[i]);
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+      BytesRef[] valuesValues = new BytesRef[values.length];
+      BytesRef[] valuesScratch = new BytesRef[values.length];
+      for (int i = 0; i < values.length; i++) {
+        valuesScratch[i] = new BytesRef();
       }
-      result.appendBytesRef(Concat.process(scratch, valuesValues));
+      position: for (int p = 0; p < positionCount; p++) {
+        // unpack valuesVectors into valuesValues
+        for (int i = 0; i < valuesVectors.length; i++) {
+          valuesValues[i] = valuesVectors[i].getBytesRef(p, valuesScratch[i]);
+        }
+        result.appendBytesRef(Concat.process(scratch, valuesValues));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -120,5 +119,31 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(scratch, () -> Releasables.close(values));
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
+
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
+        EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.source = source;
+      this.scratch = scratch;
+      this.values = values;
+    }
+
+    @Override
+    public ConcatEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new ConcatEvaluator(source, scratch.apply(context), values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ConcatEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
   }
 }

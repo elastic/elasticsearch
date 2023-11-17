@@ -14,6 +14,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -81,7 +83,14 @@ public class AutoBucket extends ScalarFunction implements EvaluatorMapper {
     private final Expression from;
     private final Expression to;
 
-    public AutoBucket(Source source, Expression field, Expression buckets, Expression from, Expression to) {
+    @FunctionInfo(returnType = { "double", "date" })
+    public AutoBucket(
+        Source source,
+        @Param(name = "field", type = { "integer", "long", "double", "date" }) Expression field,
+        @Param(name = "buckets", type = { "integer" }) Expression buckets,
+        @Param(name = "from", type = { "integer", "long", "double", "date" }) Expression from,
+        @Param(name = "to", type = { "integer", "long", "double", "date" }) Expression to
+    ) {
         super(source, List.of(field, buckets, from, to));
         this.field = field;
         this.buckets = buckets;

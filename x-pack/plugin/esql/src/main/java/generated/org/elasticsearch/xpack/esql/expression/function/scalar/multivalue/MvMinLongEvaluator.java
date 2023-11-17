@@ -40,24 +40,25 @@ public final class MvMinLongEvaluator extends AbstractMultivalueFunction.Abstrac
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
-          builder.appendNull();
-          continue;
+      try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          long value = v.getLong(first);
+          for (int i = first + 1; i < end; i++) {
+            long next = v.getLong(i);
+            value = MvMin.process(value, next);
+          }
+          long result = value;
+          builder.appendLong(result);
         }
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        long value = v.getLong(first);
-        for (int i = first + 1; i < end; i++) {
-          long next = v.getLong(i);
-          value = MvMin.process(value, next);
-        }
-        long result = value;
-        builder.appendLong(result);
+        return Block.Ref.floating(builder.build());
       }
-      return Block.Ref.floating(builder.build());
     }
   }
 
@@ -72,20 +73,21 @@ public final class MvMinLongEvaluator extends AbstractMultivalueFunction.Abstrac
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      LongVector.FixedBuilder builder = LongVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        long value = v.getLong(first);
-        for (int i = first + 1; i < end; i++) {
-          long next = v.getLong(i);
-          value = MvMin.process(value, next);
+      try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          long value = v.getLong(first);
+          for (int i = first + 1; i < end; i++) {
+            long next = v.getLong(i);
+            value = MvMin.process(value, next);
+          }
+          long result = value;
+          builder.appendLong(result);
         }
-        long result = value;
-        builder.appendLong(result);
+        return Block.Ref.floating(builder.build().asBlock());
       }
-      return Block.Ref.floating(builder.build().asBlock());
     }
   }
 
@@ -96,19 +98,20 @@ public final class MvMinLongEvaluator extends AbstractMultivalueFunction.Abstrac
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
-          builder.appendNull();
-          continue;
+      try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int idx = MvMin.ascendingIndex(valueCount);
+          long result = v.getLong(first + idx);
+          builder.appendLong(result);
         }
-        int first = v.getFirstValueIndex(p);
-        int idx = MvMin.ascendingIndex(valueCount);
-        long result = v.getLong(first + idx);
-        builder.appendLong(result);
+        return Block.Ref.floating(builder.build());
       }
-      return Block.Ref.floating(builder.build());
     }
   }
 
@@ -119,15 +122,34 @@ public final class MvMinLongEvaluator extends AbstractMultivalueFunction.Abstrac
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      LongVector.FixedBuilder builder = LongVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        int first = v.getFirstValueIndex(p);
-        int idx = MvMin.ascendingIndex(valueCount);
-        long result = v.getLong(first + idx);
-        builder.appendLong(result);
+      try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int idx = MvMin.ascendingIndex(valueCount);
+          long result = v.getLong(first + idx);
+          builder.appendLong(result);
+        }
+        return Block.Ref.floating(builder.build().asBlock());
       }
-      return Block.Ref.floating(builder.build().asBlock());
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMinLongEvaluator get(DriverContext context) {
+      return new MvMinLongEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMin[field=" + field + "]";
     }
   }
 }

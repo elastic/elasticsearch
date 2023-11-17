@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.QuadFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -28,20 +26,20 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class Round extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
 
-    private static final TriFunction<Source, ExpressionEvaluator, DriverContext, ExpressionEvaluator> IDENTITY = (s, e, d) -> e;
+    private static final BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> EVALUATOR_IDENTITY = (s, e) -> e;
 
     private final Expression field, decimals;
 
@@ -72,15 +70,7 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
 
     @Override
     public Object fold() {
-        if (field.dataType() == DataTypes.UNSIGNED_LONG) {
-            return decimals == null
-                ? field.fold()
-                : processUnsignedLong(safeToLong((Number) field.fold()), safeToLong((Number) decimals.fold()));
-        }
-        if (decimals == null) {
-            return Maths.round((Number) field.fold(), 0L);
-        }
-        return Maths.round((Number) field.fold(), ((Number) decimals.fold()).longValue());
+        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator(extraName = "DoubleNoDecimals")
@@ -147,31 +137,31 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         DataType fieldType = dataType();
         if (fieldType == DataTypes.DOUBLE) {
-            return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator::new, RoundDoubleEvaluator::new);
+            return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator.Factory::new, RoundDoubleEvaluator.Factory::new);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return toEvaluator(toEvaluator, IDENTITY, RoundIntEvaluator::new);
+            return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundIntEvaluator.Factory::new);
         }
         if (fieldType == DataTypes.LONG) {
-            return toEvaluator(toEvaluator, IDENTITY, RoundLongEvaluator::new);
+            return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundLongEvaluator.Factory::new);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return toEvaluator(toEvaluator, IDENTITY, RoundUnsignedLongEvaluator::new);
+            return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundUnsignedLongEvaluator.Factory::new);
         }
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);
     }
 
     private ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, ExpressionEvaluator.Factory> toEvaluator,
-        TriFunction<Source, ExpressionEvaluator, DriverContext, ExpressionEvaluator> noDecimals,
-        QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> withDecimals
+        BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> noDecimals,
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> withDecimals
     ) {
         var fieldEvaluator = toEvaluator.apply(field());
         if (decimals == null) {
-            return dvrCtx -> noDecimals.apply(source(), fieldEvaluator.get(dvrCtx), dvrCtx);
+            return noDecimals.apply(source(), fieldEvaluator);
         }
         var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataTypes.LONG, toEvaluator.apply(decimals()));
-        return dvrCtx -> withDecimals.apply(source(), fieldEvaluator.get(dvrCtx), decimalsEvaluator.get(dvrCtx), dvrCtx);
+        return withDecimals.apply(source(), fieldEvaluator, decimalsEvaluator);
     }
 
     @Override

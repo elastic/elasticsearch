@@ -8,6 +8,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -19,6 +20,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -114,6 +116,25 @@ public class ReindexFailureTests extends ReindexTestCase {
             }
         }
         assumeFalse("Wasn't able to trigger a reindex failure in " + attempt + " attempts.", true);
+    }
+
+    public void testDateMathResolvesSameIndexName() throws Exception {
+        String sourceIndexName = "datemath-2001-01-01-14";
+        String destIndexName = "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>";
+        indexRandom(
+            true,
+            client().prepareIndex(sourceIndexName).setId("1").setSource("foo", "a"),
+            client().prepareIndex(sourceIndexName).setId("2").setSource("foo", "a"),
+            client().prepareIndex(sourceIndexName).setId("3").setSource("foo", "b"),
+            client().prepareIndex(sourceIndexName).setId("4").setSource("foo", "c")
+        );
+        assertHitCount(prepareSearch(sourceIndexName).setSize(0), 4);
+
+        ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            () -> reindex().source(sourceIndexName).destination(destIndexName).get()
+        );
+        assertThat(e.getMessage(), containsString("reindex cannot write into an index its reading from [datemath-2001-01-01-14]"));
     }
 
     private void indexDocs(int count) throws Exception {

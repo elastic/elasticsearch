@@ -1,5 +1,0 @@
-pr: 99946
-summary: Skip settings validation during desired nodes updates
-area: Distributed
-type: bug
-issues: []

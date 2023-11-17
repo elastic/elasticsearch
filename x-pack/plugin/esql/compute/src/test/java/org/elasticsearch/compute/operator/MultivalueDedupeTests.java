@@ -11,17 +11,22 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,6 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class MultivalueDedupeTests extends ESTestCase {
     public static List<ElementType> supportedTypes() {
@@ -96,18 +102,21 @@ public class MultivalueDedupeTests extends ESTestCase {
     }
 
     public void testDedupeAdaptive() {
+        BlockFactory blockFactory = blockFactory();
         BasicBlockTests.RandomBlock b = randomBlock();
-        assertDeduped(b, MultivalueDedupe.dedupeToBlockAdaptive(Block.Ref.floating(b.block())));
+        assertDeduped(blockFactory, b, MultivalueDedupe.dedupeToBlockAdaptive(Block.Ref.floating(b.block()), blockFactory));
     }
 
     public void testDedupeViaCopyAndSort() {
+        BlockFactory blockFactory = blockFactory();
         BasicBlockTests.RandomBlock b = randomBlock();
-        assertDeduped(b, MultivalueDedupe.dedupeToBlockUsingCopyAndSort(Block.Ref.floating(b.block())));
+        assertDeduped(blockFactory, b, MultivalueDedupe.dedupeToBlockUsingCopyAndSort(Block.Ref.floating(b.block()), blockFactory));
     }
 
     public void testDedupeViaCopyMissing() {
+        BlockFactory blockFactory = blockFactory();
         BasicBlockTests.RandomBlock b = randomBlock();
-        assertDeduped(b, MultivalueDedupe.dedupeToBlockUsingCopyMissing(Block.Ref.floating(b.block())));
+        assertDeduped(blockFactory, b, MultivalueDedupe.dedupeToBlockUsingCopyMissing(Block.Ref.floating(b.block()), blockFactory));
     }
 
     private BasicBlockTests.RandomBlock randomBlock() {
@@ -122,13 +131,18 @@ public class MultivalueDedupeTests extends ESTestCase {
         );
     }
 
-    private void assertDeduped(BasicBlockTests.RandomBlock b, Block.Ref deduped) {
-        for (int p = 0; p < b.block().getPositionCount(); p++) {
-            List<Object> v = b.values().get(p);
-            Matcher<? extends Object> matcher = v == null
-                ? nullValue()
-                : containsInAnyOrder(v.stream().collect(Collectors.toSet()).stream().sorted().toArray());
-            BlockTestUtils.assertPositionValues(deduped.block(), p, matcher);
+    private void assertDeduped(BlockFactory blockFactory, BasicBlockTests.RandomBlock b, Block.Ref deduped) {
+        try (Block dedupedBlock = deduped.block()) {
+            if (dedupedBlock != b.block()) {
+                assertThat(dedupedBlock.blockFactory(), sameInstance(blockFactory));
+            }
+            for (int p = 0; p < b.block().getPositionCount(); p++) {
+                List<Object> v = b.values().get(p);
+                Matcher<? extends Object> matcher = v == null
+                    ? nullValue()
+                    : containsInAnyOrder(v.stream().collect(Collectors.toSet()).stream().sorted().toArray());
+                BlockTestUtils.assertPositionValues(dedupedBlock, p, matcher);
+            }
         }
     }
 
@@ -383,5 +397,21 @@ public class MultivalueDedupeTests extends ESTestCase {
         })); // Sort for easier visual comparison of errors
         assertThat(actual, equalTo(expected));
         return valueOffset;
+    }
+
+    private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+
+    private BlockFactory blockFactory() {
+        MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        breakers.add(breaker);
+        return new BlockFactory(breaker, bigArrays);
+    }
+
+    @After
+    public void allMemoryReleased() {
+        for (CircuitBreaker breaker : breakers) {
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
     }
 }

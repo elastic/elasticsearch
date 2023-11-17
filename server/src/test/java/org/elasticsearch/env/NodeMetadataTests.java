@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.VersionUtils;
@@ -75,7 +76,7 @@ public class NodeMetadataTests extends ESTestCase {
 
     public void testReadsFormatWithoutVersion() throws IOException {
         // the behaviour tested here is only appropriate if the current version is compatible with versions 7 and earlier
-        assertTrue(IndexVersion.MINIMUM_COMPATIBLE.onOrBefore(IndexVersion.V_7_0_0));
+        assertTrue(IndexVersions.MINIMUM_COMPATIBLE.onOrBefore(IndexVersions.V_7_0_0));
         // when the current version is incompatible with version 7, the behaviour should change to reject files like the given resource
         // which do not have the version field
 

@@ -44,6 +44,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -63,6 +64,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
@@ -223,6 +225,12 @@ public class ClusterStateTests extends ESTestCase {
                               }
                             }
                           ],
+                          "nodes_features" : [
+                            {
+                              "node_id" : "nodeId1",
+                              "features" : [ "f1", "f2" ]
+                            }
+                          ],
                           "metadata": {
                             "cluster_uuid": "clusterUUID",
                             "cluster_uuid_committed": false,
@@ -373,7 +381,7 @@ public class ClusterStateTests extends ESTestCase {
                         }""",
                     ephemeralId,
                     Version.CURRENT,
-                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersion.current(),
                     TransportVersion.current(),
                     IndexVersion.current(),
@@ -482,6 +490,15 @@ public class ClusterStateTests extends ESTestCase {
                               "hash" : 1
                             }
                           }
+                        }
+                      ],
+                      "nodes_features" : [
+                        {
+                          "node_id" : "nodeId1",
+                          "features" : [
+                            "f1",
+                            "f2"
+                          ]
                         }
                       ],
                       "metadata" : {
@@ -630,7 +647,7 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
                 IndexVersion.current(),
@@ -739,6 +756,15 @@ public class ClusterStateTests extends ESTestCase {
                               "hash" : 1
                             }
                           }
+                        }
+                      ],
+                      "nodes_features" : [
+                        {
+                          "node_id" : "nodeId1",
+                          "features" : [
+                            "f1",
+                            "f2"
+                          ]
                         }
                       ],
                       "metadata" : {
@@ -893,7 +919,7 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
                 IndexVersion.current(),
@@ -954,6 +980,7 @@ public class ClusterStateTests extends ESTestCase {
               "blocks" : { },
               "nodes" : { },
               "nodes_versions" : [ ],
+              "nodes_features" : [ ],
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
                 "cluster_uuid_committed" : false,
@@ -1015,6 +1042,46 @@ public class ClusterStateTests extends ESTestCase {
             }""", IndexVersion.current()), Strings.toString(builder));
     }
 
+    public void testNodeFeaturesSorted() throws IOException {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodeFeatures(Map.of("node2", Set.of("nf1", "f2", "nf2"), "node1", Set.of("f3", "f2", "f1"), "node3", Set.of()))
+            .build();
+
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        builder.startObject();
+        writeChunks(clusterState, builder, new ToXContent.MapParams(Map.of("metric", ClusterState.Metric.NODES.toString())));
+        builder.endObject();
+
+        assertThat(Strings.toString(builder), equalTo("""
+            {
+              "cluster_uuid" : "_na_",
+              "nodes" : { },
+              "nodes_versions" : [ ],
+              "nodes_features" : [
+                {
+                  "node_id" : "node1",
+                  "features" : [
+                    "f1",
+                    "f2",
+                    "f3"
+                  ]
+                },
+                {
+                  "node_id" : "node2",
+                  "features" : [
+                    "f2",
+                    "nf1",
+                    "nf2"
+                  ]
+                },
+                {
+                  "node_id" : "node3",
+                  "features" : [ ]
+                }
+              ]
+            }"""));
+    }
+
     private ClusterState buildClusterState() throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .state(IndexMetadata.State.OPEN)
@@ -1056,6 +1123,7 @@ public class ClusterStateTests extends ESTestCase {
                     new CompatibilityVersions(TransportVersion.current(), Map.of(".tasks", new SystemIndexDescriptor.MappingsVersion(1, 1)))
                 )
             )
+            .nodeFeatures(Map.of("nodeId1", Set.of("f1", "f2")))
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
@@ -1256,9 +1324,11 @@ public class ClusterStateTests extends ESTestCase {
             chunkCount += 2 + clusterState.blocks().indices().size();
         }
 
-        // nodes, nodes_versions
+        // nodes, nodes_versions, nodes_features
         if (metrics.contains(ClusterState.Metric.NODES)) {
-            chunkCount += 4 + clusterState.nodes().size() + clusterState.compatibilityVersions().size();
+            chunkCount += 7 + clusterState.nodes().size() + clusterState.compatibilityVersions().size() + clusterState.clusterFeatures()
+                .nodeFeatures()
+                .size();
         }
 
         // metadata

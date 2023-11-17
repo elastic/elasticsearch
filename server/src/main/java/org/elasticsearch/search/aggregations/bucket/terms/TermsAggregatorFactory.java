@@ -17,7 +17,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -121,7 +120,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
             if ((includeExclude != null) && (includeExclude.isRegexBased()) && valuesSourceConfig.format() != DocValueFormat.RAW) {
                 // TODO this exception message is not really accurate for the string case. It's really disallowing regex + formatter
-                throw new AggregationExecutionException(
+                throw new IllegalArgumentException(
                     "Aggregation ["
                         + name
                         + "] cannot support regular expression style "
@@ -170,7 +169,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             metadata) -> {
 
             if ((includeExclude != null) && (includeExclude.isRegexBased())) {
-                throw new AggregationExecutionException(
+                throw new IllegalArgumentException(
                     "Aggregation ["
                         + name
                         + "] cannot support regular expression style "
@@ -469,7 +468,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     && ordinalsValuesSource.supportsGlobalOrdinalsMapping()
                     &&
                 // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
-                    (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
+                    (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS : ratio <= 0.5 && maxOrd <= 2048)) {
                     /*
                      * We can use the low cardinality execution mode iff this aggregator:
                      *  - has no sub-aggregator AND
@@ -506,7 +505,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                      * is only possible if we're collecting from a single
                      * bucket.
                      */
-                    remapGlobalOrds = REMAP_GLOBAL_ORDS.booleanValue();
+                    remapGlobalOrds = REMAP_GLOBAL_ORDS;
                 } else {
                     remapGlobalOrds = true;
                     if (includeExclude == null

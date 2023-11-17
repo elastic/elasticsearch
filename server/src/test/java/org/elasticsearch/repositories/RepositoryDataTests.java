@@ -9,10 +9,12 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
@@ -61,10 +63,7 @@ public class RepositoryDataTests extends ESTestCase {
             final List<SnapshotId> snapshotIds = repositoryData.getSnapshots(index);
             return snapshotIds.contains(randomSnapshot) && snapshotIds.size() > 1;
         }).toArray(IndexId[]::new);
-        assertThat(
-            repositoryData.indicesToUpdateAfterRemovingSnapshot(Collections.singleton(randomSnapshot)),
-            containsInAnyOrder(indicesToUpdate)
-        );
+        assertThat(getIndicesToUpdateAfterRemovingSnapshot(repositoryData, randomSnapshot), containsInAnyOrder(indicesToUpdate));
     }
 
     public void testXContent() throws IOException {
@@ -110,7 +109,7 @@ public class RepositoryDataTests extends ESTestCase {
             newSnapshot,
             new RepositoryData.SnapshotDetails(
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
-                randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
+                randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -142,7 +141,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId.getUUID(),
                 new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.values()),
-                    randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
+                    randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)
@@ -210,7 +209,7 @@ public class RepositoryDataTests extends ESTestCase {
             snapshotId,
             new RepositoryData.SnapshotDetails(
                 state,
-                randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
+                randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -346,7 +345,7 @@ public class RepositoryDataTests extends ESTestCase {
         final RepositoryData repositoryData = generateRandomRepoData();
         final SnapshotId snapshotId = randomFrom(repositoryData.getSnapshotIds());
         final IndexMetaDataGenerations indexMetaDataGenerations = repositoryData.indexMetaDataGenerations();
-        final Collection<IndexId> indicesToUpdate = repositoryData.indicesToUpdateAfterRemovingSnapshot(Collections.singleton(snapshotId));
+        final Collection<IndexId> indicesToUpdate = getIndicesToUpdateAfterRemovingSnapshot(repositoryData, snapshotId);
         final Map<IndexId, Collection<String>> identifiersToRemove = indexMetaDataGenerations.lookup.get(snapshotId)
             .entrySet()
             .stream()
@@ -408,12 +407,12 @@ public class RepositoryDataTests extends ESTestCase {
     }
 
     public void testFailsIfMinVersionNotSatisfied() throws IOException {
-        final IndexVersion futureVersion = IndexVersion.fromId(IndexVersion.current().id() + 1_000_000);
+        final String futureVersion = Version.fromId(IndexVersion.current().id() + 1_000_000).toString();
 
         final XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON).xContent());
         builder.startObject();
         {
-            builder.field("min_version", futureVersion.id());
+            builder.field("min_version", futureVersion);
             builder.field("junk", "should not get this far");
         }
         builder.endObject();
@@ -455,7 +454,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId,
                 new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.values()),
-                    randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
+                    randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)
@@ -483,5 +482,11 @@ public class RepositoryDataTests extends ESTestCase {
             indices.put(indexId, List.copyOf(indexSnapshots));
         }
         return indices;
+    }
+
+    private static Collection<IndexId> getIndicesToUpdateAfterRemovingSnapshot(RepositoryData repositoryData, SnapshotId snapshotToDelete) {
+        final var result = new ArrayList<IndexId>();
+        repositoryData.indicesToUpdateAfterRemovingSnapshot(List.of(snapshotToDelete)).forEachRemaining(result::add);
+        return result;
     }
 }

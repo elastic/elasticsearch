@@ -37,16 +37,16 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
         var fieldType = field().dataType();
 
         if (fieldType == DataTypes.DOUBLE) {
-            return dvrCtx -> new SqrtDoubleEvaluator(source(), field.get(dvrCtx), dvrCtx);
+            return new SqrtDoubleEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return dvrCtx -> new SqrtIntEvaluator(source(), field.get(dvrCtx), dvrCtx);
+            return new SqrtIntEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.LONG) {
-            return dvrCtx -> new SqrtLongEvaluator(source(), field.get(dvrCtx), dvrCtx);
+            return new SqrtLongEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return dvrCtx -> new SqrtUnsignedLongEvaluator(source(), field.get(dvrCtx), dvrCtx);
+            return new SqrtUnsignedLongEvaluator.Factory(source(), field);
         }
 
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);

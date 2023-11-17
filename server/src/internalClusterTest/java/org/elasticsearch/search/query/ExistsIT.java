@@ -10,7 +10,6 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -30,17 +29,17 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 
 public class ExistsIT extends ESIntegTestCase {
 
     // TODO: move this to a unit test somewhere...
     public void testEmptyIndex() throws Exception {
         createIndex("test");
-        SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")).get();
-        assertSearchResponse(resp);
-        resp = client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))).get();
-        assertSearchResponse(resp);
+        assertNoFailures(prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")));
+        assertNoFailures(prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))));
     }
 
     public void testExists() throws Exception {
@@ -115,46 +114,46 @@ public class ExistsIT extends ESIntegTestCase {
         expected.put("vec", 2);
 
         final long numDocs = sources.length;
-        SearchResponse allDocs = client().prepareSearch("idx").setSize(sources.length).get();
-        assertSearchResponse(allDocs);
-        assertHitCount(allDocs, numDocs);
-        for (Map.Entry<String, Integer> entry : expected.entrySet()) {
-            final String fieldName = entry.getKey();
-            final int count = entry.getValue();
-            // exists
-            SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
-            assertSearchResponse(resp);
-            try {
-                assertEquals(
-                    String.format(
-                        Locale.ROOT,
-                        "exists(%s, %d) mapping: %s response: %s",
-                        fieldName,
-                        count,
-                        Strings.toString(mapping),
-                        resp
-                    ),
-                    count,
-                    resp.getHits().getTotalHits().value
-                );
-            } catch (AssertionError e) {
-                for (SearchHit searchHit : allDocs.getHits()) {
-                    final String index = searchHit.getIndex();
-                    final String id = searchHit.getId();
-                    final ExplainResponse explanation = client().prepareExplain(index, id)
-                        .setQuery(QueryBuilders.existsQuery(fieldName))
-                        .get();
-                    logger.info(
-                        "Explanation for [{}] / [{}] / [{}]: [{}]",
-                        fieldName,
-                        id,
-                        searchHit.getSourceAsString(),
-                        explanation.getExplanation()
-                    );
-                }
-                throw e;
+        assertNoFailuresAndResponse(prepareSearch("idx").setSize(sources.length), allDocs -> {
+            assertHitCount(allDocs, numDocs);
+            for (Map.Entry<String, Integer> entry : expected.entrySet()) {
+                final String fieldName = entry.getKey();
+                final int count = entry.getValue();
+                // exists
+                assertNoFailuresAndResponse(prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)), response -> {
+                    try {
+                        assertEquals(
+                            String.format(
+                                Locale.ROOT,
+                                "exists(%s, %d) mapping: %s response: %s",
+                                fieldName,
+                                count,
+                                Strings.toString(mapping),
+                                response
+                            ),
+                            count,
+                            response.getHits().getTotalHits().value
+                        );
+                    } catch (AssertionError e) {
+                        for (SearchHit searchHit : allDocs.getHits()) {
+                            final String index = searchHit.getIndex();
+                            final String id = searchHit.getId();
+                            final ExplainResponse explanation = client().prepareExplain(index, id)
+                                .setQuery(QueryBuilders.existsQuery(fieldName))
+                                .get();
+                            logger.info(
+                                "Explanation for [{}] / [{}] / [{}]: [{}]",
+                                fieldName,
+                                id,
+                                searchHit.getSourceAsString(),
+                                explanation.getExplanation()
+                            );
+                        }
+                        throw e;
+                    }
+                });
             }
-        }
+        });
     }
 
     public void testFieldAlias() throws Exception {
@@ -200,10 +199,7 @@ public class ExistsIT extends ESIntegTestCase {
         for (Map.Entry<String, Integer> entry : expected.entrySet()) {
             String fieldName = entry.getKey();
             int expectedCount = entry.getValue();
-
-            SearchResponse response = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
-            assertSearchResponse(response);
-            assertHitCount(response, expectedCount);
+            assertHitCountAndNoFailures(prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)), expectedCount);
         }
     }
 
@@ -233,8 +229,6 @@ public class ExistsIT extends ESIntegTestCase {
         indexRequests.add(client().prepareIndex("idx").setSource("foo", 43));
         indexRandom(true, false, indexRequests);
 
-        SearchResponse response = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery("foo-alias")).get();
-        assertSearchResponse(response);
-        assertHitCount(response, 2);
+        assertHitCountAndNoFailures(prepareSearch("idx").setQuery(QueryBuilders.existsQuery("foo-alias")), 2L);
     }
 }

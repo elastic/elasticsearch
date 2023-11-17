@@ -190,6 +190,9 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
 
         public DatafeedParams(String datafeedId, long startTime) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
+            if (startTime < 0) {
+                throw new IllegalArgumentException("[" + START_TIME.getPreferredName() + "] must not be negative [" + startTime + "].");
+            }
             this.startTime = startTime;
         }
 

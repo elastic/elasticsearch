@@ -56,7 +56,13 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
 
     @Override
     public BytesRefVector filter(int... positions) {
-        return new FilterBytesRefVector(this, positions);
+        final var scratch = new BytesRef();
+        try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendBytesRef(values.get(pos, scratch));
+            }
+            return builder.build();
+        }
     }
 
     public static long ramBytesEstimated(BytesRefArray values) {
@@ -88,6 +94,10 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     }

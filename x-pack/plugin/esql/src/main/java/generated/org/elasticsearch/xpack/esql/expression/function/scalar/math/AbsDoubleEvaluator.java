@@ -38,9 +38,6 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref fieldValRef = fieldVal.eval(page)) {
-      if (fieldValRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-      }
       DoubleBlock fieldValBlock = (DoubleBlock) fieldValRef.block();
       DoubleVector fieldValVector = fieldValBlock.asVector();
       if (fieldValVector == null) {
@@ -51,28 +48,30 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock fieldValBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (fieldValBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (fieldValBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (fieldValBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        result.appendDouble(Abs.process(fieldValBlock.getDouble(fieldValBlock.getFirstValueIndex(p))));
       }
-      if (fieldValBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      result.appendDouble(Abs.process(fieldValBlock.getDouble(fieldValBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, DoubleVector fieldValVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Abs.process(fieldValVector.getDouble(p)));
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(Abs.process(fieldValVector.getDouble(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -83,5 +82,26 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(fieldVal);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldVal) {
+      this.source = source;
+      this.fieldVal = fieldVal;
+    }
+
+    @Override
+    public AbsDoubleEvaluator get(DriverContext context) {
+      return new AbsDoubleEvaluator(source, fieldVal.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "AbsDoubleEvaluator[" + "fieldVal=" + fieldVal + "]";
+    }
   }
 }

@@ -116,7 +116,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
      * not ordinary important, but could be useful in tracking down problems where nodes have stopped reporting health node information.
      * @param diskHealthInfoMap A map of nodeId to DiskHealthInfo
      */
-    private void logNodesMissingHealthInfo(Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {
+    private static void logNodesMissingHealthInfo(Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {
         if (logger.isDebugEnabled()) {
             String nodesMissingHealthInfo = getSortedUniqueValuesString(
                 clusterState.getNodes().getAllNodes(),
@@ -492,7 +492,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             );
         }
 
-        private int getUnhealthyNodeSize(Map<HealthStatus, List<DiscoveryNode>> nodes) {
+        private static int getUnhealthyNodeSize(Map<HealthStatus, List<DiscoveryNode>> nodes) {
             return (nodes.containsKey(HealthStatus.RED) ? nodes.get(HealthStatus.RED).size() : 0) + (nodes.containsKey(HealthStatus.YELLOW)
                 ? nodes.get(HealthStatus.YELLOW).size()
                 : 0);

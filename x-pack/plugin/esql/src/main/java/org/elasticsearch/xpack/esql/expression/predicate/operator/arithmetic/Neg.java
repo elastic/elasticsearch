@@ -46,20 +46,20 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
 
         if (type.isNumeric()) {
             var f = toEvaluator.apply(field());
-            ExpressionEvaluator.Factory supplier = null;
+            ExpressionEvaluator.Factory factory = null;
 
             if (type == DataTypes.INTEGER) {
-                supplier = dvrCtx -> new NegIntsEvaluator(source(), f.get(dvrCtx), dvrCtx);
+                factory = new NegIntsEvaluator.Factory(source(), f);
             }
             // Unsigned longs are unsupported by choice; negating them would require implicitly converting to long.
             else if (type == DataTypes.LONG) {
-                supplier = dvrCtx -> new NegLongsEvaluator(source(), f.get(dvrCtx), dvrCtx);
+                factory = new NegLongsEvaluator.Factory(source(), f);
             } else if (type == DataTypes.DOUBLE) {
-                supplier = dvrCtx -> new NegDoublesEvaluator(source(), f.get(dvrCtx), dvrCtx);
+                factory = new NegDoublesEvaluator.Factory(source(), f);
             }
 
-            if (supplier != null) {
-                return supplier;
+            if (factory != null) {
+                return factory;
             }
         } else if (isTemporalAmount(type)) {
             return toEvaluator.apply(field());

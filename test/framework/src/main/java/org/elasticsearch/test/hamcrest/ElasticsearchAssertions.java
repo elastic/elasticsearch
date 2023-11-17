@@ -26,13 +26,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
-import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.IsAcknowledgedSupplier;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -56,7 +56,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrowsAnyOf;
@@ -87,11 +89,15 @@ import static org.junit.Assert.fail;
 
 public class ElasticsearchAssertions {
 
-    public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder) {
+    public static void assertAcked(ActionRequestBuilder<?, ? extends IsAcknowledgedSupplier> builder) {
         assertAcked(builder, TimeValue.timeValueSeconds(30));
     }
 
-    public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder, TimeValue timeValue) {
+    public static void assertAcked(ActionFuture<? extends IsAcknowledgedSupplier> future) {
+        assertAcked(future.actionGet());
+    }
+
+    public static void assertAcked(ActionRequestBuilder<?, ? extends IsAcknowledgedSupplier> builder, TimeValue timeValue) {
         assertAcked(builder.get(timeValue));
     }
 
@@ -223,8 +229,16 @@ public class ElasticsearchAssertions {
         return msg.toString();
     }
 
+    public static void assertNoSearchHits(SearchRequestBuilder searchRequestBuilder) {
+        assertResponse(searchRequestBuilder, ElasticsearchAssertions::assertNoSearchHits);
+    }
+
     public static void assertNoSearchHits(SearchResponse searchResponse) {
         assertThat(searchResponse.getHits().getHits(), emptyArray());
+    }
+
+    public static void assertSearchHits(SearchRequestBuilder searchRequestBuilder, String... ids) {
+        assertResponse(searchRequestBuilder, res -> assertSearchHits(res, ids));
     }
 
     public static void assertSearchHits(SearchResponse searchResponse, String... ids) {
@@ -235,14 +249,27 @@ public class ElasticsearchAssertions {
         );
     }
 
-    public static void assertSortValues(SearchResponse searchResponse, Object[]... sortValues) {
-        assertSearchResponse(searchResponse);
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        assertEquals(sortValues.length, hits.length);
-        for (int i = 0; i < sortValues.length; ++i) {
-            final Object[] hitsSortValues = hits[i].getSortValues();
-            assertArrayEquals("Offset " + i + ", id " + hits[i].getId(), sortValues[i], hitsSortValues);
-        }
+    public static void assertSearchHitsWithoutFailures(SearchRequestBuilder requestBuilder, String... ids) {
+        assertResponse(requestBuilder, res -> {
+            assertNoFailures(res);
+            assertHitCount(res, ids.length);
+            assertSearchHits(res, ids);
+        });
+    }
+
+    public static void assertSortValues(SearchRequestBuilder searchRequestBuilder, Object[]... sortValues) {
+        assertNoFailuresAndResponse(searchRequestBuilder, res -> {
+            SearchHit[] hits = res.getHits().getHits();
+            assertEquals(sortValues.length, hits.length);
+            for (int i = 0; i < sortValues.length; ++i) {
+                final Object[] hitsSortValues = hits[i].getSortValues();
+                assertArrayEquals("Offset " + i + ", id " + hits[i].getId(), sortValues[i], hitsSortValues);
+            }
+        });
+    }
+
+    public static void assertOrderedSearchHits(SearchRequestBuilder searchRequestBuilder, String... ids) {
+        assertResponse(searchRequestBuilder, res -> assertOrderedSearchHits(res, ids));
     }
 
     public static void assertOrderedSearchHits(SearchResponse searchResponse, String... ids) {
@@ -253,11 +280,27 @@ public class ElasticsearchAssertions {
         );
     }
 
+    public static void assertHitCount(SearchRequestBuilder searchRequestBuilder, long expectedHitCount) {
+        assertResponse(searchRequestBuilder, res -> assertHitCount(res, expectedHitCount));
+    }
+
+    public static void assertHitCount(ActionFuture<SearchResponse> responseFuture, long expectedHitCount) {
+        try {
+            assertResponse(responseFuture, res -> assertHitCount(res, expectedHitCount));
+        } catch (ExecutionException | InterruptedException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
         final TotalHits totalHits = countResponse.getHits().getTotalHits();
         if (totalHits.relation != TotalHits.Relation.EQUAL_TO || totalHits.value != expectedHitCount) {
             fail("Count is " + totalHits + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
+    }
+
+    public static void assertHitCountAndNoFailures(SearchRequestBuilder searchRequestBuilder, long expectedHitCount) {
+        assertNoFailuresAndResponse(searchRequestBuilder, response -> assertHitCount(response, expectedHitCount));
     }
 
     public static void assertExists(GetResponse response) {
@@ -287,6 +330,74 @@ public class ElasticsearchAssertions {
         assertThat(searchResponse.getHits().getAt(number - 1), matcher);
     }
 
+    public static void assertNoFailures(ActionRequestBuilder<?, SearchResponse> searchRequestBuilder) {
+        assertNoFailuresAndResponse(searchRequestBuilder, r -> {});
+    }
+
+    public static void assertNoFailuresAndResponse(
+        ActionRequestBuilder<?, SearchResponse> searchRequestBuilder,
+        Consumer<SearchResponse> consumer
+    ) {
+        assertResponse(searchRequestBuilder, res -> {
+            assertNoFailures(res);
+            consumer.accept(res);
+        });
+    }
+
+    public static void assertNoFailuresAndResponse(ActionFuture<SearchResponse> responseFuture, Consumer<SearchResponse> consumer)
+        throws ExecutionException, InterruptedException {
+        var res = responseFuture.get();
+        try {
+            assertNoFailures(res);
+            consumer.accept(res);
+        } finally {
+            res.decRef();
+        }
+    }
+
+    public static void assertResponse(ActionRequestBuilder<?, SearchResponse> searchRequestBuilder, Consumer<SearchResponse> consumer) {
+        var res = searchRequestBuilder.get();
+        try {
+            consumer.accept(res);
+        } finally {
+            res.decRef();
+        }
+    }
+
+    public static void assertResponse(ActionFuture<SearchResponse> responseFuture, Consumer<SearchResponse> consumer)
+        throws ExecutionException, InterruptedException {
+        var res = responseFuture.get();
+        try {
+            consumer.accept(res);
+        } finally {
+            res.decRef();
+        }
+    }
+
+    public static void assertCheckedResponse(
+        ActionRequestBuilder<?, SearchResponse> searchRequestBuilder,
+        CheckedConsumer<SearchResponse, IOException> consumer
+    ) throws IOException {
+        var res = searchRequestBuilder.get();
+        try {
+            consumer.accept(res);
+        } finally {
+            res.decRef();
+        }
+    }
+
+    public static void assertCheckedResponse(
+        ActionFuture<SearchResponse> responseFuture,
+        CheckedConsumer<SearchResponse, IOException> consumer
+    ) throws IOException, ExecutionException, InterruptedException {
+        var res = responseFuture.get();
+        try {
+            consumer.accept(res);
+        } finally {
+            res.decRef();
+        }
+    }
+
     public static void assertNoFailures(SearchResponse searchResponse) {
         assertThat(
             "Unexpected ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()),
@@ -307,12 +418,13 @@ public class ElasticsearchAssertions {
         // when the number for shards is randomized and we expect failures
         // we can either run into partial or total failures depending on the current number of shards
         try {
-            SearchResponse searchResponse = searchRequestBuilder.get();
-            assertThat("Expected shard failures, got none", searchResponse.getShardFailures(), not(emptyArray()));
-            for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                assertThat(shardSearchFailure.status(), equalTo(restStatus));
-                assertThat(shardSearchFailure.reason(), reasonMatcher);
-            }
+            assertResponse(searchRequestBuilder, response -> {
+                assertThat("Expected shard failures, got none", response.getShardFailures(), not(emptyArray()));
+                for (ShardSearchFailure shardSearchFailure : response.getShardFailures()) {
+                    assertThat(shardSearchFailure.status(), equalTo(restStatus));
+                    assertThat(shardSearchFailure.reason(), reasonMatcher);
+                }
+            });
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(restStatus));
             assertThat(e.toString(), reasonMatcher);
@@ -349,6 +461,28 @@ public class ElasticsearchAssertions {
 
     public static void assertHighlight(SearchResponse resp, int hit, String field, int fragment, Matcher<String> matcher) {
         assertHighlight(resp, hit, field, fragment, greaterThan(fragment), matcher);
+    }
+
+    public static void assertHighlight(
+        SearchRequestBuilder searchRequestBuilder,
+        int hit,
+        String field,
+        int fragment,
+        int totalFragments,
+        Matcher<String> matcher
+    ) {
+        assertResponse(searchRequestBuilder, response -> assertHighlight(response, hit, field, fragment, equalTo(totalFragments), matcher));
+    }
+
+    public static void assertHighlight(
+        ActionFuture<SearchResponse> responseFuture,
+        int hit,
+        String field,
+        int fragment,
+        int totalFragments,
+        Matcher<String> matcher
+    ) throws ExecutionException, InterruptedException {
+        assertResponse(responseFuture, response -> assertHighlight(response, hit, field, fragment, equalTo(totalFragments), matcher));
     }
 
     public static void assertHighlight(
@@ -393,6 +527,10 @@ public class ElasticsearchAssertions {
         assertThat(hit.getHighlightFields(), hasKey(field));
         assertThat(hit.getHighlightFields().get(field).fragments(), arrayWithSize(fragmentsMatcher));
         assertThat(hit.getHighlightFields().get(field).fragments()[fragment].string(), matcher);
+    }
+
+    public static void assertNotHighlighted(SearchRequestBuilder searchRequestBuilder, int hit, String field) {
+        assertResponse(searchRequestBuilder, response -> assertNotHighlighted(response, hit, field));
     }
 
     public static void assertNotHighlighted(SearchResponse resp, int hit, String field) {
@@ -468,7 +606,6 @@ public class ElasticsearchAssertions {
         assertThat(templatesResponse.getIndexTemplates(), hasItem(transformedMatch(IndexTemplateMetadata::name, equalTo(name))));
     }
 
-    /*
     /*
      * matchers
      */
@@ -596,23 +733,6 @@ public class ElasticsearchAssertions {
 
         Exception e = expectThrows(Exception.class, future::actionGet);
         assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
-    }
-
-    /**
-     * Applies basic assertions on the SearchResponse. This method checks if all shards were successful, if
-     * any of the shards threw an exception and if the response is serializable.
-     */
-    public static SearchResponse assertSearchResponse(SearchRequestBuilder request) {
-        return assertSearchResponse(request.get());
-    }
-
-    /**
-     * Applies basic assertions on the SearchResponse. This method checks if all shards were successful, if
-     * any of the shards threw an exception and if the response is serializable.
-     */
-    public static SearchResponse assertSearchResponse(SearchResponse response) {
-        assertNoFailures(response);
-        return response;
     }
 
     /**

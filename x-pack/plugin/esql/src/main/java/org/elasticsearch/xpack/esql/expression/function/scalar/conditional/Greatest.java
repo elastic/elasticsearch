@@ -9,16 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxBooleanEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxBytesRefEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxDoubleEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxIntEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxLongEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -111,46 +106,20 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var suppliers = children().stream().map(toEvaluator).toList();
+        ExpressionEvaluator.Factory[] factories = children().stream()
+            .map(e -> toEvaluator.apply(new MvMax(e.source(), e)))
+            .toArray(ExpressionEvaluator.Factory[]::new);
         if (dataType == DataTypes.BOOLEAN) {
-            return dvrCtx -> new GreatestBooleanEvaluator(
-                source(),
-                suppliers.stream()
-                    .map(es -> es.get(dvrCtx))
-                    .map(ev -> new MvMaxBooleanEvaluator(ev, dvrCtx))
-                    .toArray(EvalOperator.ExpressionEvaluator[]::new),
-                dvrCtx
-            );
+            return new GreatestBooleanEvaluator.Factory(source(), factories);
         }
         if (dataType == DataTypes.DOUBLE) {
-            return dvrCtx -> new GreatestDoubleEvaluator(
-                source(),
-                suppliers.stream()
-                    .map(es -> es.get(dvrCtx))
-                    .map(ev -> new MvMaxDoubleEvaluator(ev, dvrCtx))
-                    .toArray(EvalOperator.ExpressionEvaluator[]::new),
-                dvrCtx
-            );
+            return new GreatestDoubleEvaluator.Factory(source(), factories);
         }
         if (dataType == DataTypes.INTEGER) {
-            return dvrCtx -> new GreatestIntEvaluator(
-                source(),
-                suppliers.stream()
-                    .map(es -> es.get(dvrCtx))
-                    .map(ev -> new MvMaxIntEvaluator(ev, dvrCtx))
-                    .toArray(EvalOperator.ExpressionEvaluator[]::new),
-                dvrCtx
-            );
+            return new GreatestIntEvaluator.Factory(source(), factories);
         }
         if (dataType == DataTypes.LONG) {
-            return dvrCtx -> new GreatestLongEvaluator(
-                source(),
-                suppliers.stream()
-                    .map(es -> es.get(dvrCtx))
-                    .map(ev -> new MvMaxLongEvaluator(ev, dvrCtx))
-                    .toArray(EvalOperator.ExpressionEvaluator[]::new),
-                dvrCtx
-            );
+            return new GreatestLongEvaluator.Factory(source(), factories);
         }
         if (dataType == DataTypes.KEYWORD
             || dataType == DataTypes.TEXT
@@ -158,14 +127,7 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
             || dataType == DataTypes.VERSION
             || dataType == DataTypes.UNSUPPORTED) {
 
-            return dvrCtx -> new GreatestBytesRefEvaluator(
-                source(),
-                suppliers.stream()
-                    .map(es -> es.get(dvrCtx))
-                    .map(ev -> new MvMaxBytesRefEvaluator(ev, dvrCtx))
-                    .toArray(EvalOperator.ExpressionEvaluator[]::new),
-                dvrCtx
-            );
+            return new GreatestBytesRefEvaluator.Factory(source(), factories);
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }

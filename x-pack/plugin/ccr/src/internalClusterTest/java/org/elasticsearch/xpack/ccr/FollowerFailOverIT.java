@@ -254,7 +254,6 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put("index.routing.allocation.require.box", "large")
                 )
-                .get()
         );
         getFollowerCluster().startNode(
             onlyRoles(nodeAttributes, Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
@@ -275,7 +274,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 && XContentMapValues.extractValue("properties.balance.type", imd.mapping().sourceAsMap()) != null) {
                 try {
                     logger.info("--> block ClusterService from exposing new mapping version");
-                    latch.await();
+                    safeAwait(latch);
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 }

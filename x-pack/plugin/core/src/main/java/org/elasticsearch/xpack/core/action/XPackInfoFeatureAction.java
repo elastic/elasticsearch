@@ -50,6 +50,7 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
     public static final XPackInfoFeatureAction AGGREGATE_METRIC = new XPackInfoFeatureAction(XPackField.AGGREGATE_METRIC);
     public static final XPackInfoFeatureAction ARCHIVE = new XPackInfoFeatureAction(XPackField.ARCHIVE);
     public static final XPackInfoFeatureAction ENTERPRISE_SEARCH = new XPackInfoFeatureAction(XPackField.ENTERPRISE_SEARCH);
+    public static final XPackInfoFeatureAction UNIVERSAL_PROFILING = new XPackInfoFeatureAction(XPackField.UNIVERSAL_PROFILING);
 
     public static final List<XPackInfoFeatureAction> ALL;
     static {
@@ -80,7 +81,8 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
                 DATA_TIERS,
                 AGGREGATE_METRIC,
                 ARCHIVE,
-                ENTERPRISE_SEARCH
+                ENTERPRISE_SEARCH,
+                UNIVERSAL_PROFILING
             )
         );
         ALL = Collections.unmodifiableList(actions);

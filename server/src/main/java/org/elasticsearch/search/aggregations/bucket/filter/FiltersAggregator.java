@@ -140,7 +140,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         FilterByFilterAggregator.AdapterBuilder<FilterByFilterAggregator> filterByFilterBuilder =
-            new FilterByFilterAggregator.AdapterBuilder<FilterByFilterAggregator>(
+            new FilterByFilterAggregator.AdapterBuilder<>(
                 name,
                 keyed,
                 keyedBucket,
@@ -214,7 +214,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 if (offsetInOwningOrd < filters.size()) {
                     return new InternalFilters.InternalBucket(
-                        filters.get(offsetInOwningOrd).key().toString(),
+                        filters.get(offsetInOwningOrd).key(),
                         docCount,
                         subAggregationResults,
                         keyed,
@@ -232,13 +232,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + (otherBucketKey == null ? 0 : 1));
         for (QueryToFilterAdapter filter : filters) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(
-                filter.key().toString(),
-                0,
-                subAggs,
-                keyed,
-                keyedBucket
-            );
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key(), 0, subAggs, keyed, keyedBucket);
             buckets.add(bucket);
         }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -194,8 +195,8 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             // in 7.x versions this will issue a deprecation warning
             IndexVersion version = IndexVersionUtils.randomVersionBetween(
                 random(),
-                IndexVersion.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+                IndexVersions.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
             );
             DocumentMapper mapper = createDocumentMapper(version, topMapping(b -> {
                 b.startArray("dynamic_templates");
@@ -667,7 +668,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        IndexVersion createdVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_0_0, IndexVersion.V_7_7_0);
+        IndexVersion createdVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_7_0);
         MapperService mapperService = createMapperService(createdVersion, mapping);
         assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"type\":\"string\""));
         assertWarnings("""

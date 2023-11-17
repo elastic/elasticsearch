@@ -44,11 +44,7 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
       DoubleBlock[] valuesBlocks = new DoubleBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-        }
-        valuesBlocks[i] = (DoubleBlock) block;
+        valuesBlocks[i] = (DoubleBlock) valuesRefs[i].block();
       }
       DoubleVector[] valuesVectors = new DoubleVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
@@ -62,41 +58,43 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock[] valuesBlocks) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    double[] valuesValues = new double[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        if (valuesBlocks[i].isNull(p)) {
-          result.appendNull();
-          continue position;
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      double[] valuesValues = new double[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          if (valuesBlocks[i].isNull(p)) {
+            result.appendNull();
+            continue position;
+          }
+          if (valuesBlocks[i].getValueCount(p) != 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            result.appendNull();
+            continue position;
+          }
         }
-        if (valuesBlocks[i].getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+        // unpack valuesBlocks into valuesValues
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          int o = valuesBlocks[i].getFirstValueIndex(p);
+          valuesValues[i] = valuesBlocks[i].getDouble(o);
         }
+        result.appendDouble(Least.process(valuesValues));
       }
-      // unpack valuesBlocks into valuesValues
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        int o = valuesBlocks[i].getFirstValueIndex(p);
-        valuesValues[i] = valuesBlocks[i].getDouble(o);
-      }
-      result.appendDouble(Least.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, DoubleVector[] valuesVectors) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    double[] valuesValues = new double[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      // unpack valuesVectors into valuesValues
-      for (int i = 0; i < valuesVectors.length; i++) {
-        valuesValues[i] = valuesVectors[i].getDouble(p);
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+      double[] valuesValues = new double[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        // unpack valuesVectors into valuesValues
+        for (int i = 0; i < valuesVectors.length; i++) {
+          valuesValues[i] = valuesVectors[i].getDouble(p);
+        }
+        result.appendDouble(Least.process(valuesValues));
       }
-      result.appendDouble(Least.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -107,5 +105,27 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.source = source;
+      this.values = values;
+    }
+
+    @Override
+    public LeastDoubleEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new LeastDoubleEvaluator(source, values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "LeastDoubleEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
   }
 }

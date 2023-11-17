@@ -2,5 +2,8 @@
 
 set -euo pipefail
 
-npm install -g bun
+echo --- Installing bun
+npm install -g bun@1.0.4
+
+echo --- Generating pipeline
 bun .buildkite/scripts/pull-request/pipeline.generate.ts

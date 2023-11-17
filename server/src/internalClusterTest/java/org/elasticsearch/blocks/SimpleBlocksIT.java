@@ -265,7 +265,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         }
 
         indicesAdmin().prepareRefresh(indexName).get();
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
+        assertHitCount(prepareSearch(indexName).setSize(0), nbDocs);
     }
 
     public void testSameBlockTwice() throws Exception {
@@ -337,11 +337,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             for (int i = 0; i < threads.length; i++) {
                 threads[i] = new Thread(() -> {
-                    try {
-                        startClosing.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(startClosing);
                     try {
                         indicesAdmin().prepareAddBlock(block, indexName).get();
                         assertIndexHasBlock(block, indexName);
@@ -394,7 +390,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             disableIndexBlock(indexName, block);
         }
         refresh(indexName);
-        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(), nbDocs);
+        assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE), nbDocs);
     }
 
     public void testAddBlockWhileDeletingIndices() throws Exception {
@@ -434,11 +430,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             for (final String indexToDelete : indices) {
                 threads.add(new Thread(() -> {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(latch);
                     try {
                         assertAcked(indicesAdmin().prepareDelete(indexToDelete));
                     } catch (final Exception e) {
@@ -448,11 +440,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             }
             for (final String indexToBlock : indices) {
                 threads.add(new Thread(() -> {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(latch);
                     try {
                         indicesAdmin().prepareAddBlock(block, indexToBlock).get();
                     } catch (final Exception e) {

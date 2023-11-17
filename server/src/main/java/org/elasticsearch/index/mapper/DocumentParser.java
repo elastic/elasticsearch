@@ -15,6 +15,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -49,7 +50,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_
  */
 public final class DocumentParser {
 
-    public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersion.V_8_500_000;
+    public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
 
     private final XContentParserConfiguration parserConfiguration;
     private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
@@ -612,8 +613,12 @@ public final class DocumentParser {
                 || context.isCopyToField(fullFieldName)
                 || mappers.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
                 || mappers.size() > MAX_DIMS_COUNT
+                // Anything that is NOT a number or anything that IS a number but not mapped to `float` should NOT be mapped to dense_vector
                 || mappers.stream()
-                    .allMatch(m -> m instanceof NumberFieldMapper.Builder nb && nb.type != NumberFieldMapper.NumberType.FLOAT)) {
+                    .anyMatch(
+                        m -> m instanceof NumberFieldMapper.Builder == false
+                            || ((NumberFieldMapper.Builder) m).type != NumberFieldMapper.NumberType.FLOAT
+                    )) {
                 return;
             }
 
@@ -822,6 +827,11 @@ public final class DocumentParser {
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
             super(name, fullPath, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_TRUE, Dynamic.RUNTIME, Collections.emptyMap());
+        }
+
+        @Override
+        public ObjectMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
+            return this;
         }
     }
 

@@ -56,11 +56,7 @@ public class Percentile extends NumericAggregate {
             return resolution;
         }
 
-        resolution = isNumeric(percentile, sourceText(), SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        return isFoldable(percentile, sourceText(), SECOND);
+        return isNumeric(percentile, sourceText(), SECOND).and(isFoldable(percentile, sourceText(), SECOND));
     }
 
     @Override

@@ -44,11 +44,7 @@ public final class GreatestBooleanEvaluator implements EvalOperator.ExpressionEv
       BooleanBlock[] valuesBlocks = new BooleanBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-        }
-        valuesBlocks[i] = (BooleanBlock) block;
+        valuesBlocks[i] = (BooleanBlock) valuesRefs[i].block();
       }
       BooleanVector[] valuesVectors = new BooleanVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
@@ -62,41 +58,43 @@ public final class GreatestBooleanEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BooleanBlock eval(int positionCount, BooleanBlock[] valuesBlocks) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    boolean[] valuesValues = new boolean[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        if (valuesBlocks[i].isNull(p)) {
-          result.appendNull();
-          continue position;
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      boolean[] valuesValues = new boolean[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          if (valuesBlocks[i].isNull(p)) {
+            result.appendNull();
+            continue position;
+          }
+          if (valuesBlocks[i].getValueCount(p) != 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            result.appendNull();
+            continue position;
+          }
         }
-        if (valuesBlocks[i].getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          result.appendNull();
-          continue position;
+        // unpack valuesBlocks into valuesValues
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          int o = valuesBlocks[i].getFirstValueIndex(p);
+          valuesValues[i] = valuesBlocks[i].getBoolean(o);
         }
+        result.appendBoolean(Greatest.process(valuesValues));
       }
-      // unpack valuesBlocks into valuesValues
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        int o = valuesBlocks[i].getFirstValueIndex(p);
-        valuesValues[i] = valuesBlocks[i].getBoolean(o);
-      }
-      result.appendBoolean(Greatest.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, BooleanVector[] valuesVectors) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    boolean[] valuesValues = new boolean[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      // unpack valuesVectors into valuesValues
-      for (int i = 0; i < valuesVectors.length; i++) {
-        valuesValues[i] = valuesVectors[i].getBoolean(p);
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+      boolean[] valuesValues = new boolean[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        // unpack valuesVectors into valuesValues
+        for (int i = 0; i < valuesVectors.length; i++) {
+          valuesValues[i] = valuesVectors[i].getBoolean(p);
+        }
+        result.appendBoolean(Greatest.process(valuesValues));
       }
-      result.appendBoolean(Greatest.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -107,5 +105,27 @@ public final class GreatestBooleanEvaluator implements EvalOperator.ExpressionEv
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.source = source;
+      this.values = values;
+    }
+
+    @Override
+    public GreatestBooleanEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new GreatestBooleanEvaluator(source, values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "GreatestBooleanEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
   }
 }

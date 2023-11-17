@@ -249,7 +249,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         return result;
     }
 
-    private Join doJoin(JoinRelationContext ctx) {
+    private static Join doJoin(JoinRelationContext ctx) {
 
         JoinCriteriaContext criteria = ctx.joinCriteria();
         if (criteria != null) {
@@ -286,7 +286,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         return new UnresolvedRelation(source(ctx), tableIdentifier, alias, includeFrozen);
     }
 
-    private Limit limit(LogicalPlan plan, Source source, Token limit) {
+    private static Limit limit(LogicalPlan plan, Source source, Token limit) {
         return new Limit(source, new Literal(source, Integer.parseInt(limit.getText()), DataTypes.INTEGER), plan);
     }
 }

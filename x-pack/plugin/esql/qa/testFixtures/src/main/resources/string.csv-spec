@@ -683,6 +683,8 @@ beta             | Kubernetes cluster       | [beta k8s server, beta k8s server2
 lengthOfText
 from hosts | where host=="epsilon" | eval l1 = length(host_group), l2 = length(description) | keep l1, l2;
 ignoreOrder:true
+warning:Line 1:48: evaluation of [length(host_group)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:]
+warning:Line 1:48: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:]
 warning:Line 1:73: evaluation of [length(description)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:73: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -695,6 +697,8 @@ null                   | 19
 startsWithText
 from hosts | where host=="epsilon" | eval l1 = starts_with(host_group, host), l2 = starts_with(description, host) | keep l1, l2;
 ignoreOrder:true
+warning:Line 1:48: evaluation of [starts_with(host_group, host)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:]
+warning:Line 1:48: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:]
 warning:Line 1:84: evaluation of [starts_with(description, host)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:84: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -707,6 +711,8 @@ false                  | null
 substringOfText
 from hosts | where host=="epsilon" | eval l1 = substring(host_group, 0, 5), l2 = substring(description, 0, 5) | keep l1, l2;
 ignoreOrder:true
+warning:Line 1:48: evaluation of [substring(host_group, 0, 5)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:]
+warning:Line 1:48: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:]
 warning:Line 1:82: evaluation of [substring(description, 0, 5)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:82: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -718,6 +724,8 @@ Gatew                  | null
 
 concatOfText
 from hosts | where host == "epsilon" | eval l1 = concat(host, "/", host_group), l2 = concat(host_group, "/", description) | sort l1 |  keep l1, l2;
+warning:Line 1:50: evaluation of [concat(host, \"/\", host_group)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:]
+warning:Line 1:50: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:]
 warning:Line 1:86: evaluation of [concat(host_group, \"/\", description)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:86: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -809,6 +817,8 @@ Bojan             |B              |1B23           |true
 
 replaceRegex
 from hosts | where host == "epsilon" | eval l1=replace(host_group, "\\s+", "") | sort l1 | keep l1, host_group;
+warning:Line 1:48: evaluation of [replace(host_group, \"\\\\s+\", \"\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:]
+warning:Line 1:48: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:]
  
    l1:keyword   |host_group:text    
 Gatewayinstances|Gateway instances

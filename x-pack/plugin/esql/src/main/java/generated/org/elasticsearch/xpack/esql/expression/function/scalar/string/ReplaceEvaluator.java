@@ -47,19 +47,10 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref regexRef = regex.eval(page)) {
-        if (regexRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-        }
         BytesRefBlock regexBlock = (BytesRefBlock) regexRef.block();
         try (Block.Ref newStrRef = newStr.eval(page)) {
-          if (newStrRef.block().areAllValuesNull()) {
-            return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-          }
           BytesRefBlock newStrBlock = (BytesRefBlock) newStrRef.block();
           BytesRefVector strVector = strBlock.asVector();
           if (strVector == null) {
@@ -81,63 +72,65 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock regexBlock,
       BytesRefBlock newStrBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    BytesRef regexScratch = new BytesRef();
-    BytesRef newStrScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef regexScratch = new BytesRef();
+      BytesRef newStrScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (strBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        if (regexBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (regexBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        if (newStrBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (newStrBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), regexBlock.getBytesRef(regexBlock.getFirstValueIndex(p), regexScratch), newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
+        } catch (PatternSyntaxException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      if (strBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      if (regexBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
-      }
-      if (regexBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      if (newStrBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
-      }
-      if (newStrBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      try {
-        result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), regexBlock.getBytesRef(regexBlock.getFirstValueIndex(p), regexScratch), newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
-      } catch (PatternSyntaxException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector, BytesRefVector regexVector,
       BytesRefVector newStrVector) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    BytesRef regexScratch = new BytesRef();
-    BytesRef newStrScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), regexVector.getBytesRef(p, regexScratch), newStrVector.getBytesRef(p, newStrScratch)));
-      } catch (PatternSyntaxException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef regexScratch = new BytesRef();
+      BytesRef newStrScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), regexVector.getBytesRef(p, regexScratch), newStrVector.getBytesRef(p, newStrScratch)));
+        } catch (PatternSyntaxException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -148,5 +141,34 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, regex, newStr);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory regex;
+
+    private final EvalOperator.ExpressionEvaluator.Factory newStr;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory regex,
+        EvalOperator.ExpressionEvaluator.Factory newStr) {
+      this.source = source;
+      this.str = str;
+      this.regex = regex;
+      this.newStr = newStr;
+    }
+
+    @Override
+    public ReplaceEvaluator get(DriverContext context) {
+      return new ReplaceEvaluator(source, str.get(context), regex.get(context), newStr.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "ReplaceEvaluator[" + "str=" + str + ", regex=" + regex + ", newStr=" + newStr + "]";
+    }
   }
 }

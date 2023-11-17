@@ -172,25 +172,22 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
         var baseEvaluator = toEvaluator.apply(base);
         var exponentEvaluator = toEvaluator.apply(exponent);
         if (dataType == DataTypes.DOUBLE) {
-            return dvrCtx -> new PowDoubleEvaluator(
+            return new PowDoubleEvaluator.Factory(
                 source(),
-                cast(source(), base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
-                cast(source(), exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
-                dvrCtx
+                cast(source(), base.dataType(), DataTypes.DOUBLE, baseEvaluator),
+                cast(source(), exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator)
             );
         } else if (dataType == DataTypes.LONG) {
-            return dvrCtx -> new PowLongEvaluator(
+            return new PowLongEvaluator.Factory(
                 source(),
-                cast(source(), base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
-                cast(source(), exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
-                dvrCtx
+                cast(source(), base.dataType(), DataTypes.DOUBLE, baseEvaluator),
+                cast(source(), exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator)
             );
         } else {
-            return dvrCtx -> new PowIntEvaluator(
+            return new PowIntEvaluator.Factory(
                 source(),
-                cast(source(), base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
-                cast(source(), exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
-                dvrCtx
+                cast(source(), base.dataType(), DataTypes.DOUBLE, baseEvaluator),
+                cast(source(), exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator)
             );
         }
     }

@@ -1,5 +1,0 @@
-pr: 100018
-summary: Improve time-series error and documentation
-area: "TSDB"
-type: enhancement
-issues: []

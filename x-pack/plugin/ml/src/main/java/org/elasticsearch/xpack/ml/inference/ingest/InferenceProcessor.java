@@ -26,6 +26,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
@@ -87,6 +88,7 @@ public class InferenceProcessor extends AbstractProcessor {
     public static final String TYPE = "inference";
     public static final String MODEL_ID = "model_id";
     public static final String INFERENCE_CONFIG = "inference_config";
+    public static final String IGNORE_MISSING = "ignore_missing";
 
     // target field style mappings
     public static final String TARGET_FIELD = "target_field";
@@ -106,9 +108,10 @@ public class InferenceProcessor extends AbstractProcessor {
         String description,
         String modelId,
         InferenceConfigUpdate inferenceConfig,
-        List<Factory.InputConfig> inputs
+        List<Factory.InputConfig> inputs,
+        boolean ignoreMissing
     ) {
-        return new InferenceProcessor(client, auditor, tag, description, null, modelId, inferenceConfig, null, inputs, true);
+        return new InferenceProcessor(client, auditor, tag, description, null, modelId, inferenceConfig, null, inputs, true, ignoreMissing);
     }
 
     public static InferenceProcessor fromTargetFieldConfiguration(
@@ -121,7 +124,20 @@ public class InferenceProcessor extends AbstractProcessor {
         InferenceConfigUpdate inferenceConfig,
         Map<String, String> fieldMap
     ) {
-        return new InferenceProcessor(client, auditor, tag, description, targetField, modelId, inferenceConfig, fieldMap, null, false);
+        // ignore_missing only applies to when using the input_field config
+        return new InferenceProcessor(
+            client,
+            auditor,
+            tag,
+            description,
+            targetField,
+            modelId,
+            inferenceConfig,
+            fieldMap,
+            null,
+            false,
+            false
+        );
     }
 
     private final Client client;
@@ -134,6 +150,7 @@ public class InferenceProcessor extends AbstractProcessor {
     private final AtomicBoolean shouldAudit = new AtomicBoolean(true);
     private final List<Factory.InputConfig> inputs;
     private final boolean configuredWithInputsFields;
+    private final boolean ignoreMissing;
 
     private InferenceProcessor(
         Client client,
@@ -145,7 +162,8 @@ public class InferenceProcessor extends AbstractProcessor {
         InferenceConfigUpdate inferenceConfig,
         Map<String, String> fieldMap,
         List<Factory.InputConfig> inputs,
-        boolean configuredWithInputsFields
+        boolean configuredWithInputsFields,
+        boolean ignoreMissing
     ) {
         super(tag, description);
         this.configuredWithInputsFields = configuredWithInputsFields;
@@ -153,6 +171,7 @@ public class InferenceProcessor extends AbstractProcessor {
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.inferenceConfig = ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
+        this.ignoreMissing = ignoreMissing;
 
         if (configuredWithInputsFields) {
             this.inputs = ExceptionsHelper.requireNonNull(inputs, INPUT_OUTPUT);
@@ -205,25 +224,54 @@ public class InferenceProcessor extends AbstractProcessor {
     }
 
     InferModelAction.Request buildRequest(IngestDocument ingestDocument) {
-        Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
-        // Add ingestMetadata as previous processors might have added metadata from which we are predicting (see: foreach processor)
-        if (ingestDocument.getIngestMetadata().isEmpty() == false) {
-            fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
-        }
-
         if (configuredWithInputsFields) {
+            // ignore missing only applies when using an input field list
             List<String> requestInputs = new ArrayList<>();
             for (var inputFields : inputs) {
-                var lookup = (String) fields.get(inputFields.inputField);
-                if (lookup == null) {
-                    lookup = ""; // need to send a non-null request to the same number of results back
+                try {
+                    var inputText = ingestDocument.getFieldValue(inputFields.inputField, String.class, ignoreMissing);
+                    // field is missing and ignoreMissing == true then a null value is returned.
+                    if (inputText == null) {
+                        inputText = "";  // need to send a non-null request to the same number of results back
+                    }
+                    requestInputs.add(inputText);
+                } catch (IllegalArgumentException e) {
+                    if (ingestDocument.hasField(inputFields.inputField())) {
+                        // field is present but of the wrong type, translate to a more meaningful message
+                        throw new IllegalArgumentException(
+                            "input field [" + inputFields.inputField + "] cannot be processed because it is not a text field"
+                        );
+                    } else {
+                        throw e;
+                    }
                 }
-                requestInputs.add(lookup);
             }
-            return InferModelAction.Request.forTextInput(modelId, inferenceConfig, requestInputs);
+            var request = InferModelAction.Request.forTextInput(
+                modelId,
+                inferenceConfig,
+                requestInputs,
+                previouslyLicensed,
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+            );
+            request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
+            return request;
         } else {
+            Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
+            // Add ingestMetadata as previous processors might have added metadata from which we are predicting (see: foreach processor)
+            if (ingestDocument.getIngestMetadata().isEmpty() == false) {
+                fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
+            }
+
             LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-            return InferModelAction.Request.forIngestDocs(modelId, List.of(fields), inferenceConfig, previouslyLicensed);
+            var request = InferModelAction.Request.forIngestDocs(
+                modelId,
+                List.of(fields),
+                inferenceConfig,
+                previouslyLicensed,
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+            );
+            request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
+            return request;
         }
     }
 
@@ -373,11 +421,13 @@ public class InferenceProcessor extends AbstractProcessor {
                 inferenceConfigUpdate = inferenceConfigUpdateFromMap(inferenceConfigMap);
             }
 
-            List<Map<String, Object>> inputs = ConfigurationUtils.readOptionalList(TYPE, tag, config, INPUT_OUTPUT);
+            List<Map<String, Object>> inputs = readOptionalInputOutPutConfig(config, tag);
             boolean configuredWithInputFields = inputs != null;
             if (configuredWithInputFields) {
                 // new style input/output configuration
                 var parsedInputs = parseInputFields(tag, inputs);
+                // ignore missing only applies to input field config
+                boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, IGNORE_MISSING, false);
 
                 // validate incompatible settings are not present
                 String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, TARGET_FIELD);
@@ -414,7 +464,16 @@ public class InferenceProcessor extends AbstractProcessor {
                     );
                 }
 
-                return fromInputFieldConfiguration(client, auditor, tag, description, modelId, inferenceConfigUpdate, parsedInputs);
+                return fromInputFieldConfiguration(
+                    client,
+                    auditor,
+                    tag,
+                    description,
+                    modelId,
+                    inferenceConfigUpdate,
+                    parsedInputs,
+                    ignoreMissing
+                );
             } else {
                 // old style configuration with target field
                 String defaultTargetField = tag == null ? DEFAULT_TARGET_FIELD : DEFAULT_TARGET_FIELD + "." + tag;
@@ -553,7 +612,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
         List<InputConfig> parseInputFields(String tag, List<Map<String, Object>> inputs) {
             if (inputs.isEmpty()) {
-                throw newConfigurationException(TYPE, tag, INPUT_OUTPUT, "cannot be empty at least one is required");
+                throw newConfigurationException(TYPE, tag, INPUT_OUTPUT, "property cannot be empty at least one is required");
             }
             var inputNames = new HashSet<String>();
             var outputNames = new HashSet<String>();
@@ -580,6 +639,29 @@ public class InferenceProcessor extends AbstractProcessor {
             }
 
             return parsedInputs;
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> readOptionalInputOutPutConfig(Map<String, Object> config, String tag) {
+            Object inputOutputs = config.remove(INPUT_OUTPUT);
+            if (inputOutputs == null) {
+                return null;
+            }
+
+            // input_output may be a single map or a list of maps
+            if (inputOutputs instanceof List<?> inputOutputList) {
+                if (inputOutputList.isEmpty() == false) {
+                    // check it is a list of maps
+                    if (inputOutputList.get(0) instanceof Map == false) {
+                        throw ConfigurationUtils.newConfigurationException(TYPE, tag, INPUT_OUTPUT, "property isn't a list of maps");
+                    }
+                }
+                return (List<Map<String, Object>>) inputOutputList;
+            } else if (inputOutputs instanceof Map) {
+                return List.of((Map<String, Object>) inputOutputs);
+            } else {
+                throw ConfigurationUtils.newConfigurationException(TYPE, tag, INPUT_OUTPUT, "property isn't a map or list of maps");
+            }
         }
 
         private ElasticsearchException duplicatedFieldNameError(String property, String fieldName, String tag) {

@@ -24,14 +24,14 @@ import java.util.Objects;
 /**
  * Removes the data stream lifecycle configuration from the requested data streams.
  */
-public class DeleteDataStreamLifecycleAction extends ActionType<AcknowledgedResponse> {
+public class DeleteDataStreamLifecycleAction {
 
-    public static final DeleteDataStreamLifecycleAction INSTANCE = new DeleteDataStreamLifecycleAction();
-    public static final String NAME = "indices:admin/data_stream/lifecycle/delete";
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(
+        "indices:admin/data_stream/lifecycle/delete",
+        AcknowledgedResponse::readFrom
+    );
 
-    private DeleteDataStreamLifecycleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
-    }
+    private DeleteDataStreamLifecycleAction() {/* no instances */}
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
 

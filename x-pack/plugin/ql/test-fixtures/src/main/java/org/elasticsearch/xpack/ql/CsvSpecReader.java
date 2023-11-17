@@ -93,14 +93,15 @@ public final class CsvSpecReader {
         private static final String EMULATED_PREFIX = "#[emulated:";
 
         public List<String> expectedWarnings(boolean forEmulated) {
-
             List<String> warnings = new ArrayList<>(expectedWarnings.size());
             for (String warning : expectedWarnings) {
                 int idx = warning.toLowerCase(Locale.ROOT).indexOf(EMULATED_PREFIX);
                 if (idx >= 0) {
                     assertTrue("Invalid warning spec: closing delimiter (]) missing: `" + warning + "`", warning.endsWith("]"));
                     if (forEmulated) {
-                        warnings.add(warning.substring(idx + EMULATED_PREFIX.length(), warning.length() - 1));
+                        if (idx + EMULATED_PREFIX.length() <  warning.length() - 1) {
+                            warnings.add(warning.substring(idx + EMULATED_PREFIX.length(), warning.length() - 1));
+                        }
                     } else if (idx > 0) {
                         warnings.add(warning.substring(0, idx));
                     } // else: no warnings expected for non-emulated

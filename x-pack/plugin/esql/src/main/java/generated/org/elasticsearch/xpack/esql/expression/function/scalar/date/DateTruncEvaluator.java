@@ -42,9 +42,6 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref fieldValRef = fieldVal.eval(page)) {
-      if (fieldValRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
-      }
       LongBlock fieldValBlock = (LongBlock) fieldValRef.block();
       LongVector fieldValVector = fieldValBlock.asVector();
       if (fieldValVector == null) {
@@ -55,28 +52,30 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (fieldValBlock.isNull(p)) {
-        result.appendNull();
-        continue position;
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (fieldValBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (fieldValBlock.getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          result.appendNull();
+          continue position;
+        }
+        result.appendLong(DateTrunc.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p)), rounding));
       }
-      if (fieldValBlock.getValueCount(p) != 1) {
-        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-        result.appendNull();
-        continue position;
-      }
-      result.appendLong(DateTrunc.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p)), rounding));
+      return result.build();
     }
-    return result.build();
   }
 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
-    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendLong(DateTrunc.process(fieldValVector.getLong(p), rounding));
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendLong(DateTrunc.process(fieldValVector.getLong(p), rounding));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -87,5 +86,30 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(fieldVal);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+
+    private final Rounding.Prepared rounding;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldVal,
+        Rounding.Prepared rounding) {
+      this.source = source;
+      this.fieldVal = fieldVal;
+      this.rounding = rounding;
+    }
+
+    @Override
+    public DateTruncEvaluator get(DriverContext context) {
+      return new DateTruncEvaluator(source, fieldVal.get(context), rounding, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateTruncEvaluator[" + "fieldVal=" + fieldVal + ", rounding=" + rounding + "]";
+    }
   }
 }

@@ -43,29 +43,51 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
-          builder.appendNull();
-          continue;
-        }
-        try {
-          int first = v.getFirstValueIndex(p);
-          int end = first + valueCount;
-          int value = v.getInt(first);
-          for (int i = first + 1; i < end; i++) {
-            int next = v.getInt(i);
-            value = MvSum.process(value, next);
+      try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
           }
-          int result = value;
-          builder.appendInt(result);
-        } catch (ArithmeticException e) {
-          warnings.registerException(e);
-          builder.appendNull();
+          try {
+            int first = v.getFirstValueIndex(p);
+            int end = first + valueCount;
+            int value = v.getInt(first);
+            for (int i = first + 1; i < end; i++) {
+              int next = v.getInt(i);
+              value = MvSum.process(value, next);
+            }
+            int result = value;
+            builder.appendInt(result);
+          } catch (ArithmeticException e) {
+            warnings.registerException(e);
+            builder.appendNull();
+          }
         }
+        return Block.Ref.floating(builder.build());
       }
-      return Block.Ref.floating(builder.build());
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+      this.source = source;
+      this.field = field;
+    }
+
+    @Override
+    public MvSumIntEvaluator get(DriverContext context) {
+      return new MvSumIntEvaluator(source, field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvSum[field=" + field + "]";
     }
   }
 }

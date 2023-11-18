@@ -193,7 +193,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
      *
      * An inactive primary shard in an index should cause the cluster health to be RED to make it visible that some of the existing data is
      * unavailable. In case of index creation, snapshot restore or index shrinking, which are unexceptional events in the cluster lifecycle,
-     * cluster health should not turn RED for the time where primaries are still in the initializing state but go to YELLOW instead.
+     * cluster health should not turn RED for the time when primaries are still in the initializing state but go to YELLOW instead.
      * However, in case of exceptional events, for example when the primary shard cannot be assigned to a node or initialization fails at
      * some point, cluster health should still turn RED.
      *
@@ -203,7 +203,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         assert shardRouting.primary() : "cannot invoke on a replica shard: " + shardRouting;
         assert shardRouting.active() == false : "cannot invoke on an active shard: " + shardRouting;
         assert shardRouting.unassignedInfo() != null : "cannot invoke on a shard with no UnassignedInfo: " + shardRouting;
-        assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source" + shardRouting;
+        assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source: " + shardRouting;
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
         if (unassignedInfo.getLastAllocationStatus() != AllocationStatus.DECIDERS_NO

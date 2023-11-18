@@ -437,7 +437,7 @@ public class PainlessExecuteAction {
 
         @Override
         public String toString() {
-            return "Request{" + "script=" + script + "context=" + context + ", contextSetup=" + contextSetup + '}';
+            return "Request{" + "script=" + script + ", context=" + context + ", contextSetup=" + contextSetup + '}';
         }
 
         static boolean needDocumentAndIndex(ScriptContext<?> scriptContext) {

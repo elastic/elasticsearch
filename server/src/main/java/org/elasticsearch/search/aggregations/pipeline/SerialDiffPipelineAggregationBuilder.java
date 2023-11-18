@@ -150,7 +150,7 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
                     if (lag <= 0) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
-                            "Lag must be a positive, non-zero integer.  Value supplied was"
+                            "Lag must be a positive, non-zero integer. Value supplied was "
                                 + lag
                                 + " in ["
                                 + reducerName

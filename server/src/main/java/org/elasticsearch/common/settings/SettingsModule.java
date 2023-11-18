@@ -94,7 +94,7 @@ public class SettingsModule implements Module {
                 for (String word : ("Since elasticsearch 5.x index level settings can NOT be set on the nodes configuration like "
                     + "the elasticsearch.yaml, in system properties or command line arguments."
                     + "In order to upgrade all indices the settings must be updated via the /${index}/_settings API. "
-                    + "Unless all settings are dynamic all indices must be closed in order to apply the upgrade"
+                    + "Unless all settings are dynamic all indices must be closed in order to apply the upgrade. "
                     + "Indices created in the future should use index templates to set default values.").split(" ")) {
                     if (count + word.length() > 85) {
                         builder.append(System.lineSeparator());
@@ -143,7 +143,7 @@ public class SettingsModule implements Module {
 
     /**
      * Registers a new setting. This method should be used by plugins in order to expose any custom settings the plugin defines.
-     * Unless a setting is registered the setting is unusable. If a setting is never the less specified the node will reject
+     * Unless a setting is registered the setting is unusable. If a setting is nevertheless specified the node will reject
      * the setting during startup.
      */
     private void registerSetting(Setting<?> setting) {

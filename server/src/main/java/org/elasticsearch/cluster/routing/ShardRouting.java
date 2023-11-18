@@ -108,27 +108,27 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 assert currentNodeId == null : state + " shard must not be assigned to a node " + this;
                 assert relocatingNodeId == null : state + " shard must not be relocating to a node " + this;
                 assert unassignedInfo != null : state + " shard must be created with unassigned info " + this;
-                assert recoverySource != null : state + " shard must be created with a recovery source" + this;
-                assert primary ^ recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary" + this;
+                assert recoverySource != null : state + " shard must be created with a recovery source " + this;
+                assert primary ^ recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary " + this;
             }
             case INITIALIZING -> {
                 assert currentNodeId != null : state + " shard must be assigned to a node " + this;
                 // relocatingNodeId is not set for initializing shard but set for relocating shard counterpart
                 // unassignedInfo is kept after starting unassigned shard but not present for relocating shard counterpart
-                assert recoverySource != null : state + "shard must be created with a recovery source" + this;
-                assert primary || recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary" + this;
+                assert recoverySource != null : state + " shard must be created with a recovery source " + this;
+                assert primary || recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary " + this;
             }
             case STARTED -> {
                 assert currentNodeId != null : state + " shard must be assigned to a node " + this;
                 assert relocatingNodeId == null : state + " shard must not be relocating to a node " + this;
                 assert unassignedInfo == null : state + " shard must be created without unassigned info " + this;
-                assert recoverySource == null : state + " shard must be created without a recovery source" + this;
+                assert recoverySource == null : state + " shard must be created without a recovery source " + this;
             }
             case RELOCATING -> {
                 assert currentNodeId != null : state + " shard must be assigned to a node " + this;
                 assert relocatingNodeId != null : state + " shard must be relocating to a node " + this;
                 assert unassignedInfo == null : state + " shard must be created without unassigned info " + this;
-                assert recoverySource == null : state + " shard must be created without a recovery source" + this;
+                assert recoverySource == null : state + " shard must be created without a recovery source " + this;
             }
         }
         return true;
@@ -221,7 +221,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns <code>true</code> iff the this shard is currently
+     * Returns <code>true</code> iff the shard is currently
      * {@link ShardRoutingState#STARTED started} or
      * {@link ShardRoutingState#RELOCATING relocating} to another node.
      * Otherwise <code>false</code>
@@ -238,7 +238,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns <code>true</code> iff the this shard is currently relocating to
+     * Returns <code>true</code> iff the shard is currently relocating to
      * another node. Otherwise <code>false</code>
      *
      * @see ShardRoutingState#RELOCATING
@@ -248,7 +248,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns <code>true</code> iff this shard is assigned to a node ie. not
+     * Returns <code>true</code> iff this shard is assigned to a node i.e. not
      * {@link ShardRoutingState#UNASSIGNED unassigned}. Otherwise <code>false</code>
      */
     public boolean assignedToNode() {
@@ -674,7 +674,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * returns true if this routing has the same allocation ID as another.
      * <p>
      * Note: if both shard routing has a null as their {@link #allocationId()}, this method returns false as the routing describe
-     * no allocation at all..
+     * no allocation at all.
      **/
     public boolean isSameAllocation(ShardRouting other) {
         boolean b = this.allocationId != null && other.allocationId != null && this.allocationId.getId().equals(other.allocationId.getId());

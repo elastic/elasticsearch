@@ -12,7 +12,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 
 public class JdbcDatabaseMetaDataTests extends ESTestCase {
 
@@ -98,6 +100,22 @@ public class JdbcDatabaseMetaDataTests extends ESTestCase {
         testEmptySet(() -> md.getFunctions(null, null, null));
     }
 
+    public void testGetNumericFunctions() throws Exception {
+        assertEquals(23, countValues(md.getNumericFunctions()));
+    }
+
+    public void testGetStringFunctions() throws Exception {
+        assertEquals(21, countValues(md.getStringFunctions()));
+    }
+
+    public void testGetSystemFunctions() throws Exception {
+        assertEquals(3, countValues(md.getSystemFunctions()));
+    }
+
+    public void testGetTimeDateFunctions() throws Exception {
+        assertEquals(13, countValues(md.getTimeDateFunctions()));
+    }
+
     public void testGetFunctionColumns() throws Exception {
         testEmptySet(() -> md.getFunctionColumns(null, null, null, null));
     }
@@ -116,6 +134,15 @@ public class JdbcDatabaseMetaDataTests extends ESTestCase {
             assertNotNull(result);
             assertFalse(result.next());
         }
+    }
+
+    /**
+     * Returns the number of values in a comma-separated list
+     */
+    private static int countValues(String commaSeparated) {
+        List<String> values = List.of(commaSeparated.split(","));
+        assertEquals("Duplicate values found: " + values, Set.copyOf(values).size(), values.size());
+        return values.size();
     }
 
     public void testGetClientInfoProperties() throws Exception {

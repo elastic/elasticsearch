@@ -368,7 +368,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }, listener::onFailure);
 
         Instant instantOfTrigger = Instant.ofEpochMilli(now);
-        // If we are not on the initial batch checkpoint and its the first pass of whatever continuous checkpoint we are on,
+        // If we are not on the initial batch checkpoint and it's the first pass of whatever continuous checkpoint we are on,
         // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
         if (context.getCheckpoint() > 0 && initialRun()) {
             checkpointProvider.sourceHasChanged(getLastCheckpoint(), ActionListener.wrap(hasChanged -> {
@@ -493,7 +493,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
             // paranoia: we are not expecting dbq to fail for other reasons
             if (bulkByScrollResponse.getBulkFailures().size() > 0 || bulkByScrollResponse.getSearchFailures().size() > 0) {
-                assert false : "delete by query failed unexpectedly" + bulkByScrollResponse;
+                assert false : "delete by query failed unexpectedly " + bulkByScrollResponse;
                 listener.onFailure(
                     new RetentionPolicyException(
                         "found failures when deleting documents as part of the retention policy. Response: [{}]",
@@ -715,11 +715,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         if (indexerState.equals(IndexerState.STOPPED)) {
             // If we are going to stop after the state is saved, we should NOT persist `shouldStopAtCheckpoint: true` as this may
             // cause problems if the task starts up again.
-            // Additionally, we don't have to worry about inconsistency with the ClusterState (if it is persisted there) as the
+            // Additionally, we don't have to worry about inconsistency with the ClusterState (if it is persisted there) as
             // when we stop, we mark the task as complete and that state goes away.
             shouldStopAtCheckpoint = false;
 
-            // We don't want adjust the stored taskState because as soon as it is `STOPPED` a user could call
+            // We don't want to adjust the stored taskState because as soon as it is `STOPPED` a user could call
             // .start again.
             taskState = TransformTaskState.STOPPED;
         }
@@ -901,7 +901,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
             context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
         }
-        // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
+        // in case of throttling the indexer might wait for the next search, fast-forward, so stop listeners do not wait to long
         runSearchImmediately();
         return true;
     }

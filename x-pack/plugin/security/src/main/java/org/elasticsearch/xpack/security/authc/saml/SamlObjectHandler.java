@@ -247,7 +247,7 @@ public class SamlObjectHandler {
     private ElasticsearchSecurityException samlSignatureException(List<Credential> credentials, String signature, Exception cause) {
         logger.warn(
             "The XML Signature of this SAML message cannot be validated. Please verify that the saml realm uses the correct SAML"
-                + "metadata file/URL for this Identity Provider"
+                + " metadata file/URL for this Identity Provider"
         );
         final String msg = "SAML Signature [{}] could not be validated against [{}]";
         return samlException(msg, cause, signature, describeCredentials(credentials));
@@ -256,7 +256,7 @@ public class SamlObjectHandler {
     private ElasticsearchSecurityException samlSignatureException(List<Credential> credentials, String signature) {
         logger.warn(
             "The XML Signature of this SAML message cannot be validated. Please verify that the saml realm uses the correct SAML"
-                + "metadata file/URL for this Identity Provider"
+                + " metadata file/URL for this Identity Provider"
         );
         final String msg = "SAML Signature [{}] could not be validated against [{}]";
         return samlException(msg, signature, describeCredentials(credentials));

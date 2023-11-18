@@ -206,7 +206,7 @@ public class OpenIdConnectAuthenticator {
                 ErrorObject error = ((AuthenticationErrorResponse) authenticationResponse).getErrorObject();
                 listener.onFailure(
                     new ElasticsearchSecurityException(
-                        "OpenID Connect Provider response indicates authentication failure" + "Code=[{}], Description=[{}]",
+                        "OpenID Connect Provider response indicates authentication failure Code=[{}], Description=[{}]",
                         error.getCode(),
                         error.getDescription()
                     )
@@ -480,15 +480,13 @@ public class OpenIdConnectAuthenticator {
                 } else if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/jwt")) {
                     // TODO Handle validating possibly signed responses
                     claimsListener.onFailure(
-                        new IllegalStateException(
-                            "Unable to parse Userinfo Response. Signed/encrypted JWTs are" + "not currently supported"
-                        )
+                        new IllegalStateException("Unable to parse Userinfo Response. Signed/encrypted JWTs are not currently supported")
                     );
                 } else {
                     claimsListener.onFailure(
                         new IllegalStateException(
                             "Unable to parse Userinfo Response. Content type was expected to "
-                                + "be [application/json] or [appliation/jwt] but was ["
+                                + "be [application/json] or [application/jwt] but was ["
                                 + contentHeader.getValue()
                                 + "]"
                         )

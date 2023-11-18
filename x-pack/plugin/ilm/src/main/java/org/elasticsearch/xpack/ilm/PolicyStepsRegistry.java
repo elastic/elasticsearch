@@ -208,7 +208,7 @@ public class PolicyStepsRegistry {
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policyName);
         if (policyMetadata == null) {
-            throw new IllegalArgumentException("the policy [" + policyName + "] for index" + index + " does not exist");
+            throw new IllegalArgumentException("the policy [" + policyName + "] for index " + index + " does not exist");
         }
         final LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(
             client,
@@ -248,7 +248,7 @@ public class PolicyStepsRegistry {
     /*
      * Parses the step keys from the {@code phaseDef} for the given phase.
      * ILM makes use of some implicit steps that belong to actions that we automatically inject
-     * (eg. unfollow and migrate) or special purpose steps like the phase `complete` step.
+     * (e.g. unfollow and migrate) or special purpose steps like the phase `complete` step.
      *
      * The {@code phaseDef} is *mostly* a valid json we store in the lifecycle execution state. However,
      * we have a few of exceptional cases:

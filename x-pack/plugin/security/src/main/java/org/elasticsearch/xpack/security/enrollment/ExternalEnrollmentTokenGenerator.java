@@ -140,7 +140,7 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
             logger.error(
-                "Error " + httpCode + "when calling GET " + createApiKeyUrl + ". ResponseBody: " + httpResponseApiKey.getResponseBody()
+                "Error " + httpCode + " when calling GET " + createApiKeyUrl + ". ResponseBody: " + httpResponseApiKey.getResponseBody()
             );
             throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling POST " + createApiKeyUrl);
         }
@@ -159,7 +159,9 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         final int httpCode = httpResponseHttp.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
-            logger.error("Error " + httpCode + "when calling GET " + httpInfoUrl + ". ResponseBody: " + httpResponseHttp.getResponseBody());
+            logger.error(
+                "Error " + httpCode + " when calling GET " + httpInfoUrl + ". ResponseBody: " + httpResponseHttp.getResponseBody()
+            );
             throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling GET " + httpInfoUrl);
         }
 

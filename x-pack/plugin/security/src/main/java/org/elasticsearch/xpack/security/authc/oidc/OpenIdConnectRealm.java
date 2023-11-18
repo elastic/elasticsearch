@@ -188,7 +188,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         final String principal = principalAttribute.getClaimValue(claims);
         if (Strings.isNullOrEmpty(principal)) {
             authResultListener.onResponse(
-                AuthenticationResult.unsuccessful(principalAttribute + "not found in " + claims.toJSONObject(), null)
+                AuthenticationResult.unsuccessful(principalAttribute + " not found in " + claims.toJSONObject(), null)
             );
             return;
         }

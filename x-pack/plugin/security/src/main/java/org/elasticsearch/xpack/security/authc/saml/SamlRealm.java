@@ -569,7 +569,7 @@ public final class SamlRealm extends Realm implements Releasable {
         final String principal = resolveSingleValueAttribute(attributes, principalAttribute, PRINCIPAL_ATTRIBUTE.name(config));
         if (Strings.isNullOrEmpty(principal)) {
             final String msg = principalAttribute
-                + " not found in saml attributes"
+                + " not found in SAML attributes "
                 + attributes.attributes()
                 + " or NameID ["
                 + attributes.name()
@@ -824,7 +824,7 @@ public final class SamlRealm extends Realm implements Releasable {
         if (descriptor == null) {
             /*
              * If the descriptor is null, we haven't found a metadata file with that entity id in it. This could be caused by 2 things:
-             * 1. We didn't find any metadata file (e.g. the metadata is loaded over http, and the request returned an error
+             * 1. We didn't find any metadata file (e.g. the metadata is loaded over http, and the request returned an error)
              * 2. The file does exist, but doesn't contain the entity.
              * In either case it's worth refreshing the metadata again to see if it's now correct because it's possible that the problem
              *    has been resolved (although if metadata is loaded from a local file we monitor it for changes anyway, so this refresh

@@ -241,7 +241,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields = metricMappers.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().fieldType(), (l, r) -> {
-                    throw new IllegalArgumentException("Duplicate keys " + l + "and " + r + ".");
+                    throw new IllegalArgumentException("Duplicate keys " + l + " and " + r + ".");
                 }, () -> new EnumMap<>(Metric.class)));
 
             AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(
@@ -599,7 +599,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
                 token = subParser.nextToken();
                 // Make sure that the value is a number. Probably this will change when
-                // new aggregate metric types are added (histogram, cardinality etc)
+                // new aggregate metric types are added (histogram, cardinality, etc.)
                 ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                 NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(metric);
                 // Delegate parsing the field to a numeric field mapper

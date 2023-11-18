@@ -219,7 +219,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private static final String VIRTUAL_DATA_BLOB_PREFIX = "v__";
 
     /**
-     * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
+     * When set to true metadata files are stored in compressed format. This setting doesn't affect index
      * files that are already compressed by default. Changing the setting does not invalidate existing files since reads
      * do not observe the setting, instead they examine the file to see if it is compressed or not.
      */
@@ -362,7 +362,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
      * {@link RepositoryMetadata#pendingGeneration()} than for {@link RepositoryMetadata#generation()} indicating a full cluster restart
-     * potentially accounting for the the last {@code index-N} write in the cluster state.
+     * potentially accounting for the last {@code index-N} write in the cluster state.
      * Note: While it is true that this value could also be set to {@code true} for an instance on a node that is just joining the cluster
      * during a new {@code index-N} write, this does not present a problem. The node will still load the correct {@link RepositoryData} in
      * all cases and simply do a redundant listing of the repository contents if it tries to load {@link RepositoryData} and falls back
@@ -1003,7 +1003,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          *
          * @param indexId       Index that the snapshot was removed from
          * @param shardId       Shard id that the snapshot was removed from
-         * @param newGeneration Id of the new index-${uuid} blob that does not include the snapshot any more
+         * @param newGeneration Id of the new index-${uuid} blob that does not include the snapshot anymore
          * @param blobsToDelete Blob names in the shard directory that have become unreferenced in the new shard generation
          */
         private record ShardSnapshotMetaDeleteResult(
@@ -1269,7 +1269,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 /**
                  * Delete snapshot from shard level metadata.
                  *
-                 * @param indexGeneration generation to write the new shard level level metadata to. If negative a uuid id shard generation
+                 * @param indexGeneration generation to write the new shard level metadata to. If negative a uuid id shard generation
                  *                        should be used
                  */
                 private ShardSnapshotMetaDeleteResult deleteFromShardSnapshotMeta(
@@ -1508,7 +1508,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     try {
                         return newRepositoryData.getGenId() > Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
                     } catch (NumberFormatException nfe) {
-                        // odd case of an extra file with the index- prefix that we can't identify
+                        // odd case of an extra file with the "index-" prefix that we can't identify
                         return false;
                     }
                 }
@@ -1810,7 +1810,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } catch (NoSuchFileException ex) {
                 failure = new SnapshotMissingException(metadata.name(), snapshotId, ex);
             } catch (IOException | NotXContentException ex) {
-                failure = new SnapshotException(metadata.name(), snapshotId, "failed to get snapshot info" + snapshotId, ex);
+                failure = new SnapshotException(metadata.name(), snapshotId, "failed to get snapshot info " + snapshotId, ex);
             } catch (Exception e) {
                 failure = e instanceof SnapshotException
                     ? e
@@ -2188,7 +2188,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private ClusterState getClusterStateWithUpdatedRepositoryGeneration(ClusterState currentState, RepositoryData repoData) {
-        // In theory we might have failed over to a different master which initialized the repo and then failed back to this node, so we
+        // In theory, we might have failed over to a different master which initialized the repo and then failed back to this node, so we
         // must check the repository generation in the cluster state is still unknown here.
         final RepositoryMetadata repoMetadata = getRepoMetadata(currentState);
         if (repoMetadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
@@ -2900,7 +2900,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // and because the index.latest blob will never be deleted and re-written.
             return listBlobsToGetLatestIndexId();
         } catch (UnsupportedOperationException e) {
-            // If its a read-only repository, listing blobs by prefix may not be supported (e.g. a URL repository),
+            // If it's a read-only repository, listing blobs by prefix may not be supported (e.g. a URL repository),
             // in this case, try reading the latest index generation from the index.latest blob
             try {
                 return readSnapshotIndexLatestBlob();
@@ -2942,7 +2942,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 latest = Math.max(latest, curr);
             } catch (NumberFormatException nfe) {
                 // the index- blob wasn't of the format index-N where N is a number,
-                // no idea what this blob is but it doesn't belong in the repository!
+                // no idea what this blob is, but it doesn't belong in the repository!
                 logger.warn("[{}] Unknown blob in the repository: {}", metadata.name(), blobName);
             }
         }
@@ -3767,7 +3767,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * @return whether this repository performs overwrites atomically. In practice we only overwrite the `index.latest` blob so this
+     * @return whether this repository performs overwrites atomically. In practice, we only overwrite the `index.latest` blob so this
      * is not very important, but the repository analyzer does test that overwrites happen atomically. It will skip those tests if the
      * repository overrides this method to indicate that it does not support atomic overwrites.
      */

@@ -295,7 +295,7 @@ public class ESLoggerUsageChecker {
                                             throw new IllegalStateException(
                                                 "Constructor invoked on "
                                                     + objectType
-                                                    + " that is not supported by logger usage checker"
+                                                    + " that is not supported by logger usage checker "
                                                     + new WrongLoggerUsage(
                                                         className,
                                                         methodNode.name,

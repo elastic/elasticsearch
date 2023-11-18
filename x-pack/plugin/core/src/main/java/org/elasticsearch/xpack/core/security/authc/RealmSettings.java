@@ -60,7 +60,7 @@ public class RealmSettings {
                         + v
                         + "] for ["
                         + key
-                        + "]. Fixed-string suffix must begin with a letter and followed by either letters or digits and"
+                        + "]. Fixed-string suffix must begin with a letter and followed by either letters or digits and "
                         + "the total length must be between 1 and 10 characters (inclusive)."
                 );
             }

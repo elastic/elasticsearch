@@ -119,7 +119,7 @@ public class TransportKillProcessAction extends TransportTasksAction<
         if (jobTasks.stream().allMatch(t -> nodes.get(t.getExecutorNode()) == null)) {
             listener.onFailure(
                 ExceptionsHelper.conflictStatusException(
-                    "Cannot kill process for job {} as" + "executor node {} cannot be found",
+                    "Cannot kill process for job {} as executor node {} cannot be found",
                     request.getJobId(),
                     jobTasks.get(0).getExecutorNode()
                 )

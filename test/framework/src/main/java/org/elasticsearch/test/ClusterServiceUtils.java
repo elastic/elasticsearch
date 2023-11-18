@@ -96,7 +96,7 @@ public class ClusterServiceUtils {
 
             @Override
             public void onFailure(Exception e) {
-                fail("unexpected exception" + e);
+                fail("unexpected exception " + e);
             }
         });
         try {

@@ -441,7 +441,7 @@ public abstract class TransportReplicationAction<
                     // it is safe to execute primary phase on relocation target as there are no more in-flight operations where primary
                     // phase is executed on local shard and all subsequent operations are executed on relocation target as primary phase.
                     final ShardRouting primary = primaryShardReference.routingEntry();
-                    assert primary.relocating() : "indexShard is marked as relocated but routing isn't" + primary;
+                    assert primary.relocating() : "indexShard is marked as relocated but routing isn't " + primary;
                     final Writeable.Reader<Response> reader = TransportReplicationAction.this::newResponseInstance;
                     DiscoveryNode relocatingNode = clusterState.nodes().get(primary.relocatingNodeId());
                     transportService.sendRequest(
@@ -1001,7 +1001,7 @@ public abstract class TransportReplicationAction<
         void retry(Exception failure) {
             assert failure != null;
             if (observer.isTimedOut()) {
-                // we running as a last attempt after a timeout has happened. don't retry
+                // running as a last attempt after a timeout has happened. don't retry
                 finishAsFailed(failure);
                 return;
             }
@@ -1305,7 +1305,7 @@ public abstract class TransportReplicationAction<
         private final String targetAllocationID;
         private final long primaryTerm;
         private final R request;
-        // Indicates if this primary shard request originated by a reroute on this local node.
+        // Indicates if this primary shard request originated by a rerouting on this local node.
         private final boolean sentFromLocalReroute;
         // Indicates if this local reroute was initiated by the NodeClient executing a transport action. This
         // is only true if sentFromLocalReroute is true.

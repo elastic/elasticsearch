@@ -542,7 +542,7 @@ public class AzureBlobStore implements BlobStore {
             }
             // This flux is subscribed by a downstream operator that finally queues the
             // buffers into netty output queue. Sadly we are not able to get a signal once
-            // the buffer has been flushed, so we have to allocate those and let the GC to
+            // the buffer has been flushed, so we have to allocate those and let the GC
             // reclaim them (see MonoSendMany). Additionally, that very same operator requests
             // 128 elements (that's hardcoded) once it's subscribed (later on, it requests
             // by 64 elements), that's why we provide 64kb buffers.
@@ -566,7 +566,7 @@ public class AzureBlobStore implements BlobStore {
                 }
                 if (numOfBytesRead == -1 && currentTotalLength.get() < length) {
                     throw new IllegalStateException(
-                        "InputStream provided" + currentTotalLength + " bytes, less than the expected" + length + " bytes"
+                        "InputStream provided " + currentTotalLength + " bytes, less than the expected " + length + " bytes"
                     );
                 }
                 return ByteBuffer.wrap(buffer);

@@ -500,7 +500,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
             if (bytesCount != blobSize) {
                 throw new IOException(
-                    "Failed to execute multipart upload for [" + blobName + "], expected " + blobSize + "bytes sent but got " + bytesCount
+                    "Failed to execute multipart upload for [" + blobName + "], expected " + blobSize + " bytes sent but got " + bytesCount
                 );
             }
 

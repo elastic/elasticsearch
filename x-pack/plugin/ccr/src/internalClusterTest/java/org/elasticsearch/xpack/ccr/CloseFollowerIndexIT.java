@@ -46,6 +46,7 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
                     for (StackTraceElement element : e.getStackTrace()) {
                         if (element.getClassName().equals(ReadOnlyEngine.class.getName())) {
                             if (element.getMethodName().equals("assertMaxSeqNoEqualsToGlobalCheckpoint")) {
+                                logger.error("HACK: suppressing uncaught exception thrown from assertMaxSeqNoEqualsToGlobalCheckpoint", e);
                                 return;
                             }
                         }

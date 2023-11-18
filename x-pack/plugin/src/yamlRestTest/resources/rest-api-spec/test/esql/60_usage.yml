@@ -1,8 +1,10 @@
 ---
 setup:
-  - do:
+  - skip:
       version: " - 7.10.99"
       reason: "ESQL is available in 7.11+"
+
+  - do:
       indices.create:
         index:  test
         body:

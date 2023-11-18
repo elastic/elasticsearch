@@ -715,8 +715,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             String systemProperties = "";
-            if (spec.getSystemProperties().isEmpty() == false) {
-                systemProperties = spec.getSystemProperties()
+            Map<String, String> resolvedSystemProperties = new HashMap<>(spec.resolveSystemProperties());
+            if (resolvedSystemProperties.isEmpty() == false) {
+                systemProperties = resolvedSystemProperties
                     .entrySet()
                     .stream()
                     .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())

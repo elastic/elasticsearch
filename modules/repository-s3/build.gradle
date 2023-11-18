@@ -13,7 +13,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -46,6 +46,17 @@ dependencies {
   api 'javax.xml.bind:jaxb-api:2.2.2'
 
   testImplementation project(':test:fixtures:s3-fixture')
+
+  //yamlRestTestImplementation 'com.fasterxml.jackson.core:jackson-annotations:2.8.8'
+  //yamlRestTestImplementation 'com.fasterxml.jackson.core:jackson-databind:2.8.8'
+  yamlRestTestImplementation 'com.github.docker-java:docker-java-transport-zerodep:3.3.4'
+  yamlRestTestImplementation 'com.github.docker-java:docker-java-transport:3.3.4'
+  yamlRestTestImplementation 'org.apache.commons:commons-compress:1.24.0'
+  yamlRestTestImplementation 'org.rnorth.duct-tape:duct-tape:1.0.8'
+  yamlRestTestImplementation 'com.github.docker-java:docker-java-api:3.3.4'
+  yamlRestTestImplementation 'com.github.docker-java:docker-java-core:3.3.4'
+  yamlRestTestImplementation 'org.testcontainers:testcontainers:1.19.2' //replace with the latest version
+  yamlRestTestImplementation 'org.slf4j:slf4j-api:1.7.36'
 }
 
 restResources {
@@ -197,9 +208,9 @@ tasks.named("yamlRestTest").configure {
 }
 
 if (useFixture) {
-  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture')
-  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-session-token')
-  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-ec2')
+  //testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture')
+  //testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-session-token')
+  //testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-ec2')
 
   normalization {
     runtimeClasspath {
@@ -260,7 +271,7 @@ if (useFixture) {
 
 // ECS
 if (useFixture) {
-  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-ecs')
+  //testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-ecs')
   tasks.register("yamlRestTestECS", RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
@@ -286,7 +297,7 @@ if (useFixture) {
 
 // STS (Secure Token Service)
 if (useFixture) {
-  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-sts')
+  //testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-sts')
   tasks.register("yamlRestTestSTS", RestIntegTestTask.class) {
     description = "Runs tests with the STS (Secure Token Service)"
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

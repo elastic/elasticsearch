@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
+import org.elasticsearch.index.shard.CloseFollowerIndexErrorSuppressionHelper;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -39,10 +40,12 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
 
     @Before
     public void wrapUncaughtExceptionHandler() {
+        CloseFollowerIndexErrorSuppressionHelper.setSuppressCreateEngineErrors(true);
         uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-                if (t.getThreadGroup().getName().contains(getTestClass().getSimpleName())) {
+                if (t.getThreadGroup().getName().contains(getTestClass().getSimpleName())
+                    && t.getName().equals("elasticsearch-error-rethrower")) {
                     for (StackTraceElement element : e.getStackTrace()) {
                         if (element.getClassName().equals(ReadOnlyEngine.class.getName())) {
                             if (element.getMethodName().equals("assertMaxSeqNoEqualsToGlobalCheckpoint")) {
@@ -60,6 +63,7 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
 
     @After
     public void restoreUncaughtExceptionHandler() {
+        CloseFollowerIndexErrorSuppressionHelper.setSuppressCreateEngineErrors(false);
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
             return null;

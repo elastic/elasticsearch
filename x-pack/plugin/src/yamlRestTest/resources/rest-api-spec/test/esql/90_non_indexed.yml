@@ -1,5 +1,7 @@
 setup:
   - skip:
+      version: " - 7.11.99"
+      reason: "extracting non-indexed fields available in 8.12+"
       features: allowed_warnings
   - do:
       indices.create:

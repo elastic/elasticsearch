@@ -127,3 +127,8 @@ setup:
   - match: { values.1: [ "Bob", "nyc", "USA" ] }
   - match: { values.2: [ "Denise", "sgn", null ] }
   - match: { values.3: [ "Mario", "rom", "Italy" ] }
+
+  - do:
+      enrich.delete_policy:
+        name: cities_policy
+  - is_true: acknowledged

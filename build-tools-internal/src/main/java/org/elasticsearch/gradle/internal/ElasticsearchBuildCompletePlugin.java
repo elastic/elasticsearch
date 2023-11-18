@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal;
 
 import com.gradle.scan.plugin.BuildScanExtension;
 
-import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
@@ -34,7 +33,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -106,6 +104,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         gradleDaemonFileSet.include("**/daemon-" + ProcessHandle.current().pid() + "*.log");
         return gradleDaemonFileSet.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).toList();
     }
+
     public abstract static class BuildFinishedFlowAction implements FlowAction<BuildFinishedFlowAction.Parameters> {
         interface Parameters extends FlowParameters {
             @Input

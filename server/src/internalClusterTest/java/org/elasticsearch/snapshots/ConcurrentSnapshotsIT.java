@@ -768,19 +768,15 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().stopCurrentMasterNode();
         ensureStableCluster(3);
 
-        RemoteTransportException remoteTransportException = expectThrows(
-            ExecutionException.class,
-            RemoteTransportException.class,
-            deleteFuture::get
-        );
+        RuntimeException innerException = expectThrows(ExecutionException.class, RuntimeException.class, deleteFuture::get);
 
         // There may be many layers of RTE to unwrap here, see https://github.com/elastic/elasticsearch/issues/102351.
         // ExceptionsHelper#unwrapCause gives up at 10 layers of wrapping so we must unwrap more tenaciously by hand here:
         while (true) {
-            if (remoteTransportException.getCause() instanceof RemoteTransportException anotherRemoteTransportException) {
-                remoteTransportException = anotherRemoteTransportException;
+            if (innerException instanceof RemoteTransportException remoteTransportException) {
+                innerException = asInstanceOf(RuntimeException.class, remoteTransportException.getCause());
             } else {
-                assertThat(remoteTransportException.getCause(), instanceOf(RepositoryException.class));
+                assertThat(innerException, instanceOf(RepositoryException.class));
                 break;
             }
         }

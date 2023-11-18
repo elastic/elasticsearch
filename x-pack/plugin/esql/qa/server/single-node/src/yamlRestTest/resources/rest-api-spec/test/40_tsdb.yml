@@ -120,9 +120,9 @@ load everything:
   - match: {columns.2.name: "k8s.pod.name"}
   - match: {columns.2.type: "keyword"}
   - match: {columns.3.name: "k8s.pod.network.rx"}
-  - match: {columns.3.type: "unsupported"}
+  - match: {columns.3.type: "long"}
   - match: {columns.4.name: "k8s.pod.network.tx"}
-  - match: {columns.4.type: "unsupported"}
+  - match: {columns.4.type: "long"}
   - match: {columns.5.name: "k8s.pod.uid"}
   - match: {columns.5.type: "keyword"}
   - match: {columns.6.name: "metricset"}
@@ -144,18 +144,33 @@ load a document:
   - match: {values.0.0: "2021-04-28T18:50:23.142Z"}
   - match: {values.0.1: "10.10.55.3"}
   - match: {values.0.2: "dog"}
-  - match: {values.0.3: null }
-  - match: {values.0.4: null }
+  - match: {values.0.3: 530600088 }
+  - match: {values.0.4: 1434577921 }
   - match: {values.0.5: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
   - match: {values.0.6: "pod"}
 
 ---
 filter on counter:
   - do:
-      catch: /Cannot use field \[k8s.pod.network.tx\] with unsupported type \[counter\]/
       esql.query:
         body:
           query: 'from test | where k8s.pod.network.tx == 1434577921'
+
+  - match: {columns.0.name: "@timestamp"}
+  - match: {columns.0.type: "date"}
+  - match: {columns.1.name: "k8s.pod.ip"}
+  - match: {columns.1.type: "ip"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - match: {columns.3.name: "k8s.pod.network.rx"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "k8s.pod.network.tx"}
+  - match: {columns.4.type: "long"}
+  - match: {columns.5.name: "k8s.pod.uid"}
+  - match: {columns.5.type: "keyword"}
+  - match: {columns.6.name: "metricset"}
+  - match: {columns.6.type: "keyword"}
+  - length: {values: 1}
 
 ---
 from doc with aggregate_metric_double:

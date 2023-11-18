@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlDataTypeRegistryTests extends ESTestCase {
     public void testCounter() {
-        resolve("long", TimeSeriesParams.MetricType.COUNTER, DataTypes.UNSUPPORTED);
+        resolve("long", TimeSeriesParams.MetricType.COUNTER, DataTypes.LONG);
     }
 
     public void testGauge() {

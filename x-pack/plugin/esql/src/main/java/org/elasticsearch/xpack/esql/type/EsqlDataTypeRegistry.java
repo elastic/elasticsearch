@@ -32,10 +32,6 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
-        if (metricType == TimeSeriesParams.MetricType.COUNTER) {
-            // Counter fields will be a counter type, for now they are unsupported
-            return DataTypes.UNSUPPORTED;
-        }
         return EsqlDataTypes.fromName(typeName);
     }
 

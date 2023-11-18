@@ -129,6 +129,17 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     /**
+     * Constructs a new sort based on a document field and passed sort order.
+     *
+     * @param fieldName
+     *            The field name.
+     */
+    public FieldSortBuilder(String fieldName, SortOrder order) {
+        this(fieldName);
+        this.order = order;
+    }
+
+    /**
      * Read from a stream.
      */
     public FieldSortBuilder(StreamInput in) throws IOException {

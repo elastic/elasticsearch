@@ -1,0 +1,5 @@
+pr: 100196
+summary: "[ESQL] Rate agg on counter - prototype"
+area: TSDB
+type: enhancement
+issues: []

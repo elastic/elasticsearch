@@ -15,11 +15,13 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.BlockReaderFactories;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.LuceneTimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -141,6 +143,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.pageSize(rowEstimatedSize),
                 limit,
                 fieldSorts
+            );
+        } else if (searchContexts.get(0).indexShard().indexSettings().getMode() == IndexMode.TIME_SERIES) {
+            luceneFactory = new LuceneTimeSeriesSourceOperator.Factory(
+                searchContexts,
+                querySupplier,
+                context.queryPragmas().taskConcurrency(),
+                context.pageSize(rowEstimatedSize),
+                limit
             );
         } else {
             luceneFactory = new LuceneSourceOperator.Factory(

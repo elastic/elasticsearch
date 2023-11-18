@@ -48,7 +48,8 @@ public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
             .withExposedService("s3-fixture", 80, Wait.forListeningPort())
             .withExposedService("s3-fixture-with-session-token", 80, Wait.forListeningPort())
             .withExposedService("s3-fixture-with-ec2", 80, Wait.forListeningPort())
-            /*.withLogConsumer("s3-fixture", (log) -> {
+            .withLocalCompose(true)
+        /*.withLogConsumer("s3-fixture", (log) -> {
                 System.out.println("s3-fixture: " + log.getUtf8String());
             }).withLogConsumer("s3-fixture-with-session-token", (log) -> {
                 System.out.println("s3-fixture-with-session-token: " + log.getUtf8String());

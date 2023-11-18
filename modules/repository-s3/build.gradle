@@ -135,7 +135,7 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
   s3PermanentBucket = 'bucket'
   s3PermanentBasePath = 'base_path'
 
-  apply plugin: 'elasticsearch.test.fixtures'
+  //apply plugin: 'elasticsearch.test.fixtures'
   useFixture = true
 
 } else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath) {
@@ -193,7 +193,9 @@ tasks.named("internalClusterTest").configure {
 }
 
 tasks.named("yamlRestTest").configure {
-    systemProperty 'tests.rest.blacklist', (
+  systemProperty("TESTCONTAINERS_RYUK_DISABLED", 'true')
+  systemProperty("TESTCONTAINERS_CHECKS_DISABLE", 'true')
+  systemProperty 'tests.rest.blacklist', (
       useFixture ?
         ['repository_s3/50_repository_ecs_credentials/*',
          'repository_s3/60_repository_sts_credentials/*']
@@ -242,7 +244,7 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
 
 // MinIO
 if (useFixture) {
-  testFixtures.useFixture(':test:fixtures:minio-fixture', 'minio-fixture')
+  //testFixtures.useFixture(':test:fixtures:minio-fixture', 'minio-fixture')
 
   tasks.register("yamlRestTestMinio", RestIntegTestTask) {
     description = "Runs REST tests using the Minio repository."

@@ -224,6 +224,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     public List<SystemPropertyProvider> getSystemPropertyProviders() {
         return inherit(() -> parent.getSystemPropertyProviders(), systemPropertyProviders);
     }
+
     @Override
     public T jvmArg(String arg) {
         this.jvmArgs.add(arg);

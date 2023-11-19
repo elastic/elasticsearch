@@ -83,7 +83,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         } else {
             LOGGER.info("Stopping Elasticsearch test cluster '{}', forcibly: {}", name, forcibly);
             // Make sure the process is stopped, otherwise wait
-            //execute(() -> nodes.parallelStream().forEach(Node::waitForExit));
+            // execute(() -> nodes.parallelStream().forEach(Node::waitForExit));
         }
     }
 

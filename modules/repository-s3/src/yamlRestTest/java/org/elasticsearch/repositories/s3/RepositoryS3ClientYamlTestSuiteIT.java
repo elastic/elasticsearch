@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.s3;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
@@ -23,24 +22,21 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-   // private static final boolean useFixture = Boolean.getBoolean("geoip_use_service") == shouldUse;
+    // private static final boolean useFixture = Boolean.getBoolean("geoip_use_service") == shouldUse;
 
-    private static final String s3PermanentAccessKey = "s3_test_access_key";//System.getenv("amazon_s3_access_key");
+    private static final String s3PermanentAccessKey = "s3_test_access_key";// System.getenv("amazon_s3_access_key");
     private static final String s3PermanentSecretKey = "s3_test_secret_key"; // System.getenv("amazon_s3_secret_key");
-    private static final String s3TemporaryAccessKey = "session_token_access_key";//System.getenv("amazon_s3_access_key_temporary");
-    private static final String s3TemporarySecretKey = "session_token_secret_key"; //System.getenv("amazon_s3_secret_key_temporary");
+    private static final String s3TemporaryAccessKey = "session_token_access_key";// System.getenv("amazon_s3_access_key_temporary");
+    private static final String s3TemporarySecretKey = "session_token_secret_key"; // System.getenv("amazon_s3_secret_key_temporary");
     private static final String s3TemporarySessionToken = "session_token";// System.getenv("amazon_s3_session_token_temporary");
 
-
     @ClassRule
-    public static FixtureS3TestContainer environment = new FixtureS3TestContainer()
-        .withExposedService("s3-fixture")
+    public static FixtureS3TestContainer environment = new FixtureS3TestContainer().withExposedService("s3-fixture")
         .withExposedService("s3-fixture-with-session-token")
         .withExposedService("s3-fixture-with-ec2");
 
@@ -52,12 +48,11 @@ public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         .keystore("s3.client.integration_test_temporary.access_key", s3TemporaryAccessKey)
         .keystore("s3.client.integration_test_temporary.secret_key", s3TemporarySecretKey)
         .keystore("s3.client.integration_test_temporary.session_token", s3TemporarySessionToken)
-        .setting("s3.client.integration_test_permanent.endpoint", () -> ("http://127.0.0.1:" + environment.getServicePort("s3-fixture", 80)))
-        .setting("s3.client.integration_test_temporary.endpoint", () -> ("http://127.0.0.1:" + environment.getServicePort("s3-fixture-with-session-token", 80)))
-        .setting("s3.client.integration_test_ec2.endpoint", () -> ("http://127.0.0.1:" + environment.getServicePort("s3-fixture-with-ec2", 80)))
-        .systemProperty("com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", () -> ("http://127.0.0.1:" + environment.getServicePort("s3-fixture-with-ec2", 80)))
+        .setting("s3.client.integration_test_permanent.endpoint", () -> environment.getServiceUrl("s3-fixture"))
+        .setting("s3.client.integration_test_temporary.endpoint", () -> environment.getServiceUrl("s3-fixture-with-session-token"))
+        .setting("s3.client.integration_test_ec2.endpoint", () -> environment.getServiceUrl("s3-fixture-with-ec2"))
+        .systemProperty("com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", () -> environment.getServiceUrl("s3-fixture-with-ec2"))
         .build();
-
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(environment).around(cluster);
@@ -70,6 +65,7 @@ public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     public RepositoryS3ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();

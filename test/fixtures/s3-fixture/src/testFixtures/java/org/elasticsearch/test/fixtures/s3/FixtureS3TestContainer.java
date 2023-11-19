@@ -19,11 +19,13 @@ import java.io.File;
 
 public class FixtureS3TestContainer implements TestRule {
 
+    private static final int servicePort = 80;
+
     private ComposeContainer container = new ComposeContainer(
         new File("/Users/rene/dev/elastic/elasticsearch/test/fixtures/s3-fixture/docker-compose.yml")
-    ).withExposedService("s3-fixture", 80, Wait.forListeningPort())
-        .withExposedService("s3-fixture-with-session-token", 80, Wait.forListeningPort())
-        .withExposedService("s3-fixture-with-ec2", 80, Wait.forListeningPort())
+    ).withExposedService("s3-fixture", servicePort, Wait.forListeningPort())
+        .withExposedService("s3-fixture-with-session-token", servicePort, Wait.forListeningPort())
+        .withExposedService("s3-fixture-with-ec2", servicePort, Wait.forListeningPort())
         .withLocalCompose(true);
 
     private Statement startContainer(Statement base, Description description) {
@@ -46,7 +48,11 @@ public class FixtureS3TestContainer implements TestRule {
         return this;
     }
 
-    public int getServicePort(String serviceName, int servicePort) {
+    private int getServicePort(String serviceName) {
         return container.getServicePort(serviceName, servicePort);
+    }
+
+    public String getServiceUrl(String serviceName) {
+        return "http://127.0.0.1:" + getServicePort(serviceName);
     }
 }

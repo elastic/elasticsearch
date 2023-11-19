@@ -193,13 +193,14 @@ tasks.named("internalClusterTest").configure {
 
 tasks.named("yamlRestTest").configure {
   fixtureApps.use("s3-fixture")
+  systemProperty("tests.s3.fixture", Boolean.toString(useFixture))
   systemProperty("TESTCONTAINERS_RYUK_DISABLED", 'true')
   systemProperty("TESTCONTAINERS_CHECKS_DISABLE", 'true')
   systemProperty("s3PermanentAccessKey", s3PermanentAccessKey)
   systemProperty("s3PermanentSecretKey", s3PermanentSecretKey)
   systemProperty("s3TemporaryAccessKey", s3TemporaryAccessKey)
   systemProperty("s3TemporarySecretKey", s3TemporarySecretKey)
-
+  systemProperty("s3EC2AccessKey", s3PermanentAccessKey)
   systemProperty 'tests.rest.blacklist', (
       useFixture ?
         ['repository_s3/50_repository_ecs_credentials/*',

@@ -16,6 +16,8 @@ import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.testing.Test;
 
+import java.util.Collection;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.gradle.internal.TestFixtureApplicationPlugin.DISTRIBUTION_USAGE_ATTRIBUTE;
@@ -36,8 +38,6 @@ public class TestFixtureApplicationConsumerPlugin implements Plugin<Project> {
             // TODO we could filter this to only for tasks that have usages registered
             test.getInputs().files(fixtureDistributions);
 
-            TestFixtureApplicationConsumerTestExtension testFixtures = test.getExtensions()
-                .getByType(TestFixtureApplicationConsumerTestExtension.class);
             SystemPropertyCommandLineArgumentProvider nonInputSystemProperties = test.getExtensions()
                 .findByType(SystemPropertyCommandLineArgumentProvider.class);
 
@@ -46,9 +46,18 @@ public class TestFixtureApplicationConsumerPlugin implements Plugin<Project> {
                 : test::systemProperty;
 
             test.doFirst(test1 -> {
-                testFixtures.getFixtureApplications().forEach(fixtureApplication -> {
-                    fixtureDistributions.getFiles()
-                        .forEach(file -> applySysProps.accept("fixture.home." + file.getName(), file.getAbsolutePath()));
+                fixtureDistributions.getFiles().forEach(file -> {
+                    String appKey = file.getName();
+                    Collection<String> services = fixtureApps.getFixtureApplications().get(appKey);
+                    if (services.isEmpty()) {
+                        throw new IllegalStateException("No services configured for fixture application " + appKey);
+                    }
+                    String appHomeKey = "fixture." + appKey + ".home";
+                    applySysProps.accept(appHomeKey, file.getAbsolutePath());
+                    AtomicInteger index = new AtomicInteger();
+                    services.forEach(
+                        (serviceName) -> applySysProps.accept("fixture." + appKey + ".service." + index.getAndIncrement(), serviceName)
+                    );
                 });
             });
         });

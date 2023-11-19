@@ -192,7 +192,10 @@ tasks.named("internalClusterTest").configure {
 }
 
 tasks.named("yamlRestTest").configure {
-  fixtureApps.use("s3-fixture")
+  fixtureApps.use("s3-fixture", "s3-fixture")
+  fixtureApps.use("s3-fixture", "s3-fixture-with-session-token")
+  fixtureApps.use("s3-fixture", "s3-fixture-with-ec2")
+
   systemProperty("tests.s3.fixture", Boolean.toString(useFixture))
   systemProperty("TESTCONTAINERS_RYUK_DISABLED", 'true')
   systemProperty("TESTCONTAINERS_CHECKS_DISABLE", 'true')
@@ -221,26 +224,6 @@ if (useFixture) {
       // ignore generated address file for the purposes of build avoidance
       ignore 's3Fixture.address'
     }
-  }
-}
-
-testClusters.matching { it.name == "yamlRestTest" }.configureEach {
-  keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
-  keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
-
-  keystore 's3.client.integration_test_temporary.access_key', s3TemporaryAccessKey
-  keystore 's3.client.integration_test_temporary.secret_key', s3TemporarySecretKey
-  keystore 's3.client.integration_test_temporary.session_token', s3TemporarySessionToken
-
-  if (useFixture) {
-    setting 's3.client.integration_test_permanent.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture', '80')}" }, IGNORE_VALUE
-    setting 's3.client.integration_test_temporary.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-session-token', '80')}" }, IGNORE_VALUE
-    setting 's3.client.integration_test_ec2.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
-
-    // to redirect InstanceProfileCredentialsProvider to custom auth point
-    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
-  } else {
-    println "Using an external service to test the repository-s3 plugin"
   }
 }
 
@@ -282,6 +265,7 @@ if (useFixture) {
     SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+    fixtureApps.use("s3-fixture")
     systemProperty 'tests.rest.blacklist', [
       'repository_s3/10_basic/*',
       'repository_s3/20_repository_permanent_credentials/*',

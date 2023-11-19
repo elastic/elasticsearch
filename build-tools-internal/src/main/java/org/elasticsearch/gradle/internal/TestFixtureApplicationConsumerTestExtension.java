@@ -8,20 +8,20 @@
 
 package org.elasticsearch.gradle.internal;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 
 public class TestFixtureApplicationConsumerTestExtension {
 
-    private final List<String> fixtureApplications = new ArrayList<>();
+    private final Multimap<String, String> fixtureApplications = ArrayListMultimap.create();
 
     public TestFixtureApplicationConsumerTestExtension() {}
 
-    public void use(String fixtureApplicationName) {
-        fixtureApplications.add(fixtureApplicationName);
+    public void use(String fixtureApplicationName, String serviceName) {
+        fixtureApplications.put(fixtureApplicationName, serviceName);
     }
 
-    public Iterable<String> getFixtureApplications() {
+    public Multimap<String, String> getFixtureApplications() {
         return fixtureApplications;
     }
 }

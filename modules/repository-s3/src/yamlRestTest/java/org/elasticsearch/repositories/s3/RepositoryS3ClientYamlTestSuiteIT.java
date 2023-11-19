@@ -25,6 +25,10 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
@@ -37,9 +41,10 @@ public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     public static S3Fixture environment = configureEnvironment();
 
     private static S3Fixture configureEnvironment() {
-        return new S3FixtureRule(USE_FIXTURE).withExposedService("s3-fixture")
-            .withExposedService("s3-fixture-with-session-token")
-            .withExposedService("s3-fixture-with-ec2");
+        S3Fixture fixture = new S3FixtureRule(USE_FIXTURE);
+        // register services exposed by the fixture
+        resolveServicesFromSystemProperties().forEach(fixture::withExposedService);
+        return fixture;
     }
 
     @ClassRule
@@ -73,6 +78,12 @@ public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         return ESClientYamlSuiteTestCase.createParameters();
     }
 
+    private static Stream<String> resolveServicesFromSystemProperties() {
+        return System.getProperties().entrySet().stream()
+            .filter(entry -> ((String) entry.getKey()).startsWith("fixture.s3-fixture.service"))
+            .map(Map.Entry::getValue)
+            .map(Object::toString);
+    }
     public RepositoryS3ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }

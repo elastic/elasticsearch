@@ -13,29 +13,30 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 import org.testcontainers.containers.ComposeContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.lifecycle.Startable;
 
 import java.io.File;
+import java.util.List;
 
-public class S3FixtureTestContainerRule implements S3Fixture, Startable {
+public class S3FixtureTestContainerRule implements S3Fixture {
 
     private static final int servicePort = 80;
-    private final ComposeContainer container;
+    private ComposeContainer container;
 
-    private ComposeContainer createContainer() {
-        return new ComposeContainer(resolveFixtureHome()).withExposedService("s3-fixture", servicePort, Wait.forListeningPort())
-            .withExposedService("s3-fixture-with-session-token", servicePort, Wait.forListeningPort())
-            .withExposedService("s3-fixture-with-ec2", servicePort, Wait.forListeningPort());
+    private ComposeContainer createContainer(List<String> services) {
+        ComposeContainer composeContainer = new ComposeContainer(resolveFixtureHome());
+        services.forEach(service -> composeContainer.withExposedService(service, servicePort, Wait.forListeningPort()));
+        return composeContainer;
     }
 
     @NotNull
     private static File resolveFixtureHome() {
-        File home = new File(System.getProperty("fixture.home.s3-fixture"));
+        String userHomeProperty = System.getProperty("fixture.s3-fixture.home");
+        File home = new File(userHomeProperty);
         return new File(home, "docker-compose.yml");
     }
 
-    public S3FixtureTestContainerRule() {
-        this.container = createContainer();
+    public S3FixtureTestContainerRule(List<String> configurationActions) {
+        this.container = createContainer(configurationActions);
     }
 
     @NotNull
@@ -45,13 +46,17 @@ public class S3FixtureTestContainerRule implements S3Fixture, Startable {
         return new Statement() {
             @Override
             public void evaluate() throws Throwable {
-                base.evaluate();
+                try {
+                    base.evaluate();
+                } finally {
+
+                }
             }
         };
     }
 
     public S3FixtureTestContainerRule withExposedService(String service) {
-        container.withExposedService(service, 80, Wait.forListeningPort());
+        container.withExposedService(service, servicePort, Wait.forListeningPort());
         return this;
     }
 
@@ -63,13 +68,4 @@ public class S3FixtureTestContainerRule implements S3Fixture, Startable {
         return "http://127.0.0.1:" + getServicePort(serviceName);
     }
 
-    @Override
-    public void start() {
-        container.start();
-    }
-
-    @Override
-    public void stop() {
-
-    }
 }

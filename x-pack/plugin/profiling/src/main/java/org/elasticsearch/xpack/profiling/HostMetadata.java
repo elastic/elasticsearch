@@ -17,16 +17,19 @@ import java.util.Objects;
 final class HostMetadata implements ToXContentObject {
     String hostID;
     DatacenterInstance dci;
+    String profilingHostMachine; // aarch64 or x86_64
 
-    HostMetadata(String hostID, DatacenterInstance dci) {
+    HostMetadata(String hostID, DatacenterInstance dci, String profilingHostMachine) {
         this.hostID = hostID;
         this.dci = dci;
+        this.profilingHostMachine = profilingHostMachine;
     }
 
     public static HostMetadata fromSource(Map<String, Object> source) {
         if (source != null) {
             String hostID = (String) source.get("host.id");
-            return new HostMetadata(hostID, DatacenterInstance.fromHostSource(source));
+            String profilingHostMachine = (String) source.get("profiling.host.machine");
+            return new HostMetadata(hostID, DatacenterInstance.fromHostSource(source), profilingHostMachine);
         }
         return null;
     }

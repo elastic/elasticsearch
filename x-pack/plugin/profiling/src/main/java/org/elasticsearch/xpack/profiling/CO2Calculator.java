@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.profiling;
 
 import java.util.Map;
+import java.util.Objects;
 
 final class CO2Calculator {
     private static final double defaultSamplingFreq = 20d;
@@ -35,9 +36,16 @@ final class CO2Calculator {
 
         CostEntry costs = costsService.getCosts(host.dci);
         if (costs == null) {
-            return defaultKiloWattsPerCore * defaultCO2TonsPerKWH * annualCoreHours * defaultDatacenterPUE;
+            return getKiloWattsPerCore(host) * defaultCO2TonsPerKWH * annualCoreHours * defaultDatacenterPUE;
         }
 
         return annualCoreHours * costs.co2Factor * customCO2Factor; // unit: metric tons
+    }
+
+    private static double getKiloWattsPerCore(HostMetadata host) {
+        if (Objects.equals(host.profilingHostMachine, "aarch64")) {
+            return 2.8d / 1000d;
+        }
+        return defaultKiloWattsPerCore;
     }
 }

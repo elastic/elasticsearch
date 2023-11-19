@@ -263,20 +263,47 @@ public class InboundHandler {
                 assert ignoreDeserializationErrors : e;
                 throw e;
             }
+            boolean success = false;
             try {
                 request.remoteAddress(channel.getRemoteAddress());
                 assert requestId > 0;
                 request.setRequestId(requestId);
                 verifyRequestReadFully(stream, requestId, action);
+                var wrappedChannel = new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return transportChannel.getProfileName();
+                    }
+
+                    @Override
+                    public String getChannelType() {
+                        return transportChannel.getChannelType();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) throws IOException {
+                        transportChannel.sendResponse(response);
+                        request.decRef();
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) throws IOException {
+                        request.decRef();
+                        transportChannel.sendResponse(exception);
+                    }
+                };
                 if (reg.getExecutor() == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-                        doHandleRequest(reg, request, transportChannel);
+                        doHandleRequest(reg, request, wrappedChannel);
                     }
                 } else {
-                    handleRequestForking(request, reg, transportChannel);
+                    handleRequestForking(request, reg, wrappedChannel);
                 }
+                success = true;
             } finally {
-                request.decRef();
+                if (success == false) {
+                    request.decRef();
+                }
             }
         } catch (Exception e) {
             sendErrorResponse(action, transportChannel, e);
@@ -292,42 +319,28 @@ public class InboundHandler {
     }
 
     private <T extends TransportRequest> void handleRequestForking(T request, RequestHandlerRegistry<T> reg, TransportChannel channel) {
-        boolean success = false;
-        request.incRef();
-        try {
-            reg.getExecutor().execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
-                @Override
-                protected void doRun() {
-                    doHandleRequest(reg, request, channel);
-                }
-
-                @Override
-                public boolean isForceExecution() {
-                    return reg.isForceExecution();
-                }
-
-                @Override
-                public void onRejection(Exception e) {
-                    sendErrorResponse(reg.getAction(), channel, e);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assert false : e; // shouldn't get here ever, no failures other than rejection by the thread-pool expected
-                    sendErrorResponse(reg.getAction(), channel, e);
-                }
-
-                @Override
-                public void onAfter() {
-                    request.decRef();
-                }
-            }));
-            success = true;
-        } finally {
-            if (success == false) {
-                request.decRef();
+        reg.getExecutor().execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                doHandleRequest(reg, request, channel);
             }
-        }
+
+            @Override
+            public boolean isForceExecution() {
+                return reg.isForceExecution();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                sendErrorResponse(reg.getAction(), channel, e);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : e; // shouldn't get here ever, no failures other than rejection by the thread-pool expected
+                sendErrorResponse(reg.getAction(), channel, e);
+            }
+        }));
     }
 
     private void handleHandshakeRequest(TcpChannel channel, InboundMessage message) throws IOException {

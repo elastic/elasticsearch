@@ -26,33 +26,40 @@ import org.junit.rules.TestRule;
 @ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+    private static final boolean useFixture = true;
 
-    // private static final boolean useFixture = Boolean.getBoolean("geoip_use_service") == shouldUse;
-
-    private static final String s3PermanentAccessKey = "s3_test_access_key";// System.getenv("amazon_s3_access_key");
-    private static final String s3PermanentSecretKey = "s3_test_secret_key"; // System.getenv("amazon_s3_secret_key");
-    private static final String s3TemporaryAccessKey = "session_token_access_key";// System.getenv("amazon_s3_access_key_temporary");
-    private static final String s3TemporarySecretKey = "session_token_secret_key"; // System.getenv("amazon_s3_secret_key_temporary");
     private static final String s3TemporarySessionToken = "session_token";// System.getenv("amazon_s3_session_token_temporary");
 
     @ClassRule
-    public static FixtureS3TestContainer environment = new FixtureS3TestContainer().withExposedService("s3-fixture")
-        .withExposedService("s3-fixture-with-session-token")
-        .withExposedService("s3-fixture-with-ec2");
+    public static FixtureS3TestContainer environment = configureEnvironment();
+
+    private static FixtureS3TestContainer configureEnvironment() {
+        FixtureS3TestContainer fixtureS3TestContainer = new FixtureS3TestContainer(useFixture);
+        if (useFixture) {
+            fixtureS3TestContainer.withExposedService("s3-fixture")
+                .withExposedService("s3-fixture-with-session-token")
+                .withExposedService("s3-fixture-with-ec2");
+        }
+        return fixtureS3TestContainer;
+    }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("repository-s3")
-        .keystore("s3.client.integration_test_permanent.access_key", s3PermanentAccessKey)
-        .keystore("s3.client.integration_test_permanent.secret_key", s3PermanentSecretKey)
-        .keystore("s3.client.integration_test_temporary.access_key", s3TemporaryAccessKey)
-        .keystore("s3.client.integration_test_temporary.secret_key", s3TemporarySecretKey)
-        .keystore("s3.client.integration_test_temporary.session_token", s3TemporarySessionToken)
-        .setting("s3.client.integration_test_permanent.endpoint", () -> environment.getServiceUrl("s3-fixture"))
-        .setting("s3.client.integration_test_temporary.endpoint", () -> environment.getServiceUrl("s3-fixture-with-session-token"))
-        .setting("s3.client.integration_test_ec2.endpoint", () -> environment.getServiceUrl("s3-fixture-with-ec2"))
-        .systemProperty("com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", () -> environment.getServiceUrl("s3-fixture-with-ec2"))
-        .build();
+    public static ElasticsearchCluster cluster = configureCluster();
+
+    private static ElasticsearchCluster configureCluster() {
+        return ElasticsearchCluster.local()
+            .module("repository-s3")
+            .keystore("s3.client.integration_test_permanent.access_key", System.getProperty("s3PermanentAccessKey"))
+            .keystore("s3.client.integration_test_permanent.secret_key", System.getProperty("s3PermanentSecretKey"))
+            .keystore("s3.client.integration_test_temporary.access_key", System.getProperty("s3TemporaryAccessKey"))
+            .keystore("s3.client.integration_test_temporary.secret_key", System.getProperty("s3TemporarySecretKey"))
+            .keystore("s3.client.integration_test_temporary.session_token", s3TemporarySessionToken)
+            .setting("s3.client.integration_test_permanent.endpoint", () -> environment.getServiceUrl("s3-fixture"))
+            .setting("s3.client.integration_test_temporary.endpoint", () -> environment.getServiceUrl("s3-fixture-with-session-token"))
+            .setting("s3.client.integration_test_ec2.endpoint", () -> environment.getServiceUrl("s3-fixture-with-ec2"))
+            .systemProperty("com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", () -> environment.getServiceUrl("s3-fixture-with-ec2"))
+            .build();
+    }
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(environment).around(cluster);

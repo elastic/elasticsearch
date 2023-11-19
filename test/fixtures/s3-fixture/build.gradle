@@ -8,6 +8,21 @@
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'java-test-fixtures'
+apply plugin: 'elasticsearch.test-fixture-application'
+
+application {
+  mainClass = 'fixture.s3.S3HttpFixture'
+}
+
+distributions {
+  main {
+    contents {
+      from('sts') {
+        into 'sts'
+      }
+    }
+  }
+}
 
 description = 'Fixture for S3 Storage service'
 tasks.named("test").configure { enabled = false }
@@ -18,10 +33,11 @@ configurations {
   testFixturesRuntimeClasspath.transitive = false
   testFixturesRuntimeElements.transitive = false
 }
+
 dependencies {
   api project(':server')
   testImplementation project(':test:framework')
-  // TODO rene: cleanup
+
   testFixturesApi "junit:junit:${versions.junit}"
   testFixturesImplementation project(':test:framework')
   testFixturesImplementation 'com.github.docker-java:docker-java-transport-zerodep:3.3.4'
@@ -32,7 +48,7 @@ dependencies {
   testFixturesImplementation 'com.github.docker-java:docker-java-core:3.3.4'
   testFixturesImplementation 'org.testcontainers:testcontainers:1.19.2' //replace with the latest version
   testFixturesImplementation 'org.slf4j:slf4j-api:1.7.36'
-}
+  testFixturesImplementation 'org.slf4j:slf4j-simple:1.7.36'}
 
 tasks.named("preProcessFixture").configure {
   dependsOn "jar", configurations.runtimeClasspath

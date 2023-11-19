@@ -20,13 +20,36 @@ import java.io.File;
 public class FixtureS3TestContainer implements TestRule {
 
     private static final int servicePort = 80;
+    private final boolean useFixture;
 
-    private ComposeContainer container = new ComposeContainer(
-        new File("/Users/rene/dev/elastic/elasticsearch/test/fixtures/s3-fixture/docker-compose.yml")
-    ).withExposedService("s3-fixture", servicePort, Wait.forListeningPort())
-        .withExposedService("s3-fixture-with-session-token", servicePort, Wait.forListeningPort())
-        .withExposedService("s3-fixture-with-ec2", servicePort, Wait.forListeningPort())
-        .withLocalCompose(true);
+    private final ComposeContainer container;
+
+    private ComposeContainer createContainer() {
+
+        return useFixture
+            ? new ComposeContainer(resolveFixtureHome())
+                .withExposedService("s3-fixture", servicePort, Wait.forListeningPort())
+                .withExposedService("s3-fixture-with-session-token", servicePort, Wait.forListeningPort())
+                .withExposedService("s3-fixture-with-ec2", servicePort, Wait.forListeningPort())
+
+                //.withLocalCompose(true)
+
+            : null;
+    }
+
+    @NotNull
+    private static File resolveFixtureHome() {
+        File home = new File(System.getProperty("fixture.home.s3-fixture"));
+
+        File file = new File(home, "docker-compose.yml");
+        System.out.println("file = " + file);
+        return file;
+    }
+
+    public FixtureS3TestContainer(boolean useFixture) {
+        this.useFixture = useFixture;
+        this.container = createContainer();
+    }
 
     private Statement startContainer(Statement base, Description description) {
         return new Statement() {
@@ -40,7 +63,7 @@ public class FixtureS3TestContainer implements TestRule {
     @NotNull
     @Override
     public Statement apply(@NotNull Statement base, @NotNull Description description) {
-        return startContainer(base, description);
+        return useFixture ? startContainer(base, description) : base;
     }
 
     public FixtureS3TestContainer withExposedService(String service) {

@@ -17,6 +17,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Objects;
 
+public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
 
     private static final String EC2_PATH = "/latest/meta-data/iam/security-credentials/";
     private static final String EC2_PROFILE = "ec2Profile";

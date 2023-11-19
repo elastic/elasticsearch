@@ -25,6 +25,12 @@ versions << [
   'aws': '1.12.270'
 ]
 
+configurations {
+  //yamlRestTestRuntimeClasspath.transitive = false
+  //testFixturesCompileClasspath.exclude module: 'org.hamcrest:hamcrest-core'
+  yamlRestTestRuntimeClasspath.exclude module: 'org.hamcrest:hamcrest-core'
+
+}
 dependencies {
   api "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
   api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
@@ -46,17 +52,8 @@ dependencies {
   api 'javax.xml.bind:jaxb-api:2.2.2'
 
   testImplementation project(':test:fixtures:s3-fixture')
-
-  //yamlRestTestImplementation 'com.fasterxml.jackson.core:jackson-annotations:2.8.8'
-  //yamlRestTestImplementation 'com.fasterxml.jackson.core:jackson-databind:2.8.8'
-  yamlRestTestImplementation 'com.github.docker-java:docker-java-transport-zerodep:3.3.4'
-  yamlRestTestImplementation 'com.github.docker-java:docker-java-transport:3.3.4'
-  yamlRestTestImplementation 'org.apache.commons:commons-compress:1.24.0'
-  yamlRestTestImplementation 'org.rnorth.duct-tape:duct-tape:1.0.8'
-  yamlRestTestImplementation 'com.github.docker-java:docker-java-api:3.3.4'
-  yamlRestTestImplementation 'com.github.docker-java:docker-java-core:3.3.4'
-  yamlRestTestImplementation 'org.testcontainers:testcontainers:1.19.2' //replace with the latest version
-  yamlRestTestImplementation 'org.slf4j:slf4j-api:1.7.36'
+  yamlRestTestImplementation "junit:junit:${versions.junit}"
+  yamlRestTestImplementation testFixtures(project(':test:fixtures:s3-fixture'))
 }
 
 restResources {

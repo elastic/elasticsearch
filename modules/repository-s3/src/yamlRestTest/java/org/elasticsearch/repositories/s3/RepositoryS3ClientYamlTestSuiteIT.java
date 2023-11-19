@@ -16,15 +16,12 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.fixtures.s3.FixtureS3TestContainer;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
-import org.testcontainers.containers.ComposeContainer;
-import org.testcontainers.containers.wait.strategy.Wait;
-
-import java.io.File;
 
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
@@ -32,9 +29,7 @@ import java.io.File;
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public RepositoryS3ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
-        super(testCandidate);
-    }
+   // private static final boolean useFixture = Boolean.getBoolean("geoip_use_service") == shouldUse;
 
     private static final String s3PermanentAccessKey = "s3_test_access_key";//System.getenv("amazon_s3_access_key");
     private static final String s3PermanentSecretKey = "s3_test_secret_key"; // System.getenv("amazon_s3_secret_key");
@@ -42,27 +37,12 @@ public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     private static final String s3TemporarySecretKey = "session_token_secret_key"; //System.getenv("amazon_s3_secret_key_temporary");
     private static final String s3TemporarySessionToken = "session_token";// System.getenv("amazon_s3_session_token_temporary");
 
-    @ClassRule
-    public static ComposeContainer environment =
-        new ComposeContainer(new File("/Users/rene/dev/elastic/elasticsearch/test/fixtures/s3-fixture/docker-compose.yml"))
-            .withExposedService("s3-fixture", 80, Wait.forListeningPort())
-            .withExposedService("s3-fixture-with-session-token", 80, Wait.forListeningPort())
-            .withExposedService("s3-fixture-with-ec2", 80, Wait.forListeningPort())
-            .withLocalCompose(true)
-        /*.withLogConsumer("s3-fixture", (log) -> {
-                System.out.println("s3-fixture: " + log.getUtf8String());
-            }).withLogConsumer("s3-fixture-with-session-token", (log) -> {
-                System.out.println("s3-fixture-with-session-token: " + log.getUtf8String());
-            }).withLogConsumer("s3-fixture-with-ec2", (log) -> {
-                System.out.println("s3-fixture-with-ec2: " + log.getUtf8String());
-            })*/
-        ;
-            /*.withLogConsumer("s3-fixture", (log) -> {
-                System.out.println("s3-fixture-with-ec2: " + log.getUtf8String());
-            }).withLogConsumer("s3-fixture-with-ec2", (log) -> {
-                System.out.println("s3-fixture-with-session-token: " + log.getUtf8String());
-            });*/
 
+    @ClassRule
+    public static FixtureS3TestContainer environment = new FixtureS3TestContainer()
+        .withExposedService("s3-fixture")
+        .withExposedService("s3-fixture-with-session-token")
+        .withExposedService("s3-fixture-with-ec2");
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -87,6 +67,9 @@ public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         return ESClientYamlSuiteTestCase.createParameters();
     }
 
+    public RepositoryS3ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
+    }
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();

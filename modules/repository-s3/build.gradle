@@ -15,7 +15,6 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  */
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.test-fixture-application-consumer'
 
 esplugin {
@@ -29,6 +28,7 @@ versions << [
 
 configurations {
   yamlRestTestRuntimeClasspath.exclude module: 'org.hamcrest:hamcrest-core'
+  internalClusterTestRuntime.exclude module: 'org.elasticsearch:minio-fixture'
 }
 
 dependencies {
@@ -54,8 +54,12 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation "junit:junit:${versions.junit}"
   yamlRestTestImplementation testFixtures(project(':test:fixtures:s3-fixture'))
+  yamlRestTestImplementation testFixtures(project(':test:fixtures:minio-fixture'))
+
+  internalClusterTestImplementation testFixtures(project(':test:fixtures:minio-fixture'))
 
   fixtureDistributions project(':test:fixtures:s3-fixture')
+  fixtureDistributions project(':test:fixtures:minio-fixture')
 }
 
 restResources {
@@ -92,13 +96,6 @@ tasks.named('test').configure {
 }
 
 boolean useFixture = false
-
-def fixtureAddress = { fixture, name, port ->
-  assert useFixture: 'closure should not be used without a fixture'
-  int ephemeralPort = project(":test:fixtures:${fixture}").postProcessFixture.ext."test.fixtures.${name}.tcp.${port}"
-  assert ephemeralPort > 0
-  'http://127.0.0.1:' + ephemeralPort
-}
 
 // We test against two repositories, one which uses the usual two-part "permanent" credentials and
 // the other which uses three-part "temporary" or "session" credentials.
@@ -169,6 +166,9 @@ if (!s3STSBucket && !s3STSBasePath) {
 }
 
 tasks.named("processYamlRestTestResources").configure {
+  from("src/test/resources") {
+    include "aws-web-identity-token-file"
+  }
   Map<String, Object> expansions = [
     'permanent_bucket'        : s3PermanentBucket,
     'permanent_base_path'     : s3PermanentBasePath + "_integration_tests",
@@ -189,6 +189,9 @@ tasks.named("processYamlRestTestResources").configure {
 tasks.named("internalClusterTest").configure {
   // this is tested explicitly in a separate test task
   exclude '**/S3RepositoryThirdPartyTests.class'
+  // TODO: check
+  systemProperty "tests.security.manager", "false"
+
 }
 
 tasks.named("yamlRestTest").configure {
@@ -227,18 +230,16 @@ if (useFixture) {
   }
 }
 
-// MinIO
 if (useFixture) {
-  //testFixtures.useFixture(':test:fixtures:minio-fixture', 'minio-fixture')
-
+  // MinIO
   tasks.register("yamlRestTestMinio", RestIntegTestTask) {
-    description = "Runs REST tests using the Minio repository."
-    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
-    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
-    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+    fixtureApps.use("minio-fixture", "minio-fixture")
 
+    description = "Runs REST tests using the Minio repository."
     // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
+    systemProperty("s3PermanentAccessKey", s3PermanentAccessKey)
+    systemProperty("s3PermanentSecretKey", s3PermanentSecretKey)
+
     systemProperty 'tests.rest.blacklist', [
       'repository_s3/30_repository_temporary_credentials/*',
       'repository_s3/40_repository_ec2_credentials/*',
@@ -246,26 +247,11 @@ if (useFixture) {
       'repository_s3/60_repository_sts_credentials/*'
     ].join(",")
   }
-  tasks.named("check").configure { dependsOn("yamlRestTestMinio") }
 
-  testClusters.matching { it.name == "yamlRestTestMinio" }.configureEach {
-    keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
-    keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
-    setting 's3.client.integration_test_permanent.endpoint', { "${-> fixtureAddress('minio-fixture', 'minio-fixture', '9000')}" }, IGNORE_VALUE
-    module tasks.named("explodedBundlePlugin")
-  }
-}
-
-// ECS
-if (useFixture) {
-  //testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-ecs')
+  // ECS
   tasks.register("yamlRestTestECS", RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."
-    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
-    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
-    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
-    fixtureApps.use("s3-fixture")
+    fixtureApps.use("s3-fixture", 's3-fixture-with-ecs')
     systemProperty 'tests.rest.blacklist', [
       'repository_s3/10_basic/*',
       'repository_s3/20_repository_permanent_credentials/*',
@@ -274,24 +260,15 @@ if (useFixture) {
       'repository_s3/60_repository_sts_credentials/*'
     ].join(",")
   }
-  tasks.named("check").configure { dependsOn("yamlRestTestECS") }
 
-  testClusters.matching { it.name == "yamlRestTestECS" }.configureEach {
-    setting 's3.client.integration_test_ecs.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}" }, IGNORE_VALUE
-    module tasks.named('explodedBundlePlugin')
-    environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}/ecs_credentials_endpoint" }, IGNORE_VALUE
-  }
-}
-
-// STS (Secure Token Service)
-if (useFixture) {
-  //testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-sts')
+  // STS (Secure Token Service)
   tasks.register("yamlRestTestSTS", RestIntegTestTask.class) {
     description = "Runs tests with the STS (Secure Token Service)"
-    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
-    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
-    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+    fixtureApps.use("s3-fixture", 's3-fixture-with-sts')
+    File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
+    // The web identity token can be read only from the plugin config directory because of security restrictions
+    // Ideally we would create a symlink, but extraConfigFile doesn't support it
+    nonInputProperties.systemProperty("awsWebIdentityTokenExternalLocation", awsWebIdentityTokenExternalLocation.getAbsolutePath())
     systemProperty 'tests.rest.blacklist', [
       'repository_s3/10_basic/*',
       'repository_s3/20_repository_permanent_credentials/*',
@@ -300,35 +277,18 @@ if (useFixture) {
       'repository_s3/50_repository_ecs_credentials/*'
     ].join(",")
   }
-  tasks.named("check").configure { dependsOn("yamlRestTestSTS") }
 
-  testClusters.matching { it.name == "yamlRestTestSTS" }.configureEach {
-    module tasks.named("explodedBundlePlugin")
 
-    setting 's3.client.integration_test_sts.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-sts', '80')}" }, IGNORE_VALUE
-    systemProperty 'com.amazonaws.sdk.stsMetadataServiceEndpointOverride',
-      { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-sts', '80')}/assume-role-with-web-identity" }, IGNORE_VALUE
+  // Sanity test for STS Regional Endpoints
+  tasks.register("yamlRestTestRegionalSTS", RestIntegTestTask.class) {
+    description = "Runs tests with the Regional STS Endpoint"
+    systemProperty("tests.sts.regional", true)
 
     File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
     // The web identity token can be read only from the plugin config directory because of security restrictions
     // Ideally we would create a symlink, but extraConfigFile doesn't support it
-    extraConfigFile 'repository-s3/aws-web-identity-token-file', awsWebIdentityTokenExternalLocation
-    environment 'AWS_WEB_IDENTITY_TOKEN_FILE', "$awsWebIdentityTokenExternalLocation"
+    nonInputProperties.systemProperty("awsWebIdentityTokenExternalLocation", awsWebIdentityTokenExternalLocation.getAbsolutePath())
 
-    // The AWS STS SDK requires the role and session names to be set. We can verify that they are sent to S3S in the S3HttpFixtureWithSTS fixture
-    environment 'AWS_ROLE_ARN', 'arn:aws:iam::123456789012:role/FederatedWebIdentityRole'
-    environment 'AWS_ROLE_SESSION_NAME', 'sts-fixture-test'
-  }
-}
-
-// Sanity test for STS Regional Endpoints
-if (useFixture) {
-  tasks.register("yamlRestTestRegionalSTS", RestIntegTestTask.class) {
-    description = "Runs tests with the Regional STS Endpoint"
-    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
-    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
-    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
     // Run just the basic sanity test to make sure ES starts up and loads the S3 repository with
     // a regional endpoint without an error. It would be great to make actual requests against
     // a test fixture, but setting the region means using a production endpoint
@@ -340,38 +300,23 @@ if (useFixture) {
       'repository_s3/60_repository_sts_credentials/*'
     ].join(",")
   }
-  tasks.named("check").configure { dependsOn("yamlRestTestRegionalSTS") }
-
-  testClusters.matching { it.name == "yamlRestTestRegionalSTS" }.configureEach {
-    module tasks.named("explodedBundlePlugin")
-
-    File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
-    extraConfigFile 'repository-s3/aws-web-identity-token-file', awsWebIdentityTokenExternalLocation
-    environment 'AWS_WEB_IDENTITY_TOKEN_FILE', "$awsWebIdentityTokenExternalLocation"
-    environment 'AWS_ROLE_ARN', 'arn:aws:iam::123456789012:role/FederatedWebIdentityRole'
-    environment 'AWS_ROLE_SESSION_NAME', 'sts-fixture-test'
-    // Force the repository to set a regional production endpoint
-    environment 'AWS_STS_REGIONAL_ENDPOINTS', 'regional'
-    environment 'AWS_REGION', 'ap-southeast-2'
-  }
 }
 
 // 3rd Party Tests
-TaskProvider s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
+tasks.register("s3ThirdPartyTest", Test) {
+  fixtureApps.use("minio-fixture", "minio-fixture")
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
   include '**/S3RepositoryThirdPartyTests.class'
+  // TODO: check
+  systemProperty "tests.security.manager", "false"
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket
   nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + BuildParams.testSeed
-  if (useFixture) {
-    nonInputProperties.systemProperty 'test.s3.endpoint', "${-> fixtureAddress('minio-fixture', 'minio-fixture', '9000') }"
-  }
 }
-tasks.named("check").configure { dependsOn(s3ThirdPartyTest) }
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
@@ -404,3 +349,14 @@ tasks.named("thirdPartyAudit").configure {
           'javax.activation.DataHandler'
   )
 }
+
+tasks.withType(RestIntegTestTask.class).configureEach {
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+}
+tasks.named("check").configure {
+  dependsOn(tasks.withType(Test))
+}
+

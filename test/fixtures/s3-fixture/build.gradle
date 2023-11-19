@@ -48,7 +48,8 @@ dependencies {
   testFixturesImplementation 'com.github.docker-java:docker-java-core:3.3.4'
   testFixturesImplementation 'org.testcontainers:testcontainers:1.19.2' //replace with the latest version
   testFixturesImplementation 'org.slf4j:slf4j-api:1.7.36'
-  testFixturesImplementation 'org.slf4j:slf4j-simple:1.7.36'}
+  testFixturesRuntimeOnly 'org.slf4j:slf4j-simple:1.7.36'
+}
 
 tasks.named("preProcessFixture").configure {
   dependsOn "jar", configurations.runtimeClasspath

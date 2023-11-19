@@ -13,10 +13,17 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 public class S3ExternalRule implements S3Fixture {
-    @NotNull
-    @Override
     public Statement apply(@NotNull Statement base, @NotNull Description description) {
-        return base;
+        return new Statement() {
+            @Override
+            public void evaluate() throws Throwable {
+                try {
+                    base.evaluate();
+                } finally {
+
+                }
+            }
+        };
     }
 
     @Override

@@ -49,15 +49,14 @@ public class TestFixtureApplicationConsumerPlugin implements Plugin<Project> {
                 fixtureDistributions.getFiles().forEach(file -> {
                     String appKey = file.getName();
                     Collection<String> services = fixtureApps.getFixtureApplications().get(appKey);
-                    if (services.isEmpty()) {
-                        throw new IllegalStateException("No services configured for fixture application " + appKey);
+                    if (services.isEmpty() == false) {
+                        String appHomeKey = "fixture." + appKey + ".home";
+                        applySysProps.accept(appHomeKey, file.getAbsolutePath());
+                        AtomicInteger index = new AtomicInteger();
+                        services.forEach(
+                            (serviceName) -> applySysProps.accept("fixture." + appKey + ".service." + index.getAndIncrement(), serviceName)
+                        );
                     }
-                    String appHomeKey = "fixture." + appKey + ".home";
-                    applySysProps.accept(appHomeKey, file.getAbsolutePath());
-                    AtomicInteger index = new AtomicInteger();
-                    services.forEach(
-                        (serviceName) -> applySysProps.accept("fixture." + appKey + ".service." + index.getAndIncrement(), serviceName)
-                    );
                 });
             });
         });

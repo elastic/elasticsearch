@@ -14,11 +14,10 @@ import org.junit.runners.model.Statement;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 public class S3FixtureRule implements S3Fixture {
 
-    private boolean useFixture = true;
+    private boolean useFixture;
     private S3Fixture delegate;
     private final List<String> services = new ArrayList<>();
 
@@ -29,7 +28,7 @@ public class S3FixtureRule implements S3Fixture {
     @NotNull
     @Override
     public Statement apply(@NotNull Statement base, @NotNull Description description) {
-        delegate = useFixture ? new S3FixtureTestContainerRule(services) : new S3ExternalRule();
+        delegate = (useFixture && services.isEmpty() == false)  ? new S3FixtureTestContainerRule(services) : new S3ExternalRule();
         delegate.apply(base, description);
         return new Statement() {
             @Override

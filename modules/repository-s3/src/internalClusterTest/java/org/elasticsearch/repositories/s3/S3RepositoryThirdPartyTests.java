@@ -11,6 +11,8 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
 import com.amazonaws.services.s3.model.MultipartUpload;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -23,6 +25,8 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -31,12 +35,17 @@ import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.fixtures.minio.MinioFixtureTestContainer;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.ClassRule;
+import org.junit.rules.TestRule;
+import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -48,7 +57,39 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
+@ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
+
+    private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.minio.fixture", "true"));
+
+    @SuppressForbidden(reason = "Forbidden method invocation: java.lang.System#getProperties()")
+    private static List<String> resolveServicesFromSystemProperties() {
+        return System.getProperties()
+            .entrySet()
+            .stream()
+            .filter(entry -> ((String) entry.getKey()).startsWith("fixture.minio-fixture.service"))
+            .map(Map.Entry::getValue)
+            .map(Object::toString)
+            .toList();
+    }
+
+    public static MinioFixtureTestContainer minioFixtureTestContainer = new MinioFixtureTestContainer(
+        resolveServicesFromSystemProperties()
+    );
+
+    @ClassRule
+    public static TestRule testRule = (base, description) -> {
+        if (USE_FIXTURE) {
+            minioFixtureTestContainer.apply(base, description);
+        }
+        return new Statement() {
+            @Override
+            public void evaluate() throws Throwable {
+                base.evaluate();
+            }
+        };
+    };
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -92,7 +133,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         Settings.Builder settings = Settings.builder()
             .put("bucket", System.getProperty("test.s3.bucket"))
             .put("base_path", System.getProperty("test.s3.base", "testpath"));
-        final String endpoint = System.getProperty("test.s3.endpoint");
+        final String endpoint = minioFixtureTestContainer.getServiceUrl("minio-fixture");
         if (endpoint != null) {
             settings.put("endpoint", endpoint);
         } else {

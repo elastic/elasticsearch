@@ -6,6 +6,32 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.test-fixture-application'
+apply plugin: 'java-test-fixtures'
+apply plugin: 'java'
+apply plugin: 'elasticsearch.java'
 
 description = 'Fixture for MinIO Storage service'
 
+configurations {
+  testFixturesImplementation.transitive = false
+  testFixturesRuntimeOnly.transitive = false
+  testFixturesRuntimeClasspath.transitive = false
+  testFixturesRuntimeElements.transitive = false
+}
+
+dependencies {
+  testImplementation project(':test:framework')
+
+  testFixturesApi "junit:junit:${versions.junit}"
+  testFixturesImplementation project(':test:framework')
+  testFixturesImplementation 'com.github.docker-java:docker-java-transport-zerodep:3.3.4'
+  testFixturesImplementation 'com.github.docker-java:docker-java-transport:3.3.4'
+  testFixturesImplementation 'org.apache.commons:commons-compress:1.24.0'
+  testFixturesImplementation 'org.rnorth.duct-tape:duct-tape:1.0.8'
+  testFixturesImplementation 'com.github.docker-java:docker-java-api:3.3.4'
+  testFixturesImplementation 'com.github.docker-java:docker-java-core:3.3.4'
+  testFixturesImplementation 'org.testcontainers:testcontainers:1.19.2' //replace with the latest version
+  testFixturesImplementation 'org.slf4j:slf4j-api:1.7.36'
+  testFixturesRuntimeOnly 'org.slf4j:slf4j-simple:1.7.36'
+}

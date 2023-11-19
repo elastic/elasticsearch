@@ -1,0 +1,13 @@
+[discrete]
+[[esql-random]]
+=== `RANDOM`
+The function returns a random number between 0 (inclusive) and 1 (exclusive).
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=random]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=random-result]
+|===

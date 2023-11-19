@@ -57,6 +57,7 @@ now                      |? now()                                               
 percentile               |? percentile(arg1:?, arg2:?)                            |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 pi                       |? pi()                                                  | null                    |  null            | null                                               |?                    | ""                      | null                 | false
 pow                      |"? pow(base:integer|long|double, exponent:integer|double)" |[base, exponent]         |["integer|long|double", "integer|double"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+random                   |? random()                                                 | null                    |null              | null                                               |?                    | ""                      | null                 | false
 replace                  |"? replace(arg1:?, arg2:?, arg3:?)"                       | [arg1, arg2, arg3]      | [?, ?, ?]        |["", "", ""]                                        |?                    | ""                      | [false, false, false]| false 
 right                    |"? right(string:keyword, length:integer)"     |[string, length]         |["keyword", "integer"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 round                    |? round(arg1:?, arg2:?)                                 |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
@@ -146,6 +147,7 @@ synopsis:keyword
 ? percentile(arg1:?, arg2:?)                            
 ? pi()                                                  
 "? pow(base:integer|long|double, exponent:integer|double)" 
+"? random()"
 "? replace(arg1:?, arg2:?, arg3:?)"
 "? right(string:keyword, length:integer)"     
 ? round(arg1:?, arg2:?)                                 

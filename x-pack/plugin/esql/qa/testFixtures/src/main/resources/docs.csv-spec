@@ -555,3 +555,16 @@ msg:keyword  | ip:keyword | date:date
 some text    | 127.0.0.1  | 2023-01-23T12:15:00.000Z
 // end::dissectWithToDatetime-result[]
 ;
+
+random
+// tag::random[]
+ROW a = "row 1" 
+| EVAL r = RANDOM()
+// end::random[]
+;
+
+// tag::random-result[]
+a:keyword  | r:double
+row 1        | 0.07725270284440489
+// end::random-result[]
+;

@@ -215,3 +215,17 @@ emp_no:integer  | foldable:keyword | folded_mv:keyword
 10001           | "foo,bar"        | [foo, bar]
 10002           | "foo,bar"        | [foo, bar]
 ;
+
+randomNumberNoSeed
+row z=1 | eval a=random() | eval b=random() | eval r=case(a!=b, 1, 0) | where r==1 | eval r=to_int(case(a<1, 1, 0)) | keep r;
+
+r:integer
+1
+;
+
+randomArgument
+row z=1 | eval a=to_int(ceil(random())) | keep a;
+
+a:integer
+1
+;

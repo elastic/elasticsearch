@@ -48,6 +48,7 @@ these functions:
 * <<esql-now>>
 * <<esql-pi>>
 * <<esql-pow>>
+* <<esql-random>>
 * <<esql-replace>>
 * <<esql-right>>
 * <<esql-round>>
@@ -113,6 +114,7 @@ include::functions/mv_sum.asciidoc[]
 include::functions/now.asciidoc[]
 include::functions/pi.asciidoc[]
 include::functions/pow.asciidoc[]
+include::functions/random.asciidoc[]
 include::functions/replace.asciidoc[]
 include::functions/right.asciidoc[]
 include::functions/round.asciidoc[]

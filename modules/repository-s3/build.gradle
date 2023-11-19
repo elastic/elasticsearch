@@ -322,6 +322,41 @@ if (useFixture) {
   }
 }
 
+// Sanity test for STS Regional Endpoints
+if (useFixture) {
+  tasks.register("yamlRestTestRegionalSTS", RestIntegTestTask.class) {
+    description = "Runs tests with the Regional STS Endpoint"
+    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
+    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+    // Run just the basic sanity test to make sure ES starts up and loads the S3 repository with
+    // a regional endpoint without an error. It would be great to make actual requests against
+    // a test fixture, but setting the region means using a production endpoint
+    systemProperty 'tests.rest.blacklist', [
+      'repository_s3/20_repository_permanent_credentials/*',
+      'repository_s3/30_repository_temporary_credentials/*',
+      'repository_s3/40_repository_ec2_credentials/*',
+      'repository_s3/50_repository_ecs_credentials/*',
+      'repository_s3/60_repository_sts_credentials/*'
+    ].join(",")
+  }
+  tasks.named("check").configure { dependsOn("yamlRestTestRegionalSTS") }
+
+  testClusters.matching { it.name == "yamlRestTestRegionalSTS" }.configureEach {
+    module tasks.named("explodedBundlePlugin")
+
+    File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
+    extraConfigFile 'repository-s3/aws-web-identity-token-file', awsWebIdentityTokenExternalLocation
+    environment 'AWS_WEB_IDENTITY_TOKEN_FILE', "$awsWebIdentityTokenExternalLocation"
+    environment 'AWS_ROLE_ARN', 'arn:aws:iam::123456789012:role/FederatedWebIdentityRole'
+    environment 'AWS_ROLE_SESSION_NAME', 'sts-fixture-test'
+    // Force the repository to set a regional production endpoint
+    environment 'AWS_STS_REGIONAL_ENDPOINTS', 'regional'
+    environment 'AWS_REGION', 'ap-southeast-2'
+  }
+}
+
 // 3rd Party Tests
 TaskProvider s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

@@ -177,6 +177,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected final ThreadPool threadPool;
 
+    public static final String STATELESS_SHARD_THREAD_NAME = "stateless_shard";
+    public static final String STATELESS_TRANSLOG_THREAD_NAME = "stateless_translog";
+
     public static final String SNAPSHOT_PREFIX = "snap-";
 
     public static final String INDEX_FILE_PREFIX = "index-";
@@ -1975,7 +1978,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     protected void assertSnapshotOrGenericThread() {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT, ThreadPool.Names.SNAPSHOT_META, ThreadPool.Names.GENERIC);
+        // The Stateless plugin adds custom thread pools for object store operations
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SNAPSHOT,
+            ThreadPool.Names.SNAPSHOT_META,
+            ThreadPool.Names.GENERIC,
+            STATELESS_SHARD_THREAD_NAME,
+            STATELESS_TRANSLOG_THREAD_NAME
+        );
     }
 
     @Override

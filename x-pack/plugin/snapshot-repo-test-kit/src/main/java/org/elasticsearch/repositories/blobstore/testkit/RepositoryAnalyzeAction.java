@@ -422,6 +422,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         }
 
         private void fail(Exception e) {
+            logger.trace(() -> Strings.format("repository analysis in [%s] failed", blobPath), e);
             if (setFirstFailure(e) == false) {
                 if (innerFailures.tryAcquire()) {
                     final Throwable cause = ExceptionsHelper.unwrapCause(e);
@@ -732,6 +733,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
                 if (currentValue <= request.getRegisterOperationCount() || otherAnalysisComplete.get() == false) {
                     // complete at least request.getRegisterOperationCount() steps, but we may as well keep running for longer too
+                    logger.trace("[{}] incrementing uncontended register [{}] from [{}]", blobPath, registerName, currentValue);
                     transportService.sendChildRequest(
                         nodes.get(currentValue < nodes.size() ? currentValue : random.nextInt(nodes.size())),
                         UncontendedRegisterAnalyzeAction.NAME,
@@ -745,13 +747,14 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                         )
                     );
                 } else {
+                    logger.trace("[{}] resetting uncontended register [{}] from [{}]", blobPath, registerName, currentValue);
                     transportService.getThreadPool()
                         .executor(ThreadPool.Names.SNAPSHOT)
                         .execute(
                             ActionRunnable.<Void>wrap(
                                 ActionListener.releaseAfter(
                                     ActionListener.wrap(
-                                        r -> logger.trace("uncontended register analysis succeeded"),
+                                        r -> logger.trace("[{}] uncontended register [{}] analysis succeeded", blobPath, registerName),
                                         AsyncAction.this::fail
                                     ),
                                     requestRefs.acquire()

@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.countedkeyword;
 
+import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -16,6 +19,7 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public class CountedKeywordFieldMapperTests extends MapperTestCase {
     @Override
@@ -66,5 +70,16 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    public void testDottedFieldNames() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("dotted.field");
+            b.field("type", CountedKeywordFieldMapper.CONTENT_TYPE);
+            b.endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("dotted.field", "1234")));
+        List<IndexableField> fields = doc.rootDoc().getFields("dotted.field");
+        assertEquals(1, fields.size());
     }
 }

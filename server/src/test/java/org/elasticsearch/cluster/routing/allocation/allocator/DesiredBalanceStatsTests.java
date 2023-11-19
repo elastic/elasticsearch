@@ -68,7 +68,7 @@ public class DesiredBalanceStatsTests extends AbstractWireSerializingTestCase<De
                           "unassigned_shards" : %d,
                           "total_allocations" : %d,
                           "undesired_allocations" : %d,
-                          "undesired_allocations_fraction" : %s
+                          "undesired_allocations_ratio" : %s
                         }""",
                     instance.lastConvergedIndex(),
                     instance.computationActive(),
@@ -82,7 +82,7 @@ public class DesiredBalanceStatsTests extends AbstractWireSerializingTestCase<De
                     instance.unassignedShards(),
                     instance.totalAllocations(),
                     instance.undesiredAllocations(),
-                    Double.toString(instance.undesiredAllocationsFraction())
+                    Double.toString(instance.undesiredAllocationsRatio())
                 )
             )
         );

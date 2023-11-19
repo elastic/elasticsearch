@@ -1039,6 +1039,10 @@ public final class TextFieldMapper extends FieldMapper {
         public boolean isSyntheticSource() {
             return isSyntheticSource;
         }
+
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate() {
+            return syntheticSourceDelegate;
+        }
     }
 
     public static class ConstantScoreTextFieldType extends TextFieldType {

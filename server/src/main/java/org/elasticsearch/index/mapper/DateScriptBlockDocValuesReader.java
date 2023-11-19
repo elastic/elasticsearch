@@ -26,7 +26,7 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
 
         @Override
         public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.doubles(expectedCount);
+            return factory.longs(expectedCount);
         }
 
         @Override

@@ -26,7 +26,6 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -1240,23 +1239,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertNoDocValueLoader(b -> b.startArray("field").endArray());
     }
 
-    public final void testBlockLoaderReadValues() throws IOException {
-        testBlockLoader((loader, ctx) -> {
-            BlockLoader.ColumnAtATimeReader reader = loader.columnAtATimeReader(ctx);
-            return (TestBlock) reader.read(TestBlock.FACTORY, TestBlock.docs(0));
-        });
+    public final void testBlockLoaderFromColumnReader() throws IOException {
+        testBlockLoader(true);
     }
 
-    public final void testBlockLoaderReadValuesFromRowStrideReader() throws IOException {
-        testBlockLoader((loader, ctx) -> {
-            BlockLoader.RowStrideReader reader = loader.rowStrideReader(ctx);
-            TestBlock block = (TestBlock) loader.builder(TestBlock.FACTORY, 1);
-            reader.read(0, null, block);
-            return block;
-        });
+    public final void testBlockLoaderFromRowStrideReader() throws IOException {
+        testBlockLoader(false);
     }
 
-    private void testBlockLoader(CheckedBiFunction<BlockLoader, LeafReaderContext, TestBlock, IOException> body) throws IOException {
+    protected boolean supportsColumnAtATimeReader(MappedFieldType ft) {
+        return ft.hasDocValues();
+    }
+
+    private void testBlockLoader(boolean columnReader) throws IOException {
         SyntheticSourceExample example = syntheticSourceSupport(false).example(5);
         MapperService mapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("field");
@@ -1294,7 +1289,24 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReaderContext ctx = reader.leaves().get(0);
-                TestBlock block = body.apply(loader, ctx);
+                TestBlock block;
+                if (columnReader) {
+                    if (supportsColumnAtATimeReader(mapper.fieldType("field"))) {
+                        block = (TestBlock) loader.columnAtATimeReader(ctx).read(TestBlock.FACTORY, TestBlock.docs(0));
+                    } else {
+                        assertNull(loader.columnAtATimeReader(ctx));
+                        return;
+                    }
+                } else {
+                    BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(
+                        StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
+                        loader.rowStrideStoredFieldSpec().requiresSource()
+                    );
+                    storedFieldsLoader.advanceTo(0);
+                    BlockLoader.Builder builder = loader.builder(TestBlock.FACTORY, 1);
+                    loader.rowStrideReader(ctx).read(0, storedFieldsLoader, builder);
+                    block = (TestBlock) builder.build();
+                }
                 Object inBlock = block.get(0);
                 if (inBlock != null) {
                     if (inBlock instanceof List<?> l) {
@@ -1324,7 +1336,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * Matcher for {@link #testBlockLoaderReadValues} and {@link #testBlockLoaderReadValuesFromRowStrideReader}.
+     * Matcher for {@link #testBlockLoaderFromColumnReader} and {@link #testBlockLoaderFromRowStrideReader}.
      */
     protected Matcher<?> blockItemMatcher(Object expected) {
         return equalTo(expected);

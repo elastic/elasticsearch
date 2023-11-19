@@ -409,7 +409,7 @@ public interface BlockLoader {
      * Marker interface for block results. The compute engine has a fleshed
      * out implementation.
      */
-    interface Block {}
+    interface Block extends Releasable {}
 
     /**
      * A builder for typed values. For each document you may either call

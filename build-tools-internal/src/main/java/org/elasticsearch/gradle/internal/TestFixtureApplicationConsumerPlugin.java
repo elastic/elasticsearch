@@ -31,7 +31,8 @@ public class TestFixtureApplicationConsumerPlugin implements Plugin<Project> {
         });
 
         project.getTasks().withType(Test.class).configureEach(test -> {
-            TestFixtureApplicationConsumerTestExtension fixtureApps = test.getExtensions().create("fixtureApps", TestFixtureApplicationConsumerTestExtension.class);
+            TestFixtureApplicationConsumerTestExtension fixtureApps = test.getExtensions()
+                .create("fixtureApps", TestFixtureApplicationConsumerTestExtension.class);
             // TODO we could filter this to only for tasks that have usages registered
             test.getInputs().files(fixtureDistributions);
 

@@ -12,9 +12,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
@@ -116,7 +116,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             )
             .execute();
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
 
         SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, searchResponse::actionGet);

@@ -50,6 +50,6 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
             );
             openRequest.maxConcurrentShardRequests(maxConcurrentShardRequests);
         }
-        return channel -> client.execute(OpenPointInTimeAction.INSTANCE, openRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(TransportOpenPointInTimeAction.TYPE, openRequest, new RestToXContentListener<>(channel));
     }
 }

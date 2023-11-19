@@ -8,9 +8,9 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -82,7 +82,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         );
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(MultiSearchAction.INSTANCE, multiSearchRequest, new RestChunkedToXContentListener<>(channel));
+            cancellableClient.execute(TransportMultiSearchAction.TYPE, multiSearchRequest, new RestChunkedToXContentListener<>(channel));
         };
     }
 

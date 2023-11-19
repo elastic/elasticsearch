@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -393,7 +393,7 @@ public class ComputeService {
             );
             transportService.sendChildRequest(
                 transportService.getLocalNode(),
-                SearchShardsAction.NAME,
+                TransportSearchShardsAction.TYPE.name(),
                 searchShardsRequest,
                 parentTask,
                 TransportRequestOptions.EMPTY,

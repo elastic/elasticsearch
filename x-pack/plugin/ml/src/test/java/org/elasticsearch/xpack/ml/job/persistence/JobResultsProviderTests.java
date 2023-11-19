@@ -10,14 +10,14 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -756,7 +756,7 @@ public class JobResultsProviderTests extends ESTestCase {
         );
 
         Client client = getBasicMockedClient();
-        when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client, MultiSearchAction.INSTANCE));
+        when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client, TransportMultiSearchAction.TYPE));
         doAnswer(invocationOnMock -> {
             MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocationOnMock.getArguments()[0];
             assertThat(multiSearchRequest.requests(), hasSize(2));
@@ -768,10 +768,10 @@ public class JobResultsProviderTests extends ESTestCase {
             return null;
         }).when(client).multiSearch(any(), any());
         when(client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("foo"))).thenReturn(
-            new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("foo"))
+            new SearchRequestBuilder(client, TransportSearchAction.TYPE).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("foo"))
         );
         when(client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("bar"))).thenReturn(
-            new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("bar"))
+            new SearchRequestBuilder(client, TransportSearchAction.TYPE).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("bar"))
         );
 
         JobResultsProvider provider = createProvider(client);
@@ -837,7 +837,9 @@ public class JobResultsProviderTests extends ESTestCase {
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")), response);
 
-        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
+        when(client.prepareSearch(indexName)).thenReturn(
+            new SearchRequestBuilder(client, TransportSearchAction.TYPE).setIndices(indexName)
+        );
         JobResultsProvider provider = createProvider(client);
         ExponentialAverageCalculationContext contextFoo = new ExponentialAverageCalculationContext(
             600.0,
@@ -864,7 +866,9 @@ public class JobResultsProviderTests extends ESTestCase {
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")), response);
 
-        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
+        when(client.prepareSearch(indexName)).thenReturn(
+            new SearchRequestBuilder(client, TransportSearchAction.TYPE).setIndices(indexName)
+        );
         JobResultsProvider provider = createProvider(client);
         provider.datafeedTimingStats("foo", stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo"))), e -> {
             throw new AssertionError("Failure getting datafeed timing stats", e);

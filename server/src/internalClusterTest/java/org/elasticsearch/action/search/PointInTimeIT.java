@@ -283,8 +283,8 @@ public class PointInTimeIT extends ESIntegTestCase {
     public void testAllowNoIndex() {
         var request = new OpenPointInTimeRequest("my_index").indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .keepAlive(TimeValue.timeValueMinutes(between(1, 10)));
-        String pit = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet().getPointInTimeId();
-        var closeResp = client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pit)).actionGet();
+        String pit = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet().getPointInTimeId();
+        var closeResp = client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pit)).actionGet();
         assertThat(closeResp.status(), equalTo(RestStatus.OK));
     }
 
@@ -428,8 +428,11 @@ public class PointInTimeIT extends ESIntegTestCase {
     }
 
     public void testCloseInvalidPointInTime() {
-        expectThrows(Exception.class, () -> client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest("")).actionGet());
-        List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(ClosePointInTimeAction.NAME).get().getTasks();
+        expectThrows(
+            Exception.class,
+            () -> client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest("")).actionGet()
+        );
+        List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(TransportClosePointInTimeAction.TYPE.name()).get().getTasks();
         assertThat(tasks, empty());
     }
 
@@ -470,7 +473,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             OpenPointInTimeRequest request = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(1));
             request.maxConcurrentShardRequests(maxConcurrentRequests);
             PlainActionFuture<OpenPointInTimeResponse> future = new PlainActionFuture<>();
-            client().execute(OpenPointInTimeAction.INSTANCE, request, future);
+            client().execute(TransportOpenPointInTimeAction.TYPE, request, future);
             assertTrue(sentLatch.await(1, TimeUnit.MINUTES));
             readyLatch.countDown();
             closePointInTime(future.actionGet().getPointInTimeId());
@@ -534,11 +537,11 @@ public class PointInTimeIT extends ESIntegTestCase {
 
     private String openPointInTime(String[] indices, TimeValue keepAlive) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
-        final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+        final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         return response.getPointInTimeId();
     }
 
     private void closePointInTime(String readerId) {
-        client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(readerId)).actionGet();
+        client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(readerId)).actionGet();
     }
 }

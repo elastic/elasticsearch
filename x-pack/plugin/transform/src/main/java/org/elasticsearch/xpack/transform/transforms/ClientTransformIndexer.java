@@ -18,13 +18,13 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -277,7 +277,7 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             request,
             responseListener
         );
@@ -433,7 +433,7 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            ClosePointInTimeAction.INSTANCE,
+            TransportClosePointInTimeAction.TYPE,
             closePitRequest,
             ActionListener.wrap(response -> {
                 logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit);
@@ -469,7 +469,7 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            OpenPointInTimeAction.INSTANCE,
+            TransportOpenPointInTimeAction.TYPE,
             pitRequest,
             ActionListener.wrap(response -> {
                 PointInTimeBuilder newPit = new PointInTimeBuilder(response.getPointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
@@ -532,7 +532,7 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.wrap(response -> {
                 // did the pit change?
@@ -558,7 +558,7 @@ class ClientTransformIndexer extends TransformIndexer {
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
-                        SearchAction.INSTANCE,
+                        TransportSearchAction.TYPE,
                         searchRequest,
                         listener
                     );
@@ -577,7 +577,7 @@ class ClientTransformIndexer extends TransformIndexer {
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
-                        SearchAction.INSTANCE,
+                        TransportSearchAction.TYPE,
                         searchRequest,
                         listener
                     );

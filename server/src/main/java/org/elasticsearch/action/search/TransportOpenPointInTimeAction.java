@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
@@ -48,6 +49,10 @@ import java.util.function.BiFunction;
 
 public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenPointInTimeRequest, OpenPointInTimeResponse> {
     public static final String OPEN_SHARD_READER_CONTEXT_NAME = "indices:data/read/open_reader_context";
+    public static final ActionType<OpenPointInTimeResponse> TYPE = new ActionType<>(
+        "indices:data/read/open_point_in_time",
+        OpenPointInTimeResponse::new
+    );
 
     private final TransportSearchAction transportSearchAction;
     private final SearchTransportService searchTransportService;
@@ -62,13 +67,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         TransportSearchAction transportSearchAction,
         SearchTransportService searchTransportService
     ) {
-        super(
-            OpenPointInTimeAction.NAME,
-            transportService,
-            actionFilters,
-            OpenPointInTimeRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;

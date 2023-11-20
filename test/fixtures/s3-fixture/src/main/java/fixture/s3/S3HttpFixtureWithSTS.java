@@ -11,6 +11,8 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
@@ -26,8 +28,12 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
     private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
     private static final String ROLE_NAME = "sts-fixture-test";
 
-    private S3HttpFixtureWithSTS(final String[] args) throws Exception {
+    public S3HttpFixtureWithSTS(final String[] args) throws Exception {
         super(args);
+    }
+
+    public S3HttpFixtureWithSTS(InetSocketAddress inetSocketAddress, String[] args) throws IOException {
+        super(inetSocketAddress, args);
     }
 
     @Override

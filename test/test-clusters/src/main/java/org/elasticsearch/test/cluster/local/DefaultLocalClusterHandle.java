@@ -76,7 +76,6 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public void stop(boolean forcibly) {
-        System.out.println("DefaultLocalClusterHandle.stop " + name + " " + forcibly);
         if (started.getAndSet(false)) {
             LOGGER.info("Stopping Elasticsearch test cluster '{}', forcibly: {}", name, forcibly);
             execute(() -> nodes.parallelStream().forEach(n -> stopNode(nodes.indexOf(n), forcibly)));

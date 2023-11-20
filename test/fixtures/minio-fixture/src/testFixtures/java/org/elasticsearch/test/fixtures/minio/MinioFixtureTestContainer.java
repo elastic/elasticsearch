@@ -32,7 +32,6 @@ public class MinioFixtureTestContainer implements TestRule {
     @NotNull
     private static File resolveFixtureHome() {
         String userHomeProperty = System.getProperty("fixture.minio-fixture.home");
-        System.out.println("userHomeProperty = " + userHomeProperty);
         File home = new File(userHomeProperty);
         return new File(home, "docker-compose.yml");
     }
@@ -65,8 +64,11 @@ public class MinioFixtureTestContainer implements TestRule {
         return container.getServicePort(serviceName, servicePort);
     }
 
+    public String getServiceUrl() {
+        return getServiceUrl("minio-fixture");
+    }
+
     public String getServiceUrl(String serviceName) {
         return "http://127.0.0.1:" + getServicePort(serviceName);
     }
-
 }

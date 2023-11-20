@@ -58,7 +58,6 @@ dependencies {
 
   internalClusterTestImplementation testFixtures(project(':test:fixtures:minio-fixture'))
 
-  fixtureDistributions project(':test:fixtures:s3-fixture')
   fixtureDistributions project(':test:fixtures:minio-fixture')
 }
 
@@ -195,18 +194,12 @@ tasks.named("internalClusterTest").configure {
 }
 
 tasks.named("yamlRestTest").configure {
-  fixtureApps.use("s3-fixture", "s3-fixture")
-  fixtureApps.use("s3-fixture", "s3-fixture-with-session-token")
-  fixtureApps.use("s3-fixture", "s3-fixture-with-ec2")
-
   systemProperty("fixture.service.name.1", "S3Fixture")
   systemProperty("fixture.service.name.2", "S3FixtureEcs")
   systemProperty("fixture.service.name.3", "S3FixtureEc2")
   systemProperty("fixture.service.name.4", "S3FixtureWithToken")
 
   systemProperty("tests.s3.fixture", Boolean.toString(useFixture))
-  systemProperty("TESTCONTAINERS_RYUK_DISABLED", 'true')
-  systemProperty("TESTCONTAINERS_CHECKS_DISABLE", 'true')
   systemProperty("s3PermanentAccessKey", s3PermanentAccessKey)
   systemProperty("s3PermanentSecretKey", s3PermanentSecretKey)
   systemProperty("s3TemporaryAccessKey", s3TemporaryAccessKey)
@@ -256,7 +249,9 @@ if (useFixture) {
   // ECS
   tasks.register("yamlRestTestECS", RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."
-    fixtureApps.use("s3-fixture", 's3-fixture-with-ecs')
+    systemProperty("fixture.service.name.1", "S3Fixture")
+    systemProperty("fixture.service.name.2", "S3FixtureEcs")
+
     systemProperty 'tests.rest.blacklist', [
       'repository_s3/10_basic/*',
       'repository_s3/20_repository_permanent_credentials/*',
@@ -269,7 +264,8 @@ if (useFixture) {
   // STS (Secure Token Service)
   tasks.register("yamlRestTestSTS", RestIntegTestTask.class) {
     description = "Runs tests with the STS (Secure Token Service)"
-    fixtureApps.use("s3-fixture", 's3-fixture-with-sts')
+    systemProperty("fixture.service.name.1", "S3FixtureSts")
+
     File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
     // The web identity token can be read only from the plugin config directory because of security restrictions
     // Ideally we would create a symlink, but extraConfigFile doesn't support it
@@ -282,12 +278,10 @@ if (useFixture) {
       'repository_s3/50_repository_ecs_credentials/*'
     ].join(",")
   }
-  
+
   // Sanity test for STS Regional Endpoints
   tasks.register("yamlRestTestRegionalSTS", RestIntegTestTask.class) {
     description = "Runs tests with the Regional STS Endpoint"
-    systemProperty("tests.sts.regional", true)
-
     File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
     // The web identity token can be read only from the plugin config directory because of security restrictions
     // Ideally we would create a symlink, but extraConfigFile doesn't support it

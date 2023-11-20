@@ -8,21 +8,6 @@
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'java-test-fixtures'
-apply plugin: 'elasticsearch.test-fixture-application'
-
-application {
-  mainClass = 'fixture.s3.S3HttpFixture'
-}
-
-distributions {
-  main {
-    contents {
-      from('sts') {
-        into 'sts'
-      }
-    }
-  }
-}
 
 description = 'Fixture for S3 Storage service'
 tasks.named("test").configure { enabled = false }

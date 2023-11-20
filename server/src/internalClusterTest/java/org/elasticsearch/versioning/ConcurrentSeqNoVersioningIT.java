@@ -118,6 +118,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     // multiple threads doing CAS updates.
     // Wait up to 1 minute (+10s in thread to ensure it does not time out) for threads to complete previous round before initiating next
     // round.
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102255")
     public void testSeqNoCASLinearizability() {
         final int disruptTimeSeconds = scaledRandomIntBetween(1, 8);
 

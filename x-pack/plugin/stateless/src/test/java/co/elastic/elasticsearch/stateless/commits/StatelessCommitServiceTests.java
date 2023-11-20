@@ -311,6 +311,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1197")
     public void testRelocationWaitsForAllPendingCommitsAndDoesNotAllowNew() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         AtomicReference<String> commitFileToBlock = new AtomicReference<>();

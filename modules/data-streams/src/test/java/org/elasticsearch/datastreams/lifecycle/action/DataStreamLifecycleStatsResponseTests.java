@@ -8,6 +8,7 @@
 
 package org.elasticsearch.datastreams.lifecycle.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -26,6 +27,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.is;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102373")
 public class DataStreamLifecycleStatsResponseTests extends AbstractWireSerializingTestCase<GetDataStreamLifecycleStatsAction.Response> {
 
     @Override

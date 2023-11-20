@@ -350,7 +350,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate
         ) throws IOException {
             // on request, we need to replace index specifications by prefixing the remote cluster
-            if (shouldReplaceIndexWithRemote(apiName)) {
+            if (shouldReplaceIndexWithRemote(apiName, params)) {
                 String parameterName = "index";
                 if (apiName.equals("indices.resolve_index")) {
                     // in this specific api, the index parameter is called "name"
@@ -371,7 +371,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             return super.callApi(apiName, params, entity, headers, nodeSelector, pathPredicate);
         }
 
-        private boolean shouldReplaceIndexWithRemote(String apiName) {
+        private boolean shouldReplaceIndexWithRemote(String apiName, Map<String, String> params) {
             if (apiName.equals("scroll")
                 || apiName.equals("clear_scroll")
                 || apiName.equals("async_search.get")
@@ -389,10 +389,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
             if (apiName.equals("search") || apiName.equals("msearch") || apiName.equals("async_search.submit")) {
                 final String testCandidateTestPath = testCandidate.getTestPath();
-                if (testCandidateTestPath.equals("search/350_point_in_time/basic")
-                    || testCandidateTestPath.equals("search/350_point_in_time/point-in-time with slicing")
-                    || testCandidateTestPath.equals("search/350_point_in_time/msearch")
-                    || testCandidateTestPath.equals("search/350_point_in_time/wildcard")
+                if (testCandidateTestPath.startsWith("search/350_point_in_time")
                     || testCandidateTestPath.equals("async_search/20-with-poin-in-time/Async search with point in time")) {
                     return false;
                 }

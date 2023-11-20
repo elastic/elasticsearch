@@ -52,25 +52,13 @@ public class TransportGetTopNFunctionsAction extends HandledTransportAction<GetS
     protected void doExecute(Task task, GetStackTracesRequest request, ActionListener<GetTopNFunctionsResponse> listener) {
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), task);
         StopWatch watch = new StopWatch("getTopNFunctionsAction");
-        client.execute(GetStackTracesAction.INSTANCE, request, new ActionListener<>() {
-            @Override
-            public void onResponse(GetStackTracesResponse response) {
-                long responseStart = System.nanoTime();
-                try {
-                    StopWatch processingWatch = new StopWatch("Processing response");
-                    GetTopNFunctionsResponse topNFunctionsResponse = buildTopNFunctions(response);
-                    log.debug(() -> watch.report() + " " + processingWatch.report());
-                    listener.onResponse(topNFunctionsResponse);
-                } catch (Exception ex) {
-                    listener.onFailure(ex);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        client.execute(GetStackTracesAction.INSTANCE, request, ActionListener.wrap(searchResponse -> {
+            long responseStart = System.nanoTime();
+            StopWatch processingWatch = new StopWatch("Processing response");
+            GetTopNFunctionsResponse topNFunctionsResponse = buildTopNFunctions(searchResponse);
+            log.debug(() -> watch.report() + " " + processingWatch.report());
+            listener.onResponse(topNFunctionsResponse);
+        }, listener::onFailure));
     }
 
     static GetTopNFunctionsResponse buildTopNFunctions(GetStackTracesResponse response) {

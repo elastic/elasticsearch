@@ -31,11 +31,11 @@ import org.junit.rules.TestRule;
 import java.util.List;
 import java.util.Map;
 
-import static fixture.s3.junit.S3HttpFixtureRule.S3FixtureType.S3Fixture;
-import static fixture.s3.junit.S3HttpFixtureRule.S3FixtureType.S3FixtureEc2;
-import static fixture.s3.junit.S3HttpFixtureRule.S3FixtureType.S3FixtureEcs;
-import static fixture.s3.junit.S3HttpFixtureRule.S3FixtureType.S3FixtureSts;
-import static fixture.s3.junit.S3HttpFixtureRule.S3FixtureType.S3FixtureWithToken;
+import static fixture.s3.junit.S3HttpFixtureRule.Type.S3Fixture;
+import static fixture.s3.junit.S3HttpFixtureRule.Type.S3FixtureEc2;
+import static fixture.s3.junit.S3HttpFixtureRule.Type.S3FixtureEcs;
+import static fixture.s3.junit.S3HttpFixtureRule.Type.S3FixtureSts;
+import static fixture.s3.junit.S3HttpFixtureRule.Type.S3FixtureWithToken;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
@@ -43,19 +43,22 @@ import static fixture.s3.junit.S3HttpFixtureRule.S3FixtureType.S3FixtureWithToke
 public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.s3.fixture", "true"));
     private static final String TEST_TASK = System.getProperty("tests.task");
-    private static final S3HttpFixtureRule s3Environment = new S3HttpFixtureRule(USE_FIXTURE, resolveS3HttpFixtures());
+    private static final S3HttpFixtureRule s3Environment = new S3HttpFixtureRule(USE_FIXTURE, requiredS3Fixtures());
     private static final String s3TemporarySessionToken = "session_token";
 
     @SuppressForbidden(reason = "Forbidden method invocation: java.lang.System#getProperties()")
-    private static List<S3HttpFixtureRule.S3FixtureType> resolveS3HttpFixtures() {
-        return System.getProperties()
-            .entrySet()
-            .stream()
-            .filter(entry -> ((String) entry.getKey()).startsWith("fixture.service."))
-            .map(Map.Entry::getValue)
-            .map(Object::toString)
-            .map(S3HttpFixtureRule.S3FixtureType::valueOf)
-            .toList();
+    private static List<S3HttpFixtureRule.Type> requiredS3Fixtures() {
+        String testTaskName = TEST_TASK.substring(TEST_TASK.lastIndexOf(':') + 1);
+        switch (testTaskName) {
+            case "yamlRestTest":
+                return List.of(S3Fixture, S3FixtureEcs, S3FixtureWithToken, S3FixtureEc2);
+            case "yamlRestTestECS":
+                return List.of(S3Fixture, S3FixtureEcs);
+            case "yamlRestTestSTS":
+                return List.of(S3FixtureSts);
+            default:
+                return List.of();
+        }
     }
 
     public static ElasticsearchCluster cluster = configureCluster();

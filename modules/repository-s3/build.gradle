@@ -241,9 +241,6 @@ if (useFixture) {
   // ECS
   tasks.register("yamlRestTestECS", RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."
-    systemProperty("fixture.service.name.1", "S3Fixture")
-    systemProperty("fixture.service.name.2", "S3FixtureEcs")
-
     systemProperty 'tests.rest.blacklist', [
       'repository_s3/10_basic/*',
       'repository_s3/20_repository_permanent_credentials/*',

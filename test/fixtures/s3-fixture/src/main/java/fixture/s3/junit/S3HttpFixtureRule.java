@@ -24,33 +24,33 @@ import java.util.Map;
 
 public class S3HttpFixtureRule extends ExternalResource {
     private final boolean enabled;
-    private final List<S3FixtureType> enabledFixtures;
+    private final List<Type> enabledFixtures;
 
-    private Map<S3FixtureType, S3HttpFixture> configuredFixtures = new HashMap<>();
+    private Map<Type, S3HttpFixture> configuredFixtures = new HashMap<>();
 
-    private void configureFixture(S3FixtureType fixtureType) throws Exception {
+    private void configureFixture(Type fixtureType) throws Exception {
         InetSocketAddress inetSocketAddress = resolveLoopBackAddress();
         int port = inetSocketAddress.getPort();
 
-        if (fixtureType == S3FixtureType.S3Fixture) {
+        if (fixtureType == Type.S3Fixture) {
             S3HttpFixture fixture = new S3HttpFixture(
                 inetSocketAddress,
                 new String[] { "localhost", String.valueOf(port), "bucket", "base_path_integration_tests", "s3_test_access_key" }
             );
-            configuredFixtures.put(S3FixtureType.S3Fixture, fixture);
-        } else if (fixtureType == S3FixtureType.S3FixtureEc2) {
+            configuredFixtures.put(Type.S3Fixture, fixture);
+        } else if (fixtureType == Type.S3FixtureEc2) {
             S3HttpFixture fixture = new S3HttpFixtureWithEC2(
                 inetSocketAddress,
                 new String[] { "localhost", String.valueOf(port), "ec2_bucket", "ec2_base_path", "ec2_access_key", "ec2_session_token" }
             );
-            configuredFixtures.put(S3FixtureType.S3FixtureEc2, fixture);
-        } else if (fixtureType == S3FixtureType.S3FixtureEcs) {
+            configuredFixtures.put(Type.S3FixtureEc2, fixture);
+        } else if (fixtureType == Type.S3FixtureEcs) {
             S3HttpFixture fixture = new S3HttpFixtureWithECS(
                 inetSocketAddress,
                 new String[] { "localhost", String.valueOf(port), "ecs_bucket", "ecs_base_path", "ecs_access_key", "ecs_session_token" }
             );
-            configuredFixtures.put(S3FixtureType.S3FixtureEcs, fixture);
-        } else if (fixtureType == S3FixtureType.S3FixtureSts) {
+            configuredFixtures.put(Type.S3FixtureEcs, fixture);
+        } else if (fixtureType == Type.S3FixtureSts) {
             S3HttpFixture fixture = new S3HttpFixtureWithSTS(
                 inetSocketAddress,
                 new String[] {
@@ -62,8 +62,8 @@ public class S3HttpFixtureRule extends ExternalResource {
                     "sts_session_token",
                     "Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDansFBmtGnIsIapjI6xKR02Yc_2bQ8LZbUXSGm6Ry6_BG7PrtLZtj_dfCTj92xNGed-CrKqjG7nPBjNIL016GGvuS5gSvPRUxWES3VYfm1wl7WTI7jn-Pcb6M-buCgHhFOzTQxod27L9CqnOLio7N3gZAGpsp6n1-AJBOCJckcyXe2c6uD0srOJeZlKUm2eTDVMf8IehDVI0r1QOnTV6KzzAI3OY87Vd_cVMQ" }
             );
-            configuredFixtures.put(S3FixtureType.S3FixtureSts, fixture);
-        } else if (fixtureType == S3FixtureType.S3FixtureWithToken) {
+            configuredFixtures.put(Type.S3FixtureSts, fixture);
+        } else if (fixtureType == Type.S3FixtureWithToken) {
             S3HttpFixture fixture = new S3HttpFixtureWithSessionToken(
                 inetSocketAddress,
                 new String[] {
@@ -74,11 +74,11 @@ public class S3HttpFixtureRule extends ExternalResource {
                     "session_token_access_key",
                     "session_token" }
             );
-            configuredFixtures.put(S3FixtureType.S3FixtureWithToken, fixture);
+            configuredFixtures.put(Type.S3FixtureWithToken, fixture);
         }
     }
 
-    public enum S3FixtureType {
+    public enum Type {
         S3Fixture,
         S3FixtureEcs,
         S3FixtureEc2,
@@ -86,12 +86,12 @@ public class S3HttpFixtureRule extends ExternalResource {
         S3FixtureWithToken
     }
 
-    public S3HttpFixtureRule(boolean enabled, List<S3FixtureType> enabledFixtures) {
+    public S3HttpFixtureRule(boolean enabled, List<Type> enabledFixtures) {
         this.enabled = enabled;
         this.enabledFixtures = enabledFixtures;
     }
 
-    public String getAddress(S3FixtureType fixtureRuleType) {
+    public String getAddress(Type fixtureRuleType) {
         return configuredFixtures.get(fixtureRuleType).getAddress();
     }
 
@@ -102,7 +102,7 @@ public class S3HttpFixtureRule extends ExternalResource {
     }
 
     private void startFixtures() throws Exception {
-        for (S3FixtureType enabledFixture : enabledFixtures) {
+        for (Type enabledFixture : enabledFixtures) {
             configureFixture(enabledFixture);
         }
         configuredFixtures.values().forEach(s3HttpFixture -> {

@@ -31,7 +31,7 @@ public interface IngestPlugin {
         return Map.of();
     }
 
-    default Optional<Pipeline> getIngestPipeline(IndexMetadata current, IndexMetadata previous, Processor.Parameters parameters) {
+    default Optional<Pipeline> getIngestPipeline(IndexMetadata indexMetadata, Processor.Parameters parameters) {
         return Optional.empty();
     }
 }

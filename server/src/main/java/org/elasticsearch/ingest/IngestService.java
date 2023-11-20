@@ -1125,29 +1125,41 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private synchronized void updatePluginPipelines(ClusterChangedEvent event) {
-        // TODO Update just for changed indices
-        Map<String, IndexMetadata> currentIndexMetadata = state.metadata().indices();
-        Map<String, IndexMetadata> previousIndexMetadata = event.previousState().metadata().indices();
-        if (currentIndexMetadata.equals(previousIndexMetadata) == false) {
-            Map<String, List<Pipeline>> updatedPluginPipelines = new HashMap<>();
-            HashSet<String> indicesNames = new HashSet<>(currentIndexMetadata.keySet());
-            indicesNames.addAll(previousIndexMetadata.keySet());
-            for (String indexName : indicesNames) {
-                List<Pipeline> pipelineList = ingestPlugins.stream()
-                    .map(
-                        plugin -> plugin.getIngestPipeline(
-                            currentIndexMetadata.get(indexName),
-                            previousIndexMetadata.get(indexName),
-                            processorParameters
-                        )
-                    ).flatMap(Optional::stream)
-                    .toList();
-                if (pipelineList.isEmpty() == false) {
-                    updatedPluginPipelines.put(indexName, pipelineList);
+
+        Map<String, List<Pipeline>> updatedPluginPipelines = new HashMap<>(pluginPipelines);
+
+        Map<String, IndexMetadata> currentIndexMetadataMap = state.metadata().indices();
+        Map<String, IndexMetadata> previousIndexMetadataMap = event.previousState().metadata().indices();
+        HashSet<String> indicesNames = new HashSet<>(currentIndexMetadataMap.keySet());
+        indicesNames.addAll(previousIndexMetadataMap.keySet());
+
+        for (String indexName : indicesNames) {
+            IndexMetadata currentIndexMetadata = currentIndexMetadataMap.get(indexName);
+            if (currentIndexMetadata == null) {
+                // Index has been removed - remove pipelines if they exist
+                updatedPluginPipelines.remove(indexName);
+            } else {
+                IndexMetadata previousIndexMetadata = previousIndexMetadataMap.get(indexName);
+                if ((previousIndexMetadata == null) || (currentIndexMetadata.equals(previousIndexMetadata) == false)) {
+                    // Did the index not exist before, or it changed? (re)create the pipeline
+                    List<Pipeline> pipelineList = ingestPlugins.stream()
+                        .map(
+                            plugin -> plugin.getIngestPipeline(
+                                currentIndexMetadata,
+                                processorParameters
+                            )
+                        ).flatMap(Optional::stream)
+                        .toList();
+                    if (pipelineList.isEmpty()) {
+                        updatedPluginPipelines.remove(indexName);
+                    } else {
+                        updatedPluginPipelines.put(indexName, pipelineList);
+                    }
                 }
             }
-            pluginPipelines = Map.copyOf(updatedPluginPipelines);
         }
+
+        pluginPipelines = Map.copyOf(updatedPluginPipelines);
     }
 
     synchronized void innerUpdatePipelines(IngestMetadata newIngestMetadata, Metadata metadata) {

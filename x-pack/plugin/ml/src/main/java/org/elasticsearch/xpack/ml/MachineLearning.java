@@ -2281,13 +2281,13 @@ public class MachineLearning extends Plugin
     }
 
     @Override
-    public Optional<Pipeline> getIngestPipeline(IndexMetadata current, IndexMetadata previous, Processor.Parameters parameters) {
+    public Optional<Pipeline> getIngestPipeline(IndexMetadata indexMetadata, Processor.Parameters parameters) {
 
-        if (current == null) {
+        if (indexMetadata == null) {
             return Optional.empty();
         }
 
-        Map<String, List<String>> inferenceModelsForFields = current.getInferenceModelsForFields();
+        Map<String, List<String>> inferenceModelsForFields = indexMetadata.getInferenceModelsForFields();
         if (inferenceModelsForFields.isEmpty()) {
             return Optional.empty();
         }
@@ -2310,7 +2310,7 @@ public class MachineLearning extends Plugin
                 SemanticTextInferenceProcessor semanticTextInferenceProcessor = new SemanticTextInferenceProcessor(
                     parameters.client,
                     inferenceAuditorSetOnce.get(),
-                    "semantic text processor for index " + current.getIndex().getName() + ", model " + modelId,
+                    "semantic text processor for index " + indexMetadata.getIndex().getName() + ", model " + modelId,
                     inferenceModelsForFields
                 );
                 inferenceProcessors.add(semanticTextInferenceProcessor);
@@ -2325,10 +2325,10 @@ public class MachineLearning extends Plugin
             }
         }
 
-        String inferencePipelineName = "_semantic_text_inference_" + current.getIndex().getName();
+        String inferencePipelineName = "_semantic_text_inference_" + indexMetadata.getIndex().getName();
         Pipeline inferencePipeline = new Pipeline(
             inferencePipelineName,
-            "semantic text pipeline for index " + current.getIndex().getName(),
+            "semantic text pipeline for index " + indexMetadata.getIndex().getName(),
             null,
             null,
             new CompoundProcessor(inferenceProcessors.toArray(new Processor[] {}))

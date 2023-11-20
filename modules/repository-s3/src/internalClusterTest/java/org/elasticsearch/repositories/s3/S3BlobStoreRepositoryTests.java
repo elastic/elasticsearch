@@ -282,8 +282,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     operation,
                     OperationPurpose.parse((String) metric.attributes().get("purpose"))
                 );
-                assertThat(statsCollectors, hasKey(statsKey));
-                assertThat(metric.getLong(), equalTo(statsCollectors.get(statsKey).counter.sum()));
+                assertThat(nodeName + "/" + statsKey + " exists", statsCollectors, hasKey(statsKey));
+                assertThat(
+                    nodeName + "/" + statsKey + " has correct sum",
+                    metric.getLong(),
+                    equalTo(statsCollectors.get(statsKey).counter.sum())
+                );
 
                 aggregatedMetrics.compute(operation.getKey(), (k, v) -> v == null ? metric.getLong() : v + metric.getLong());
             });

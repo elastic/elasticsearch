@@ -257,7 +257,9 @@ public class EnrichLookupService {
             };
             List<Operator> intermediateOperators = new ArrayList<>(extractFields.size() + 2);
             final ElementType[] mergingTypes = new ElementType[extractFields.size()];
-            // extract-field operators
+
+            // load the fields
+            List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(extractFields.size());
             for (int i = 0; i < extractFields.size(); i++) {
                 NamedExpression extractField = extractFields.get(i);
                 final ElementType elementType = LocalExecutionPlanner.toElementType(extractField.dataType());
@@ -267,18 +269,16 @@ public class EnrichLookupService {
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
                     EsqlDataTypes.isUnsupported(extractField.dataType())
                 );
-                intermediateOperators.add(
-                    new ValuesSourceReaderOperator(
-                        blockFactory,
-                        List.of(new ValuesSourceReaderOperator.FieldInfo(extractField.name(), loaders)),
-                        List.of(searchContext.searcher().getIndexReader()),
-                        0
-                    )
-                );
+                fields.add(new ValuesSourceReaderOperator.FieldInfo(extractField.name(), loaders));
             }
+            intermediateOperators.add(
+                new ValuesSourceReaderOperator(blockFactory, fields, List.of(searchContext.searcher().getIndexReader()), 0)
+            );
+
             // drop docs block
             intermediateOperators.add(droppingBlockOperator(extractFields.size() + 2, 0));
             boolean singleLeaf = searchContext.searcher().getLeafContexts().size() == 1;
+
             // merging field-values by position
             final int[] mergingChannels = IntStream.range(0, extractFields.size()).map(i -> i + 1).toArray();
             intermediateOperators.add(

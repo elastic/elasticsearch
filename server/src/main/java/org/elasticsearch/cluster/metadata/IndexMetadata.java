@@ -79,6 +79,7 @@ import java.util.OptionalDouble;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.SEMANTIC_TEXT_FIELD;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
@@ -546,6 +547,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String KEY_WRITE_LOAD_FORECAST = "write_load_forecast";
 
     public static final String KEY_SHARD_SIZE_FORECAST = "shard_size_forecast";
+    public static final String INFERENCE_MODELS_FIELDS = "inference_models_fields";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
@@ -2405,6 +2407,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.field(KEY_SHARD_SIZE_FORECAST, indexMetadata.shardSizeInBytesForecast);
             }
 
+            Map<String, List<String>> inferenceModelsForFields = indexMetadata.getInferenceModelsForFields();
+            if ((inferenceModelsForFields != null) && (inferenceModelsForFields.isEmpty() == false)) {
+                builder.field(INFERENCE_MODELS_FIELDS, indexMetadata.getInferenceModelsForFields());
+            }
+
             builder.endObject();
         }
 
@@ -2481,6 +2488,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             break;
                         case KEY_STATS:
                             builder.stats(IndexMetadataStats.fromXContent(parser));
+                            break;
+                        case INFERENCE_MODELS_FIELDS:
+                            Map<String, List<String>> inferenceModels = parser.map(HashMap::new, XContentParser::list)
+                                .entrySet()
+                                .stream()
+                                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().stream().map(Object::toString).toList()));
+                            builder.inferenceModelsForfields(inferenceModels);
                             break;
                         default:
                             // assume it's custom index metadata

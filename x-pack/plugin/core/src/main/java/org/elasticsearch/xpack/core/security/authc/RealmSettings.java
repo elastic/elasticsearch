@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
@@ -214,14 +215,12 @@ public class RealmSettings {
         }
         // verify that domain assignment does not refer to unknown realms
         if (false == unknownRealms.isEmpty()) {
-            final StringBuilder undefinedRealmsErrorMessageBuilder = new StringBuilder("Undefined realms ").append(unknownRealms)
-                .append(" cannot be assigned to domains");
-            throw new IllegalArgumentException(undefinedRealmsErrorMessageBuilder.toString());
+            throw new IllegalArgumentException("Undefined realms " + unknownRealms + " cannot be assigned to domains");
         }
         return realmToDomainsMap.entrySet()
             .stream()
             .map(e -> Map.entry(e.getKey(), e.getValue().stream().findAny().get()))
-            .collect(Collectors.toUnmodifiableMap(e -> e.getKey(), e -> e.getValue()));
+            .collect(Collectors.toUnmodifiableMap(Entry::getKey, Entry::getValue));
     }
 
     /**

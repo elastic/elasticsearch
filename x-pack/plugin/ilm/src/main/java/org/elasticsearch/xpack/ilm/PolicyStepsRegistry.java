@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -268,16 +267,7 @@ public class PolicyStepsRegistry {
             String phaseDefNonNull = Objects.requireNonNullElse(phaseDef, InitializePolicyContextStep.INITIALIZATION_PHASE);
             return parseStepsFromPhase(policy, currentPhase, phaseDefNonNull).stream().map(Step::getKey).collect(Collectors.toSet());
         } catch (IOException e) {
-            logger.trace(
-                () -> String.format(
-                    Locale.ROOT,
-                    "unable to parse steps for policy [{}], phase [{}], and phase definition [{}]",
-                    policy,
-                    currentPhase,
-                    phaseDef
-                ),
-                e
-            );
+            logger.trace("unable to parse steps for policy [{}], phase [{}], and phase definition [{}]", policy, currentPhase, phaseDef, e);
             return null;
         }
     }

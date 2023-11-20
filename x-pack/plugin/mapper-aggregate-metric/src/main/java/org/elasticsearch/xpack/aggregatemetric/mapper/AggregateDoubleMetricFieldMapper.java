@@ -154,7 +154,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             try {
                 return Metric.valueOf(o.toString());
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Metric [" + o.toString() + "] is not supported.", e);
+                throw new IllegalArgumentException("Metric [" + o + "] is not supported.", e);
             }
         }, m -> toType(m).defaultMetric, XContentBuilder::field, Objects::toString);
 

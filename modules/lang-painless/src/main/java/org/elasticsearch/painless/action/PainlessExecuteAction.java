@@ -448,7 +448,7 @@ public class PainlessExecuteAction {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Object result;
+        private final Object result;
 
         Response(Object result) {
             this.result = result;

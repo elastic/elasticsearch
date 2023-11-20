@@ -135,7 +135,7 @@ final class TypeUtils {
 
     static SQLType asSqlType(int sqlType) throws SQLException {
         for (JDBCType jdbcType : JDBCType.class.getEnumConstants()) {
-            if (sqlType == jdbcType.getVendorTypeNumber().intValue()) {
+            if (sqlType == jdbcType.getVendorTypeNumber()) {
                 return jdbcType;
             }
         }
@@ -147,7 +147,7 @@ final class TypeUtils {
         if (sqlType instanceof EsType) {
             return (EsType) sqlType;
         }
-        EsType dataType = SQL_TO_TYPE.get(Integer.valueOf(sqlType.getVendorTypeNumber()));
+        EsType dataType = SQL_TO_TYPE.get(sqlType.getVendorTypeNumber());
         if (dataType == null) {
             throw new SQLFeatureNotSupportedException("Unsupported SQL type [" + sqlType + "]");
         }
@@ -155,7 +155,7 @@ final class TypeUtils {
     }
 
     static EsType of(int sqlType) throws SQLException {
-        EsType dataType = SQL_TO_TYPE.get(Integer.valueOf(sqlType));
+        EsType dataType = SQL_TO_TYPE.get(sqlType);
         if (dataType == null) {
             throw new SQLFeatureNotSupportedException("Unsupported SQL type [" + sqlType + "]");
         }
@@ -184,7 +184,7 @@ final class TypeUtils {
         return dataType == EsType.KEYWORD || dataType == EsType.TEXT;
     }
 
-    static EsType of(Class<? extends Object> clazz) throws SQLException {
+    static EsType of(Class<?> clazz) throws SQLException {
         EsType dataType = CLASS_TO_TYPE.get(clazz);
 
         if (dataType == null) {

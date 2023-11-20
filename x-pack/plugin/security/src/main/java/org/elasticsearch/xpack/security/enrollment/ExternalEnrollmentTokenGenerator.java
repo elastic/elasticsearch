@@ -100,8 +100,7 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         nodesInfo = (Map<?, ?>) nodesInfo.get("nodes");
         Map<?, ?> nodeInfo = (Map<?, ?>) nodesInfo.values().iterator().next();
         Map<?, ?> http = (Map<?, ?>) nodeInfo.get("http");
-        final List<String> addresses = new ArrayList<>();
-        addresses.addAll((Collection<? extends String>) http.get("bound_address"));
+        final List<String> addresses = new ArrayList<>((Collection<? extends String>) http.get("bound_address"));
         addresses.add(getIpFromPublishAddress((String) http.get("publish_address")));
         return addresses;
     }
@@ -166,7 +165,7 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         }
 
         final List<String> addresses = getBoundAddresses(httpResponseHttp.getResponseBody());
-        if (addresses == null || addresses.isEmpty()) {
+        if (addresses.isEmpty()) {
             logger.error(
                 "No bound addresses found in response from calling GET "
                     + httpInfoUrl

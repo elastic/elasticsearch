@@ -239,7 +239,7 @@ public final class SamlRealm extends Realm implements Releasable {
         );
 
         // the metadata resolver needs to be destroyed since it runs a timer task in the background and destroying stops it!
-        realm.releasables.add(() -> metadataResolver.destroy());
+        realm.releasables.add(metadataResolver::destroy);
 
         return realm;
     }
@@ -618,7 +618,7 @@ public final class SamlRealm extends Realm implements Releasable {
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMeta, config);
         logger.debug("SAML attribute mapping = [{}]", userData);
         roleMapper.resolveRoles(userData, wrappedListener.delegateFailureAndWrap((l, roles) -> {
-            final User user = new User(principal, roles.toArray(new String[roles.size()]), name, mail, userMeta, true);
+            final User user = new User(principal, roles.toArray(new String[0]), name, mail, userMeta, true);
             logger.debug("SAML user = [{}]", user);
             l.onResponse(AuthenticationResult.success(user));
         }));
@@ -748,7 +748,7 @@ public final class SamlRealm extends Realm implements Releasable {
         protected byte[] fetchMetadata() throws ResolverException {
             try {
                 return AccessController.doPrivileged(
-                    (PrivilegedExceptionAction<byte[]>) () -> PrivilegedHTTPMetadataResolver.super.fetchMetadata()
+                    (PrivilegedExceptionAction<byte[]>) PrivilegedHTTPMetadataResolver.super::fetchMetadata
                 );
             } catch (final PrivilegedActionException e) {
                 throw (ResolverException) e.getCause();

@@ -2430,7 +2430,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return RepositoryData.EMPTY;
         }
         try {
-            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
+            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + indexGen;
 
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
             try (

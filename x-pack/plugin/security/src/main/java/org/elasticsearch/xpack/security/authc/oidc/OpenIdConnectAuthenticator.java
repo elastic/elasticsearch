@@ -140,7 +140,7 @@ public class OpenIdConnectAuthenticator {
     private final OpenIdConnectProviderConfiguration opConfig;
     private final RelyingPartyConfiguration rpConfig;
     private final SSLService sslService;
-    private AtomicReference<IDTokenValidator> idTokenValidator = new AtomicReference<>();
+    private final AtomicReference<IDTokenValidator> idTokenValidator = new AtomicReference<>();
     private final CloseableHttpAsyncClient httpClient;
     private final ResourceWatcherService watcherService;
 
@@ -417,7 +417,7 @@ public class OpenIdConnectAuthenticator {
             final HttpGet httpGet = new HttpGet(opConfig.getUserinfoEndpoint());
             httpGet.setHeader("Authorization", "Bearer " + accessToken.getValue());
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                httpClient.execute(httpGet, new FutureCallback<HttpResponse>() {
+                httpClient.execute(httpGet, new FutureCallback<>() {
                     @Override
                     public void completed(HttpResponse result) {
                         handleUserinfoResponse(result, verifiedIdTokenClaims, claimsListener);
@@ -589,7 +589,7 @@ public class OpenIdConnectAuthenticator {
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
 
-                httpClient.execute(httpPost, new FutureCallback<HttpResponse>() {
+                httpClient.execute(httpPost, new FutureCallback<>() {
                     @Override
                     public void completed(HttpResponse result) {
                         handleTokenResponse(result, tokensListener);
@@ -980,7 +980,7 @@ public class OpenIdConnectAuthenticator {
             try {
                 final HttpGet httpGet = new HttpGet(jwkSetPath.toURI());
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    httpClient.execute(httpGet, new FutureCallback<HttpResponse>() {
+                    httpClient.execute(httpGet, new FutureCallback<>() {
                         @Override
                         public void completed(HttpResponse result) {
                             try {

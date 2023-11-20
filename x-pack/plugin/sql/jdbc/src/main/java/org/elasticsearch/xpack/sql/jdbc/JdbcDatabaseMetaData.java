@@ -1213,7 +1213,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         for (int i = 0; i < data.length; i++) {
             data[i] = new Object[4];
             data[i][0] = info[i].name;
-            data[i][1] = Integer.valueOf(-1);
+            data[i][1] = -1;
             data[i][2] = EMPTY;
             data[i][3] = EMPTY;
         }

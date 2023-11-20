@@ -53,7 +53,7 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public LongBlock eval(int positionCount, LongBlock datetimeBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (datetimeBlock.isNull(p) || datetimeBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -71,7 +71,7 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public LongBlock eval(int positionCount, LongVector datetimeVector) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendLong(Add.processDatetimes(datetimeVector.getLong(p), temporalAmount));

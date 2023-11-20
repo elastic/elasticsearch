@@ -8,8 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -137,6 +135,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.Index;
@@ -148,6 +147,7 @@ import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.IndicesFeatures;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -1222,8 +1222,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private RepositoryData getRepositoryData(Repository repository) {
-        final PlainActionFuture<RepositoryData> res = PlainActionFuture.newFuture();
-        repository.getRepositoryData(res);
+        final PlainActionFuture<RepositoryData> res = new PlainActionFuture<>();
+        repository.getRepositoryData(deterministicTaskQueue::scheduleNow, res);
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(res.isDone());
         return res.actionGet();
@@ -1557,8 +1557,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         private final class TestClusterNode {
 
-            private final Logger logger = LogManager.getLogger(TestClusterNode.class);
-
             private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
                 Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream()).toList()
             );
@@ -1643,6 +1641,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         }
                     }
                 );
+                clusterService.setRerouteService((reason, priority, listener) -> listener.onResponse(null));
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
                 mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
                     @Override
@@ -1784,6 +1783,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     scriptService,
                     clusterService,
                     client,
+                    new FeatureService(List.of(new IndicesFeatures())),
                     new MetaStateService(nodeEnv, namedXContentRegistry),
                     Collections.emptyList(),
                     emptyMap(),
@@ -2203,7 +2203,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings()),
                     LeaderHeartbeatService.NO_OP,
                     StatefulPreVoteCollector::new,
-                    CompatibilityVersionsUtils.staticCurrent()
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    new FeatureService(List.of())
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

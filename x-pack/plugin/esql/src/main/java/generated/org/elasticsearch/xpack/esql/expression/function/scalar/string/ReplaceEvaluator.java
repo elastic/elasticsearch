@@ -71,7 +71,7 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock regexBlock,
       BytesRefBlock newStrBlock) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef regexScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
@@ -101,7 +101,7 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector, BytesRefVector regexVector,
       BytesRefVector newStrVector) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef regexScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();

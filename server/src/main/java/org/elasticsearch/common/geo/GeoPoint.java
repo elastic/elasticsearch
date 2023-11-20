@@ -25,10 +25,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Locale;
 
-public class GeoPoint implements SpatialPoint, ToXContentFragment {
+public final class GeoPoint implements SpatialPoint, ToXContentFragment {
 
-    protected double lat;
-    protected double lon;
+    private double lat;
+    private double lon;
 
     public GeoPoint() {}
 
@@ -38,7 +38,6 @@ public class GeoPoint implements SpatialPoint, ToXContentFragment {
      *
      * @param value String to create the point from
      */
-    @SuppressWarnings("this-escape")
     public GeoPoint(String value) {
         this.resetFromString(value);
     }

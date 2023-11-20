@@ -87,6 +87,7 @@ public abstract class TransportNodesAction<
      * @deprecated Use the local-only constructor instead.
      */
     @Deprecated(forRemoval = true)
+    @SuppressWarnings("this-escape")
     protected TransportNodesAction(
         String actionName,
         ThreadPool threadPool,

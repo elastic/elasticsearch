@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Map;
@@ -118,7 +119,8 @@ public class CleanupTargetIndexStepTests extends AbstractStepTestCase<CleanupTar
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
-        try (NoOpClient client = getDeleteIndexRequestAssertingClient(shrinkIndexName)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getDeleteIndexRequestAssertingClient(threadPool, shrinkIndexName);
             CleanupTargetIndexStep step = new CleanupTargetIndexStep(
                 randomStepKey(),
                 randomStepKey(),
@@ -150,7 +152,8 @@ public class CleanupTargetIndexStepTests extends AbstractStepTestCase<CleanupTar
             .metadata(Metadata.builder().put(shrunkIndexMetadata, true).build())
             .build();
 
-        try (NoOpClient client = getFailingIfCalledClient()) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getFailingIfCalledClient(threadPool);
             CleanupTargetIndexStep step = new CleanupTargetIndexStep(
                 randomStepKey(),
                 randomStepKey(),
@@ -162,8 +165,8 @@ public class CleanupTargetIndexStepTests extends AbstractStepTestCase<CleanupTar
         }
     }
 
-    private NoOpClient getDeleteIndexRequestAssertingClient(String shrinkIndexName) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getDeleteIndexRequestAssertingClient(ThreadPool threadPool, String shrinkIndexName) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
@@ -177,8 +180,8 @@ public class CleanupTargetIndexStepTests extends AbstractStepTestCase<CleanupTar
         };
     }
 
-    private NoOpClient getFailingIfCalledClient() {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getFailingIfCalledClient(ThreadPool threadPool) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

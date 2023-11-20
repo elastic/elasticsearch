@@ -139,6 +139,7 @@ public class EsqlBaseParser extends Parser {
   @Override
   public ATN getATN() { return _ATN; }
 
+  @SuppressWarnings("this-escape")
   public EsqlBaseParser(TokenStream input) {
     super(input);
     _interp = new ParserATNSimulator(this,_ATN,_decisionToDFA,_sharedContextCache);
@@ -150,6 +151,7 @@ public class EsqlBaseParser extends Parser {
       return getRuleContext(QueryContext.class,0);
     }
     public TerminalNode EOF() { return getToken(EsqlBaseParser.EOF, 0); }
+    @SuppressWarnings("this-escape")
     public SingleStatementContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -194,11 +196,13 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class QueryContext extends ParserRuleContext {
+    @SuppressWarnings("this-escape")
     public QueryContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_query; }
    
+    @SuppressWarnings("this-escape")
     public QueryContext() { }
     public void copyFrom(QueryContext ctx) {
       super.copyFrom(ctx);
@@ -213,6 +217,7 @@ public class EsqlBaseParser extends Parser {
     public ProcessingCommandContext processingCommand() {
       return getRuleContext(ProcessingCommandContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public CompositeQueryContext(QueryContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -233,6 +238,7 @@ public class EsqlBaseParser extends Parser {
     public SourceCommandContext sourceCommand() {
       return getRuleContext(SourceCommandContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public SingleCommandQueryContext(QueryContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -324,6 +330,7 @@ public class EsqlBaseParser extends Parser {
     public ShowCommandContext showCommand() {
       return getRuleContext(ShowCommandContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public SourceCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -434,6 +441,7 @@ public class EsqlBaseParser extends Parser {
     public MvExpandCommandContext mvExpandCommand() {
       return getRuleContext(MvExpandCommandContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public ProcessingCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -573,6 +581,7 @@ public class EsqlBaseParser extends Parser {
     public BooleanExpressionContext booleanExpression() {
       return getRuleContext(BooleanExpressionContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public WhereCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -617,11 +626,13 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class BooleanExpressionContext extends ParserRuleContext {
+    @SuppressWarnings("this-escape")
     public BooleanExpressionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_booleanExpression; }
    
+    @SuppressWarnings("this-escape")
     public BooleanExpressionContext() { }
     public void copyFrom(BooleanExpressionContext ctx) {
       super.copyFrom(ctx);
@@ -633,6 +644,7 @@ public class EsqlBaseParser extends Parser {
     public BooleanExpressionContext booleanExpression() {
       return getRuleContext(BooleanExpressionContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public LogicalNotContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -653,6 +665,7 @@ public class EsqlBaseParser extends Parser {
     public ValueExpressionContext valueExpression() {
       return getRuleContext(ValueExpressionContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public BooleanDefaultContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -676,6 +689,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode IS() { return getToken(EsqlBaseParser.IS, 0); }
     public TerminalNode NULL() { return getToken(EsqlBaseParser.NULL, 0); }
     public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
+    @SuppressWarnings("this-escape")
     public IsNullContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -696,6 +710,7 @@ public class EsqlBaseParser extends Parser {
     public RegexBooleanExpressionContext regexBooleanExpression() {
       return getRuleContext(RegexBooleanExpressionContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public RegexExpressionContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -727,6 +742,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public LogicalInContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -755,6 +771,7 @@ public class EsqlBaseParser extends Parser {
     }
     public TerminalNode AND() { return getToken(EsqlBaseParser.AND, 0); }
     public TerminalNode OR() { return getToken(EsqlBaseParser.OR, 0); }
+    @SuppressWarnings("this-escape")
     public LogicalBinaryContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -958,6 +975,7 @@ public class EsqlBaseParser extends Parser {
     }
     public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
     public TerminalNode RLIKE() { return getToken(EsqlBaseParser.RLIKE, 0); }
+    @SuppressWarnings("this-escape")
     public RegexBooleanExpressionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -1042,11 +1060,13 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class ValueExpressionContext extends ParserRuleContext {
+    @SuppressWarnings("this-escape")
     public ValueExpressionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_valueExpression; }
    
+    @SuppressWarnings("this-escape")
     public ValueExpressionContext() { }
     public void copyFrom(ValueExpressionContext ctx) {
       super.copyFrom(ctx);
@@ -1057,6 +1077,7 @@ public class EsqlBaseParser extends Parser {
     public OperatorExpressionContext operatorExpression() {
       return getRuleContext(OperatorExpressionContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public ValueExpressionDefaultContext(ValueExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -1085,6 +1106,7 @@ public class EsqlBaseParser extends Parser {
     public OperatorExpressionContext operatorExpression(int i) {
       return getRuleContext(OperatorExpressionContext.class,i);
     }
+    @SuppressWarnings("this-escape")
     public ComparisonContext(ValueExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -1143,11 +1165,13 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class OperatorExpressionContext extends ParserRuleContext {
+    @SuppressWarnings("this-escape")
     public OperatorExpressionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_operatorExpression; }
    
+    @SuppressWarnings("this-escape")
     public OperatorExpressionContext() { }
     public void copyFrom(OperatorExpressionContext ctx) {
       super.copyFrom(ctx);
@@ -1158,6 +1182,7 @@ public class EsqlBaseParser extends Parser {
     public PrimaryExpressionContext primaryExpression() {
       return getRuleContext(PrimaryExpressionContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public OperatorExpressionDefaultContext(OperatorExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -1189,6 +1214,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode PERCENT() { return getToken(EsqlBaseParser.PERCENT, 0); }
     public TerminalNode PLUS() { return getToken(EsqlBaseParser.PLUS, 0); }
     public TerminalNode MINUS() { return getToken(EsqlBaseParser.MINUS, 0); }
+    @SuppressWarnings("this-escape")
     public ArithmeticBinaryContext(OperatorExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -1212,6 +1238,7 @@ public class EsqlBaseParser extends Parser {
     }
     public TerminalNode MINUS() { return getToken(EsqlBaseParser.MINUS, 0); }
     public TerminalNode PLUS() { return getToken(EsqlBaseParser.PLUS, 0); }
+    @SuppressWarnings("this-escape")
     public ArithmeticUnaryContext(OperatorExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -1356,11 +1383,13 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class PrimaryExpressionContext extends ParserRuleContext {
+    @SuppressWarnings("this-escape")
     public PrimaryExpressionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_primaryExpression; }
    
+    @SuppressWarnings("this-escape")
     public PrimaryExpressionContext() { }
     public void copyFrom(PrimaryExpressionContext ctx) {
       super.copyFrom(ctx);
@@ -1371,6 +1400,7 @@ public class EsqlBaseParser extends Parser {
     public QualifiedNameContext qualifiedName() {
       return getRuleContext(QualifiedNameContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public DereferenceContext(PrimaryExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -1391,6 +1421,7 @@ public class EsqlBaseParser extends Parser {
     public ConstantContext constant() {
       return getRuleContext(ConstantContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public ConstantDefaultContext(PrimaryExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -1413,6 +1444,7 @@ public class EsqlBaseParser extends Parser {
       return getRuleContext(BooleanExpressionContext.class,0);
     }
     public TerminalNode RP() { return getToken(EsqlBaseParser.RP, 0); }
+    @SuppressWarnings("this-escape")
     public ParenthesizedExpressionContext(PrimaryExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -1433,6 +1465,7 @@ public class EsqlBaseParser extends Parser {
     public FunctionExpressionContext functionExpression() {
       return getRuleContext(FunctionExpressionContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public FunctionContext(PrimaryExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -1523,6 +1556,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public FunctionExpressionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -1625,6 +1659,7 @@ public class EsqlBaseParser extends Parser {
     public FieldsContext fields() {
       return getRuleContext(FieldsContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public RowCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -1679,6 +1714,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public FieldsContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -1747,6 +1783,7 @@ public class EsqlBaseParser extends Parser {
       return getRuleContext(QualifiedNameContext.class,0);
     }
     public TerminalNode ASSIGN() { return getToken(EsqlBaseParser.ASSIGN, 0); }
+    @SuppressWarnings("this-escape")
     public FieldContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -1820,6 +1857,7 @@ public class EsqlBaseParser extends Parser {
     public MetadataContext metadata() {
       return getRuleContext(MetadataContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public FromCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -1906,6 +1944,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public MetadataContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -1975,6 +2014,7 @@ public class EsqlBaseParser extends Parser {
     public FieldsContext fields() {
       return getRuleContext(FieldsContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public EvalCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -2027,6 +2067,7 @@ public class EsqlBaseParser extends Parser {
     public GroupingContext grouping() {
       return getRuleContext(GroupingContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public StatsCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -2099,6 +2140,7 @@ public class EsqlBaseParser extends Parser {
     public GroupingContext grouping() {
       return getRuleContext(GroupingContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public InlinestatsCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -2165,6 +2207,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public GroupingContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -2228,6 +2271,7 @@ public class EsqlBaseParser extends Parser {
   public static class SourceIdentifierContext extends ParserRuleContext {
     public TerminalNode SRC_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.SRC_UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode SRC_QUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.SRC_QUOTED_IDENTIFIER, 0); }
+    @SuppressWarnings("this-escape")
     public SourceIdentifierContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -2289,6 +2333,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode DOT(int i) {
       return getToken(EsqlBaseParser.DOT, i);
     }
+    @SuppressWarnings("this-escape")
     public QualifiedNameContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -2352,6 +2397,7 @@ public class EsqlBaseParser extends Parser {
   public static class IdentifierContext extends ParserRuleContext {
     public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
     public TerminalNode QUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.QUOTED_IDENTIFIER, 0); }
+    @SuppressWarnings("this-escape")
     public IdentifierContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -2403,11 +2449,13 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class ConstantContext extends ParserRuleContext {
+    @SuppressWarnings("this-escape")
     public ConstantContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_constant; }
    
+    @SuppressWarnings("this-escape")
     public ConstantContext() { }
     public void copyFrom(ConstantContext ctx) {
       super.copyFrom(ctx);
@@ -2427,6 +2475,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public BooleanArrayLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -2447,6 +2496,7 @@ public class EsqlBaseParser extends Parser {
     public DecimalValueContext decimalValue() {
       return getRuleContext(DecimalValueContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public DecimalLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -2465,6 +2515,7 @@ public class EsqlBaseParser extends Parser {
   @SuppressWarnings("CheckReturnValue")
   public static class NullLiteralContext extends ConstantContext {
     public TerminalNode NULL() { return getToken(EsqlBaseParser.NULL, 0); }
+    @SuppressWarnings("this-escape")
     public NullLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -2486,6 +2537,7 @@ public class EsqlBaseParser extends Parser {
       return getRuleContext(IntegerValueContext.class,0);
     }
     public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
+    @SuppressWarnings("this-escape")
     public QualifiedIntegerLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -2515,6 +2567,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public StringArrayLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -2535,6 +2588,7 @@ public class EsqlBaseParser extends Parser {
     public StringContext string() {
       return getRuleContext(StringContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public StringLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -2564,6 +2618,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public NumericArrayLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -2582,6 +2637,7 @@ public class EsqlBaseParser extends Parser {
   @SuppressWarnings("CheckReturnValue")
   public static class InputParamContext extends ConstantContext {
     public TerminalNode PARAM() { return getToken(EsqlBaseParser.PARAM, 0); }
+    @SuppressWarnings("this-escape")
     public InputParamContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -2602,6 +2658,7 @@ public class EsqlBaseParser extends Parser {
     public IntegerValueContext integerValue() {
       return getRuleContext(IntegerValueContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public IntegerLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -2622,6 +2679,7 @@ public class EsqlBaseParser extends Parser {
     public BooleanValueContext booleanValue() {
       return getRuleContext(BooleanValueContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public BooleanLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -2805,6 +2863,7 @@ public class EsqlBaseParser extends Parser {
   public static class LimitCommandContext extends ParserRuleContext {
     public TerminalNode LIMIT() { return getToken(EsqlBaseParser.LIMIT, 0); }
     public TerminalNode INTEGER_LITERAL() { return getToken(EsqlBaseParser.INTEGER_LITERAL, 0); }
+    @SuppressWarnings("this-escape")
     public LimitCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -2860,6 +2919,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public SortCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -2933,6 +2993,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode DESC() { return getToken(EsqlBaseParser.DESC, 0); }
     public TerminalNode FIRST() { return getToken(EsqlBaseParser.FIRST, 0); }
     public TerminalNode LAST() { return getToken(EsqlBaseParser.LAST, 0); }
+    @SuppressWarnings("this-escape")
     public OrderExpressionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3028,6 +3089,7 @@ public class EsqlBaseParser extends Parser {
       return getToken(EsqlBaseParser.COMMA, i);
     }
     public TerminalNode PROJECT() { return getToken(EsqlBaseParser.PROJECT, 0); }
+    @SuppressWarnings("this-escape")
     public KeepCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3137,6 +3199,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public DropCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3211,6 +3274,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public RenameCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3283,6 +3347,7 @@ public class EsqlBaseParser extends Parser {
     public SourceIdentifierContext sourceIdentifier(int i) {
       return getRuleContext(SourceIdentifierContext.class,i);
     }
+    @SuppressWarnings("this-escape")
     public RenameClauseContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3339,6 +3404,7 @@ public class EsqlBaseParser extends Parser {
     public CommandOptionsContext commandOptions() {
       return getRuleContext(CommandOptionsContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public DissectCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3402,6 +3468,7 @@ public class EsqlBaseParser extends Parser {
     public StringContext string() {
       return getRuleContext(StringContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public GrokCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3452,6 +3519,7 @@ public class EsqlBaseParser extends Parser {
     public SourceIdentifierContext sourceIdentifier() {
       return getRuleContext(SourceIdentifierContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public MvExpandCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3506,6 +3574,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public CommandOptionsContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3574,6 +3643,7 @@ public class EsqlBaseParser extends Parser {
     public ConstantContext constant() {
       return getRuleContext(ConstantContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public CommandOptionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3622,6 +3692,7 @@ public class EsqlBaseParser extends Parser {
   public static class BooleanValueContext extends ParserRuleContext {
     public TerminalNode TRUE() { return getToken(EsqlBaseParser.TRUE, 0); }
     public TerminalNode FALSE() { return getToken(EsqlBaseParser.FALSE, 0); }
+    @SuppressWarnings("this-escape")
     public BooleanValueContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3679,6 +3750,7 @@ public class EsqlBaseParser extends Parser {
     public IntegerValueContext integerValue() {
       return getRuleContext(IntegerValueContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public NumericValueContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3737,6 +3809,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode DECIMAL_LITERAL() { return getToken(EsqlBaseParser.DECIMAL_LITERAL, 0); }
     public TerminalNode PLUS() { return getToken(EsqlBaseParser.PLUS, 0); }
     public TerminalNode MINUS() { return getToken(EsqlBaseParser.MINUS, 0); }
+    @SuppressWarnings("this-escape")
     public DecimalValueContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3801,6 +3874,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode INTEGER_LITERAL() { return getToken(EsqlBaseParser.INTEGER_LITERAL, 0); }
     public TerminalNode PLUS() { return getToken(EsqlBaseParser.PLUS, 0); }
     public TerminalNode MINUS() { return getToken(EsqlBaseParser.MINUS, 0); }
+    @SuppressWarnings("this-escape")
     public IntegerValueContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3863,6 +3937,7 @@ public class EsqlBaseParser extends Parser {
   @SuppressWarnings("CheckReturnValue")
   public static class StringContext extends ParserRuleContext {
     public TerminalNode STRING() { return getToken(EsqlBaseParser.STRING, 0); }
+    @SuppressWarnings("this-escape")
     public StringContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3911,6 +3986,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode LTE() { return getToken(EsqlBaseParser.LTE, 0); }
     public TerminalNode GT() { return getToken(EsqlBaseParser.GT, 0); }
     public TerminalNode GTE() { return getToken(EsqlBaseParser.GTE, 0); }
+    @SuppressWarnings("this-escape")
     public ComparisonOperatorContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -3966,6 +4042,7 @@ public class EsqlBaseParser extends Parser {
     public SubqueryExpressionContext subqueryExpression() {
       return getRuleContext(SubqueryExpressionContext.class,0);
     }
+    @SuppressWarnings("this-escape")
     public ExplainCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -4015,6 +4092,7 @@ public class EsqlBaseParser extends Parser {
       return getRuleContext(QueryContext.class,0);
     }
     public TerminalNode CLOSING_BRACKET() { return getToken(EsqlBaseParser.CLOSING_BRACKET, 0); }
+    @SuppressWarnings("this-escape")
     public SubqueryExpressionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -4061,11 +4139,13 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class ShowCommandContext extends ParserRuleContext {
+    @SuppressWarnings("this-escape")
     public ShowCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_showCommand; }
    
+    @SuppressWarnings("this-escape")
     public ShowCommandContext() { }
     public void copyFrom(ShowCommandContext ctx) {
       super.copyFrom(ctx);
@@ -4075,6 +4155,7 @@ public class EsqlBaseParser extends Parser {
   public static class ShowInfoContext extends ShowCommandContext {
     public TerminalNode SHOW() { return getToken(EsqlBaseParser.SHOW, 0); }
     public TerminalNode INFO() { return getToken(EsqlBaseParser.INFO, 0); }
+    @SuppressWarnings("this-escape")
     public ShowInfoContext(ShowCommandContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -4094,6 +4175,7 @@ public class EsqlBaseParser extends Parser {
   public static class ShowFunctionsContext extends ShowCommandContext {
     public TerminalNode SHOW() { return getToken(EsqlBaseParser.SHOW, 0); }
     public TerminalNode FUNCTIONS() { return getToken(EsqlBaseParser.FUNCTIONS, 0); }
+    @SuppressWarnings("this-escape")
     public ShowFunctionsContext(ShowCommandContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
@@ -4173,6 +4255,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
+    @SuppressWarnings("this-escape")
     public EnrichCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
@@ -4269,6 +4352,7 @@ public class EsqlBaseParser extends Parser {
       return getRuleContext(SourceIdentifierContext.class,i);
     }
     public TerminalNode ASSIGN() { return getToken(EsqlBaseParser.ASSIGN, 0); }
+    @SuppressWarnings("this-escape")
     public EnrichWithClauseContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }

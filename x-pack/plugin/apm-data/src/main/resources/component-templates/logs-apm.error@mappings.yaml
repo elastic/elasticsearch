@@ -1,0 +1,26 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Default mappings for logs-apm.error-* data streams
+  managed: true
+template:
+  mappings:
+    properties:
+      error.custom:
+        type: flattened
+      error.exception.attributes:
+        type: flattened
+      error.exception.stacktrace:
+        type: flattened
+      error.grouping_name:
+        type: keyword
+        script: |
+          def logMessage = params['_source'].error?.log?.message;
+          if (logMessage != null) {
+            emit(logMessage);
+            return;
+          }
+          def exception = params['_source'].error?.exception;
+          if (exception != null && exception.length > 0) {
+            emit(exception[0].message);
+          }

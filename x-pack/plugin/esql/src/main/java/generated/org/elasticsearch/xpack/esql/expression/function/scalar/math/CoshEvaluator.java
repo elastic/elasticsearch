@@ -48,7 +48,7 @@ public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -66,7 +66,7 @@ public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, DoubleVector valVector) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendDouble(Cosh.process(valVector.getDouble(p)));

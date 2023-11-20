@@ -1637,12 +1637,12 @@ public abstract class EngineTestCase extends ESTestCase {
                 && executionException.getCause() instanceof IOException ioException) {
                 throw ioException;
             } else {
-                throw new AssertionError("unexpected", e);
+                fail(e);
             }
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 }

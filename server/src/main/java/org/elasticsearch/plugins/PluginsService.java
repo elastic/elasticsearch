@@ -710,11 +710,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     @SuppressWarnings("unchecked")
-    public final <T> List<T> filterPlugins(Class<T> type) {
-        return plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
+    public final <T> Stream<T> filterPlugins(Class<T> type) {
+        return plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance()));
     }
 
-    static final LayerAndLoader createPluginModuleLayer(
+    static LayerAndLoader createPluginModuleLayer(
         PluginBundle bundle,
         ClassLoader parentLoader,
         List<ModuleLayer> parentLayers,

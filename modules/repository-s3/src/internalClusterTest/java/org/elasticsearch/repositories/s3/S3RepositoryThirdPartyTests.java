@@ -109,7 +109,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
-        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(repoName)
             .setType("s3")
             .setSettings(settings)
             .get();
@@ -129,7 +129,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             var repository = new S3Repository(
                 node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata(),
                 xContentRegistry(),
-                node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).get(0).getService(),
+                node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).findFirst().get().getService(),
                 ClusterServiceUtils.createClusterService(threadpool),
                 BigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(node().settings(), node().injector().getInstance(ClusterService.class).getClusterSettings()),

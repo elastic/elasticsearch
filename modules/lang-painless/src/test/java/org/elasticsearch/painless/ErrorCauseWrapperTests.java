@@ -10,8 +10,9 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
@@ -26,10 +27,10 @@ import static org.hamcrest.Matchers.nullValue;
 public class ErrorCauseWrapperTests extends ESTestCase {
 
     ErrorCauseWrapper assertWraps(Error realError) {
-        var e = ErrorCauseWrapper.maybeWrap(realError);
+        Throwable e = ErrorCauseWrapper.maybeWrap(realError);
         assertThat(e.getCause(), nullValue());
         assertThat(e, instanceOf(ErrorCauseWrapper.class));
-        var wrapper = (ErrorCauseWrapper) e;
+        ErrorCauseWrapper wrapper = (ErrorCauseWrapper) e;
         assertThat(wrapper.realCause, is(realError));
         return wrapper;
     }
@@ -51,22 +52,22 @@ public class ErrorCauseWrapperTests extends ESTestCase {
     }
 
     public void testNotWrapped() {
-        var realError = new AssertionError("not wrapped");
-        var e = ErrorCauseWrapper.maybeWrap(realError);
+        AssertionError realError = new AssertionError("not wrapped");
+        Throwable e = ErrorCauseWrapper.maybeWrap(realError);
         assertThat(e, is(realError));
     }
 
     public void testXContent() throws IOException {
-        var e = assertWraps(new PainlessError("some error"));
+        ErrorCauseWrapper e = assertWraps(new PainlessError("some error"));
 
-        var output = new ByteArrayOutputStream();
-        var builder = XContentFactory.jsonBuilder(output);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        XContentBuilder builder = XContentFactory.jsonBuilder(output);
         builder.startObject();
         e.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.flush();
 
-        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, output.toByteArray())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, output.toByteArray())) {
             Map<String, String> content = parser.mapStrings();
             assertThat(content, hasEntry("type", "painless_error"));
             assertThat(content, hasEntry("reason", "some error"));

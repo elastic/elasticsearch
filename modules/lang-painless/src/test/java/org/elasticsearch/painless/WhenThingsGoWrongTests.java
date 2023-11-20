@@ -122,7 +122,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testInfiniteLoops() {
-        var expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("boolean x = true; while (x) {}"); });
+        ErrorCauseWrapper expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("boolean x = true; while (x) {}"); });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
         expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("while (true) {int y = 5;}"); });
@@ -166,7 +166,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         // right below limit: ok
         exec("for (int x = 0; x < 999999; ++x) {}");
 
-        var expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("for (int x = 0; x < 1000000; ++x) {}"); });
+        ErrorCauseWrapper expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("for (int x = 0; x < 1000000; ++x) {}"); });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
     }
 
@@ -212,12 +212,15 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testOutOfMemoryError() {
         assumeTrue("test only happens to work for sure on oracle jre", Constants.JAVA_VENDOR.startsWith("Oracle"));
-        var e = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("int[] x = new int[Integer.MAX_VALUE - 1];"); });
+        ErrorCauseWrapper e = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("int[] x = new int[Integer.MAX_VALUE - 1];"); });
         assertThat(e.realCause.getClass(), equalTo(OutOfMemoryError.class));
     }
 
     public void testStackOverflowError() {
-        var e = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);"); });
+        ErrorCauseWrapper e = expectScriptThrows(
+            ErrorCauseWrapper.class,
+            () -> { exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);"); }
+        );
         assertThat(e.realCause.getClass(), equalTo(StackOverflowError.class));
     }
 

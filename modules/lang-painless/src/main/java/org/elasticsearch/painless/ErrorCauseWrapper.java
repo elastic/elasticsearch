@@ -21,7 +21,7 @@ import java.util.List;
  */
 class ErrorCauseWrapper extends ElasticsearchException {
 
-    private static final List<Class<? extends Error>> wrappedErrors = List.of(
+    private static final List<Class<? extends Error>> wrappedErrors = org.elasticsearch.core.List.of(
         PainlessError.class,
         OutOfMemoryError.class,
         StackOverflowError.class,

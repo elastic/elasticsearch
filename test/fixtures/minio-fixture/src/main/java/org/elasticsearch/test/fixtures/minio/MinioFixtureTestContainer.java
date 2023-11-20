@@ -23,21 +23,20 @@ public class MinioFixtureTestContainer implements TestRule {
 
     private GenericContainer<?> createContainer() {
         return new GenericContainer<>(
-            new ImageFromDockerfile()
-                .withDockerfileFromBuilder(builder ->
-                    builder
-                        .from("minio/minio:RELEASE.2021-03-01T04-20-55Z")
-                        .env("MINIO_ACCESS_KEY", "s3_test_access_key")
-                        .env("MINIO_SECRET_KEY", "s3_test_secret_key")
-                        .run("mkdir -p /minio/data/bucket")
-                        .cmd("server", "/minio/data")
-                        .build()))
-            .withExposedPorts(servicePort);
+            new ImageFromDockerfile().withDockerfileFromBuilder(
+                builder -> builder.from("minio/minio:RELEASE.2021-03-01T04-20-55Z")
+                    .env("MINIO_ACCESS_KEY", "s3_test_access_key")
+                    .env("MINIO_SECRET_KEY", "s3_test_secret_key")
+                    .run("mkdir -p /minio/data/bucket")
+                    .cmd("server", "/minio/data")
+                    .build()
+            )
+        ).withExposedPorts(servicePort);
     }
 
     public MinioFixtureTestContainer(boolean enabled) {
         this.enabled = enabled;
-        if(enabled) {
+        if (enabled) {
             this.container = createContainer();
         }
     }
@@ -45,7 +44,7 @@ public class MinioFixtureTestContainer implements TestRule {
     @NotNull
     @Override
     public Statement apply(@NotNull Statement base, @NotNull Description description) {
-        if(container != null) {
+        if (container != null) {
             container.start();
         }
         return new Statement() {

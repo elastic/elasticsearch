@@ -9,9 +9,7 @@
 package fixture.s3.junit;
 
 import fixture.s3.S3HttpFixture;
-
 import fixture.s3.S3HttpFixtureWithEC2;
-
 import fixture.s3.S3HttpFixtureWithECS;
 import fixture.s3.S3HttpFixtureWithSTS;
 import fixture.s3.S3HttpFixtureWithSessionToken;

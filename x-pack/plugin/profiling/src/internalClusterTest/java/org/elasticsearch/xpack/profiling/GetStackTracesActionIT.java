@@ -44,10 +44,11 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
 
         GetStackTracesRequest request = new GetStackTracesRequest(null, query, "apm-test-*", "transaction.profiler_stack_trace_ids");
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
-        assertEquals(39, response.getTotalFrames());
+        assertEquals(43, response.getTotalFrames());
 
         assertNotNull(response.getStackTraceEvents());
-        assertEquals(1L, (long) response.getStackTraceEvents().get("Ce77w10WeIDow3kd1jowlA"));
+        assertEquals(3L, (long) response.getStackTraceEvents().get("Ce77w10WeIDow3kd1jowlA"));
+        assertEquals(2L, (long) response.getStackTraceEvents().get("JvISdnJ47BQ01489cwF9DA"));
 
         assertNotNull(response.getStackTraces());
         // just do a high-level spot check. Decoding is tested in unit-tests

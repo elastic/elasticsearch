@@ -202,8 +202,10 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemp
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.SimulateBulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.bulk.TransportSimulateBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.explain.ExplainAction;
@@ -439,6 +441,7 @@ import org.elasticsearch.rest.action.info.RestClusterInfoAction;
 import org.elasticsearch.rest.action.ingest.RestDeletePipelineAction;
 import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
+import org.elasticsearch.rest.action.ingest.RestSimulateIngestAction;
 import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestCountAction;
@@ -758,6 +761,7 @@ public class ActionModule extends AbstractModule {
         actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class);
         actions.register(TransportShardMultiGetAction.TYPE, TransportShardMultiGetAction.class);
         actions.register(BulkAction.INSTANCE, TransportBulkAction.class);
+        actions.register(SimulateBulkAction.INSTANCE, TransportSimulateBulkAction.class);
         actions.register(TransportShardBulkAction.TYPE, TransportShardBulkAction.class);
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
@@ -944,6 +948,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetComposableIndexTemplateAction());
         registerHandler.accept(new RestDeleteComposableIndexTemplateAction());
         registerHandler.accept(new RestSimulateIndexTemplateAction());
+        registerHandler.accept(new RestSimulateIngestAction());
         registerHandler.accept(new RestSimulateTemplateAction());
 
         registerHandler.accept(new RestPutMappingAction());

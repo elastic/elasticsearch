@@ -16,11 +16,12 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredSecureString;
 
 public record HuggingFaceElserSecretSettings(SecureString apiKey) implements SecretSettings {
     public static final String NAME = "hugging_face_elser_secret_settings";
@@ -29,20 +30,11 @@ public record HuggingFaceElserSecretSettings(SecureString apiKey) implements Sec
 
     public static HuggingFaceElserSecretSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
-
-        String apiToken = MapParsingUtils.removeAsType(map, API_KEY, String.class);
-
-        if (apiToken == null) {
-            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(API_KEY, ModelSecrets.SECRET_SETTINGS));
-        } else if (apiToken.isEmpty()) {
-            validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(API_KEY, ModelSecrets.SECRET_SETTINGS));
-        }
+        SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
-
-        SecureString secureApiToken = new SecureString(Objects.requireNonNull(apiToken).toCharArray());
 
         return new HuggingFaceElserSecretSettings(secureApiToken);
     }

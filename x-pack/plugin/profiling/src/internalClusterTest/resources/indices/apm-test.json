@@ -13,7 +13,7 @@
           "type": "date"
         },
         "transaction.profiler_stack_trace_ids": {
-          "type": "keyword"
+          "type": "counted_keyword"
         },
         "transaction.name": {
           "type": "keyword"

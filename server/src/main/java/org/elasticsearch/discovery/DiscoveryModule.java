@@ -10,7 +10,6 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -173,19 +173,7 @@ public class DiscoveryModule {
             throw new IllegalArgumentException("Unknown election strategy " + ELECTION_STRATEGY_SETTING.get(settings));
         }
 
-        if (LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
-            assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
-            DeprecationLogger.getLogger(DiscoveryModule.class)
-                .critical(
-                    DeprecationCategory.SETTINGS,
-                    "legacy-discovery-type",
-                    "Support for setting [{}] to [{}] is deprecated and will be removed in a future version. Set this setting to [{}] "
-                        + "instead.",
-                    DISCOVERY_TYPE_SETTING.getKey(),
-                    LEGACY_MULTI_NODE_DISCOVERY_TYPE,
-                    MULTI_NODE_DISCOVERY_TYPE
-                );
-        }
+        checkLegacyMultiNodeDiscoveryType(discoveryType);
 
         this.reconfigurator = getReconfigurator(settings, clusterSettings, clusterCoordinationPlugins);
         var preVoteCollectorFactory = getPreVoteCollectorFactory(clusterCoordinationPlugins);
@@ -223,6 +211,22 @@ public class DiscoveryModule {
         }
 
         logger.info("using discovery type [{}] and seed hosts providers {}", discoveryType, seedProviderNames);
+    }
+
+    @UpdateForV9
+    private static void checkLegacyMultiNodeDiscoveryType(String discoveryType) {
+        if (LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
+            DeprecationLogger.getLogger(DiscoveryModule.class)
+                .critical(
+                    DeprecationCategory.SETTINGS,
+                    "legacy-discovery-type",
+                    "Support for setting [{}] to [{}] is deprecated and will be removed in a future version. Set this setting to [{}] "
+                        + "instead.",
+                    DISCOVERY_TYPE_SETTING.getKey(),
+                    LEGACY_MULTI_NODE_DISCOVERY_TYPE,
+                    MULTI_NODE_DISCOVERY_TYPE
+                );
+        }
     }
 
     // visible for testing

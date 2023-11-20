@@ -38,6 +38,9 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -125,7 +128,12 @@ public class EnrichLookupService {
         this.executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
-        transportService.registerRequestHandler(LOOKUP_ACTION_NAME, this.executor, LookupRequest::new, new TransportHandler());
+        transportService.registerRequestHandler(
+            LOOKUP_ACTION_NAME,
+            this.executor,
+            in -> new LookupRequest(in, blockFactory),
+            new TransportHandler()
+        );
     }
 
     public void lookupAsync(
@@ -164,7 +172,11 @@ public class EnrichLookupService {
                     lookupRequest,
                     parentTask,
                     TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(listener.map(r -> r.page), LookupResponse::new, executor)
+                    new ActionListenerResponseHandler<>(
+                        listener.map(LookupResponse::takePage),
+                        in -> new LookupResponse(in, blockFactory),
+                        executor
+                    )
                 );
             }
         }, listener::onFailure));
@@ -226,11 +238,11 @@ public class EnrichLookupService {
         ActionListener<Page> listener
     ) {
         Block inputBlock = inputPage.getBlock(0);
-        if (inputBlock.areAllValuesNull()) {
-            listener.onResponse(createNullResponse(inputPage.getPositionCount(), extractFields));
-            return;
-        }
         try {
+            if (inputBlock.areAllValuesNull()) {
+                listener.onResponse(createNullResponse(inputPage.getPositionCount(), extractFields));
+                return;
+            }
             ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
             SearchContext searchContext = searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT);
             listener = ActionListener.runBefore(listener, searchContext::close);
@@ -255,9 +267,7 @@ public class EnrichLookupService {
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
                     EsqlDataTypes.isUnsupported(extractField.dataType())
                 );
-                intermediateOperators.add(
-                    new ValuesSourceReaderOperator(BlockFactory.getNonBreakingInstance(), sources, 0, extractField.name())
-                );
+                intermediateOperators.add(new ValuesSourceReaderOperator(blockFactory, sources, 0, extractField.name()));
             }
             // drop docs block
             intermediateOperators.add(droppingBlockOperator(extractFields.size() + 2, 0));
@@ -297,12 +307,18 @@ public class EnrichLookupService {
         }
     }
 
-    private static Page createNullResponse(int positionCount, List<NamedExpression> extractFields) {
+    private Page createNullResponse(int positionCount, List<NamedExpression> extractFields) {
         final Block[] blocks = new Block[extractFields.size()];
-        for (int i = 0; i < extractFields.size(); i++) {
-            blocks[i] = Block.constantNullBlock(positionCount);
+        try {
+            for (int i = 0; i < extractFields.size(); i++) {
+                blocks[i] = blockFactory.newConstantNullBlock(positionCount);
+            }
+            return new Page(blocks);
+        } finally {
+            if (blocks[blocks.length - 1] == null) {
+                Releasables.close(blocks);
+            }
         }
-        return new Page(blocks);
     }
 
     private static Operator droppingBlockOperator(int totalBlocks, int droppingPosition) {
@@ -319,7 +335,8 @@ public class EnrichLookupService {
     private class TransportHandler implements TransportRequestHandler<LookupRequest> {
         @Override
         public void messageReceived(LookupRequest request, TransportChannel channel, Task task) {
-            ActionListener<LookupResponse> listener = new ChannelActionListener<>(channel);
+            request.incRef();
+            ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
             doLookup(
                 request.sessionId,
                 (CancellableTask) task,
@@ -340,6 +357,9 @@ public class EnrichLookupService {
         private final String matchField;
         private final Page inputPage;
         private final List<NamedExpression> extractFields;
+        // TODO: Remove this workaround once we have Block RefCount
+        private final Page toRelease;
+        private final RefCounted refs = AbstractRefCounted.of(this::releasePage);
 
         LookupRequest(
             String sessionId,
@@ -354,17 +374,18 @@ public class EnrichLookupService {
             this.matchType = matchType;
             this.matchField = matchField;
             this.inputPage = inputPage;
+            this.toRelease = null;
             this.extractFields = extractFields;
         }
 
-        LookupRequest(StreamInput in) throws IOException {
+        LookupRequest(StreamInput in, BlockFactory blockFactory) throws IOException {
             super(in);
             this.sessionId = in.readString();
             this.shardId = new ShardId(in);
             this.matchType = in.readString();
             this.matchField = in.readString();
-            // TODO real BlockFactory
-            this.inputPage = new Page(new BlockStreamInput(in, BlockFactory.getNonBreakingInstance()));
+            this.inputPage = new Page(new BlockStreamInput(in, blockFactory));
+            this.toRelease = inputPage;
             PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
             this.extractFields = planIn.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
         }
@@ -400,6 +421,32 @@ public class EnrichLookupService {
                 }
             };
         }
+
+        private void releasePage() {
+            if (toRelease != null) {
+                Releasables.closeExpectNoException(toRelease::releaseBlocks);
+            }
+        }
+
+        @Override
+        public void incRef() {
+            refs.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refs.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refs.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refs.hasReferences();
+        }
     }
 
     private static String lookupDescription(
@@ -427,20 +474,52 @@ public class EnrichLookupService {
     }
 
     private static class LookupResponse extends TransportResponse {
-        private final Page page;
+        private Page page;
+        private final RefCounted refs = AbstractRefCounted.of(this::releasePage);
 
         LookupResponse(Page page) {
             this.page = page;
         }
 
-        LookupResponse(StreamInput in) throws IOException {
-            // TODO real BlockFactory
-            this.page = new Page(new BlockStreamInput(in, BlockFactory.getNonBreakingInstance()));
+        LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+            this.page = new Page(new BlockStreamInput(in, blockFactory));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             page.writeTo(out);
+        }
+
+        Page takePage() {
+            var p = page;
+            page = null;
+            return p;
+        }
+
+        private void releasePage() {
+            if (page != null) {
+                Releasables.closeExpectNoException(page::releaseBlocks);
+            }
+        }
+
+        @Override
+        public void incRef() {
+            refs.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refs.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refs.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refs.hasReferences();
         }
     }
 }

@@ -15,7 +15,6 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  */
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.test-fixture-application-consumer'
 
 esplugin {
   description 'The S3 repository plugin adds S3 repositories'
@@ -28,7 +27,6 @@ versions << [
 
 configurations {
   yamlRestTestRuntimeClasspath.exclude module: 'org.hamcrest:hamcrest-core'
-  internalClusterTestRuntime.exclude module: 'org.elasticsearch:minio-fixture'
 }
 
 dependencies {
@@ -54,9 +52,8 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation "junit:junit:${versions.junit}"
   yamlRestTestImplementation project(':test:fixtures:s3-fixture')
-  yamlRestTestImplementation testFixtures(project(':test:fixtures:minio-fixture'))
-  internalClusterTestImplementation testFixtures(project(':test:fixtures:minio-fixture'))
-  fixtureDistributions project(':test:fixtures:minio-fixture')
+  yamlRestTestImplementation project(':test:fixtures:minio-fixture')
+  internalClusterTestImplementation project(':test:fixtures:minio-fixture')
 }
 
 restResources {
@@ -128,7 +125,6 @@ if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3P
   s3PermanentBucket = 'bucket'
   s3PermanentBasePath = 'base_path'
 
-  //apply plugin: 'elasticsearch.test.fixtures'
   useFixture = true
 
 } else if (!s3PermanentAccessKey || !s3PermanentSecretKey || !s3PermanentBucket || !s3PermanentBasePath) {
@@ -229,8 +225,6 @@ if (useFixture) {
 if (useFixture) {
   // MinIO
   tasks.register("yamlRestTestMinio", RestIntegTestTask) {
-    fixtureApps.use("minio-fixture", "minio-fixture")
-
     description = "Runs REST tests using the Minio repository."
     // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
     systemProperty("s3PermanentAccessKey", s3PermanentAccessKey)
@@ -300,7 +294,6 @@ if (useFixture) {
 
 // 3rd Party Tests
 tasks.register("s3ThirdPartyTest", Test) {
-  fixtureApps.use("minio-fixture", "minio-fixture")
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())

@@ -163,14 +163,6 @@ gradlePlugin {
       id = 'elasticsearch.test.fixtures'
       implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
     }
-    testFixturesApplication {
-      id = 'elasticsearch.test-fixture-application'
-      implementationClass = 'org.elasticsearch.gradle.internal.TestFixtureApplicationPlugin'
-    }
-    testFixturesApplicationConsumer {
-      id = 'elasticsearch.test-fixture-application-consumer'
-      implementationClass = 'org.elasticsearch.gradle.internal.TestFixtureApplicationConsumerPlugin'
-    }
     testBase {
       id = 'elasticsearch.test-base'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin'

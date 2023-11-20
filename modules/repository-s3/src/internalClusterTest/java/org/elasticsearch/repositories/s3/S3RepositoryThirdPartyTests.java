@@ -74,9 +74,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             .toList();
     }
 
-    public static MinioFixtureTestContainer minioFixtureTestContainer = new MinioFixtureTestContainer(
-        resolveServicesFromSystemProperties()
-    );
+    public static MinioFixtureTestContainer minioFixtureTestContainer = new MinioFixtureTestContainer(USE_FIXTURE);
 
     @ClassRule
     public static TestRule testRule = (base, description) -> {
@@ -133,7 +131,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         Settings.Builder settings = Settings.builder()
             .put("bucket", System.getProperty("test.s3.bucket"))
             .put("base_path", System.getProperty("test.s3.base", "testpath"));
-        final String endpoint = minioFixtureTestContainer.getServiceUrl("minio-fixture");
+        final String endpoint = minioFixtureTestContainer.getServiceUrl();
         if (endpoint != null) {
             settings.put("endpoint", endpoint);
         } else {

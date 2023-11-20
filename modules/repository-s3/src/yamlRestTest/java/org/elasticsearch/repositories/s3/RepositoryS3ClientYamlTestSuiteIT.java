@@ -8,6 +8,8 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.junit.S3HttpFixtureRule;
+
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction;
@@ -20,7 +22,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.minio.MinioFixtureTestContainer;
-import fixture.s3.junit.S3HttpFixtureRule;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -42,7 +43,6 @@ import static fixture.s3.junit.S3HttpFixtureRule.S3FixtureType.S3FixtureWithToke
 public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.s3.fixture", "true"));
     private static final String TEST_TASK = System.getProperty("tests.task");
-    private static final List<String> fixturesMinioServices = resolveMinioServicesFromSystemProperties();
     private static final S3HttpFixtureRule s3Environment = new S3HttpFixtureRule(USE_FIXTURE, resolveS3HttpFixtures());
     private static final String s3TemporarySessionToken = "session_token";
 
@@ -60,7 +60,7 @@ public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
 
     public static ElasticsearchCluster cluster = configureCluster();
 
-    public static MinioFixtureTestContainer minioFixtureTestContainer = new MinioFixtureTestContainer(fixturesMinioServices);
+    public static MinioFixtureTestContainer minioFixtureTestContainer = new MinioFixtureTestContainer(USE_FIXTURE);
 
     private static ElasticsearchCluster configureCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> cluster = ElasticsearchCluster.local().module("repository-s3");

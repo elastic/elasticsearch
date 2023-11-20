@@ -103,7 +103,6 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-
 import javax.net.ssl.SNIHostName;
 
 /**
@@ -423,7 +422,7 @@ public class Node implements Closeable {
             }
         }
 
-        new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService);
+        new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, injector.getInstance(ThreadPool.class).scheduler());
 
         logger.info("started {}", transportService.getLocalNode());
 

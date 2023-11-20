@@ -19,7 +19,6 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -55,12 +54,12 @@ public class NodeMetrics {
      *
      * @param meterRegistry The MeterRegistry used to register metrics.
      * @param nodeService   The NodeService for interacting with the Elasticsearch node.
+     * @param executor      The ScheduledExecutorService to schedule NodeStats updates.
      */
-    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService) {
+    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService, ScheduledExecutorService executor) {
         this.nodeService = nodeService;
         this.stats = getNodeStats();
         registerMetricsAndSetInitialState(meterRegistry, stats);
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "es-node-metrics"));
         executor.scheduleAtFixedRate(() -> {
             NodeStats updatedStats = getNodeStats();
             updateCounters(updatedStats, stats);

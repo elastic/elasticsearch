@@ -8,22 +8,16 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
-import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
-import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
-import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestPutConnectorAction extends EnterpriseSearchBaseRestHandler {
-    public RestPutConnectorAction(XPackLicenseState licenseState) {
-        super(licenseState, LicenseUtils.Product.CONNECTOR);
-    }
+public class RestPutConnectorAction extends BaseRestHandler {
 
     @Override
     public String getName() {
@@ -32,11 +26,11 @@ public class RestPutConnectorAction extends EnterpriseSearchBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/" + EnterpriseSearch.CONNECTORS_API_ENDPOINT + "/{connector_id}"));
+        return List.of(new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}"));
     }
 
     @Override
-    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         PutConnectorAction.Request request = new PutConnectorAction.Request(
             restRequest.param("connector_id"),
             restRequest.content(),

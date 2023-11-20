@@ -58,7 +58,7 @@ public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
             .setName((String) args[1])
             .setReduceWhitespace((Boolean) args[2])
             .setRunMlInference((Boolean) args[3])
-            .createConnectorIngestPipeline()
+            .build()
     );
 
     static {
@@ -102,7 +102,7 @@ public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(extractBinaryContent);
-        out.writeOptionalString(name);
+        out.writeString(name);
         out.writeBoolean(reduceWhitespace);
         out.writeBoolean(runMlInference);
     }
@@ -134,7 +134,7 @@ public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
             return this;
         }
 
-        public ConnectorIngestPipeline createConnectorIngestPipeline() {
+        public ConnectorIngestPipeline build() {
             return new ConnectorIngestPipeline(extractBinaryContent, name, reduceWhitespace, runMlInference);
         }
     }

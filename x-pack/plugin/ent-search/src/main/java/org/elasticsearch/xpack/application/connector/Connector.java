@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -37,12 +38,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class Connector implements Writeable, ToXContentObject {
 
     private final String connectorId;
-
     @Nullable
     private final String apiKeyId;
-    @Nullable
+
     private final Map<String, Object> configuration;
-    @Nullable
+
     private final ConnectorCustomSchedule customScheduling;
     @Nullable
     private final String description;
@@ -57,31 +57,11 @@ public class Connector implements Writeable, ToXContentObject {
     @Nullable
     private final String indexName;
     @Nullable
-    private final boolean isNative;
+    private final Boolean isNative;
     @Nullable
     private final String language;
     @Nullable
-    private final String lastAccessControlSyncError;
-    @Nullable
-    private final String lastAccessControlSyncScheduledAt;
-    @Nullable
-    private final ConnectorSyncStatus lastAccessControlSyncStatus;
-    @Nullable
-    private final Long lastDeletedDocumentCount;
-    @Nullable
-    private final String lastIncrementalSyncScheduledAt;
-    @Nullable
-    private final Long lastIndexedDocumentCount;
-    @Nullable
-    private final String lastSeen;
-    @Nullable
-    private final String lastSyncError;
-    @Nullable
-    private final String lastSyncScheduledAt;
-    @Nullable
-    private final ConnectorSyncStatus lastSyncStatus;
-    @Nullable
-    private final String lastSynced;
+    private final ConnectorSyncInfo syncInfo;
     @Nullable
     private final String name;
     @Nullable
@@ -90,12 +70,12 @@ public class Connector implements Writeable, ToXContentObject {
     private final ConnectorScheduling scheduling;
     @Nullable
     private final String serviceType;
-    @Nullable
+
     private final ConnectorStatus status;
     @Nullable
     private final Object syncCursor;
-    @Nullable
-    private final boolean syncNow;
+
+    private final Boolean syncNow;
 
     private Connector(
         String connectorId,
@@ -106,26 +86,16 @@ public class Connector implements Writeable, ToXContentObject {
         String error,
         ConnectorFeatures features,
         String indexName,
-        boolean isNative,
+        Boolean isNative,
         String language,
-        String lastAccessControlSyncError,
-        String lastAccessControlSyncScheduledAt,
-        ConnectorSyncStatus lastAccessControlSyncStatus,
-        Long lastDeletedDocumentCount,
-        String lastIncrementalSyncScheduledAt,
-        Long lastIndexedDocumentCount,
-        String lastSeen,
-        String lastSyncError,
-        String lastSyncScheduledAt,
-        ConnectorSyncStatus lastSyncStatus,
-        String lastSynced,
+        ConnectorSyncInfo syncInfo,
         String name,
         ConnectorIngestPipeline pipeline,
         ConnectorScheduling scheduling,
         String serviceType,
         ConnectorStatus status,
         Object syncCursor,
-        boolean syncNow
+        Boolean syncNow
     ) {
         this.connectorId = connectorId;
         this.apiKeyId = apiKeyId;
@@ -137,17 +107,7 @@ public class Connector implements Writeable, ToXContentObject {
         this.indexName = indexName;
         this.isNative = isNative;
         this.language = language;
-        this.lastAccessControlSyncError = lastAccessControlSyncError;
-        this.lastAccessControlSyncScheduledAt = lastAccessControlSyncScheduledAt;
-        this.lastAccessControlSyncStatus = lastAccessControlSyncStatus;
-        this.lastDeletedDocumentCount = lastDeletedDocumentCount;
-        this.lastIncrementalSyncScheduledAt = lastIncrementalSyncScheduledAt;
-        this.lastIndexedDocumentCount = lastIndexedDocumentCount;
-        this.lastSeen = lastSeen;
-        this.lastSyncError = lastSyncError;
-        this.lastSyncScheduledAt = lastSyncScheduledAt;
-        this.lastSyncStatus = lastSyncStatus;
-        this.lastSynced = lastSynced;
+        this.syncInfo = syncInfo;
         this.name = name;
         this.pipeline = pipeline;
         this.scheduling = scheduling;
@@ -160,67 +120,21 @@ public class Connector implements Writeable, ToXContentObject {
     public Connector(StreamInput in) throws IOException {
         this.connectorId = in.readString();
         this.apiKeyId = in.readOptionalString();
-        if (in.readBoolean()) {
-            this.configuration = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
-        } else {
-            this.configuration = null;
-        }
-        if (in.readBoolean()) {
-            this.customScheduling = new ConnectorCustomSchedule(in);
-        } else {
-            this.customScheduling = null;
-        }
+        this.configuration = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
+        this.customScheduling = in.readOptionalWriteable(ConnectorCustomSchedule::new);
         this.description = in.readOptionalString();
         this.error = in.readOptionalString();
-        if (in.readBoolean()) {
-            this.features = new ConnectorFeatures(in);
-        } else {
-            this.features = null;
-        }
+        this.features = in.readOptionalWriteable(ConnectorFeatures::new);
         this.indexName = in.readOptionalString();
         this.isNative = in.readBoolean();
         this.language = in.readOptionalString();
-        this.lastAccessControlSyncError = in.readOptionalString();
-        this.lastAccessControlSyncScheduledAt = in.readOptionalString();
-        if (in.readBoolean()) {
-            this.lastAccessControlSyncStatus = ConnectorSyncStatus.valueOf(in.readString());
-        } else {
-            this.lastAccessControlSyncStatus = null;
-        }
-        this.lastDeletedDocumentCount = in.readOptionalLong();
-        this.lastIncrementalSyncScheduledAt = in.readOptionalString();
-        this.lastIndexedDocumentCount = in.readOptionalLong();
-        this.lastSeen = in.readOptionalString();
-        this.lastSyncError = in.readOptionalString();
-        this.lastSyncScheduledAt = in.readOptionalString();
-        if (in.readBoolean()) {
-            this.lastSyncStatus = ConnectorSyncStatus.valueOf(in.readString());
-        } else {
-            this.lastSyncStatus = null;
-        }
-        this.lastSynced = in.readOptionalString();
+        this.syncInfo = in.readOptionalWriteable(ConnectorSyncInfo::new);
         this.name = in.readOptionalString();
-        if (in.readBoolean()) {
-            this.pipeline = new ConnectorIngestPipeline(in);
-        } else {
-            this.pipeline = null;
-        }
-        if (in.readBoolean()) {
-            this.scheduling = new ConnectorScheduling(in);
-        } else {
-            this.scheduling = null;
-        }
+        this.pipeline = in.readOptionalWriteable(ConnectorIngestPipeline::new);
+        this.scheduling = in.readOptionalWriteable(ConnectorScheduling::new);
         this.serviceType = in.readOptionalString();
-        if (in.readBoolean()) {
-            this.status = ConnectorStatus.valueOf(in.readString());
-        } else {
-            this.status = null;
-        }
-        if (in.readBoolean()) {
-            this.syncCursor = in.readGenericValue();
-        } else {
-            this.syncCursor = null;
-        }
+        this.status = ConnectorStatus.valueOf(in.readString());
+        this.syncCursor = in.readGenericValue();
         this.syncNow = in.readBoolean();
     }
 
@@ -236,27 +150,17 @@ public class Connector implements Writeable, ToXContentObject {
             .setError((String) args[4])
             .setFeatures((ConnectorFeatures) args[5])
             .setIndexName((String) args[6])
-            .setIsNative(args[7] != null && (boolean) args[7])
+            .setIsNative((Boolean) args[7])
             .setLanguage((String) args[8])
-            .setLastAccessControlSyncError((String) args[9])
-            .setLastAccessControlSyncScheduledAt((String) args[10])
-            .setLastAccessControlSyncStatus((ConnectorSyncStatus) args[11])
-            .setLastDeletedDocumentCount((Long) args[12])
-            .setLastIncrementalSyncScheduledAt((String) args[13])
-            .setLastIndexedDocumentCount((Long) args[14])
-            .setLastSeen((String) args[15])
-            .setLastSyncError((String) args[16])
-            .setLastSyncScheduledAt((String) args[17])
-            .setLastSyncStatus((ConnectorSyncStatus) args[18])
-            .setLastSynced((String) args[19])
-            .setName((String) args[20])
-            .setPipeline((ConnectorIngestPipeline) args[21])
-            .setScheduling((ConnectorScheduling) args[22])
-            .setServiceType((String) args[23])
-            .setStatus((ConnectorStatus) args[24])
-            .setSyncCursor(args[25])
-            .setSyncNow(args[26] != null && (boolean) args[26])
-            .createConnector()
+            .setSyncInfo((ConnectorSyncInfo) args[9])
+            .setName((String) args[10])
+            .setPipeline((ConnectorIngestPipeline) args[11])
+            .setScheduling((ConnectorScheduling) args[12])
+            .setServiceType((String) args[13])
+            .setStatus((ConnectorStatus) args[14])
+            .setSyncCursor(args[15])
+            .setSyncNow((Boolean) args[26])
+            .build()
     );
 
     public static final ParseField ID_FIELD = new ParseField("connector_id");
@@ -269,17 +173,6 @@ public class Connector implements Writeable, ToXContentObject {
     public static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
     public static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
     public static final ParseField LANGUAGE_FIELD = new ParseField("language");
-    public static final ParseField LAST_ACCESS_CONTROL_SYNC_ERROR = new ParseField("last_access_control_sync_error");
-    public static final ParseField LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD = new ParseField("last_access_control_sync_status");
-    public static final ParseField LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_access_control_sync_scheduled_at");
-    public static final ParseField LAST_DELETED_DOCUMENT_COUNT_FIELD = new ParseField("last_deleted_document_count");
-    public static final ParseField LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_incremental_sync_scheduled_at");
-    public static final ParseField LAST_INDEXED_DOCUMENT_COUNT_FIELD = new ParseField("last_indexed_document_count");
-    public static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
-    public static final ParseField LAST_SYNC_ERROR_FIELD = new ParseField("last_sync_error");
-    public static final ParseField LAST_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_sync_scheduled_at");
-    public static final ParseField LAST_SYNC_STATUS_FIELD = new ParseField("last_sync_status");
-    public static final ParseField LAST_SYNCED_FIELD = new ParseField("last_synced");
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
@@ -314,27 +207,12 @@ public class Connector implements Writeable, ToXContentObject {
         PARSER.declareString(optionalConstructorArg(), INDEX_NAME_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), IS_NATIVE_FIELD);
         PARSER.declareString(optionalConstructorArg(), LANGUAGE_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_ACCESS_CONTROL_SYNC_ERROR);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ConnectorSyncStatus.connectorSyncStatus(p.text()),
-            LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD,
-            ObjectParser.ValueType.STRING
-        );
-        PARSER.declareString(optionalConstructorArg(), LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_DELETED_DOCUMENT_COUNT_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_INDEXED_DOCUMENT_COUNT_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_SEEN_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_SYNC_ERROR_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_SYNC_SCHEDULED_AT_FIELD);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ConnectorSyncStatus.connectorSyncStatus(p.text()),
-            LAST_SYNC_STATUS_FIELD,
-            ObjectParser.ValueType.STRING
-        );
-        PARSER.declareString(optionalConstructorArg(), LAST_SYNCED_FIELD);
+//        PARSER.declareField(
+//            optionalConstructorArg(),
+//            (p, c) -> ConnectorSyncInfo.fromXContent(p),
+//            SYN,
+//            ObjectParser.ValueType.OBJECT
+//        );
         PARSER.declareString(optionalConstructorArg(), NAME_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
@@ -406,38 +284,8 @@ public class Connector implements Writeable, ToXContentObject {
             if (language != null) {
                 builder.field(LANGUAGE_FIELD.getPreferredName(), language);
             }
-            if (lastAccessControlSyncError != null) {
-                builder.field(LAST_SYNC_ERROR_FIELD.getPreferredName(), lastAccessControlSyncError);
-            }
-            if (lastAccessControlSyncStatus != null) {
-                builder.field(LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD.getPreferredName(), lastAccessControlSyncStatus.toString());
-            }
-            if (lastAccessControlSyncScheduledAt != null) {
-                builder.field(LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastAccessControlSyncScheduledAt);
-            }
-            if (lastDeletedDocumentCount != null) {
-                builder.field(LAST_DELETED_DOCUMENT_COUNT_FIELD.getPreferredName(), lastDeletedDocumentCount);
-            }
-            if (lastIncrementalSyncScheduledAt != null) {
-                builder.field(LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastIncrementalSyncScheduledAt);
-            }
-            if (lastIndexedDocumentCount != null) {
-                builder.field(LAST_INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName(), lastIndexedDocumentCount);
-            }
-            if (lastSeen != null) {
-                builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
-            }
-            if (lastSyncError != null) {
-                builder.field(LAST_SYNC_ERROR_FIELD.getPreferredName(), lastSyncError);
-            }
-            if (lastSyncScheduledAt != null) {
-                builder.field(LAST_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastSyncScheduledAt);
-            }
-            if (lastSyncStatus != null) {
-                builder.field(LAST_SYNC_STATUS_FIELD.getPreferredName(), lastSyncStatus.toString());
-            }
-            if (lastSynced != null) {
-                builder.field(LAST_SYNCED_FIELD.getPreferredName(), lastSynced);
+            if (syncInfo != null) {
+                syncInfo.toXContent(builder, params);
             }
             if (name != null) {
                 builder.field(NAME_FIELD.getPreferredName(), name);
@@ -466,73 +314,21 @@ public class Connector implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(connectorId);
         out.writeOptionalString(apiKeyId);
-
-        out.writeBoolean(configuration != null);
-        if (configuration != null) {
-            out.writeMap(configuration, StreamOutput::writeString, StreamOutput::writeGenericValue);
-        }
-
-        out.writeBoolean(customScheduling != null);
-        if (customScheduling != null) {
-            customScheduling.writeTo(out);
-        }
-
+        out.writeMap(configuration, StreamOutput::writeString, StreamOutput::writeGenericValue);
+        out.writeOptionalWriteable(customScheduling);
         out.writeOptionalString(description);
         out.writeOptionalString(error);
-
-        out.writeBoolean(features != null);
-        if (features != null) {
-            features.writeTo(out);
-        }
-
+        out.writeOptionalWriteable(features);
         out.writeOptionalString(indexName);
         out.writeBoolean(isNative);
         out.writeOptionalString(language);
-        out.writeOptionalString(lastAccessControlSyncError);
-        out.writeOptionalString(lastAccessControlSyncScheduledAt);
-
-        out.writeBoolean(lastAccessControlSyncStatus != null);
-        if (lastAccessControlSyncStatus != null) {
-            out.writeString(lastAccessControlSyncStatus.name());
-        }
-
-        out.writeOptionalLong(lastDeletedDocumentCount);
-        out.writeOptionalString(lastIncrementalSyncScheduledAt);
-        out.writeOptionalLong(lastIndexedDocumentCount);
-        out.writeOptionalString(lastSeen);
-        out.writeOptionalString(lastSyncError);
-        out.writeOptionalString(lastSyncScheduledAt);
-
-        out.writeBoolean(lastSyncStatus != null);
-        if (lastSyncStatus != null) {
-            out.writeString(lastSyncStatus.name());
-        }
-
-        out.writeOptionalString(lastSynced);
+        out.writeOptionalWriteable(syncInfo);
         out.writeOptionalString(name);
-
-        out.writeBoolean(pipeline != null);
-        if (pipeline != null) {
-            pipeline.writeTo(out);
-        }
-
-        out.writeBoolean(scheduling != null);
-        if (scheduling != null) {
-            scheduling.writeTo(out);
-        }
-
+        out.writeOptionalWriteable(pipeline);
+        out.writeOptionalWriteable(scheduling);
         out.writeOptionalString(serviceType);
-
-        out.writeBoolean(status != null);
-        if (status != null) {
-            out.writeString(status.name());
-        }
-
-        out.writeBoolean(syncCursor != null);
-        if (syncCursor != null) {
-            out.writeGenericValue(syncCursor);
-        }
-
+        out.writeString(status.name());
+        out.writeGenericValue(syncCursor);
         out.writeBoolean(syncNow);
     }
 
@@ -550,27 +346,16 @@ public class Connector implements Writeable, ToXContentObject {
         private String error;
         private ConnectorFeatures features;
         private String indexName;
-        private boolean isNative;
+        private Boolean isNative;
         private String language;
-        private String lastAccessControlSyncError;
-        private String lastAccessControlSyncScheduledAt;
-        private ConnectorSyncStatus lastAccessControlSyncStatus;
-        private Long lastDeletedDocumentCount;
-        private String lastIncrementalSyncScheduledAt;
-        private Long lastIndexedDocumentCount;
-        private String lastSeen;
-        private String lastSyncError;
-        private String lastSyncScheduledAt;
-        private ConnectorSyncStatus lastSyncStatus;
-        private String lastSynced;
+        private ConnectorSyncInfo syncInfo;
         private String name;
         private ConnectorIngestPipeline pipeline;
         private ConnectorScheduling scheduling;
         private String serviceType;
         private ConnectorStatus status;
         private Object syncCursor;
-        private boolean syncNow;
-        private StreamInput in;
+        private Boolean syncNow;
 
         public Builder setConnectorId(String connectorId) {
             this.connectorId = connectorId;
@@ -583,12 +368,12 @@ public class Connector implements Writeable, ToXContentObject {
         }
 
         public Builder setConfiguration(Map<String, Object> configuration) {
-            this.configuration = configuration;
+            this.configuration = (configuration != null) ? configuration : Collections.emptyMap();
             return this;
         }
 
         public Builder setCustomScheduling(ConnectorCustomSchedule customScheduling) {
-            this.customScheduling = customScheduling;
+            this.customScheduling = (customScheduling != null) ? customScheduling : new ConnectorCustomSchedule.Builder().build();
             return this;
         }
 
@@ -612,8 +397,8 @@ public class Connector implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setIsNative(boolean isNative) {
-            this.isNative = isNative;
+        public Builder setIsNative(Boolean isNative) {
+            this.isNative = (isNative != null) ? isNative : false;
             return this;
         }
 
@@ -622,58 +407,8 @@ public class Connector implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setLastAccessControlSyncError(String lastAccessControlSyncError) {
-            this.lastAccessControlSyncError = lastAccessControlSyncError;
-            return this;
-        }
-
-        public Builder setLastAccessControlSyncScheduledAt(String lastAccessControlSyncScheduledAt) {
-            this.lastAccessControlSyncScheduledAt = lastAccessControlSyncScheduledAt;
-            return this;
-        }
-
-        public Builder setLastAccessControlSyncStatus(ConnectorSyncStatus lastAccessControlSyncStatus) {
-            this.lastAccessControlSyncStatus = lastAccessControlSyncStatus;
-            return this;
-        }
-
-        public Builder setLastDeletedDocumentCount(Long lastDeletedDocumentCount) {
-            this.lastDeletedDocumentCount = lastDeletedDocumentCount;
-            return this;
-        }
-
-        public Builder setLastIncrementalSyncScheduledAt(String lastIncrementalSyncScheduledAt) {
-            this.lastIncrementalSyncScheduledAt = lastIncrementalSyncScheduledAt;
-            return this;
-        }
-
-        public Builder setLastIndexedDocumentCount(Long lastIndexedDocumentCount) {
-            this.lastIndexedDocumentCount = lastIndexedDocumentCount;
-            return this;
-        }
-
-        public Builder setLastSeen(String lastSeen) {
-            this.lastSeen = lastSeen;
-            return this;
-        }
-
-        public Builder setLastSyncError(String lastSyncError) {
-            this.lastSyncError = lastSyncError;
-            return this;
-        }
-
-        public Builder setLastSyncScheduledAt(String lastSyncScheduledAt) {
-            this.lastSyncScheduledAt = lastSyncScheduledAt;
-            return this;
-        }
-
-        public Builder setLastSyncStatus(ConnectorSyncStatus lastSyncStatus) {
-            this.lastSyncStatus = lastSyncStatus;
-            return this;
-        }
-
-        public Builder setLastSynced(String lastSynced) {
-            this.lastSynced = lastSynced;
+        public Builder setSyncInfo(ConnectorSyncInfo syncInfo) {
+            this.syncInfo = syncInfo;
             return this;
         }
 
@@ -707,17 +442,12 @@ public class Connector implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setSyncNow(boolean syncNow) {
-            this.syncNow = syncNow;
+        public Builder setSyncNow(Boolean syncNow) {
+            this.syncNow = (syncNow != null) ? syncNow : false;
             return this;
         }
 
-        public Builder setIn(StreamInput in) {
-            this.in = in;
-            return this;
-        }
-
-        public Connector createConnector() {
+        public Connector build() {
             return new Connector(
                 connectorId,
                 apiKeyId,
@@ -729,17 +459,7 @@ public class Connector implements Writeable, ToXContentObject {
                 indexName,
                 isNative,
                 language,
-                lastAccessControlSyncError,
-                lastAccessControlSyncScheduledAt,
-                lastAccessControlSyncStatus,
-                lastDeletedDocumentCount,
-                lastIncrementalSyncScheduledAt,
-                lastIndexedDocumentCount,
-                lastSeen,
-                lastSyncError,
-                lastSyncScheduledAt,
-                lastSyncStatus,
-                lastSynced,
+                syncInfo,
                 name,
                 pipeline,
                 scheduling,

@@ -36,7 +36,6 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
     public static final ParseField FULL_FIELD = new ParseField("full");
     public static final ParseField INCREMENTAL_FIELD = new ParseField("incremental");
 
-    // Constructors, getters, and setters for ConnectorScheduling
     private ConnectorScheduling(ScheduleConfig accessControl, ScheduleConfig full, ScheduleConfig incremental) {
         this.accessControl = accessControl;
         this.full = full;
@@ -44,15 +43,9 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
     }
 
     public ConnectorScheduling(StreamInput in) throws IOException {
-        this.accessControl = readScheduleConfigFromStream(in);
-        this.full = readScheduleConfigFromStream(in);
-        this.incremental = readScheduleConfigFromStream(in);
-    }
-
-    private ScheduleConfig readScheduleConfigFromStream(StreamInput in) throws IOException {
-        boolean enabled = in.readBoolean();
-        String interval = in.readString();
-        return new ScheduleConfig.Builder().setEnabled(enabled).setInterval(interval).createScheduleConfig();
+        this.accessControl = new ScheduleConfig(in);
+        this.full = new ScheduleConfig(in);
+        this.incremental = new ScheduleConfig(in);
     }
 
     private static final ConstructingObjectParser<ConnectorScheduling, Void> PARSER = new ConstructingObjectParser<>(
@@ -61,7 +54,7 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         args -> new Builder().setAccessControl((ScheduleConfig) args[0])
             .setFull((ScheduleConfig) args[1])
             .setIncremental((ScheduleConfig) args[2])
-            .createConnectorScheduling()
+            .build()
     );
 
     static {
@@ -127,7 +120,7 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
             return this;
         }
 
-        public ConnectorScheduling createConnectorScheduling() {
+        public ConnectorScheduling build() {
             return new ConnectorScheduling(accessControl, full, incremental);
         }
     }
@@ -144,10 +137,15 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
             this.interval = interval;
         }
 
+        public ScheduleConfig(StreamInput in) throws IOException {
+            this.enabled = in.readBoolean();
+            this.interval = in.readString();
+        }
+
         private static final ConstructingObjectParser<ScheduleConfig, Void> PARSER = new ConstructingObjectParser<>(
             "schedule_config",
             true,
-            args -> new Builder().setEnabled((boolean) args[0]).setInterval((String) args[1]).createScheduleConfig()
+            args -> new Builder().setEnabled((boolean) args[0]).setInterval((String) args[1]).build()
         );
 
         static {
@@ -195,7 +193,7 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
                 return this;
             }
 
-            public ScheduleConfig createScheduleConfig() {
+            public ScheduleConfig build() {
                 return new ScheduleConfig(enabled, interval);
             }
         }

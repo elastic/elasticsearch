@@ -41,14 +41,8 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyti
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
-import org.elasticsearch.xpack.application.connector.action.DeleteConnectorAction;
-import org.elasticsearch.xpack.application.connector.action.ListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
-import org.elasticsearch.xpack.application.connector.action.RestDeleteConnectorAction;
-import org.elasticsearch.xpack.application.connector.action.RestListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
-import org.elasticsearch.xpack.application.connector.action.TransportDeleteConnectorAction;
-import org.elasticsearch.xpack.application.connector.action.TransportListConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
@@ -107,7 +101,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     public static final String QUERY_RULES_API_ENDPOINT = "_query_rules";
 
-    public static final String CONNECTORS_API_ENDPOINT = "_connector";
+    public static final String CONNECTOR_API_ENDPOINT = "_connector";
 
     private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 
@@ -153,8 +147,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
 
             // Connectors
-            new ActionHandler<>(DeleteConnectorAction.INSTANCE, TransportDeleteConnectorAction.class),
-            new ActionHandler<>(ListConnectorAction.INSTANCE, TransportListConnectorAction.class),
             new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
 
             usageAction,
@@ -199,9 +191,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new RestPutQueryRulesetAction(getLicenseState()),
 
             // Connectors
-            new RestDeleteConnectorAction(getLicenseState()),
-            new RestListConnectorAction(getLicenseState()),
-            new RestPutConnectorAction(getLicenseState())
+            new RestPutConnectorAction()
         );
     }
 

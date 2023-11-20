@@ -25,15 +25,17 @@ public class ConnectorIngestPipelineTests extends ESTestCase {
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-                "extract_binary_content": false,
-                "name": "test-pipeline",
-                "reduce_whitespace": true,
-                "run_ml_inference": true
+                "properties": {
+                    "extract_binary_content": true,
+                    "name": "xd",
+                    "reduce_whitespace": true,
+                    "run_ml_inference": true
+                }
             }""");
 
-        ConnectorIngestPipeline scheduling = ConnectorIngestPipeline.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        ConnectorIngestPipeline ingestPipeline = ConnectorIngestPipeline.fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
-        BytesReference originalBytes = toShuffledXContent(scheduling, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(ingestPipeline, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         ConnectorIngestPipeline parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
             parsed = ConnectorIngestPipeline.fromXContent(parser);

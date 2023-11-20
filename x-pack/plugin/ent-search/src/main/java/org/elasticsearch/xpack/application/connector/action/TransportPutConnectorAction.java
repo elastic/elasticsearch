@@ -37,7 +37,7 @@ public class TransportPutConnectorAction extends HandledTransportAction<PutConne
             PutConnectorAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.connectorIndexService = new ConnectorIndexService(client, clusterService.getClusterSettings());
+        this.connectorIndexService = new ConnectorIndexService(client);
     }
 
     @Override

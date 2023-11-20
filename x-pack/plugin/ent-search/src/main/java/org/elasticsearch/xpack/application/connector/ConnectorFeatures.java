@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.application.connector;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -18,23 +19,32 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class ConnectorFeatures implements Writeable, ToXContentObject {
 
-    private final boolean filteringAdvancedConfigEnabled;
-    private final boolean filteringRulesEnabled;
-    private final boolean incrementalSyncEnabled;
-    private final boolean syncRulesAdvancedEnabled;
-    private final boolean syncRulesBasicEnabled;
+    @Nullable
+    private final Boolean documentLevelSecurityEnabled;
+    @Nullable
+    private final Boolean filteringAdvancedConfigEnabled;
+    @Nullable
+    private final Boolean filteringRulesEnabled;
+    @Nullable
+    private final Boolean incrementalSyncEnabled;
+    @Nullable
+    private final Boolean syncRulesAdvancedEnabled;
+    @Nullable
+    private final Boolean syncRulesBasicEnabled;
 
     private ConnectorFeatures(
-        boolean filteringAdvancedConfig,
-        boolean filteringRules,
-        boolean incrementalSyncEnabled,
-        boolean syncRulesAdvancedEnabled,
-        boolean syncRulesBasicEnabled
+        Boolean documentLevelSecurityEnabled,
+        Boolean filteringAdvancedConfig,
+        Boolean filteringRules,
+        Boolean incrementalSyncEnabled,
+        Boolean syncRulesAdvancedEnabled,
+        Boolean syncRulesBasicEnabled
     ) {
+        this.documentLevelSecurityEnabled = documentLevelSecurityEnabled;
         this.filteringAdvancedConfigEnabled = filteringAdvancedConfig;
         this.filteringRulesEnabled = filteringRules;
         this.incrementalSyncEnabled = incrementalSyncEnabled;
@@ -43,13 +53,15 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
     }
 
     public ConnectorFeatures(StreamInput in) throws IOException {
-        this.filteringAdvancedConfigEnabled = in.readBoolean();
-        this.filteringRulesEnabled = in.readBoolean();
-        this.incrementalSyncEnabled = in.readBoolean();
-        this.syncRulesAdvancedEnabled = in.readBoolean();
-        this.syncRulesBasicEnabled = in.readBoolean();
+        this.documentLevelSecurityEnabled = in.readOptionalBoolean();
+        this.filteringAdvancedConfigEnabled = in.readOptionalBoolean();
+        this.filteringRulesEnabled = in.readOptionalBoolean();
+        this.incrementalSyncEnabled = in.readOptionalBoolean();
+        this.syncRulesAdvancedEnabled = in.readOptionalBoolean();
+        this.syncRulesBasicEnabled = in.readOptionalBoolean();
     }
 
+    public static final ParseField DOCUMENT_LEVEL_SECURITY_ENABLED_FIELD = new ParseField("document_level_security_enabled");
     public static final ParseField FILTERING_ADVANCED_CONFIG_ENABLED_FIELD = new ParseField("filtering_advanced_config_enabled");
     public static final ParseField FILTERING_RULES_ENABLED_FIELD = new ParseField("filtering_rules_enabled");
     public static final ParseField INCREMENTAL_SYNC_ENABLED_FIELD = new ParseField("incremental_sync_enabled");
@@ -59,20 +71,22 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<ConnectorFeatures, Void> PARSER = new ConstructingObjectParser<>(
         "connector_features",
         true,
-        args -> new Builder().setFilteringAdvancedConfig((boolean) args[0])
-            .setFilteringRules((boolean) args[1])
-            .setIncrementalSyncEnabled((boolean) args[2])
-            .setSyncRulesAdvancedEnabled((boolean) args[3])
-            .setSyncRulesBasicEnabled((boolean) args[4])
-            .createConnectorFeatures()
+        args -> new Builder().setDocumentLevelSecurityEnabled((Boolean) args[0])
+            .setFilteringAdvancedConfig((Boolean) args[1])
+            .setFilteringRules((Boolean) args[2])
+            .setIncrementalSyncEnabled((Boolean) args[3])
+            .setSyncRulesAdvancedEnabled((Boolean) args[4])
+            .setSyncRulesBasicEnabled((Boolean) args[5])
+            .build()
     );
 
     static {
-        PARSER.declareBoolean(constructorArg(), FILTERING_ADVANCED_CONFIG_ENABLED_FIELD);
-        PARSER.declareBoolean(constructorArg(), FILTERING_RULES_ENABLED_FIELD);
-        PARSER.declareBoolean(constructorArg(), INCREMENTAL_SYNC_ENABLED_FIELD);
-        PARSER.declareBoolean(constructorArg(), SYNC_RULES_ADVANCED_ENABLED_FIELD);
-        PARSER.declareBoolean(constructorArg(), SYNC_RULES_BASIC_ENABLED_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), DOCUMENT_LEVEL_SECURITY_ENABLED_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), FILTERING_ADVANCED_CONFIG_ENABLED_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), FILTERING_RULES_ENABLED_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), INCREMENTAL_SYNC_ENABLED_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), SYNC_RULES_ADVANCED_ENABLED_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), SYNC_RULES_BASIC_ENABLED_FIELD);
     }
 
     public static ConnectorFeatures fromXContent(XContentParser parser) throws IOException {
@@ -83,38 +97,31 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.startObject("properties");
+            builder.startObject("document_level_security");
+            {
+                builder.field("enabled", documentLevelSecurityEnabled);
+            }
+            builder.endObject();
             builder.field("filtering_advanced_config", filteringAdvancedConfigEnabled);
             builder.field("filtering_rules", filteringRulesEnabled);
             builder.startObject("incremental_sync");
             {
-                builder.startObject("properties");
                 builder.field("enabled", incrementalSyncEnabled);
-                builder.endObject();
             }
             builder.endObject();
             builder.startObject("sync_rules");
             {
-                builder.startObject("properties");
+                builder.startObject("advanced");
                 {
-                    builder.startObject("advanced");
-                    {
-                        builder.startObject("properties");
-                        builder.field("enabled", syncRulesAdvancedEnabled);
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                    builder.startObject("basic");
-                    {
-                        builder.startObject("properties");
-                        builder.field("enabled", syncRulesBasicEnabled);
-                        builder.endObject();
-                    }
-                    builder.endObject();
+                    builder.field("enabled", syncRulesAdvancedEnabled);
+                }
+                builder.endObject();
+                builder.startObject("basic");
+                {
+                    builder.field("enabled", syncRulesBasicEnabled);
                 }
                 builder.endObject();
             }
-            builder.endObject();
             builder.endObject();
         }
         builder.endObject();
@@ -123,48 +130,56 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(filteringAdvancedConfigEnabled);
-        out.writeBoolean(filteringRulesEnabled);
-        out.writeBoolean(incrementalSyncEnabled);
-        out.writeBoolean(syncRulesAdvancedEnabled);
-        out.writeBoolean(syncRulesBasicEnabled);
+        out.writeOptionalBoolean(documentLevelSecurityEnabled);
+        out.writeOptionalBoolean(filteringAdvancedConfigEnabled);
+        out.writeOptionalBoolean(filteringRulesEnabled);
+        out.writeOptionalBoolean(incrementalSyncEnabled);
+        out.writeOptionalBoolean(syncRulesAdvancedEnabled);
+        out.writeOptionalBoolean(syncRulesBasicEnabled);
     }
 
     public static class Builder {
 
-        private boolean filteringAdvancedConfig;
-        private boolean filteringRules;
-        private boolean incrementalSyncEnabled;
-        private boolean syncRulesAdvancedEnabled;
-        private boolean syncRulesBasicEnabled;
+        private Boolean documentLevelSecurityEnabled;
+        private Boolean filteringAdvancedConfig;
+        private Boolean filteringRules;
+        private Boolean incrementalSyncEnabled;
+        private Boolean syncRulesAdvancedEnabled;
+        private Boolean syncRulesBasicEnabled;
 
-        public Builder setFilteringAdvancedConfig(boolean filteringAdvancedConfig) {
+        public Builder setDocumentLevelSecurityEnabled(Boolean documentLevelSecurityEnabled) {
+            this.documentLevelSecurityEnabled = documentLevelSecurityEnabled;
+            return this;
+        }
+
+        public Builder setFilteringAdvancedConfig(Boolean filteringAdvancedConfig) {
             this.filteringAdvancedConfig = filteringAdvancedConfig;
             return this;
         }
 
-        public Builder setFilteringRules(boolean filteringRules) {
+        public Builder setFilteringRules(Boolean filteringRules) {
             this.filteringRules = filteringRules;
             return this;
         }
 
-        public Builder setIncrementalSyncEnabled(boolean incrementalSyncEnabled) {
+        public Builder setIncrementalSyncEnabled(Boolean incrementalSyncEnabled) {
             this.incrementalSyncEnabled = incrementalSyncEnabled;
             return this;
         }
 
-        public Builder setSyncRulesAdvancedEnabled(boolean syncRulesAdvancedEnabled) {
+        public Builder setSyncRulesAdvancedEnabled(Boolean syncRulesAdvancedEnabled) {
             this.syncRulesAdvancedEnabled = syncRulesAdvancedEnabled;
             return this;
         }
 
-        public Builder setSyncRulesBasicEnabled(boolean syncRulesBasicEnabled) {
+        public Builder setSyncRulesBasicEnabled(Boolean syncRulesBasicEnabled) {
             this.syncRulesBasicEnabled = syncRulesBasicEnabled;
             return this;
         }
 
-        public ConnectorFeatures createConnectorFeatures() {
+        public ConnectorFeatures build() {
             return new ConnectorFeatures(
+                documentLevelSecurityEnabled,
                 filteringAdvancedConfig,
                 filteringRules,
                 incrementalSyncEnabled,

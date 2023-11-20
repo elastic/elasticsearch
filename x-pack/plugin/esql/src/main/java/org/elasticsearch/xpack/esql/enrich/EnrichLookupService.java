@@ -335,7 +335,8 @@ public class EnrichLookupService {
     private class TransportHandler implements TransportRequestHandler<LookupRequest> {
         @Override
         public void messageReceived(LookupRequest request, TransportChannel channel, Task task) {
-            ActionListener<LookupResponse> listener = new ChannelActionListener<>(channel);
+            request.incRef();
+            ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
             doLookup(
                 request.sessionId,
                 (CancellableTask) task,

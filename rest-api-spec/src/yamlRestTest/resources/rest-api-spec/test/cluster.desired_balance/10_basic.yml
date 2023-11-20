@@ -235,4 +235,4 @@ setup:
   - gte: { 'stats.unassigned_shards' : 0 }
   - gte: { 'stats.total_allocations' : 0 }
   - gte: { 'stats.undesired_allocations' : 0 }
-  - gte: { 'stats.undesired_allocations_fraction' : 0.0 }
+  - gte: { 'stats.undesired_allocations_ratio' : 0.0 }

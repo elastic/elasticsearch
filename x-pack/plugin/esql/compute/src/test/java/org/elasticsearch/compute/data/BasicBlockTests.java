@@ -1003,6 +1003,12 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("can't release already released block"));
     }
 
+    static void assertCannotReleaseIfVectorAlreadyReleased(Block block) {
+        var ex = expectThrows(IllegalStateException.class, () -> block.close());
+        assertThat(ex.getMessage(), containsString("can't release block"));
+        assertThat(ex.getMessage(), containsString("containing already released vector"));
+    }
+
     static void assertCannotReadFromPage(Page page) {
         var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
         assertThat(e.getMessage(), containsString("can't read released block"));
@@ -1030,7 +1036,7 @@ public class BasicBlockTests extends ESTestCase {
 
     public void testRefCountingArrayBlock() {
         int positionCount = randomIntBetween(0, 100);
-        IntBlock block = blockFactory.newIntArrayBlock(new int[] { randomInt() }, 1, new int[] {}, new BitSet(), randomOrdering());
+        IntBlock block = blockFactory.newIntArrayBlock(IntStream.range(0, positionCount).toArray(), positionCount, new int[] {}, new BitSet(), randomOrdering());
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(block);
         assertThat(breaker.getUsed(), is(0L));
@@ -1045,8 +1051,7 @@ public class BasicBlockTests extends ESTestCase {
 
     public void testRefCountingDocBlock() {
         int positionCount = randomIntBetween(0, 100);
-
-        var block = new DocVector(intVector(positionCount), intVector(positionCount), intVector(positionCount), true).asBlock();
+        DocBlock block = new DocVector(intVector(positionCount), intVector(positionCount), intVector(positionCount), true).asBlock();
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(block);
         assertThat(breaker.getUsed(), is(0L));
@@ -1093,6 +1098,24 @@ public class BasicBlockTests extends ESTestCase {
 
         expectThrows(IllegalStateException.class, b::close);
         expectThrows(IllegalStateException.class, b::incRef);
+    }
+
+    public void testReleasedVectorInvalidatesBlockState() {
+        int positionCount = randomIntBetween(0, 100);
+        IntVector vector = intVector(positionCount);
+        IntBlock block = vector.asBlock();
+
+        vector.close();
+        expectThrows(IllegalStateException.class, block::close);
+    }
+
+    public void testReleasedDocVectorInvalidatesBlockState() {
+        int positionCount = randomIntBetween(0, 100);
+        DocVector vector = new DocVector(intVector(positionCount), intVector(positionCount), intVector(positionCount), true);
+        DocBlock block = vector.asBlock();
+
+        vector.close();
+        expectThrows(IllegalStateException.class, block::close);
     }
 
     private IntVector intVector(int positionCount) {

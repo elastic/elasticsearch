@@ -1,0 +1,6 @@
+pr: 102379
+summary: Pass source query to `FieldCapabilitiesAction` (as index_filter) for better
+  performance
+area: Transform
+type: enhancement
+issues: []

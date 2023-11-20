@@ -855,9 +855,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                // TODO it'd almost certainly be faster to drop directly to doc values like we do with keyword but this'll do for now
-                IndexFieldData<?> fd = new StringBinaryIndexFieldData(name(), CoreValuesSourceType.KEYWORD, null);
-                return BlockDocValuesReader.bytesRefsFromDocValues(context -> fd.load(context).getBytesValues());
+                return new BlockDocValuesReader.BytesRefsFromBinaryBlockLoader(name());
             }
             return null;
         }

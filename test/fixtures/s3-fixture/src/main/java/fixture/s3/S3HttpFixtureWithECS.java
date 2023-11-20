@@ -53,6 +53,6 @@ public class S3HttpFixtureWithECS extends S3HttpFixtureWithEC2 {
             );
         }
         final S3HttpFixtureWithECS fixture = new S3HttpFixtureWithECS(args);
-        fixture.start();
+        fixture.startWithWait();
     }
 }

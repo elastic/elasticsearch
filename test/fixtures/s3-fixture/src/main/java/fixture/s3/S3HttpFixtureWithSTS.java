@@ -112,6 +112,6 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
             );
         }
         final S3HttpFixtureWithSTS fixture = new S3HttpFixtureWithSTS(args);
-        fixture.start();
+        fixture.startWithWait();
     }
 }

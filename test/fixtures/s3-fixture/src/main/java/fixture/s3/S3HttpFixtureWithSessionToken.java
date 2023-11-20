@@ -52,6 +52,6 @@ public class S3HttpFixtureWithSessionToken extends S3HttpFixture {
             );
         }
         final S3HttpFixtureWithSessionToken fixture = new S3HttpFixtureWithSessionToken(args);
-        fixture.start();
+        fixture.startWithWait();
     }
 }

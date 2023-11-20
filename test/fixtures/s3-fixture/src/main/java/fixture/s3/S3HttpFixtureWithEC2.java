@@ -89,6 +89,6 @@ public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
             );
         }
         final S3HttpFixtureWithEC2 fixture = new S3HttpFixtureWithEC2(args);
-        fixture.start();
+        fixture.startWithWait();
     }
 }

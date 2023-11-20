@@ -36,7 +36,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.function.Supplier;
 
 public class StatelessHeartbeatStore implements HeartbeatStore {
-    private static final String HEARTBEAT_BLOB = "heartbeat";
+    public static final String HEARTBEAT_BLOB = "heartbeat";
     private final Supplier<BlobContainer> heartbeatBlobContainerSupplier;
     private final ThreadPool threadPool;
 

@@ -25,10 +25,6 @@ versions << [
   'aws': '1.12.270'
 ]
 
-configurations {
-  yamlRestTestRuntimeClasspath.exclude module: 'org.hamcrest:hamcrest-core'
-}
-
 dependencies {
   api "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
   api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
@@ -54,6 +50,8 @@ dependencies {
   yamlRestTestImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation project(':test:fixtures:minio-fixture')
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')
+  testRuntimeOnly project(":test:framework")
+
 }
 
 restResources {
@@ -183,7 +181,7 @@ tasks.named("internalClusterTest").configure {
   // this is tested explicitly in a separate test task
   exclude '**/S3RepositoryThirdPartyTests.class'
   // TODO: check
-  systemProperty "tests.security.manager", "false"
+  //systemProperty "tests.security.manager", "false"
 
 }
 
@@ -290,7 +288,7 @@ tasks.register("s3ThirdPartyTest", Test) {
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
   include '**/S3RepositoryThirdPartyTests.class'
   // TODO: check
-  systemProperty "tests.security.manager", "false"
+  //systemProperty "tests.security.manager", "false"
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket

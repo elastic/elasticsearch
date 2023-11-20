@@ -67,6 +67,7 @@ public abstract class CartesianShapeValues extends ShapeValues<CartesianShapeVal
             super(CoordinateEncoder.CARTESIAN, CartesianPoint::new);
         }
 
+        @SuppressWarnings("this-escape")
         public CartesianShapeValue(StreamInput in) throws IOException {
             this();
             this.reset(in);

@@ -63,6 +63,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1206,7 +1207,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new ConcurrentRebalanceAllocationDecider(clusterSettings),
             new ThrottlingAllocationDecider(clusterSettings) };
 
-        var reconciler = new DesiredBalanceReconciler(clusterSettings, mock(ThreadPool.class));
+        var reconciler = new DesiredBalanceReconciler(clusterSettings, mock(ThreadPool.class), mock(MeterRegistry.class));
 
         var totalOutgoingMoves = new HashMap<String, AtomicInteger>();
         for (int i = 0; i < numberOfNodes; i++) {
@@ -1275,7 +1276,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         var threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillis()).thenReturn(1L).thenReturn(2L).thenReturn(3L);
 
-        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool);
+        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, mock(MeterRegistry.class));
 
         var expectedWarningMessage = "[100%] of assigned shards ("
             + shardCount
@@ -1315,7 +1316,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     }
 
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), mock(ThreadPool.class)).reconcile(desiredBalance, routingAllocation);
+        new DesiredBalanceReconciler(createBuiltInClusterSettings(), mock(ThreadPool.class), mock(MeterRegistry.class)).reconcile(
+            desiredBalance,
+            routingAllocation
+        );
     }
 
     private static boolean isReconciled(RoutingNode node, DesiredBalance balance) {

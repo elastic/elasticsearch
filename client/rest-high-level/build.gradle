@@ -61,11 +61,6 @@ tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
 }
 
-tasks.named('splitPackagesAudit').configure {
-  // the client package should be owned by the client, but server has some classes there too
-  ignoreClasses 'org.elasticsearch.client.*'
-}
-
 // we don't have tests now, as HLRC is in the process of being removed
 tasks.named("test").configure {enabled = false }
 

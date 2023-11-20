@@ -328,7 +328,7 @@ base:integer | exponent:double | s:double
 // end::powID-sqrt-result[]
 ;
 
-powSqrtNeg
+powSqrtNeg#[skip:-8.11.99,reason:return type changed in 8.12]
 // tag::powNeg-sqrt[]
 ROW base = -4, exponent = 0.5
 | EVAL s = POW(base, exponent)
@@ -356,7 +356,7 @@ base:double | exponent:integer | result:double
 // end::powDI-result[]
 ;
 
-powIntInt
+powIntInt#[skip:-8.11.99,reason:return type changed in 8.12]
 ROW base = 2, exponent = 2
 | EVAL s = POW(base, exponent)
 ;
@@ -379,7 +379,7 @@ s:double
 5
 ;
 
-powIntUL
+powIntUL#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = pow(1, 9223372036854775808);
 
 x:double
@@ -393,7 +393,7 @@ x:double
 1
 ;
 
-powUnsignedLongUL
+powUnsignedLongU#[skip:-8.11.99,reason:return type changed in 8.12]L
 row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
 
 x:double
@@ -423,16 +423,12 @@ x:double
 9223372036854775807
 ;
 
-powULIntOverrun
-// tag::powULOverrun[]
+powULIntOverrun#[skip:-8.11.99,reason:return type changed in 8.12]
 ROW x = POW(9223372036854775808, 2)
-// end::powULOverrun[]
 ;
 
-// tag::powULOverrun-result[]
 x:double
 8.507059173023462E37
-// end::powULOverrun-result[]
 ;
 
 powULInt_2d
@@ -447,14 +443,14 @@ x:double
 // end::pow2d-result[]
 ;
 
-powULLong
+powULLong#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = to_long(10) | eval x = pow(to_unsigned_long(10), x);
 
 x:double
 10000000000
 ;
 
-powULLongOverrun
+powULLongOverrun#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
 
 x:double

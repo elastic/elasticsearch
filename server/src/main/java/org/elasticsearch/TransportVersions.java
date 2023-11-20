@@ -173,6 +173,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_OPENAI_ADDED = def(8_542_00_0);
     public static final TransportVersion SHUTDOWN_MIGRATION_STATUS_INCLUDE_COUNTS = def(8_543_00_0);
 
+    public static final TransportVersion PIT_WITH_INDEX_FILTER = def(8_599_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

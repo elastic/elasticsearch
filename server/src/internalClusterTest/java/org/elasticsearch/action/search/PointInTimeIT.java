@@ -152,6 +152,49 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
     }
 
+    public void testIndexFilter() {
+        int numDocs = randomIntBetween(1, 9);
+        for (int i = 1; i <= 3; i++) {
+            String index = "index-" + i;
+            createIndex(index);
+            for (int j = 1; j <= numDocs; j++) {
+                String id = Integer.toString(j);
+                client().prepareIndex(index).setId(id).setSource("@timestamp", "2023-0" + i + "-0" + j).get();
+            }
+        }
+        refresh();
+
+        {
+            OpenPointInTimeRequest request = new OpenPointInTimeRequest("*").keepAlive(TimeValue.timeValueMinutes(2));
+            final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+            SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), response.getPointInTimeId());
+            String[] actualIndices = searchContextId.getActualIndices();
+            assertEquals(3, actualIndices.length);
+        }
+        {
+            OpenPointInTimeRequest request = new OpenPointInTimeRequest("*").keepAlive(TimeValue.timeValueMinutes(2));
+            request.indexFilter(new RangeQueryBuilder("@timestamp").gte("2023-03-01"));
+            final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+            String pitId = response.getPointInTimeId();
+            SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), pitId);
+            String[] actualIndices = searchContextId.getActualIndices();
+            assertEquals(1, actualIndices.length);
+            assertEquals("index-3", actualIndices[0]);
+            try {
+                SearchResponse resp = prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(50).get();
+                assertNoFailures(resp);
+                assertHitCount(resp, numDocs);
+                assertNotNull(resp.pointInTimeId());
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+                for (SearchHit hit : resp.getHits()) {
+                    assertEquals("index-3", hit.getIndex());
+                }
+            } finally {
+                closePointInTime(pitId);
+            }
+        }
+    }
+
     public void testRelocation() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);
         createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1)).build());

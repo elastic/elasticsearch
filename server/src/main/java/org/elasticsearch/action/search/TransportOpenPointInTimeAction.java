@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -28,6 +30,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -47,6 +50,9 @@ import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
 public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenPointInTimeRequest, OpenPointInTimeResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportSearchAction.class);
+
     public static final String OPEN_SHARD_READER_CONTEXT_NAME = "indices:data/read/open_reader_context";
 
     private final TransportSearchAction transportSearchAction;
@@ -93,7 +99,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             .indicesOptions(request.indicesOptions())
             .preference(request.preference())
             .routing(request.routing())
-            .allowPartialSearchResults(false);
+            .allowPartialSearchResults(false)
+            .source(new SearchSourceBuilder().query(request.indexFilter()));
         searchRequest.setMaxConcurrentShardRequests(request.maxConcurrentShardRequests());
         searchRequest.setCcsMinimizeRoundtrips(false);
         transportSearchAction.executeRequest((SearchTask) task, searchRequest, listener.map(r -> {
@@ -124,6 +131,63 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             Map<String, Float> concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
+            SearchResponse.Clusters clusters
+        ) {
+            if (SearchService.canRewriteToMatchNone(searchRequest.source())) {
+                return new CanMatchPreFilterSearchPhase(
+                    logger,
+                    searchTransportService,
+                    connectionLookup,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                    searchRequest,
+                    shardIterators,
+                    timeProvider,
+                    task,
+                    false,
+                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
+                    listener.delegateFailureAndWrap(
+                        (searchResponseActionListener, searchShardIterators) -> openPointInTimePhase(
+                            task,
+                            searchRequest,
+                            executor,
+                            searchShardIterators,
+                            timeProvider,
+                            connectionLookup,
+                            clusterState,
+                            aliasFilter,
+                            concreteIndexBoosts,
+                            clusters
+                        ).start()
+                    )
+                );
+            } else {
+                return openPointInTimePhase(
+                    task,
+                    searchRequest,
+                    executor,
+                    shardIterators,
+                    timeProvider,
+                    connectionLookup,
+                    clusterState,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    clusters
+                );
+            }
+        }
+
+        SearchPhase openPointInTimePhase(
+            SearchTask task,
+            SearchRequest searchRequest,
+            Executor executor,
+            GroupShardsIterator<SearchShardIterator> shardIterators,
+            TransportSearchAction.SearchTimeProvider timeProvider,
+            BiFunction<String, String, Transport.Connection> connectionLookup,
+            ClusterState clusterState,
+            Map<String, AliasFilter> aliasFilter,
+            Map<String, Float> concreteIndexBoosts,
             SearchResponse.Clusters clusters
         ) {
             assert searchRequest.getMaxConcurrentShardRequests() == pitRequest.maxConcurrentShardRequests()

@@ -8,9 +8,12 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.Processor;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom ingest processors
@@ -26,5 +29,9 @@ public interface IngestPlugin {
      */
     default Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return Map.of();
+    }
+
+    default Optional<Pipeline> getIngestPipeline(IndexMetadata current, IndexMetadata previous, Processor.Parameters parameters) {
+        return Optional.empty();
     }
 }

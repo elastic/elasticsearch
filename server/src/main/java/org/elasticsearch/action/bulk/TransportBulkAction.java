@@ -275,7 +275,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 ingestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
-                hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
+                hasIndexRequestsWithPipelines |= ingestService.hasPipeline(indexRequest);
             }
 
             if (actionRequest instanceof IndexRequest ir) {

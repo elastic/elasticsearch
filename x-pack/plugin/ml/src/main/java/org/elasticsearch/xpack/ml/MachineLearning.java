@@ -22,6 +22,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -53,6 +54,8 @@ import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.ingest.CompoundProcessor;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
@@ -324,6 +327,7 @@ import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMet
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.inference.ingest.SemanticTextInferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -457,8 +461,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -753,8 +759,8 @@ public class MachineLearning extends Plugin
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
-
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
+    private final SetOnce<InferenceAuditor> inferenceAuditorSetOnce = new SetOnce<>();
 
     public MachineLearning(Settings settings) {
         this.settings = settings;
@@ -923,7 +929,7 @@ public class MachineLearning extends Plugin
             clusterService,
             machineLearningExtension.get().includeNodeInfo()
         );
-        InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService, machineLearningExtension.get().includeNodeInfo());
+        inferenceAuditorSetOnce.set(new InferenceAuditor(client, clusterService, machineLearningExtension.get().includeNodeInfo()));
         SystemAuditor systemAuditor = new SystemAuditor(client, clusterService);
 
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
@@ -1095,7 +1101,7 @@ public class MachineLearning extends Plugin
         final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, xContentRegistry);
         final ModelLoadingService modelLoadingService = new ModelLoadingService(
             trainedModelProvider,
-            inferenceAuditor,
+            inferenceAuditorSetOnce.get(),
             threadPool,
             clusterService,
             trainedModelStatsService,
@@ -1244,7 +1250,7 @@ public class MachineLearning extends Plugin
             datafeedManager,
             anomalyDetectionAuditor,
             dataFrameAnalyticsAuditor,
-            inferenceAuditor,
+            inferenceAuditorSetOnce.get(),
             systemAuditor,
             mlAssignmentNotifier,
             mlAutoUpdateService,
@@ -2272,5 +2278,62 @@ public class MachineLearning extends Plugin
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
+    }
+
+    @Override
+    public Optional<Pipeline> getIngestPipeline(IndexMetadata current, IndexMetadata previous, Processor.Parameters parameters) {
+
+        if (current == null) {
+            return Optional.empty();
+        }
+
+        Map<String, List<String>> inferenceModelsForFields = current.getInferenceModelsForFields();
+        if (inferenceModelsForFields.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Collection<Processor> inferenceProcessors = new ArrayList<>();
+        for (Map.Entry<String, List<String>> modelsForFieldsEntry : inferenceModelsForFields.entrySet()) {
+            Map<String, Object> inferenceConfig = new HashMap<>();
+            String modelId = modelsForFieldsEntry.getKey();
+            inferenceConfig.put("model_id", modelId);
+            Collection<Map<String, String>> inputOutputConfigs = new ArrayList<>();
+            for (String field : modelsForFieldsEntry.getValue()) {
+                Map<String, String> params = new HashMap<>();
+                params.put("input_field", field);
+                params.put("output_field", "ml.inference." + field);
+                inputOutputConfigs.add(params);
+            }
+            inferenceConfig.put("input_output", inputOutputConfigs);
+
+            try {
+                SemanticTextInferenceProcessor semanticTextInferenceProcessor = new SemanticTextInferenceProcessor(
+                    parameters.client,
+                    inferenceAuditorSetOnce.get(),
+                    "semantic text processor for index " + current.getIndex().getName() + ", model " + modelId,
+                    inferenceModelsForFields
+                );
+                inferenceProcessors.add(semanticTextInferenceProcessor);
+            } catch (Exception e) {
+                logger.error(
+                    "Cannot create inference processor for model ["
+                        + modelId
+                        + "] with fields "
+                        + modelsForFieldsEntry.getValue(),
+                    e
+                );
+            }
+        }
+
+        String inferencePipelineName = "_semantic_text_inference_" + current.getIndex().getName();
+        Pipeline inferencePipeline = new Pipeline(
+            inferencePipelineName,
+            "semantic text pipeline for index " + current.getIndex().getName(),
+            null,
+            null,
+            new CompoundProcessor(inferenceProcessors.toArray(new Processor[] {}))
+        );
+
+        return Optional.of(inferencePipeline);
     }
 }

@@ -80,6 +80,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.TransportVersions.SEMANTIC_TEXT_FIELD;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.elasticsearch.cluster.metadata.Metadata.DEDUPLICATED_MAPPINGS_PARAM;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
@@ -635,6 +636,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final Double writeLoadForecast;
     @Nullable
     private final Long shardSizeInBytesForecast;
+    private final Map<String, List<String>> inferenceModelsForFields;
 
     private IndexMetadata(
         final Index index,
@@ -680,7 +682,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final IndexVersion indexCompatibilityVersion,
         @Nullable final IndexMetadataStats stats,
         @Nullable final Double writeLoadForecast,
-        @Nullable Long shardSizeInBytesForecast
+        @Nullable Long shardSizeInBytesForecast,
+        final Map<String, List<String>> inferenceModelsForFields
     ) {
         this.index = index;
         this.version = version;
@@ -736,6 +739,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.writeLoadForecast = writeLoadForecast;
         this.shardSizeInBytesForecast = shardSizeInBytesForecast;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
+        this.inferenceModelsForFields = inferenceModelsForFields;
+        assert inferenceModelsForFields != null;
     }
 
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {
@@ -786,7 +791,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast
+            this.shardSizeInBytesForecast,
+            this.inferenceModelsForFields
         );
     }
 
@@ -844,7 +850,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast
+            this.shardSizeInBytesForecast,
+            this.inferenceModelsForFields
         );
     }
 
@@ -900,7 +907,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast
+            this.shardSizeInBytesForecast,
+            this.inferenceModelsForFields
         );
     }
 
@@ -956,7 +964,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast
+            this.shardSizeInBytesForecast,
+            this.inferenceModelsForFields
         );
     }
 
@@ -1008,7 +1017,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast
+            this.shardSizeInBytesForecast,
+            this.inferenceModelsForFields
         );
     }
 
@@ -1210,6 +1220,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public OptionalLong getForecastedShardSizeInBytes() {
         return shardSizeInBytesForecast == null ? OptionalLong.empty() : OptionalLong.of(shardSizeInBytesForecast);
+    }
+
+    public Map<String, List<String>> getInferenceModelsForFields() {
+        return inferenceModelsForFields;
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
@@ -1702,6 +1716,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
+        if (in.getTransportVersion().onOrAfter(SEMANTIC_TEXT_FIELD)) {
+            builder.inferenceModelsForfields(in.readImmutableMap(StreamInput::readStringCollectionAsImmutableList));
+        }
         return builder.build(true);
     }
 
@@ -1747,6 +1764,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeOptionalWriteable(stats);
             out.writeOptionalDouble(writeLoadForecast);
             out.writeOptionalLong(shardSizeInBytesForecast);
+        }
+        if (out.getTransportVersion().onOrAfter(SEMANTIC_TEXT_FIELD)) {
+            out.writeMap(inferenceModelsForFields, StreamOutput::writeStringCollection);
         }
     }
 
@@ -1797,6 +1817,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private IndexMetadataStats stats = null;
         private Double indexWriteLoadForecast = null;
         private Long shardSizeInBytesForecast = null;
+        private Map<String, List<String>> inferenceModelsForFields = Map.of();
 
         public Builder(String index) {
             this.index = index;
@@ -1828,6 +1849,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats = indexMetadata.stats;
             this.indexWriteLoadForecast = indexMetadata.writeLoadForecast;
             this.shardSizeInBytesForecast = indexMetadata.shardSizeInBytesForecast;
+            this.inferenceModelsForFields = indexMetadata.inferenceModelsForFields;
         }
 
         public Builder index(String index) {
@@ -2057,6 +2079,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
+        public Builder inferenceModelsForfields(Map<String, List<String>> inferenceModelsForfields) {
+            this.inferenceModelsForFields = inferenceModelsForfields;
+            return this;
+        }
+
         public IndexMetadata build() {
             return build(false);
         }
@@ -2251,7 +2278,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 SETTING_INDEX_VERSION_COMPATIBILITY.get(settings),
                 stats,
                 indexWriteLoadForecast,
-                shardSizeInBytesForecast
+                shardSizeInBytesForecast,
+                inferenceModelsForFields
             );
         }
 

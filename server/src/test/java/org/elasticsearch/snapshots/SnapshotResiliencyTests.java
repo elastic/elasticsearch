@@ -1824,7 +1824,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters
                     )
                 );
-                final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
+
+                final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService, List.of());
 
                 peerRecoverySourceService = new PeerRecoverySourceService(
                     transportService,

@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -55,8 +54,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.grok.MatcherWatchdog;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -68,7 +65,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -113,20 +109,19 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final Map<String, Processor.Factory> processorFactories;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndicesService indicesService;
+    private final List<IngestPlugin> ingestPlugins;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
     // processor factories rely on other node services. Custom metadata is statically registered when classes
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     private volatile Map<String, PipelineHolder> pipelines = Map.of();
-
-    private volatile Map<String, PipelineHolder> inferencePipelines = new HashMap<>();
-
-    private volatile Map<Index, String> inferencePipelinesForIndices = new HashMap<>();
+    private volatile Map<String, List<Pipeline>> pluginPipelines = Map.of();
 
     private final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
+    private final Processor.Parameters processorParameters;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
         return (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic());
@@ -200,20 +195,23 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.documentParsingObserverSupplier = documentParsingObserverSupplier;
+        this.ingestPlugins = ingestPlugins;
+        this.processorParameters = new Processor.Parameters(
+            env,
+            scriptService,
+            analysisRegistry,
+            threadPool.getThreadContext(),
+            threadPool::relativeTimeInMillis,
+            createScheduler(threadPool),
+            this,
+            client,
+            threadPool.generic()::execute,
+            matcherWatchdog
+        );
+
         this.processorFactories = processorFactories(
             ingestPlugins,
-            new Processor.Parameters(
-                env,
-                scriptService,
-                analysisRegistry,
-                threadPool.getThreadContext(),
-                threadPool::relativeTimeInMillis,
-                createScheduler(threadPool),
-                this,
-                client,
-                threadPool.generic()::execute,
-                matcherWatchdog
-            )
+            processorParameters
         );
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
@@ -279,7 +277,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             indexRequest.setPipeline(pipelines.defaultPipeline);
         }
         indexRequest.setFinalPipeline(pipelines.finalPipeline);
-        indexRequest.setInferencePipeline(pipelines.inferencePipeline);
+        indexRequest.setPluginsPipeline(pipelines.pluginPipelines);
         indexRequest.isPipelineResolved(true);
     }
 
@@ -494,17 +492,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    private Pipeline getInferencePipeline(String id) {
+    private List<Pipeline> getPluginsPipelines(String id) {
         if (id == null) {
             return null;
         }
 
-        PipelineHolder holder = inferencePipelines.get(id);
-        if (holder != null) {
-            return holder.pipeline;
-        } else {
-            return null;
-        }
+        return this.pluginPipelines.get(id);
     }
 
     public Map<String, Processor.Factory> getProcessorFactories() {
@@ -771,10 +764,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         indexRequest.setPipeline(NOOP_PIPELINE_NAME);
         final String finalPipelineId = indexRequest.getFinalPipeline();
         indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
-        final String inferencePipelineId = indexRequest.getInferencePipeline();
-        indexRequest.setInferencePipeline(NOOP_PIPELINE_NAME);
+        final String pluginPipelineId = indexRequest.getPluginsPipeline();
+        indexRequest.setPluginsPipeline(NOOP_PIPELINE_NAME);
 
-        return new PipelineIterator(pipelineId, finalPipelineId, inferencePipelineId);
+        return new PipelineIterator(pipelineId, finalPipelineId, pluginPipelines.get(pluginPipelineId));
     }
 
     /**
@@ -794,19 +787,19 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         private final String defaultPipeline;
         private final String finalPipeline;
-        private final String inferencePipeline;
+        private final List<Pipeline> pluginsPipelines;
 
         private final Iterator<PipelineSlot> pipelineSlotIterator;
 
-        private PipelineIterator(String defaultPipeline, String finalPipeline, String inferencePipeline) {
+        private PipelineIterator(String defaultPipeline, String finalPipeline, List<Pipeline> pluginsPipelines) {
             this.defaultPipeline = NOOP_PIPELINE_NAME.equals(defaultPipeline) ? null : defaultPipeline;
             this.finalPipeline = NOOP_PIPELINE_NAME.equals(finalPipeline) ? null : finalPipeline;
-            this.inferencePipeline =  NOOP_PIPELINE_NAME.equals(inferencePipeline) ? null : inferencePipeline;
+            this.pluginsPipelines =  pluginsPipelines;
             this.pipelineSlotIterator = iterator();
         }
 
         public PipelineIterator withoutDefaultPipeline() {
-            return new PipelineIterator(null, finalPipeline, inferencePipeline);
+            return new PipelineIterator(null, finalPipeline, pluginsPipelines);
         }
 
         private Iterator<PipelineSlot> iterator() {
@@ -817,8 +810,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             if (finalPipeline != null) {
                 slotList.add(new PipelineSlot(finalPipeline, getPipeline(finalPipeline), true));
             }
-            if (inferencePipeline != null) {
-                slotList.add(new PipelineSlot("inference", getInferencePipeline(inferencePipeline), false));
+            if (pluginsPipelines != null) {
+                slotList.addAll(pluginsPipelines.stream().map(pipeline -> new PipelineSlot("plugins", pipeline, false)).toList());
             }
             return slotList.iterator();
         }
@@ -1120,18 +1113,41 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ingestClusterStateListeners.forEach(consumer -> consumer.accept(state));
 
         IngestMetadata newIngestMetadata = state.getMetadata().custom(IngestMetadata.TYPE);
-        if (newIngestMetadata == null) {
-            return;
+        if (newIngestMetadata != null) {
+            try {
+                innerUpdatePipelines(newIngestMetadata, event.state().metadata());
+            } catch (ElasticsearchParseException e) {
+                logger.warn("failed to update ingest pipelines", e);
+            }
         }
 
-        try {
-            innerUpdatePipelines(newIngestMetadata, event.state().metadata());
-        } catch (ElasticsearchParseException e) {
-            logger.warn("failed to update ingest pipelines", e);
-        }
+        updatePluginPipelines(event);
+    }
 
-        inferencePipelines.clear();
-        inferencePipelinesForIndices.clear();
+    private synchronized void updatePluginPipelines(ClusterChangedEvent event) {
+        // TODO Update just for changed indices
+        Map<String, IndexMetadata> currentIndexMetadata = state.metadata().indices();
+        Map<String, IndexMetadata> previousIndexMetadata = event.previousState().metadata().indices();
+        if (currentIndexMetadata.equals(previousIndexMetadata) == false) {
+            Map<String, List<Pipeline>> updatedPluginPipelines = new HashMap<>();
+            HashSet<String> indicesNames = new HashSet<>(currentIndexMetadata.keySet());
+            indicesNames.addAll(previousIndexMetadata.keySet());
+            for (String indexName : indicesNames) {
+                List<Pipeline> pipelineList = ingestPlugins.stream()
+                    .map(
+                        plugin -> plugin.getIngestPipeline(
+                            currentIndexMetadata.get(indexName),
+                            previousIndexMetadata.get(indexName),
+                            processorParameters
+                        )
+                    ).flatMap(Optional::stream)
+                    .toList();
+                if (pipelineList.isEmpty() == false) {
+                    updatedPluginPipelines.put(indexName, pipelineList);
+                }
+            }
+            pluginPipelines = Map.copyOf(updatedPluginPipelines);
+        }
     }
 
     synchronized void innerUpdatePipelines(IngestMetadata newIngestMetadata, Metadata metadata) {
@@ -1324,8 +1340,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
         }
         // check the alias for the index request (this is how normal index requests are modeled)
-        if (indexMetadata == null && indexRequest.index() != null) {
-            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexRequest.index());
+        String indexName = indexRequest.index();
+        if (indexMetadata == null && indexName != null) {
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexName);
             if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
                 indexMetadata = metadata.index(indexAbstraction.getWriteIndex());
             }
@@ -1343,76 +1360,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
 
         final Settings settings = indexMetadata.getSettings();
+        List<Pipeline> pluginsPipelines = getPluginsPipelines(indexName);
         return Optional.of(
             new Pipelines(
                 IndexSettings.DEFAULT_PIPELINE.get(settings),
                 IndexSettings.FINAL_PIPELINE.get(settings),
-                getOrCreateInferencePipeline(indexMetadata)
-            )
+                pluginPipelines == null ? NOOP_PIPELINE_NAME : indexName
+        )
         );
-    }
-
-    private String getOrCreateInferencePipeline(IndexMetadata indexMetadata) {
-        Index index = indexMetadata.getIndex();
-        String inferencePipelineName = inferencePipelinesForIndices.get(index);
-        if (inferencePipelineName != null) {
-            return inferencePipelineName;
-        }
-
-        IndexService indexService = indicesService.indexService(index);
-        Map<String, List<String>> fieldsForModels = null;
-//        if (indexService != null) {
-//            fieldsForModels = indexService.mapperService().mappingLookup().fieldsForModels();
-//        } else {
-            fieldsForModels = indexMetadata.mapping().getFieldsForModels();
-//        }
-        if (fieldsForModels.isEmpty()) {
-            inferencePipelineName = NOOP_PIPELINE_NAME;
-            inferencePipelinesForIndices.put(index, inferencePipelineName);
-            return inferencePipelineName;
-        }
-
-        Collection<Processor> inferenceProcessors = new ArrayList<>();
-        for (Map.Entry<String, List<String>> modelsForFieldsEntry : fieldsForModels.entrySet()) {
-            Map<String, Object> inferenceConfig = new HashMap<>();
-            inferenceConfig.put("model_id", modelsForFieldsEntry.getKey());
-            Collection<Map<String, String>> inputOutputConfigs = new ArrayList<>();
-            for (String field : modelsForFieldsEntry.getValue()) {
-                Map<String, String> params = new HashMap<>();
-                params.put("input_field", field);
-                params.put("output_field", "ml.inference." + field);
-                inputOutputConfigs.add(params);
-            }
-            inferenceConfig.put("input_output", inputOutputConfigs);
-
-            try {
-                inferenceProcessors.add(processorFactories.get("inference").create(processorFactories, null, null, inferenceConfig));
-            } catch (Exception e) {
-                logger.error(
-                    "Cannot create inference processor for model ["
-                        + modelsForFieldsEntry.getKey()
-                        + "] with fields "
-                        + modelsForFieldsEntry.getValue(),
-                    e
-                );
-            }
-        }
-
-        inferencePipelineName = "_inference_" + index.getName();
-        Pipeline inferencePipeline = new Pipeline(
-            inferencePipelineName,
-            null,
-            null,
-            null,
-            new CompoundProcessor(inferenceProcessors.toArray(new Processor[] {}))
-        );
-        inferencePipelines.put(
-            inferencePipelineName,
-            new PipelineHolder(new PipelineConfiguration(inferencePipelineName, new BytesArray(""), XContentType.JSON), inferencePipeline)
-        );
-        inferencePipelinesForIndices.put(index, inferencePipelineName);
-
-        return inferencePipelineName;
     }
 
     private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata metadata) {
@@ -1458,7 +1413,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         defaultPipeline = Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME);
         finalPipeline = Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME);
 
-        return Optional.of(new Pipelines(defaultPipeline, finalPipeline, NOOP_PIPELINE_NAME));
+        return Optional.of(new Pipelines(defaultPipeline, finalPipeline, null));
     }
 
     /**
@@ -1466,24 +1421,24 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * <p>
      * This method assumes that the pipelines are beforehand resolved.
      */
-    public static boolean hasPipeline(IndexRequest indexRequest) {
+    public boolean hasPipeline(IndexRequest indexRequest) {
         assert indexRequest.isPipelineResolved();
         assert indexRequest.getPipeline() != null;
         assert indexRequest.getFinalPipeline() != null;
-        assert indexRequest.getInferencePipeline() != null;
+        assert indexRequest.getPluginsPipeline() != null;
         return NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false
-            || NOOP_PIPELINE_NAME.equals(indexRequest.getInferencePipeline()) == false;
+            || NOOP_PIPELINE_NAME.equals(indexRequest.getPluginsPipeline()) == false;
     }
 
-    private record Pipelines(String defaultPipeline, String finalPipeline, String inferencePipeline) {
+    private record Pipelines(String defaultPipeline, String finalPipeline, String pluginPipelines) {
 
         private static final Pipelines NO_PIPELINES_DEFINED = new Pipelines(NOOP_PIPELINE_NAME, NOOP_PIPELINE_NAME, NOOP_PIPELINE_NAME);
 
         public Pipelines {
             Objects.requireNonNull(defaultPipeline);
             Objects.requireNonNull(finalPipeline);
-            Objects.requireNonNull(inferencePipeline);
+            Objects.requireNonNull(pluginPipelines);
         }
     }
 }

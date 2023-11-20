@@ -1486,8 +1486,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         return runningTasks;
     }
 
-    public static void assertOK(Response response) {
+    public static Response assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+        return response;
     }
 
     public static ObjectPath assertOKAndCreateObjectPath(Response response) throws IOException {

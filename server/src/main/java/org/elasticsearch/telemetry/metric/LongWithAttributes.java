@@ -12,4 +12,7 @@ import java.util.Map;
 
 public record LongWithAttributes(long value, Map<String, Object> attributes) {
 
+    public LongWithAttributes(long value) {
+        this(value, Map.of());
+    }
 }

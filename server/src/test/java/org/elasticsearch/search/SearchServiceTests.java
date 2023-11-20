@@ -1948,8 +1948,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         try (ReaderContext readerContext = createReaderContext(indexService, indexShard)) {
             SearchService service = getInstanceFromNode(SearchService.class);
             SearchShardTask task = new SearchShardTask(0, "type", "action", "description", null, emptyMap());
-            {
-                SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean());
+
+            try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
                 assertNotNull(searchContext.searcher().getExecutor());
             }
 
@@ -1960,8 +1960,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     .setPersistentSettings(Settings.builder().put(SEARCH_WORKER_THREADS_ENABLED.getKey(), false).build())
                     .get();
                 assertTrue(response.isAcknowledged());
-                {
-                    SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean());
+                try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
                     assertNull(searchContext.searcher().getExecutor());
                 }
             } finally {
@@ -1971,8 +1970,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     .prepareUpdateSettings()
                     .setPersistentSettings(Settings.builder().putNull(SEARCH_WORKER_THREADS_ENABLED.getKey()).build())
                     .get();
-                SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean());
-                assertNotNull(searchContext.searcher().getExecutor());
+                try (SearchContext searchContext = service.createContext(readerContext, request, task, ResultsType.DFS, randomBoolean())) {
+                    assertNotNull(searchContext.searcher().getExecutor());
+                }
             }
         }
     }

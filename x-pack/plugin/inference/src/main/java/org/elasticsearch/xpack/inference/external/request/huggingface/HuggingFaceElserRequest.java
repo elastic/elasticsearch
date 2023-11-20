@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.request.huggingface;
 
-import org.apache.http.Header;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
@@ -20,6 +18,8 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 public class HuggingFaceElserRequest implements Request {
 
@@ -37,12 +37,8 @@ public class HuggingFaceElserRequest implements Request {
         ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(entity).getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
-        httpPost.setHeader(apiKeyHeader());
+        httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
 
         return httpPost;
-    }
-
-    private Header apiKeyHeader() {
-        return new BasicHeader(HttpHeaders.AUTHORIZATION, "Bearer " + account.apiKey().toString());
     }
 }

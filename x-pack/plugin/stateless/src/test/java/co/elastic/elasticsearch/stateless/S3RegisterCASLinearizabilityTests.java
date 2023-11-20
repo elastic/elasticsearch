@@ -46,6 +46,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -104,6 +105,10 @@ public class S3RegisterCASLinearizabilityTests extends ESTestCase {
         }
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/996",
+        value = "org.elasticsearch.repositories.s3:TRACE,com.amazonaws.request:DEBUG,org.apache.http.wire:DEBUG"
+    )
     public void testCASIsLinearizable() throws Exception {
         final int maxThreadSleepTimeInMillis = randomFrom(10, 200);
         runCASTest(maxThreadSleepTimeInMillis, testState -> {

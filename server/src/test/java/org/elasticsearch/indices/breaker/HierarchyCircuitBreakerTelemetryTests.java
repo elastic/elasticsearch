@@ -50,7 +50,7 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
     public static class TestCircuitBreakerTelemetryPlugin extends TestTelemetryPlugin {
         protected final MeterRegistry meter = new RecordingMeterRegistry() {
             private final LongCounter inFlightRequests = new RecordingInstruments.RecordingLongCounter(
-                CircuitBreakerMetrics.CIRCUIT_BREAKER_PARENT_TRIP_COUNT,
+                CircuitBreakerMetrics.CIRCUIT_BREAKER_PARENT_TRIP_COUNT_TOTAL,
                 recorder
             ) {
                 @Override
@@ -65,7 +65,7 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
             };
 
             private final LongCounter fielddata = new RecordingInstruments.RecordingLongCounter(
-                CircuitBreakerMetrics.CIRCUIT_BREAKER_FIELD_DATA_TRIP_COUNT,
+                CircuitBreakerMetrics.CIRCUIT_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL,
                 recorder
             ) {
                 @Override
@@ -80,7 +80,7 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
             };
 
             private final LongCounter request = new RecordingInstruments.RecordingLongCounter(
-                CircuitBreakerMetrics.CIRCUIT_BREAKER_REQUEST_TRIP_COUNT,
+                CircuitBreakerMetrics.CIRCUIT_BREAKER_REQUEST_TRIP_COUNT_TOTAL,
                 recorder
             ) {
                 @Override
@@ -95,7 +95,7 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
             };
 
             private final LongCounter parent = new RecordingInstruments.RecordingLongCounter(
-                CircuitBreakerMetrics.CIRCUIT_BREAKER_PARENT_TRIP_COUNT,
+                CircuitBreakerMetrics.CIRCUIT_BREAKER_PARENT_TRIP_COUNT_TOTAL,
                 recorder
             ) {
                 @Override
@@ -139,10 +139,10 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
                 assertThat(
                     name,
                     Matchers.oneOf(
-                        CircuitBreakerMetrics.CIRCUIT_BREAKER_FIELD_DATA_TRIP_COUNT,
-                        CircuitBreakerMetrics.CIRCUIT_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT,
-                        CircuitBreakerMetrics.CIRCUIT_BREAKER_PARENT_TRIP_COUNT,
-                        CircuitBreakerMetrics.CIRCUIT_BREAKER_REQUEST_TRIP_COUNT
+                        CircuitBreakerMetrics.CIRCUIT_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL,
+                        CircuitBreakerMetrics.CIRCUIT_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT_TOTAL,
+                        CircuitBreakerMetrics.CIRCUIT_BREAKER_PARENT_TRIP_COUNT_TOTAL,
+                        CircuitBreakerMetrics.CIRCUIT_BREAKER_REQUEST_TRIP_COUNT_TOTAL
                     )
                 );
             }

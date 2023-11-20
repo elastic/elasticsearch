@@ -142,7 +142,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
-    private final LongCounter parentTripCountMetric;
+    private final LongCounter parentTripCountTotalMetric;
 
     private final Function<Boolean, OverLimitStrategy> overLimitStrategyFactory;
     private volatile OverLimitStrategy overLimitStrategy;
@@ -170,7 +170,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.FIELDDATA,
             validateAndCreateBreaker(
-                metrics.getFielddataTripCount(),
+                metrics.getFielddataTripCountTotal(),
                 new BreakerSettings(
                     CircuitBreaker.FIELDDATA,
                     FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -183,7 +183,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.IN_FLIGHT_REQUESTS,
             validateAndCreateBreaker(
-                metrics.getInFlightRequestsCount(),
+                metrics.getInFlightRequestsCountTotal(),
                 new BreakerSettings(
                     CircuitBreaker.IN_FLIGHT_REQUESTS,
                     IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -196,7 +196,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.REQUEST,
             validateAndCreateBreaker(
-                metrics.getRequestTripCount(),
+                metrics.getRequestTripCountTotal(),
                 new BreakerSettings(
                     CircuitBreaker.REQUEST,
                     REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -261,7 +261,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         this.overLimitStrategyFactory = overLimitStrategyFactory;
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
-        this.parentTripCountMetric = metrics.getParentTripCount();
+        this.parentTripCountTotalMetric = metrics.getParentTripCountTotal();
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
@@ -414,7 +414,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         long parentLimit = this.parentSettings.getLimit();
         if (memoryUsed.totalUsage > parentLimit && overLimitStrategy.overLimit(memoryUsed).totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
-            this.parentTripCountMetric.increment();
+            this.parentTripCountTotalMetric.increment();
             final String messageString = buildParentTripMessage(
                 newBytesReserved,
                 label,

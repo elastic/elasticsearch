@@ -80,7 +80,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         };
         final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, (BYTES_PER_THREAD * NUM_THREADS) - 1, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
-            CircuitBreakerMetrics.NOOP.getParentTripCount(),
+            CircuitBreakerMetrics.NOOP.getParentTripCountTotal(),
             settings,
             logger,
             (HierarchyCircuitBreakerService) service,
@@ -158,7 +158,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         };
         final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, childLimit, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
-            CircuitBreakerMetrics.NOOP.getParentTripCount(),
+            CircuitBreakerMetrics.NOOP.getParentTripCountTotal(),
             settings,
             logger,
             (HierarchyCircuitBreakerService) service,

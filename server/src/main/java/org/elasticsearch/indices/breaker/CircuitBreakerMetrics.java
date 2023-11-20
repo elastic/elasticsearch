@@ -35,47 +35,47 @@ import java.util.Objects;
  * trip counters.
  */
 public class CircuitBreakerMetrics {
-    public static final String CIRCUIT_BREAKER_PARENT_TRIP_COUNT = "circuit_breaker.parent.trip_count";
-    public static final String CIRCUIT_BREAKER_FIELD_DATA_TRIP_COUNT = "circuit_breaker.field_data.trip_count";
-    public static final String CIRCUIT_BREAKER_REQUEST_TRIP_COUNT = "circuit_breaker.request.trip_count";
-    public static final String CIRCUIT_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT = "circuit_breaker.in_flight_requests.trip_count";
+    public static final String CIRCUIT_BREAKER_PARENT_TRIP_COUNT_TOTAL = "circuit_breaker.parent.trip_count.total";
+    public static final String CIRCUIT_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL = "circuit_breaker.field_data.trip_count.total";
+    public static final String CIRCUIT_BREAKER_REQUEST_TRIP_COUNT_TOTAL = "circuit_breaker.request.trip_count.total";
+    public static final String CIRCUIT_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT_TOTAL = "circuit_breaker.in_flight_requests.trip_count.total";
 
-    private static final String CIRCUIT_BREAKER_CUSTOM_TRIP_COUNT_TEMPLATE = "circuit_breaker.%s.trip_count";
+    private static final String CIRCUIT_BREAKER_CUSTOM_TRIP_COUNT_TOTAL_TEMPLATE = "circuit_breaker.%s.trip_count.total";
     private final MeterRegistry registry;
-    private final LongCounter parentTripCount;
-    private final LongCounter fielddataTripCount;
-    private final LongCounter requestTripCount;
-    private final LongCounter inFlightRequestsCount;
-    private final Map<String, LongCounter> customTripCounts;
+    private final LongCounter parentTripCountTotal;
+    private final LongCounter fielddataTripCountTotal;
+    private final LongCounter requestTripCountTotal;
+    private final LongCounter inFlightRequestsCountTotal;
+    private final Map<String, LongCounter> customTripCountsTotal;
 
     private CircuitBreakerMetrics(
         final MeterRegistry registry,
-        final LongCounter parentTripCount,
-        final LongCounter fielddataTripCount,
-        final LongCounter requestTripCount,
-        final LongCounter inFlightRequestsCount,
-        final Map<String, LongCounter> customTripCounts
+        final LongCounter parentTripCountTotal,
+        final LongCounter fielddataTripCountTotal,
+        final LongCounter requestTripCountTotal,
+        final LongCounter inFlightRequestsCountTotal,
+        final Map<String, LongCounter> customTripCountsTotal
     ) {
         this.registry = registry;
-        this.parentTripCount = parentTripCount;
-        this.fielddataTripCount = fielddataTripCount;
-        this.requestTripCount = requestTripCount;
-        this.inFlightRequestsCount = inFlightRequestsCount;
-        this.customTripCounts = customTripCounts;
+        this.parentTripCountTotal = parentTripCountTotal;
+        this.fielddataTripCountTotal = fielddataTripCountTotal;
+        this.requestTripCountTotal = requestTripCountTotal;
+        this.inFlightRequestsCountTotal = inFlightRequestsCountTotal;
+        this.customTripCountsTotal = customTripCountsTotal;
     }
 
     public CircuitBreakerMetrics(final TelemetryProvider telemetryProvider, final Map<String, LongCounter> customTripCounters) {
         this(
             telemetryProvider.getMeterRegistry(),
             telemetryProvider.getMeterRegistry()
-                .registerLongCounter(CIRCUIT_BREAKER_PARENT_TRIP_COUNT, "Parent circuit breaker trip count", "count"),
+                .registerLongCounter(CIRCUIT_BREAKER_PARENT_TRIP_COUNT_TOTAL, "Parent circuit breaker trip count", "count"),
             telemetryProvider.getMeterRegistry()
-                .registerLongCounter(CIRCUIT_BREAKER_FIELD_DATA_TRIP_COUNT, "Field data circuit breaker trip count", "count"),
+                .registerLongCounter(CIRCUIT_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL, "Field data circuit breaker trip count", "count"),
             telemetryProvider.getMeterRegistry()
-                .registerLongCounter(CIRCUIT_BREAKER_REQUEST_TRIP_COUNT, "Request circuit breaker trip count", "count"),
+                .registerLongCounter(CIRCUIT_BREAKER_REQUEST_TRIP_COUNT_TOTAL, "Request circuit breaker trip count", "count"),
             telemetryProvider.getMeterRegistry()
                 .registerLongCounter(
-                    CIRCUIT_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT,
+                    CIRCUIT_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT_TOTAL,
                     "In-flight requests circuit breaker trip count",
                     "count"
                 ),
@@ -85,32 +85,32 @@ public class CircuitBreakerMetrics {
 
     public static CircuitBreakerMetrics NOOP = new CircuitBreakerMetrics(TelemetryProvider.NOOP, Collections.emptyMap());
 
-    public LongCounter getParentTripCount() {
-        return parentTripCount;
+    public LongCounter getParentTripCountTotal() {
+        return parentTripCountTotal;
     }
 
-    public LongCounter getFielddataTripCount() {
-        return fielddataTripCount;
+    public LongCounter getFielddataTripCountTotal() {
+        return fielddataTripCountTotal;
     }
 
-    public LongCounter getRequestTripCount() {
-        return requestTripCount;
+    public LongCounter getRequestTripCountTotal() {
+        return requestTripCountTotal;
     }
 
-    public LongCounter getInFlightRequestsCount() {
-        return inFlightRequestsCount;
+    public LongCounter getInFlightRequestsCountTotal() {
+        return inFlightRequestsCountTotal;
     }
 
-    public Map<String, LongCounter> getCustomTripCounts() {
-        return customTripCounts;
+    public Map<String, LongCounter> getCustomTripCountsTotal() {
+        return customTripCountsTotal;
     }
 
     public LongCounter getCustomTripCount(final String name, final LongCounter theDefault) {
-        return this.customTripCounts.getOrDefault(name, theDefault);
+        return this.customTripCountsTotal.getOrDefault(name, theDefault);
     }
 
     public LongCounter getCustomTripCount(final String name) {
-        return this.customTripCounts.getOrDefault(name, LongCounter.NOOP);
+        return this.customTripCountsTotal.getOrDefault(name, LongCounter.NOOP);
     }
 
     @Override
@@ -119,16 +119,23 @@ public class CircuitBreakerMetrics {
         if (o == null || getClass() != o.getClass()) return false;
         CircuitBreakerMetrics that = (CircuitBreakerMetrics) o;
         return Objects.equals(registry, that.registry)
-            && Objects.equals(parentTripCount, that.parentTripCount)
-            && Objects.equals(fielddataTripCount, that.fielddataTripCount)
-            && Objects.equals(requestTripCount, that.requestTripCount)
-            && Objects.equals(inFlightRequestsCount, that.inFlightRequestsCount)
-            && Objects.equals(customTripCounts, that.customTripCounts);
+            && Objects.equals(parentTripCountTotal, that.parentTripCountTotal)
+            && Objects.equals(fielddataTripCountTotal, that.fielddataTripCountTotal)
+            && Objects.equals(requestTripCountTotal, that.requestTripCountTotal)
+            && Objects.equals(inFlightRequestsCountTotal, that.inFlightRequestsCountTotal)
+            && Objects.equals(customTripCountsTotal, that.customTripCountsTotal);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(registry, parentTripCount, fielddataTripCount, requestTripCount, inFlightRequestsCount, customTripCounts);
+        return Objects.hash(
+            registry,
+            parentTripCountTotal,
+            fielddataTripCountTotal,
+            requestTripCountTotal,
+            inFlightRequestsCountTotal,
+            customTripCountsTotal
+        );
     }
 
     @Override
@@ -136,25 +143,25 @@ public class CircuitBreakerMetrics {
         return "CircuitBreakerMetrics{"
             + "registry="
             + registry
-            + ", parentTripCount="
-            + parentTripCount
-            + ", fielddataTripCount="
-            + fielddataTripCount
-            + ", requestTripCount="
-            + requestTripCount
-            + ", inFlightRequestsCount="
-            + inFlightRequestsCount
-            + ", customTripCounts="
-            + customTripCounts
+            + ", parentTripCountTotal="
+            + parentTripCountTotal
+            + ", fielddataTripCountTotal="
+            + fielddataTripCountTotal
+            + ", requestTripCountTotal="
+            + requestTripCountTotal
+            + ", inFlightRequestsCountTotal="
+            + inFlightRequestsCountTotal
+            + ", customTripCountsTotal="
+            + customTripCountsTotal
             + '}';
     }
 
     public void addCustomCircuitBreaker(final CircuitBreaker circuitBreaker) {
-        if (this.customTripCounts.containsKey(circuitBreaker.getName())) {
+        if (this.customTripCountsTotal.containsKey(circuitBreaker.getName())) {
             throw new IllegalArgumentException("A circuit circuitBreaker named [" + circuitBreaker.getName() + " already exists");
         }
-        final String canonicalName = CIRCUIT_BREAKER_CUSTOM_TRIP_COUNT_TEMPLATE.formatted(circuitBreaker.getName());
-        this.customTripCounts.put(
+        final String canonicalName = CIRCUIT_BREAKER_CUSTOM_TRIP_COUNT_TOTAL_TEMPLATE.formatted(circuitBreaker.getName());
+        this.customTripCountsTotal.put(
             canonicalName,
             registry.registerLongCounter(canonicalName, "A custom circuit circuitBreaker [" + circuitBreaker.getName() + "]", "count")
         );

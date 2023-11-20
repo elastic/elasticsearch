@@ -12,6 +12,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Tuple;
@@ -22,6 +23,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
@@ -57,6 +59,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.max;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -96,7 +99,9 @@ public class SearchResponseMergerTests extends ESTestCase {
             randomIntBetween(0, 10000),
             SearchContext.TRACK_TOTAL_HITS_ACCURATE,
             timeProvider,
-            emptyReduceContextBuilder()
+            emptyReduceContextBuilder(),
+            SearchResponse.Clusters.EMPTY,
+            null
         );
         for (int i = 0; i < numResponses; i++) {
             SearchResponse searchResponse = new SearchResponse(
@@ -118,12 +123,15 @@ public class SearchResponseMergerTests extends ESTestCase {
 
     public void testMergeShardFailures() throws InterruptedException {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponseMerger merger = new SearchResponseMerger(
             0,
             0,
             SearchContext.TRACK_TOTAL_HITS_ACCURATE,
             searchTimeProvider,
-            emptyReduceContextBuilder()
+            emptyReduceContextBuilder(),
+            clusters,
+            null
         );
         PriorityQueue<Tuple<SearchShardTarget, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(
             Comparator.comparing(Tuple::v1, (o1, o2) -> {
@@ -163,7 +171,6 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
         awaitResponsesAdded();
         assertEquals(numResponses, merger.numResponses());
-        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = merger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
         assertEquals(numResponses, mergedResponse.getTotalShards());
@@ -180,12 +187,15 @@ public class SearchResponseMergerTests extends ESTestCase {
 
     public void testMergeShardFailuresNullShardTarget() throws InterruptedException {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponseMerger merger = new SearchResponseMerger(
             0,
             0,
             SearchContext.TRACK_TOTAL_HITS_ACCURATE,
             searchTimeProvider,
-            emptyReduceContextBuilder()
+            emptyReduceContextBuilder(),
+            clusters,
+            null
         );
         PriorityQueue<Tuple<ShardId, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
         for (int i = 0; i < numResponses; i++) {
@@ -214,7 +224,6 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
         awaitResponsesAdded();
         assertEquals(numResponses, merger.numResponses());
-        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = merger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
         assertEquals(numResponses, mergedResponse.getTotalShards());
@@ -236,7 +245,9 @@ public class SearchResponseMergerTests extends ESTestCase {
             0,
             SearchContext.TRACK_TOTAL_HITS_ACCURATE,
             searchTimeProvider,
-            emptyReduceContextBuilder()
+            emptyReduceContextBuilder(),
+            SearchResponse.Clusters.EMPTY,
+            null
         );
         List<ShardSearchFailure> expectedFailures = new ArrayList<>();
         for (int i = 0; i < numResponses; i++) {
@@ -267,12 +278,15 @@ public class SearchResponseMergerTests extends ESTestCase {
 
     public void testMergeProfileResults() throws InterruptedException {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponseMerger merger = new SearchResponseMerger(
             0,
             0,
             SearchContext.TRACK_TOTAL_HITS_ACCURATE,
             searchTimeProvider,
-            emptyReduceContextBuilder()
+            emptyReduceContextBuilder(),
+            clusters,
+            null
         );
         Map<String, SearchProfileShardResult> expectedProfile = new HashMap<>();
         for (int i = 0; i < numResponses; i++) {
@@ -294,7 +308,6 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
         awaitResponsesAdded();
         assertEquals(numResponses, merger.numResponses());
-        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = merger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
         assertEquals(numResponses, mergedResponse.getTotalShards());
@@ -313,7 +326,9 @@ public class SearchResponseMergerTests extends ESTestCase {
             0,
             0,
             new SearchTimeProvider(0, 0, () -> 0),
-            emptyReduceContextBuilder()
+            emptyReduceContextBuilder(),
+            SearchResponse.Clusters.EMPTY,
+            null
         );
         for (int i = 0; i < numResponses; i++) {
             List<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>> suggestions =
@@ -379,12 +394,15 @@ public class SearchResponseMergerTests extends ESTestCase {
     public void testMergeCompletionSuggestionsTieBreak() throws InterruptedException {
         String suggestionName = randomAlphaOfLengthBetween(4, 8);
         int size = randomIntBetween(1, 100);
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
             0,
             0,
             0,
             new SearchTimeProvider(0, 0, () -> 0),
-            emptyReduceContextBuilder()
+            emptyReduceContextBuilder(),
+            clusters,
+            null
         );
         for (int i = 0; i < numResponses; i++) {
             List<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>> suggestions =
@@ -427,7 +445,6 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
         awaitResponsesAdded();
         assertEquals(numResponses, searchResponseMerger.numResponses());
-        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
         assertEquals(numResponses, mergedResponse.getTotalShards());
@@ -469,12 +486,15 @@ public class SearchResponseMergerTests extends ESTestCase {
         );
 
         SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
             0,
             0,
             0,
             new SearchTimeProvider(0, 0, () -> 0),
-            emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1")))
+            emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1"))),
+            clusters,
+            null
         );
         for (Max max : Arrays.asList(max1, max2)) {
             InternalAggregations aggs = InternalAggregations.from(Arrays.asList(max));
@@ -491,7 +511,6 @@ public class SearchResponseMergerTests extends ESTestCase {
             );
             searchResponseMerger.add(searchResponse);
         }
-        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse searchResponse = searchResponseMerger.getMergedResponse(clusters);
         Max mergedMax = searchResponse.getAggregations().get("field1");
         assertEquals(mergedMax.getValueAsString(), "2021-05-01T00:00:00.000Z");
@@ -500,6 +519,7 @@ public class SearchResponseMergerTests extends ESTestCase {
     public void testMergeAggs() throws InterruptedException {
         String maxAggName = randomAlphaOfLengthBetween(5, 8);
         String rangeAggName = randomAlphaOfLengthBetween(5, 8);
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
             0,
             0,
@@ -508,7 +528,9 @@ public class SearchResponseMergerTests extends ESTestCase {
             emptyReduceContextBuilder(
                 new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                     .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
-            )
+            ),
+            clusters,
+            null
         );
         int totalCount = 0;
         double maxValue = Double.MIN_VALUE;
@@ -546,7 +568,6 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
         awaitResponsesAdded();
         assertEquals(numResponses, searchResponseMerger.numResponses());
-        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
         assertEquals(numResponses, mergedResponse.getTotalShards());
@@ -599,12 +620,15 @@ public class SearchResponseMergerTests extends ESTestCase {
         TotalHits.Relation totalHitsRelation = randomTrackTotalHits.v2();
 
         PriorityQueue<SearchHit> priorityQueue = new PriorityQueue<>(new SearchHitComparator(sortFields));
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
             from,
             size,
             trackTotalHitsUpTo,
             timeProvider,
-            emptyReduceContextBuilder()
+            emptyReduceContextBuilder(),
+            clusters,
+            null
         );
 
         TotalHits expectedTotalHits = null;
@@ -703,7 +727,6 @@ public class SearchResponseMergerTests extends ESTestCase {
 
         awaitResponsesAdded();
         assertEquals(numResponses, searchResponseMerger.numResponses());
-        final SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse searchResponse = searchResponseMerger.getMergedResponse(clusters);
 
         assertEquals(TimeUnit.NANOSECONDS.toMillis(currentRelativeTime), searchResponse.getTook().millis());
@@ -761,8 +784,16 @@ public class SearchResponseMergerTests extends ESTestCase {
     public void testMergeNoResponsesAdded() {
         long currentRelativeTime = randomNonNegativeLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
-        SearchResponseMerger merger = new SearchResponseMerger(0, 10, Integer.MAX_VALUE, timeProvider, emptyReduceContextBuilder());
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+        SearchResponseMerger merger = new SearchResponseMerger(
+            0,
+            10,
+            Integer.MAX_VALUE,
+            timeProvider,
+            emptyReduceContextBuilder(),
+            clusters,
+            null
+        );
         assertEquals(0, merger.numResponses());
         SearchResponse response = merger.getMergedResponse(clusters);
         assertSame(clusters, response.getClusters());
@@ -788,8 +819,16 @@ public class SearchResponseMergerTests extends ESTestCase {
     public void testMergeEmptySearchHitsWithNonEmpty() {
         long currentRelativeTime = randomLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
-        SearchResponseMerger merger = new SearchResponseMerger(0, 10, Integer.MAX_VALUE, timeProvider, emptyReduceContextBuilder());
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+        SearchResponseMerger merger = new SearchResponseMerger(
+            0,
+            10,
+            Integer.MAX_VALUE,
+            timeProvider,
+            emptyReduceContextBuilder(),
+            clusters,
+            null
+        );
         int numFields = randomIntBetween(1, 3);
         SortField[] sortFields = new SortField[numFields];
         for (int i = 0; i < numFields; i++) {
@@ -855,7 +894,15 @@ public class SearchResponseMergerTests extends ESTestCase {
         Tuple<Integer, TotalHits.Relation> randomTrackTotalHits = randomTrackTotalHits();
         int trackTotalHitsUpTo = randomTrackTotalHits.v1();
         TotalHits.Relation totalHitsRelation = randomTrackTotalHits.v2();
-        SearchResponseMerger merger = new SearchResponseMerger(0, 10, trackTotalHitsUpTo, timeProvider, emptyReduceContextBuilder());
+        SearchResponseMerger merger = new SearchResponseMerger(
+            0,
+            10,
+            trackTotalHitsUpTo,
+            timeProvider,
+            emptyReduceContextBuilder(),
+            clusters,
+            null
+        );
         int numResponses = randomIntBetween(1, 5);
         TotalHits expectedTotalHits = null;
         for (int i = 0; i < numResponses; i++) {
@@ -940,6 +987,306 @@ public class SearchResponseMergerTests extends ESTestCase {
             priorityQueue.add(hit);
         }
         return hits;
+    }
+
+    public void testIncrementalMergesInAddMethod() {
+        /*
+         * Simulate 4 cluster CCS search with and without "no incremental merge for last SearchResponse" optimization
+         * After adding each SearchResponse, check that the search results are:
+         * 1) received by the SearchProgressListener
+         * 2) the merged results match what is expected (relative to a SearchResponseMerger that has not done incremental merges)
+         * 3) if the optimization is turned on, ensure that only 3 search responses were received by the progress listener
+         * 4) get the final merged results and ensure matches what is expected (against a non-incrementing SearchResponseMerger)
+         */
+
+        List<SearchResponse> incrementalResponses = new ArrayList<>();
+
+        SearchProgressListener progressListener = new SearchProgressListener() {
+            @Override
+            protected void onCcsReduce(SearchResponse response) {
+                incrementalResponses.add(response);
+            }
+        };
+
+        long currentRelativeTime = randomNonNegativeLong();
+        SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
+        int size = 10; // randomIntBetween(0, 100);
+        int from = 0; // size > 0 ? randomIntBetween(0, 100) : 0;
+        int totalHitsUpTo = SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+        TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();  // TODO: make deterministic
+
+        String maxAggName = randomAlphaOfLengthBetween(5, 8);
+        String rangeAggName = randomAlphaOfLengthBetween(5, 8);
+        AggregationReduceContext.Builder aggsBuilder = emptyReduceContextBuilder(
+            new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
+                .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
+        );
+
+        int numExpectedResponses = 4; // turn on optimization to not merge on the last add for Merger with ProgListener
+        if (randomBoolean()) {
+            numExpectedResponses = -1; // turn off optimization
+        }
+        SearchResponseMerger searchResponseMergerWithProgListener = new SearchResponseMerger(
+            from,
+            size,
+            totalHitsUpTo,
+            timeProvider,
+            aggsBuilder,
+            clusters,
+            progressListener,
+            numExpectedResponses
+        );
+
+        // these SearchResponseMergers do not do incremental merges, since they have no SearchProgressListener
+        SearchResponseMerger searchResponseMerger1 = new SearchResponseMerger(
+            from,
+            size,
+            totalHitsUpTo,
+            timeProvider,
+            aggsBuilder,
+            clusters,
+            null
+        );
+        SearchResponseMerger searchResponseMerger2 = new SearchResponseMerger(
+            from,
+            size,
+            totalHitsUpTo,
+            timeProvider,
+            aggsBuilder,
+            clusters,
+            null
+        );
+        SearchResponseMerger searchResponseMerger3 = new SearchResponseMerger(
+            from,
+            size,
+            totalHitsUpTo,
+            timeProvider,
+            aggsBuilder,
+            clusters,
+            null
+        );
+        SearchResponseMerger searchResponseMerger4 = new SearchResponseMerger(
+            from,
+            size,
+            totalHitsUpTo,
+            timeProvider,
+            aggsBuilder,
+            clusters,
+            null
+        );
+
+        int numResponses = 4;
+        List<SearchResponse> responses = createSearchResponses(
+            numResponses,
+            size,
+            from,
+            totalHitsUpTo,
+            totalHitsRelation,
+            maxAggName,
+            rangeAggName
+        );
+        assertEquals(4, responses.size());
+
+        assertEquals(0, incrementalResponses.size());
+
+        SearchResponse firstResponse = responses.get(0);
+        searchResponseMerger1.add(firstResponse);
+        searchResponseMerger2.add(firstResponse);
+        searchResponseMerger3.add(firstResponse);
+        searchResponseMerger4.add(firstResponse);
+        assertEquals(0, incrementalResponses.size());
+        searchResponseMergerWithProgListener.add(firstResponse);
+        assertEquals(1, incrementalResponses.size());
+        assertEquals(Strings.toString(searchResponseMerger1.getMergedResponse(clusters)), Strings.toString(incrementalResponses.get(0)));
+
+        SearchResponse secondResponse = responses.get(1);
+        searchResponseMerger2.add(secondResponse);
+        searchResponseMerger3.add(secondResponse);
+        searchResponseMerger4.add(secondResponse);
+        assertEquals(1, incrementalResponses.size());
+        searchResponseMergerWithProgListener.add(secondResponse);
+        assertEquals(2, incrementalResponses.size());
+        assertEquals(Strings.toString(searchResponseMerger2.getMergedResponse(clusters)), Strings.toString(incrementalResponses.get(1)));
+
+        SearchResponse thirdResponse = responses.get(2);
+        searchResponseMerger3.add(thirdResponse);
+        searchResponseMerger4.add(thirdResponse);
+        assertEquals(2, incrementalResponses.size());
+        searchResponseMergerWithProgListener.add(thirdResponse);
+        assertEquals(3, incrementalResponses.size());
+        assertEquals(Strings.toString(searchResponseMerger3.getMergedResponse(clusters)), Strings.toString(incrementalResponses.get(2)));
+
+        SearchResponse fourthResponse = responses.get(3);
+        searchResponseMerger4.add(fourthResponse);
+        assertEquals(3, incrementalResponses.size());
+        searchResponseMergerWithProgListener.add(fourthResponse);
+        if (numExpectedResponses > 0) {
+            // stays at 3 since the optimization to not do an incremental reduction in the add method on the last response is turned on
+            assertEquals(3, incrementalResponses.size());
+        } else {
+            assertEquals(4, incrementalResponses.size());
+        }
+
+        SearchResponse finalWithNoIncrementalReductions = searchResponseMerger4.getMergedResponse(clusters);
+        SearchResponse finalWithIncrementalReductions = searchResponseMergerWithProgListener.getMergedResponse(clusters);
+        assertEquals(Strings.toString(finalWithNoIncrementalReductions), Strings.toString(finalWithIncrementalReductions));
+    }
+
+    List<SearchResponse> createSearchResponses(
+        int numResponses,
+        int from,
+        int size,
+        int trackTotalHitsUpTo,
+        TotalHits.Relation totalHitsRelation,
+        String maxAggName,
+        String rangeAggName
+    ) {
+        List<SearchResponse> responses = new ArrayList<>();
+
+        final int requestedSize = from + size;
+        final SortField[] sortFields;
+        boolean scoreSort = true;
+        int numFields = 2;
+        sortFields = new SortField[numFields];
+        for (int i = 0; i < numFields; i++) {
+            sortFields[i] = SortField.FIELD_SCORE;
+        }
+
+        PriorityQueue<SearchHit> priorityQueue = new PriorityQueue<>(new SearchHitComparator(sortFields));
+
+        Boolean expectedTerminatedEarly = null;
+        float expectedMaxScore = Float.NEGATIVE_INFINITY;
+        int numIndices = requestedSize == 0 ? 0 : randomIntBetween(1, requestedSize);
+        Iterator<Map.Entry<String, Index[]>> indicesIterator = randomRealisticIndices(numIndices, numResponses).entrySet().iterator();
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+        for (int i = 0; i < numResponses; i++) {
+            Map.Entry<String, Index[]> entry = indicesIterator.next();
+            String clusterAlias = entry.getKey();
+            Index[] indices = entry.getValue();
+            int total = 100;
+            int successful = 99;
+            int skipped = 1;
+
+            TotalHits totalHits = null;
+            if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+                totalHits = new TotalHits(100, totalHitsRelation);
+            }
+
+            final int numDocs = totalHits == null || totalHits.value >= requestedSize ? requestedSize : (int) totalHits.value;
+            int scoreFactor = randomIntBetween(1, numResponses);
+            float maxScore = scoreSort ? numDocs * scoreFactor : Float.NaN;
+            SearchHits searchHits = createSearchHits(
+                numDocs,
+                clusterAlias,
+                indices,
+                maxScore,
+                scoreFactor,
+                sortFields,
+                priorityQueue,
+                totalHits
+            );
+            expectedMaxScore = Math.max(expectedMaxScore, maxScore);
+
+            int numReducePhases = 2;
+            boolean timedOut = false;
+            Boolean terminatedEarly = false;
+            expectedTerminatedEarly = expectedTerminatedEarly == null ? terminatedEarly : expectedTerminatedEarly;
+
+            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
+                searchHits,
+                createAggregations(maxAggName, rangeAggName),
+                null,
+                null,
+                timedOut,
+                terminatedEarly,
+                numReducePhases
+            );
+
+            SearchResponse searchResponse = new SearchResponse(
+                internalSearchResponse,
+                null,
+                total,
+                successful,
+                skipped,
+                randomLong(),
+                ShardSearchFailure.EMPTY_ARRAY,
+                clusters
+            );
+
+            responses.add(searchResponse);
+        }
+        return responses;
+    }
+
+    private static SearchHits createSearchHits(
+        int numDocs,
+        String clusterAlias,
+        Index[] indices,
+        float maxScore,
+        int scoreFactor,
+        SortField[] sortFields,
+        PriorityQueue<SearchHit> priorityQueue,
+        TotalHits totalHits
+    ) {
+        SearchHit[] hits = new SearchHit[numDocs];
+
+        int[] sortFieldFactors = new int[sortFields == null ? 0 : sortFields.length];
+        for (int j = 0; j < sortFieldFactors.length; j++) {
+            sortFieldFactors[j] = 1;
+        }
+
+        for (int j = 0; j < numDocs; j++) {
+            ShardId shardId = new ShardId(indices[0], 2);
+            SearchShardTarget shardTarget = new SearchShardTarget("myshard", shardId, clusterAlias);
+            SearchHit hit = new SearchHit(j);
+
+            float score = Float.NaN;
+            if (Float.isNaN(maxScore) == false) {
+                score = (maxScore - j) * scoreFactor;
+                hit.score(score);
+            }
+
+            hit.shard(shardTarget);
+            if (sortFields != null) {
+                Object[] rawSortValues = new Object[sortFields.length];
+                DocValueFormat[] docValueFormats = new DocValueFormat[sortFields.length];
+                for (int k = 0; k < sortFields.length; k++) {
+                    SortField sortField = sortFields[k];
+                    if (sortField == SortField.FIELD_SCORE) {
+                        hit.score(score);
+                        rawSortValues[k] = score;
+                    } else {
+                        rawSortValues[k] = sortField.getReverse() ? numDocs * sortFieldFactors[k] - j : j;
+                    }
+                    docValueFormats[k] = DocValueFormat.RAW;
+                }
+                hit.sortValues(rawSortValues, docValueFormats);
+            }
+            hits[j] = hit;
+            priorityQueue.add(hit);
+        }
+
+        return new SearchHits(hits, totalHits, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore, sortFields, null, null);
+    }
+
+    private static InternalAggregations createAggregations(String maxAggName, String rangeAggName) {
+        double value = randomDouble();
+        Max max = new Max(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
+        InternalDateRange.Factory factory = new InternalDateRange.Factory();
+        int count = randomIntBetween(1, 1000);
+        InternalDateRange.Bucket bucket = factory.createBucket(
+            "bucket",
+            0D,
+            10000D,
+            count,
+            InternalAggregations.EMPTY,
+            false,
+            DocValueFormat.RAW
+        );
+        InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
+        InternalAggregations aggs = InternalAggregations.from(Arrays.asList(range, max));
+        return aggs;
     }
 
     private static Map<String, Index[]> randomRealisticIndices(int numIndices, int numClusters) {

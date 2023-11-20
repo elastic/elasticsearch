@@ -94,6 +94,20 @@ final class SearchResponseMerger {
         this(from, size, trackTotalHitsUpTo, searchTimeProvider, aggReduceContextBuilder, clusters, progressListener, -1);
     }
 
+    /**
+     *
+     * @param from
+     * @param size
+     * @param trackTotalHitsUpTo
+     * @param searchTimeProvider
+     * @param aggReduceContextBuilder
+     * @param clusters
+     * @param progressListener
+     * @param numTotalClusters Specify the total number of clusters to turn on an optimization where an incremental
+     *                         merge will not be done in the add method for the last search response to come in
+     *                         (since the user of the Merger object is going to call {getMergedResponse} after
+     *                         all have been added.
+     */
     SearchResponseMerger(
         int from,
         int size,

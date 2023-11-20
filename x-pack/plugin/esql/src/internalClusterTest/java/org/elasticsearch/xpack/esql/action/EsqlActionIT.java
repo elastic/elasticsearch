@@ -16,6 +16,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -1235,8 +1236,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testStatsNestFields() {
-        String node1 = internalCluster().startDataOnlyNode();
-        String node2 = internalCluster().startDataOnlyNode();
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
         assertAcked(
             client().admin()
                 .indices()
@@ -1269,8 +1277,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testStatsMissingFields() {
-        String node1 = internalCluster().startDataOnlyNode();
-        String node2 = internalCluster().startDataOnlyNode();
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
         assertAcked(
             client().admin()
                 .indices()
@@ -1285,7 +1300,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
                 .setMapping("bar_int", "type=integer", "bar_long", "type=long", "bar_float", "type=float", "bar_double", "type=double")
         );
-
         var fields = List.of("foo_int", "foo_long", "foo_float", "foo_double");
         var functions = List.of("sum", "count", "avg", "count_distinct");
         for (String field : fields) {
@@ -1504,5 +1518,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         var clearSettingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(clearedSettings.build());
         admin().cluster().updateSettings(clearSettingsRequest).actionGet();
+    }
+
+    private DiscoveryNode randomDataNode() {
+        return randomFrom(clusterService().state().nodes().getDataNodes().values());
     }
 }

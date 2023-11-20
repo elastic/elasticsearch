@@ -533,7 +533,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 emptyReduceContextBuilder(),
                 remoteClusterService,
                 threadPool,
-                null,  /// MP TODO: need to add SearchProgressListener to some of these tests (or a new one)
+                SearchProgressListener.NOOP,  // if we used a non-NOOP, the NPE happens earlier when add calls getMerged
                 listener,
                 (r, l) -> setOnce.set(Tuple.tuple(r, l))
             );
@@ -590,6 +590,14 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionTestUtils.assertNoFailureListener(response::set),
                     latch
                 );
+
+                List<SearchResponse> incrementalResponses = new ArrayList<>();
+                SearchProgressListener progressListener = new SearchProgressListener() {
+                    @Override
+                    protected void onCcsReduce(SearchResponse response) {
+                        incrementalResponses.add(response);
+                    }
+                };
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -600,7 +608,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    null,
+                    progressListener,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -622,6 +630,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(totalClusters, searchResponse.getClusters().getTotal());
                 assertEquals(totalClusters, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
                 assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
+                assertEquals(totalClusters - 1, incrementalResponses.size());
             }
             {
                 SearchRequest searchRequest = new SearchRequest();
@@ -643,7 +652,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    null,
+                    SearchProgressListener.NOOP,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -704,7 +713,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    null,
+                    SearchProgressListener.NOOP,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -741,6 +750,13 @@ public class TransportSearchActionTests extends ESTestCase {
                 if (localIndices != null) {
                     clusterAliases.add("");
                 }
+                List<SearchResponse> incrementalResponses = new ArrayList<>();
+                SearchProgressListener progressListener = new SearchProgressListener() {
+                    @Override
+                    protected void onCcsReduce(SearchResponse response) {
+                        incrementalResponses.add(response);
+                    }
+                };
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,
@@ -751,7 +767,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     emptyReduceContextBuilder(),
                     remoteClusterService,
                     threadPool,
-                    null,
+                    progressListener,
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l))
                 );
@@ -777,6 +793,12 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
                 assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
                 assertEquals(successful == 0 ? 0 : successful + 1, searchResponse.getNumReducePhases());
+
+                int expectedNumIncrementalResponses = successful;
+                if (successful == totalClusters) {
+                    expectedNumIncrementalResponses--;
+                }
+                assertEquals(expectedNumIncrementalResponses, incrementalResponses.size());
             }
 
             // give transport service enough time to realize that the node is down, and to notify the connection listeners
@@ -1068,8 +1090,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 source,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                SearchResponse.Clusters.EMPTY, // MP: TODO: change this?
-                null,  // TODO: add SearchProgressListener?
+                SearchResponse.Clusters.EMPTY,
+                null,
                 null
             );
             assertEquals(0, merger.from);
@@ -1084,8 +1106,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 null,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                SearchResponse.Clusters.EMPTY, // MP: TODO: change this?
-                null,  // TODO: add SearchProgressListener?
+                SearchResponse.Clusters.EMPTY,
+                null,
                 null
             );
             assertEquals(0, merger.from);
@@ -1104,8 +1126,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 source,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                SearchResponse.Clusters.EMPTY, // MP: TODO: change this?
-                null,  // TODO: add SearchProgressListener?
+                SearchResponse.Clusters.EMPTY,
+                null,
                 null
             );
             assertEquals(0, source.from());

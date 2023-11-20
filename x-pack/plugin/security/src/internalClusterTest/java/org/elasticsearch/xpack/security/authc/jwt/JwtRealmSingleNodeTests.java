@@ -151,6 +151,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         return false;
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.security.authc.jwt:DEBUG", reason = "failures can be very difficult to troubleshoot")
     public void testGrantApiKeyForJWT() throws Exception {
         final JWTClaimsSet.Builder jwtClaims = new JWTClaimsSet.Builder();
         final String subject;

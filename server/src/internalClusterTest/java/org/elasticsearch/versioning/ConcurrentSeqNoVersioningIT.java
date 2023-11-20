@@ -33,6 +33,8 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -448,12 +450,23 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             var chunkedLoggingStream = ChunkedLoggingStream.create(
                                 logger,
                                 Level.ERROR,
-                                "unlinearizable history",
+                                "raw unlinearizable history in partition " + id,
                                 ReferenceDocs.LOGGING // any old docs link will do
                             );
                             var output = new OutputStreamStreamOutput(chunkedLoggingStream)
                         ) {
                             writeHistory(output, history);
+                        }
+                        try (
+                            var chunkedLoggingStream = ChunkedLoggingStream.create(
+                                logger,
+                                Level.ERROR,
+                                "visualisation of unlinearizable history in partition " + id,
+                                ReferenceDocs.LOGGING // any old docs link will do
+                            );
+                            var writer = new OutputStreamWriter(chunkedLoggingStream, StandardCharsets.UTF_8)
+                        ) {
+                            LinearizabilityChecker.writeVisualisation(spec, history, missingResponseGenerator(), writer);
                         }
                     }
                 } catch (IOException e) {

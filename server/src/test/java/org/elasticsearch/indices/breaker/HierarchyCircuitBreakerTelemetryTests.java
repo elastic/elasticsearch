@@ -202,17 +202,18 @@ public class HierarchyCircuitBreakerTelemetryTests extends ESIntegTestCase {
     private List<Measurement> getMeasurements(String dataNodeName) {
         final TestTelemetryPlugin dataNodeTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
             .filterPlugins(TestCircuitBreakerTelemetryPlugin.class)
+            .toList()
             .get(0);
-        final List<Measurement> dataNodeMeasurements = Measurement.combine(
+        return Measurement.combine(
             Stream.of(
-                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.CIRCUIT_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT)
+                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.CIRCUIT_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT_TOTAL)
                     .stream(),
-                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.CIRCUIT_BREAKER_FIELD_DATA_TRIP_COUNT).stream(),
-                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.CIRCUIT_BREAKER_REQUEST_TRIP_COUNT).stream(),
-                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.CIRCUIT_BREAKER_PARENT_TRIP_COUNT).stream()
+                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.CIRCUIT_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL)
+                    .stream(),
+                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.CIRCUIT_BREAKER_REQUEST_TRIP_COUNT_TOTAL).stream(),
+                dataNodeTelemetryPlugin.getLongCounterMeasurement(CircuitBreakerMetrics.CIRCUIT_BREAKER_PARENT_TRIP_COUNT_TOTAL).stream()
             ).flatMap(Function.identity()).toList()
         );
-        return dataNodeMeasurements;
     }
 
     // Make sure circuit breaker telemetry on trip count reports the same values as circuit breaker stats

@@ -372,7 +372,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             bulkRequest,
             executorName,
             listener,
-            autoCreateIndices,
+            indicesToAutoCreate,
             indicesThatCannotBeCreated,
             startTime
         );
@@ -386,17 +386,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         BulkRequest bulkRequest,
         String executorName,
         ActionListener<BulkResponse> listener,
-        Set<String> autoCreateIndices,
+        Map<String, Boolean> indicesToAutoCreate,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
-        if (autoCreateIndices.isEmpty()) {
+        if (indicesToAutoCreate.isEmpty()) {
             executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
         } else {
-            final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
-            for (String index : autoCreateIndices) {
-                createIndex(index, bulkRequest.timeout(), new ActionListener<>() {
+            final AtomicInteger counter = new AtomicInteger(indicesToAutoCreate.size());
+            for (Map.Entry<String, Boolean> indexEntry : indicesToAutoCreate.entrySet()) {
+                final String index = indexEntry.getKey();
+                createIndex(index, indexEntry.getValue(), bulkRequest.timeout(), new ActionListener<>() {
                     @Override
                     public void onResponse(CreateIndexResponse result) {
                         if (counter.decrementAndGet() == 0) {

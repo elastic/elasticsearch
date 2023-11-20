@@ -84,6 +84,7 @@ public class RestSimulateIngestAction extends BaseRestHandler {
             defaultFetchSourceContext,
             defaultPipeline,
             null,
+            null,
             true,
             true,
             request.getXContentType(),

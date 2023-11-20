@@ -40,7 +40,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -52,7 +51,9 @@ import static org.mockito.Mockito.mock;
 
 public class TransportSimulateBulkActionTests extends ESTestCase {
 
-    /** Services needed by bulk action */
+    /**
+     * Services needed by bulk action
+     */
     private TransportService transportService;
     private ClusterService clusterService;
     private TestThreadPool threadPool;
@@ -80,7 +81,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             if (beforeIndexCreation != null) {
                 beforeIndexCreation.run();
@@ -189,7 +190,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 fail(e, "Unexpected error");
             }
         };
-        Set<String> autoCreateIndices = Set.of(); // unused
+        Map<String, Boolean> indicesToAutoCreate = Map.of(); // unused
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated = Map.of(); // unused
         long startTime = 0;
         bulkAction.createMissingIndicesAndIndexData(
@@ -197,7 +198,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
             bulkRequest,
             randomAlphaOfLength(10),
             listener,
-            autoCreateIndices,
+            indicesToAutoCreate,
             indicesThatCannotBeCreated,
             startTime
         );

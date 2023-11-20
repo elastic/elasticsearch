@@ -768,7 +768,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().stopCurrentMasterNode();
         ensureStableCluster(3);
 
-        RuntimeException innerException = expectThrows(ExecutionException.class, RuntimeException.class, deleteFuture::get);
+        awaitNoMoreRunningOperations();
+        var innerException = expectThrows(ExecutionException.class, RuntimeException.class, deleteFuture::get);
 
         // There may be many layers of RTE to unwrap here, see https://github.com/elastic/elasticsearch/issues/102351.
         // ExceptionsHelper#unwrapCause gives up at 10 layers of wrapping so we must unwrap more tenaciously by hand here:

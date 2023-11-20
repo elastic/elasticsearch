@@ -14,7 +14,7 @@ tasks.named("test").configure { enabled = false }
 configurations {
   implementation.transitive = false
   runtimeOnly.transitive = false
-  runtimeClasspath.transitive = false
+  //runtimeClasspath.transitive = false
   runtimeElements.transitive = false
 }
 

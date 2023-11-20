@@ -393,7 +393,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                             .lt(responseBuilder.getEnd().toEpochMilli())
                             .format("epoch_millis")
                     )
-                    // Filter for host we are interested in.
                     .filter(QueryBuilders.termsQuery("host.id", uniqueHostIDs))
             )
             .setCollapse(

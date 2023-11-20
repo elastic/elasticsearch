@@ -35,7 +35,7 @@ final class HostMetadata implements ToXContentObject {
     }
 
     public boolean isEmpty() {
-        return hostID == null || dci == null;
+        return hostID == null || dci == null || dci.isEmpty();
     }
 
     @Override

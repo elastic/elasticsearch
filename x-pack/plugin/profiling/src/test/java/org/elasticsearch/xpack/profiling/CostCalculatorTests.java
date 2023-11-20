@@ -13,10 +13,8 @@ import java.util.AbstractMap;
 import java.util.Map;
 
 public class CostCalculatorTests extends ESTestCase {
-    private static final String hostIDA = "1110256254710195391";
-    private static final String hostIDB = "2220256254710195392";
-    private static final String hostIDC = "3330256254710195393";
-    private static final String hostIDD = "4440256254710195394";
+    private static final String HOST_ID_A = "1110256254710195391";
+    private static final String HOST_ID_B = "2220256254710195392";
 
     public void testCreateFromRegularSource() {
         CostsService costsService = new CostsService();
@@ -24,10 +22,10 @@ public class CostCalculatorTests extends ESTestCase {
 
         // tag::noformat
         Map<String, HostMetadata> hostsTable = Map.ofEntries(
-            new AbstractMap.SimpleEntry<>(hostIDA,
+            new AbstractMap.SimpleEntry<>(HOST_ID_A,
                 // known datacenter
-                new HostMetadata(hostIDA,
-                    new DatacenterInstance(
+                new HostMetadata(HOST_ID_A,
+                    new InstanceType(
                         "aws",
                         "eu-west-1",
                         "c5n.xlarge"
@@ -35,10 +33,10 @@ public class CostCalculatorTests extends ESTestCase {
                     "" // Doesn't matter for cost calculation.
                 )
             ),
-            new AbstractMap.SimpleEntry<>(hostIDB,
-                new HostMetadata(hostIDB,
+            new AbstractMap.SimpleEntry<>(HOST_ID_B,
+                new HostMetadata(HOST_ID_B,
                     // unknown datacenter
-                    new DatacenterInstance(
+                    new InstanceType(
                         "on-prem-provider",
                         "on-prem-region",
                         "on-prem-instance-type"
@@ -49,16 +47,16 @@ public class CostCalculatorTests extends ESTestCase {
         );
         // end::noformat
 
-        double duration = 1_800d; // 30 minutes
+        double samplingDurationInSeconds = 1_800d; // 30 minutes
         long samples = 100_000L; // 100k samples
-        double annualCoreHours = CostCalculator.annualCoreHours(duration, samples, 20d);
-        CostCalculator costCalculator = new CostCalculator(costsService, hostsTable, duration);
+        double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 20d);
+        CostCalculator costCalculator = new CostCalculator(costsService, hostsTable, samplingDurationInSeconds);
 
         // Checks whether the cost calculation is based on the pre-calculated lookup data.
-        checkCostCalculation(costCalculator.annualCostsUSD(hostIDA, samples), annualCoreHours, 0.061d);
+        checkCostCalculation(costCalculator.annualCostsUSD(HOST_ID_A, samples), annualCoreHours, 0.061d);
 
         // Checks whether the cost calculation is based on the default cost factor.
-        checkCostCalculation(costCalculator.annualCostsUSD(hostIDB, samples), annualCoreHours, 0.0425d);
+        checkCostCalculation(costCalculator.annualCostsUSD(HOST_ID_B, samples), annualCoreHours, 0.0425d);
     }
 
     private void checkCostCalculation(double calculatedAnnualCostsUSD, double annualCoreHours, double costFactor) {

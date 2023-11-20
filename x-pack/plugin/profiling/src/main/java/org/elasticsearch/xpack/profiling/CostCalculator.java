@@ -10,38 +10,39 @@ package org.elasticsearch.xpack.profiling;
 import java.util.Map;
 
 final class CostCalculator {
-    private static final double defaultSamplingFreq = 20d;
-    private static final double secondsPerYear = 60d * 60d * 24d * 365d; // unit: seconds
-    private static final double defaultCostUSDPerCoreHour = 0.0425d; // unit: USD / (core * hour)
-    private static final double customCostFactor = 1d;
+    private static final double DEFAULT_SAMPLING_FREQUENCY = 20.0d;
+    private static final double SECONDS_PER_HOUR = 60 * 60;
+    private static final double SECONDS_PER_YEAR = SECONDS_PER_HOUR * 24 * 365.0d; // unit: seconds
+    private static final double DEFAULT_COST_USD_PER_CORE_HOUR = 0.0425d; // unit: USD / (core * hour)
+    private static final double CUSTOM_COST_FACTOR = 1.0d;
     private final CostsService costsService;
     private final Map<String, HostMetadata> hostMetadata;
-    private final double duration;
+    private final double samplingDurationInSeconds;
 
-    CostCalculator(CostsService costsService, Map<String, HostMetadata> hostMetadata, double duration) {
+    CostCalculator(CostsService costsService, Map<String, HostMetadata> hostMetadata, double samplingDurationInSeconds) {
         this.costsService = costsService;
         this.hostMetadata = hostMetadata;
-        this.duration = duration;
+        this.samplingDurationInSeconds = samplingDurationInSeconds;
     }
 
     public double annualCostsUSD(String hostID, double samples) {
-        double annualCoreHours = annualCoreHours(duration, samples, defaultSamplingFreq);
+        double annualCoreHours = annualCoreHours(samplingDurationInSeconds, samples, DEFAULT_SAMPLING_FREQUENCY);
 
         HostMetadata host = hostMetadata.get(hostID);
         if (host == null) {
-            return annualCoreHours * defaultCostUSDPerCoreHour;
+            return annualCoreHours * DEFAULT_COST_USD_PER_CORE_HOUR;
         }
 
-        CostEntry costs = costsService.getCosts(host.dci);
+        CostEntry costs = costsService.getCosts(host.instanceType);
         if (costs == null) {
-            return annualCoreHours * defaultCostUSDPerCoreHour;
+            return annualCoreHours * DEFAULT_COST_USD_PER_CORE_HOUR;
         }
 
-        return annualCoreHours * costs.costFactor * customCostFactor;
+        return annualCoreHours * costs.costFactor * CUSTOM_COST_FACTOR;
     }
 
-    public static double annualCoreHours(double duration, double samples, double samplingFreq) {
-        // samplingFreq will a variable value when we start supporting probabilistic profiling (soon).
-        return (secondsPerYear / duration * samples / samplingFreq) / (60 * 60); // unit: core * hour
+    public static double annualCoreHours(double duration, double samples, double samplingFrequency) {
+        // samplingFrequency will a variable value when we start supporting probabilistic profiling (soon).
+        return (SECONDS_PER_YEAR / duration * samples / samplingFrequency) / SECONDS_PER_HOUR; // unit: core * hour
     }
 }

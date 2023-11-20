@@ -15,13 +15,13 @@ import java.util.Map;
 import java.util.Objects;
 
 final class HostMetadata implements ToXContentObject {
-    String hostID;
-    DatacenterInstance dci;
-    String profilingHostMachine; // aarch64 or x86_64
+    final String hostID;
+    final InstanceType instanceType;
+    final String profilingHostMachine; // aarch64 or x86_64
 
-    HostMetadata(String hostID, DatacenterInstance dci, String profilingHostMachine) {
+    HostMetadata(String hostID, InstanceType instanceType, String profilingHostMachine) {
         this.hostID = hostID;
-        this.dci = dci;
+        this.instanceType = instanceType;
         this.profilingHostMachine = profilingHostMachine;
     }
 
@@ -29,19 +29,15 @@ final class HostMetadata implements ToXContentObject {
         if (source != null) {
             String hostID = (String) source.get("host.id");
             String profilingHostMachine = (String) source.get("profiling.host.machine");
-            return new HostMetadata(hostID, DatacenterInstance.fromHostSource(source), profilingHostMachine);
+            return new HostMetadata(hostID, InstanceType.fromHostSource(source), profilingHostMachine);
         }
-        return null;
-    }
-
-    public boolean isEmpty() {
-        return hostID == null || dci == null || dci.isEmpty();
+        return new HostMetadata("", new InstanceType("", "", ""), "");
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        dci.toXContent(builder, params);
+        instanceType.toXContent(builder, params);
         builder.endObject();
         return builder;
     }

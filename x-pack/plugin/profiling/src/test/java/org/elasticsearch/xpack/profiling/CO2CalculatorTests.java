@@ -13,10 +13,10 @@ import java.util.AbstractMap;
 import java.util.Map;
 
 public class CO2CalculatorTests extends ESTestCase {
-    private static final String hostIDA = "1110256254710195391";
-    private static final String hostIDB = "2220256254710195392";
-    private static final String hostIDC = "3330256254710195393";
-    private static final String hostIDD = "4440256254710195394";
+    private static final String HOST_ID_A = "1110256254710195391";
+    private static final String HOST_ID_B = "2220256254710195392";
+    private static final String HOST_ID_C = "3330256254710195393";
+    private static final String HOST_ID_D = "4440256254710195394";
 
     public void testCreateFromRegularSource() {
         CostsService costsService = new CostsService();
@@ -24,10 +24,10 @@ public class CO2CalculatorTests extends ESTestCase {
 
         // tag::noformat
         Map<String, HostMetadata> hostsTable = Map.ofEntries(
-            new AbstractMap.SimpleEntry<>(hostIDA,
+            new AbstractMap.SimpleEntry<>(HOST_ID_A,
                 // known datacenter and instance type
-                new HostMetadata(hostIDA,
-                    new DatacenterInstance(
+                new HostMetadata(HOST_ID_A,
+                    new InstanceType(
                         "aws",
                         "eu-west-1",
                         "c5n.xlarge"
@@ -35,10 +35,10 @@ public class CO2CalculatorTests extends ESTestCase {
                     "" // Doesn't matter if datacenter is known.
                 )
             ),
-            new AbstractMap.SimpleEntry<>(hostIDB,
-                new HostMetadata(hostIDB,
+            new AbstractMap.SimpleEntry<>(HOST_ID_B,
+                new HostMetadata(HOST_ID_B,
                     // unknown datacenter, known provider and region, x86_64
-                    new DatacenterInstance(
+                    new InstanceType(
                         "gcp",
                         "europe-west1",
                         "" // Doesn't matter for unknown datacenters.
@@ -46,10 +46,10 @@ public class CO2CalculatorTests extends ESTestCase {
                     "x86_64"
                 )
             ),
-            new AbstractMap.SimpleEntry<>(hostIDC,
-                new HostMetadata(hostIDC,
+            new AbstractMap.SimpleEntry<>(HOST_ID_C,
+                new HostMetadata(HOST_ID_C,
                     // unknown datacenter, known provider and region, aarch64
-                    new DatacenterInstance(
+                    new InstanceType(
                         "azure",
                         "North Central US",
                         "" // Doesn't matter for unknown datacenters.
@@ -57,10 +57,10 @@ public class CO2CalculatorTests extends ESTestCase {
                     "aarch64"
                 )
             ),
-            new AbstractMap.SimpleEntry<>(hostIDD,
-                new HostMetadata(hostIDD,
+            new AbstractMap.SimpleEntry<>(HOST_ID_D,
+                new HostMetadata(HOST_ID_D,
                     // unknown datacenter, unknown provider and region, aarch64
-                    new DatacenterInstance(
+                    new InstanceType(
                         "on-prem-provider",
                         "on-prem-region",
                         "" // Doesn't matter for unknown datacenters.
@@ -71,15 +71,15 @@ public class CO2CalculatorTests extends ESTestCase {
         );
         // end::noformat
 
-        double duration = 1_800d; // 30 minutes
+        double samplingDurationInSeconds = 1_800d; // 30 minutes
         long samples = 100_000L; // 100k samples
-        double annualCoreHours = CostCalculator.annualCoreHours(duration, samples, 20d);
-        CO2Calculator co2Calculator = new CO2Calculator(costsService, hostsTable, duration);
+        double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 20d);
+        CO2Calculator co2Calculator = new CO2Calculator(costsService, hostsTable, samplingDurationInSeconds);
 
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(hostIDA, samples), annualCoreHours, 0.000002213477d);
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(hostIDB, samples), annualCoreHours, 1.1d, 0.00004452d, 7d);
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(hostIDC, samples), annualCoreHours, 1.185d, 0.000410608d, 2.8d);
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(hostIDD, samples), annualCoreHours, 1.7d, 0.000379069d, 2.8d);
+        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_A, samples), annualCoreHours, 0.000002213477d);
+        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples), annualCoreHours, 1.1d, 0.00004452d, 7d);
+        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_C, samples), annualCoreHours, 1.185d, 0.000410608d, 2.8d);
+        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_D, samples), annualCoreHours, 1.7d, 0.000379069d, 2.8d);
     }
 
     private void checkCO2Calculation(double calculatedAnnualCO2Tons, double annualCoreHours, double co2Factor) {

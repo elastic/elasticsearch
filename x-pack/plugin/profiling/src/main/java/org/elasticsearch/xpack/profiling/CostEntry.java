@@ -14,8 +14,8 @@ import java.io.IOException;
 import java.util.Map;
 
 final class CostEntry implements ToXContentObject {
-    Double co2Factor;
-    Double costFactor;
+    final double co2Factor;
+    final double costFactor;
 
     CostEntry(Double co2Factor, Double costFactor) {
         this.co2Factor = co2Factor;

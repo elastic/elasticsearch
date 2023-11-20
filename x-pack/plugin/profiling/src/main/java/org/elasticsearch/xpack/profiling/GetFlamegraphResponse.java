@@ -25,10 +25,10 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     private final double samplingRate;
     private final long selfCPU;
     private final long totalCPU;
-    double selfAnnualCO2Tons;
-    double totalAnnualCO2Tons;
-    double selfAnnualCostsUSD;
-    double totalAnnualCostsUSD;
+    private final double selfAnnualCO2Tons;
+    private final double totalAnnualCO2Tons;
+    private final double selfAnnualCostsUSD;
+    private final double totalAnnualCostsUSD;
     private final long totalSamples;
     private final List<Map<String, Integer>> edges;
     private final List<String> fileIds;

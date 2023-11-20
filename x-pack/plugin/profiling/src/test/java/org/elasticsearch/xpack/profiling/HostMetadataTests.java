@@ -32,8 +32,8 @@ public class HostMetadataTests extends ESTestCase {
 
         assertEquals(hostID, host.hostID);
         assertEquals(machine, host.profilingHostMachine);
-        assertEquals(provider, host.dci.provider);
-        assertEquals(region, host.dci.region);
-        assertEquals(instanceType, host.dci.instanceType);
+        assertEquals(provider, host.instanceType.provider);
+        assertEquals(region, host.instanceType.region);
+        assertEquals(instanceType, host.instanceType.name);
     }
 }

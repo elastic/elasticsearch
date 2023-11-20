@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
 public class CostsService {
-    private final Map<DatacenterInstance, CostEntry> costsPerDatacenter = new HashMap<>();
+    private final Map<InstanceType, CostEntry> costsPerDatacenter = new HashMap<>();
 
     public void load() {
         try (GZIPInputStream in = new GZIPInputStream(CostsService.class.getClassLoader().getResourceAsStream("profiling-costs.json.gz"))) {
@@ -30,7 +30,7 @@ public class CostsService {
             }
             List<Map<String, Object>> rawData = XContentParserUtils.parseList(parser, XContentParser::map);
             for (Map<String, Object> entry : rawData) {
-                costsPerDatacenter.put(DatacenterInstance.fromCostSource(entry), CostEntry.fromSource(entry));
+                costsPerDatacenter.put(InstanceType.fromCostSource(entry), CostEntry.fromSource(entry));
             }
 
         } catch (IOException e) {
@@ -38,7 +38,7 @@ public class CostsService {
         }
     }
 
-    public CostEntry getCosts(DatacenterInstance instance) {
+    public CostEntry getCosts(InstanceType instance) {
         return costsPerDatacenter.get(instance);
     }
 }

@@ -23,11 +23,15 @@ public class S3HttpFixture {
     private final HttpServer server;
 
     S3HttpFixture(final String[] args) throws Exception {
-        this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(args[0]), Integer.parseInt(args[1])), 0);
+        this(new InetSocketAddress(InetAddress.getByName(args[0]), Integer.parseInt(args[1])), args);
+    }
+
+    public S3HttpFixture(InetSocketAddress inetSocketAddress, final String[] args) throws IOException {
+        this.server = HttpServer.create(inetSocketAddress, 0);
         this.server.createContext("/", Objects.requireNonNull(createHandler(args)));
     }
 
-    final void start() throws Exception {
+    final void startWithWait() throws Exception {
         try {
             server.start();
             // wait to be killed
@@ -35,6 +39,10 @@ public class S3HttpFixture {
         } finally {
             server.stop(0);
         }
+    }
+
+    public final void start() throws Exception {
+        server.start();
     }
 
     protected HttpHandler createHandler(final String[] args) {
@@ -60,6 +68,14 @@ public class S3HttpFixture {
             throw new IllegalArgumentException("S3HttpFixture expects 5 arguments [address, port, bucket, base path, access key]");
         }
         final S3HttpFixture fixture = new S3HttpFixture(args);
-        fixture.start();
+        fixture.startWithWait();
+    }
+
+    public String getAddress() {
+        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+    }
+
+    public void stop(int delay) {
+        server.stop(delay);
     }
 }

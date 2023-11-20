@@ -11,6 +11,8 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.Objects;
 
 import static fixture.s3.S3HttpHandler.sendError;
@@ -19,6 +21,10 @@ public class S3HttpFixtureWithSessionToken extends S3HttpFixture {
 
     S3HttpFixtureWithSessionToken(final String[] args) throws Exception {
         super(args);
+    }
+
+    public S3HttpFixtureWithSessionToken(InetSocketAddress inetSocketAddress, String[] args) throws IOException {
+        super(inetSocketAddress, args);
     }
 
     @Override

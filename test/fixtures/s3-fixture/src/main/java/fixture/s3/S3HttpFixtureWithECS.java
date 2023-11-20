@@ -11,13 +11,19 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 public class S3HttpFixtureWithECS extends S3HttpFixtureWithEC2 {
 
-    private S3HttpFixtureWithECS(final String[] args) throws Exception {
+    public S3HttpFixtureWithECS(final String[] args) throws Exception {
         super(args);
+    }
+
+    public S3HttpFixtureWithECS(InetSocketAddress inetSocketAddress, String[] strings) throws IOException {
+        super(inetSocketAddress, strings);
     }
 
     @Override

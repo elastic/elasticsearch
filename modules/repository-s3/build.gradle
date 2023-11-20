@@ -199,6 +199,11 @@ tasks.named("yamlRestTest").configure {
   fixtureApps.use("s3-fixture", "s3-fixture-with-session-token")
   fixtureApps.use("s3-fixture", "s3-fixture-with-ec2")
 
+  systemProperty("fixture.service.name.1", "S3Fixture")
+  systemProperty("fixture.service.name.2", "S3FixtureEcs")
+  systemProperty("fixture.service.name.3", "S3FixtureEc2")
+  systemProperty("fixture.service.name.4", "S3FixtureWithToken")
+
   systemProperty("tests.s3.fixture", Boolean.toString(useFixture))
   systemProperty("TESTCONTAINERS_RYUK_DISABLED", 'true')
   systemProperty("TESTCONTAINERS_CHECKS_DISABLE", 'true')
@@ -277,8 +282,7 @@ if (useFixture) {
       'repository_s3/50_repository_ecs_credentials/*'
     ].join(",")
   }
-
-
+  
   // Sanity test for STS Regional Endpoints
   tasks.register("yamlRestTestRegionalSTS", RestIntegTestTask.class) {
     description = "Runs tests with the Regional STS Endpoint"

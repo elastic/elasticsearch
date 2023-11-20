@@ -11,6 +11,8 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -22,8 +24,12 @@ public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
     private static final String EC2_PATH = "/latest/meta-data/iam/security-credentials/";
     private static final String EC2_PROFILE = "ec2Profile";
 
-    S3HttpFixtureWithEC2(final String[] args) throws Exception {
+    public S3HttpFixtureWithEC2(final String[] args) throws Exception {
         super(args);
+    }
+
+    public S3HttpFixtureWithEC2(InetSocketAddress inetSocketAddress, String[] strings) throws IOException {
+        super(inetSocketAddress, strings);
     }
 
     @Override

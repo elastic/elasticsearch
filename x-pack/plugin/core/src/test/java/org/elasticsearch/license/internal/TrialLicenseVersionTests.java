@@ -37,5 +37,11 @@ public class TrialLicenseVersionTests extends ESTestCase {
         assertTrue(new TrialLicenseVersion(randomIntBetween(7_00_00_00, 7_99_99_99)).ableToStartNewTrial());
         assertFalse(new TrialLicenseVersion(CURRENT.asInt()).ableToStartNewTrial());
         assertFalse(new TrialLicenseVersion(randomIntBetween(8_00_00_00, TRIAL_VERSION_CUTOVER)).ableToStartNewTrial());
+        final int trialVersion = randomIntBetween(TRIAL_VERSION_CUTOVER, CURRENT.asInt());
+        if (trialVersion < CURRENT.asInt()) {
+            assertTrue(new TrialLicenseVersion(trialVersion).ableToStartNewTrial());
+        } else {
+            assertFalse(new TrialLicenseVersion(trialVersion).ableToStartNewTrial());
+        }
     }
 }

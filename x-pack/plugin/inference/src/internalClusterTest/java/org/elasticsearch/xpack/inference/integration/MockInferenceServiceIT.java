@@ -12,7 +12,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -22,12 +22,12 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.results.SparseEmbeddingResults;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -169,16 +169,15 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         return response.getModel();
     }
 
-    private List<? extends InferenceResults> inferOnMockService(String modelId, TaskType taskType, List<String> input) {
+    private InferenceServiceResults inferOnMockService(String modelId, TaskType taskType, List<String> input) {
         var response = client().execute(InferenceAction.INSTANCE, new InferenceAction.Request(taskType, modelId, input, Map.of()))
             .actionGet();
         if (taskType == TaskType.SPARSE_EMBEDDING) {
-            response.getResults().forEach(result -> {
-                assertThat(result, instanceOf(TextExpansionResults.class));
-                var teResult = (TextExpansionResults) result;
-                assertThat(teResult.getWeightedTokens(), not(empty()));
-            });
+            var result = response.getResults();
+            assertThat(result, instanceOf(SparseEmbeddingResults.class));
 
+            var sparseResult = (SparseEmbeddingResults) result;
+            assertThat(sparseResult.embeddings(), not(empty()));
         } else {
             fail("test with task type [" + taskType + "] are not supported yet");
         }

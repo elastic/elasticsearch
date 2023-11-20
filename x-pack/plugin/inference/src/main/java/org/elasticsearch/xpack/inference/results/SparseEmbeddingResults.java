@@ -7,37 +7,79 @@
 
 package org.elasticsearch.xpack.inference.results;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public record SparseEmbeddingResults(List<TextExpansionResults> expansionResults) implements ResultGetter {
-    public static final String NAME = "sparse_vector_results";
-    // TODO Do we want it as sparse_embedding to match the task type or sparse_vector from the client PR?
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
+
+public record SparseEmbeddingResults(List<Embedding> embeddings, boolean isTruncated) implements InferenceServiceResults {
+
+    public static final String NAME = "sparse_embedding_results";
     public static final String SPARSE_EMBEDDING = TaskType.SPARSE_EMBEDDING.toString();
     public static final String EMBEDDING = "embedding";
+    public static final String IS_TRUNCATED = "is_truncated";
 
     public SparseEmbeddingResults(StreamInput in) throws IOException {
-        this(in.readNamedWriteableCollectionAsList(TextExpansionResults.class));
+        this(in.readCollectionAsList(Embedding::new), in.readBoolean());
+    }
+
+    // public static SparseEmbeddingResults create(List<TextExpansionResults> expansionResults, boolean isTruncated) {
+    // return new SparseEmbeddingResults(
+    // expansionResults.stream()
+    // .map(
+    // expansion -> new Embedding(
+    // expansion.getWeightedTokens().stream().map(token -> new WeightedToken(token.token(), token.weight())).toList()
+    // )
+    // )
+    // .toList(),
+    // isTruncated
+    // );
+    // }
+
+    public static SparseEmbeddingResults create(List<? extends InferenceResults> results) {
+        boolean isTruncated = false;
+        List<Embedding> embeddings = new ArrayList<>(results.size());
+
+        for (InferenceResults result : results) {
+            if (result instanceof TextExpansionResults expansionResults) {
+                isTruncated |= expansionResults.isTruncated();
+                embeddings.add(Embedding.create(expansionResults.getWeightedTokens()));
+            } else {
+                throw new IllegalArgumentException("Received invalid legacy inference result");
+            }
+        }
+
+        return new SparseEmbeddingResults(embeddings, isTruncated);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(SPARSE_EMBEDDING);
-        for (TextExpansionResults result : expansionResults) {
-            result.toXContent(builder, params);
+        builder.startObject(SPARSE_EMBEDDING);
+        builder.field(IS_TRUNCATED, isTruncated);
+        builder.startArray(EMBEDDING);
+
+        for (Embedding embedding : embeddings) {
+            embedding.toXContent(builder, params);
         }
+
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 
@@ -48,41 +90,99 @@ public record SparseEmbeddingResults(List<TextExpansionResults> expansionResults
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableCollection(expansionResults);
+        out.writeCollection(embeddings);
     }
 
-    @Override
-    public String getResultsField() {
-        return SPARSE_EMBEDDING;
-    }
-
-    @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(getResultsField(), expansionResults.stream().map(TextExpansionResults::asMap).collect(Collectors.toList()));
+
+        var embeddingList = embeddings.stream().map(Embedding::asMap).toList();
+        Map<String, Object> sparseEmbeddingMap = new LinkedHashMap<>();
+        sparseEmbeddingMap.put(EMBEDDING, embeddingList);
+        sparseEmbeddingMap.put(IS_TRUNCATED, isTruncated);
+
+        map.put(SPARSE_EMBEDDING, sparseEmbeddingMap);
 
         return map;
     }
 
     @Override
-    public Map<String, Object> asMap(String outputField) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put(outputField, expansionResults.stream().map(TextExpansionResults::asMap).collect(Collectors.toList()));
-
-        return map;
+    public List<? extends InferenceResults> transformToLegacyFormat() {
+        return embeddings.stream()
+            .map(
+                embedding -> new TextExpansionResults(
+                    DEFAULT_RESULTS_FIELD,
+                    embedding.tokens()
+                        .stream()
+                        .map(weightedToken -> new TextExpansionResults.WeightedToken(weightedToken.token, weightedToken.weight))
+                        .toList(),
+                    isTruncated
+                )
+            )
+            .toList();
     }
 
-    @Override
-    public Object predictedValue() {
-        throw new UnsupportedOperationException("[" + NAME + "] does not support a single predicted value");
-    }
+    public record Embedding(List<WeightedToken> tokens) implements Writeable, ToXContentObject {
 
-    @Override
-    public List<? extends InferenceResults> getEmbedding() {
-        if (expansionResults.isEmpty()) {
-            return List.of(new TextEmbeddingResults(EMBEDDING, new double[0], false));
+        public Embedding(StreamInput in) throws IOException {
+            this(in.readCollectionAsList(WeightedToken::new));
         }
 
-        return expansionResults;
+        public static Embedding create(List<TextExpansionResults.WeightedToken> weightedTokens) {
+            return new Embedding(weightedTokens.stream().map(token -> new WeightedToken(token.token(), token.weight())).toList());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(tokens);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+
+            for (var weightedToken : tokens) {
+                weightedToken.toXContent(builder, params);
+            }
+
+            builder.endObject();
+            return builder;
+        }
+
+        public Map<String, Object> asMap() {
+            return new LinkedHashMap<>(tokens.stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight)));
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+    }
+
+    public record WeightedToken(String token, float weight) implements Writeable, ToXContentFragment {
+        public WeightedToken(StreamInput in) throws IOException {
+            this(in.readString(), in.readFloat());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(token);
+            out.writeFloat(weight);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(token, weight);
+            return builder;
+        }
+
+        public Map<String, Object> asMap() {
+            return Map.of(token, weight);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
     }
 }

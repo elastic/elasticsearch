@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
@@ -39,7 +41,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
@@ -92,12 +93,26 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
             var action = createAction(getUrl(webServer), sender);
 
-            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(List.of("abc"), listener);
 
-            var result = listener.actionGet(TIMEOUT).get(0);
+            var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(Map.of(DEFAULT_RESULTS_FIELD, Map.of(".", 0.13315596f))));
+            assertThat(
+                result.asMap(),
+                is(
+                    Map.of(
+                        SparseEmbeddingResults.SPARSE_EMBEDDING,
+                        Map.of(
+                            SparseEmbeddingResults.IS_TRUNCATED,
+                            false,
+                            SparseEmbeddingResults.EMBEDDING,
+                            List.of(Map.of(".", 0.13315596f))
+                        )
+                    )
+                )
+            );
+
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
@@ -127,7 +142,7 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
         var action = createAction(getUrl(webServer), sender);
 
-        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

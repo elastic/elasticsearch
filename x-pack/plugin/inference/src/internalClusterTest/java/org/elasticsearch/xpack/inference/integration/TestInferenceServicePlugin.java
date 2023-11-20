@@ -10,13 +10,12 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -28,12 +27,10 @@ import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
+import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -161,15 +158,11 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             Model model,
             List<String> input,
             Map<String, Object> taskSettings,
-            ActionListener<List<? extends InferenceResults>> listener
+            ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case SPARSE_EMBEDDING -> {
-                    var results = new ArrayList<TextExpansionResults>();
-                    input.forEach(i -> {
-                        int numTokensInResult = Strings.tokenizeToStringArray(i, " ").length;
-                        results.add(TextExpansionResultsTests.createRandomResults(numTokensInResult, numTokensInResult));
-                    });
+                    var results = SparseEmbeddingResultsTests.createRandomResults(input);
                     listener.onResponse(results);
                 }
                 default -> listener.onFailure(

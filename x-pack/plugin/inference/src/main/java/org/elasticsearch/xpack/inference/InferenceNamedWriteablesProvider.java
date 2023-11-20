@@ -13,7 +13,7 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
@@ -33,7 +33,10 @@ public class InferenceNamedWriteablesProvider {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
 
         // Inference Results
-        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextEmbeddingResults.NAME, TextEmbeddingResults::new));
+        // Legacy inference results
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceResults.class, LegacyTextEmbeddingResults.NAME, LegacyTextEmbeddingResults::new)
+        );
 
         // Empty default task settings
         namedWriteables.add(new NamedWriteableRegistry.Entry(TaskSettings.class, EmptyTaskSettings.NAME, EmptyTaskSettings::new));

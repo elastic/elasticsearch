@@ -290,6 +290,7 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.KEYWORD
             || dataType == DataTypes.TEXT
             || dataType == DataTypes.IP
+            || dataType == DataTypes.SOURCE
             || dataType == DataTypes.VERSION
             || dataType == DataTypes.UNSUPPORTED) {
             return ElementType.BYTES_REF;

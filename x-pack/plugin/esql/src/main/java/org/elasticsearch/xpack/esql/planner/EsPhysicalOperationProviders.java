@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -77,14 +76,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             DataType dataType = attr.dataType();
             String fieldName = attr.name();
             List<BlockLoader> loaders = BlockReaderFactories.loaders(searchContexts, fieldName, EsqlDataTypes.isUnsupported(dataType));
-            List<IndexReader> readers = searchContexts.stream().map(s -> s.searcher().getIndexReader()).toList();
+            List<ValuesSourceReaderOperator.ShardContext> shardContexts = searchContexts.stream()
+                .map(s -> new ValuesSourceReaderOperator.ShardContext(s.searcher().getIndexReader(), s::newSourceLoader))
+                .toList();
 
             int docChannel = previousLayout.get(sourceAttr.id()).channel();
 
             op = op.with(
                 new ValuesSourceReaderOperator.Factory(
                     List.of(new ValuesSourceReaderOperator.FieldInfo(fieldName, loaders)),
-                    readers,
+                    shardContexts,
                     docChannel
                 ),
                 layout.build()
@@ -172,11 +173,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         var sourceAttribute = FieldExtractExec.extractSourceAttributesFrom(aggregateExec.child());
         int docChannel = source.layout.get(sourceAttribute.id()).channel();
+        List<ValuesSourceReaderOperator.ShardContext> shardContexts = searchContexts.stream()
+            .map(s -> new ValuesSourceReaderOperator.ShardContext(s.searcher().getIndexReader(), s::newSourceLoader))
+            .toList();
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
             BlockReaderFactories.loaders(searchContexts, attrSource.name(), EsqlDataTypes.isUnsupported(attrSource.dataType())),
-            searchContexts.stream().map(s -> s.searcher().getIndexReader()).toList(),
+            shardContexts,
             groupElementType,
             docChannel,
             attrSource.name(),

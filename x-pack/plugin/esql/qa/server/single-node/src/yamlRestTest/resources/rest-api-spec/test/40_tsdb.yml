@@ -224,3 +224,34 @@ from index pattern explicit counter use:
       esql.query:
         body:
           query: 'FROM test* | keep *.tx'
+
+
+---
+_source:
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index" : { "_index" : "test", "_id" : "id-1" } }
+          - { "wow": 1, "such": "_source", "you'd": "never", "expect": ["amazing", "source"] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test [METADATA _source] | WHERE @timestamp == "2021-04-28T18:50:23.142Z" | KEEP _source | LIMIT 1'
+  - match: { columns.0.name: _source }
+  - match: { columns.0.type: _source }
+  - length: { values: 1 }
+  - match:
+      values.0.0:
+        "@timestamp": "2021-04-28T18:50:23.142Z"
+        metricset: pod
+        k8s:
+          pod:
+            ip: 10.10.55.3
+            name: dog
+            network:
+              rx: 530600088
+              tx: 1434577921
+            uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9

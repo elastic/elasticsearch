@@ -12,9 +12,6 @@ description = 'Fixture for S3 Storage service'
 tasks.named("test").configure { enabled = false }
 
 configurations {
-  implementation.transitive = false
-  runtimeOnly.transitive = false
-  //runtimeClasspath.transitive = false
   runtimeElements.transitive = false
 }
 

@@ -1035,8 +1035,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testRefCountingArrayBlock() {
-        int positionCount = randomIntBetween(0, 100);
-        IntBlock block = blockFactory.newIntArrayBlock(IntStream.range(0, positionCount).toArray(), positionCount, new int[] {}, new BitSet(), randomOrdering());
+        Block block = randomArrayBlock();
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(block);
         assertThat(breaker.getUsed(), is(0L));
@@ -1058,8 +1057,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testRefCountingVectorBlock() {
-        int positionCount = randomIntBetween(0, 100);
-        IntBlock block = intVector(positionCount).asBlock();
+        Block block = randomNonDocVector().asBlock();
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(block);
         assertThat(breaker.getUsed(), is(0L));
@@ -1101,12 +1099,18 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testReleasedVectorInvalidatesBlockState() {
-        int positionCount = randomIntBetween(0, 100);
-        IntVector vector = intVector(positionCount);
-        IntBlock block = vector.asBlock();
+        Vector vector = randomNonDocVector();
+        Block block = vector.asBlock();
+
+        int numRefs = randomIntBetween(1, 10);
+        for (int i = 0; i < numRefs - 1; i++) {
+            block.incRef();
+        }
 
         vector.close();
+        assertEquals(false, block.tryIncRef());
         expectThrows(IllegalStateException.class, block::close);
+        expectThrows(IllegalStateException.class, block::incRef);
     }
 
     public void testReleasedDocVectorInvalidatesBlockState() {
@@ -1114,11 +1118,71 @@ public class BasicBlockTests extends ESTestCase {
         DocVector vector = new DocVector(intVector(positionCount), intVector(positionCount), intVector(positionCount), true);
         DocBlock block = vector.asBlock();
 
+        int numRefs = randomIntBetween(1, 10);
+        for (int i = 0; i < numRefs - 1; i++) {
+            block.incRef();
+        }
+
         vector.close();
+        assertEquals(false, block.tryIncRef());
         expectThrows(IllegalStateException.class, block::close);
+        expectThrows(IllegalStateException.class, block::incRef);
     }
 
     private IntVector intVector(int positionCount) {
         return blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
+    }
+
+    private Vector randomNonDocVector() {
+        int positionCount = randomIntBetween(0, 100);
+        int vectorType = randomIntBetween(0, 4);
+
+        return switch (vectorType) {
+            case 0 -> blockFactory.newConstantBooleanVector(true, positionCount);
+            case 1 -> blockFactory.newConstantBytesRefVector(new BytesRef(), positionCount);
+            case 2 -> blockFactory.newConstantDoubleVector(1.0, positionCount);
+            case 3 -> blockFactory.newConstantIntVector(1, positionCount);
+            default -> blockFactory.newConstantLongVector(1L, positionCount);
+        };
+    }
+
+    private Block randomArrayBlock() {
+        int positionCount = randomIntBetween(0, 100);
+        int arrayType = randomIntBetween(0, 4);
+
+        return switch (arrayType) {
+            case 0 -> {
+                boolean[] values = new boolean[positionCount];
+                Arrays.fill(values, true);
+
+                yield blockFactory.newBooleanArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
+            }
+            case 1 -> {
+                BytesRefArray values = new BytesRefArray(positionCount, BigArrays.NON_RECYCLING_INSTANCE);
+                for (int i = 0; i < positionCount; i++) {
+                    values.append(new BytesRef(randomByteArrayOfLength(between(1, 20))));
+                }
+
+                yield blockFactory.newBytesRefArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
+            }
+            case 2 -> {
+                double[] values = new double[positionCount];
+                Arrays.fill(values, 1.0);
+
+                yield blockFactory.newDoubleArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
+            }
+            case 3 -> {
+                int[] values = new int[positionCount];
+                Arrays.fill(values, 1);
+
+                yield blockFactory.newIntArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
+            }
+            default -> {
+                long[] values = new long[positionCount];
+                Arrays.fill(values, 1L);
+
+                yield blockFactory.newLongArrayBlock(values, positionCount, new int[] {}, new BitSet(), randomOrdering());
+            }
+        };
     }
 }

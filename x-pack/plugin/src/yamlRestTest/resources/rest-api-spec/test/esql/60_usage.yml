@@ -1,5 +1,9 @@
 ---
 setup:
+  - skip:
+      version: " - 8.10.99"
+      reason: "ESQL is available in 8.11+"
+
   - do:
       indices.create:
         index:  test

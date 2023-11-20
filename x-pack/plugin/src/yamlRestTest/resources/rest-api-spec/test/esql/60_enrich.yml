@@ -1,6 +1,8 @@
 ---
 setup:
   - skip:
+      version: " - 8.10.99"
+      reason: "ESQL is available in 8.11+"
       features: allowed_warnings_regex
   - do:
       indices.create:
@@ -127,3 +129,8 @@ setup:
   - match: { values.1: [ "Bob", "nyc", "USA" ] }
   - match: { values.2: [ "Denise", "sgn", null ] }
   - match: { values.3: [ "Mario", "rom", "Italy" ] }
+
+  - do:
+      enrich.delete_policy:
+        name: cities_policy
+  - is_true: acknowledged

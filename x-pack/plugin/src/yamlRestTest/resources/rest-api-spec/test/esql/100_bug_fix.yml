@@ -1,7 +1,7 @@
 ---
 "Bug fix https://github.com/elastic/elasticsearch/issues/99472":
   - skip:
-      version: " - 7.11.99"
+      version: " - 8.11.99"
       reason: "Warnings fixes in 8.12 or later"
       features: warnings
   - do:

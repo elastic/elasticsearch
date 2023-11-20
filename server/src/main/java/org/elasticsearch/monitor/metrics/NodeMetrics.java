@@ -114,7 +114,7 @@ public class NodeMetrics {
         indicesGetTimeInMillis = registry.registerLongCounter(
             "es.node.stats.indices.get.time",
             "Time in milliseconds spent performing get operations.",
-            "time_in_millis"
+            "milliseconds"
         );
         indicesGetTimeInMillis.incrementBy(stats.getIndices().getGet().getTimeInMillis());
 
@@ -128,7 +128,7 @@ public class NodeMetrics {
         indicesSearchFetchTimeInMillis = registry.registerLongCounter(
             "es.node.stats.indices.search.fetch.time",
             "Time in milliseconds spent performing fetch operations.",
-            "time_in_millis"
+            "milliseconds"
         );
         indicesSearchFetchTimeInMillis.incrementBy(stats.getIndices().getSearch().getTotal().getFetchTimeInMillis());
 
@@ -142,7 +142,7 @@ public class NodeMetrics {
         indicesMergeTimeInMillis = registry.registerLongCounter(
             "es.node.stats.indices.merge.time",
             "Time in milliseconds spent performing merge operations.",
-            "time_in_millis"
+            "milliseconds"
         );
         indicesMergeTimeInMillis.incrementBy(stats.getIndices().getMerge().getTotalTimeInMillis());
 

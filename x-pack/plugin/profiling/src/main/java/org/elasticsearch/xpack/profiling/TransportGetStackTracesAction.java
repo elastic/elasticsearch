@@ -390,8 +390,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     )
                     // Filter for host we are interested in.
                     .filter(QueryBuilders.termsQuery("host.id", responseBuilder.hostEventCounts.stream().map(hec -> hec.hostID).toList()))
-                    // Filter for AWS hosts.
-                    .filter(QueryBuilders.existsQuery("ec2.instance_type"))
             )
             .setCollapse(
                 // Collapse on host.id to get a single host metadata for each host.

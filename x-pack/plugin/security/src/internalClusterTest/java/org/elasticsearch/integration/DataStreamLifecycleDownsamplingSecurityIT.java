@@ -244,7 +244,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         Map<String, String> indicesAndErrors = new HashMap<>();
         for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-            List<String> allIndices = errorStore.getAllIndices();
+            Set<String> allIndices = errorStore.getAllIndices();
             for (var index : allIndices) {
                 ErrorEntry error = errorStore.getError(index);
                 if (error != null) {

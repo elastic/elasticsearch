@@ -80,9 +80,7 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
 
     @Override
     public void closeInternal() {
-        if (vector.isReleased()) {
-            throw new IllegalStateException("can't release block [" + this + "] containing already released vector");
-        }
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
     }
 }

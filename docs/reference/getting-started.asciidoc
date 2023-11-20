@@ -4,7 +4,7 @@
 
 This guide helps beginners learn how to:
 
-* Install and run {es} in a test environment (Using {ecloud} or Docker)
+* Install and run {es} (Using {ecloud} or Docker)
 * Add (non-timestamped) data to {es}
 * Search and sort data
 * Aggregate data
@@ -581,8 +581,6 @@ The response’s `aggregations` object contains aggregation results.
 === Next steps
 
 Now that {es} is up and running and you've learned the basics, you'll probably want to test out larger datasets, or index your own data.
-
-Here are a few relevant links:
 
 [discrete]
 [[whats-next-sample-data]]

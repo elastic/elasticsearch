@@ -26,12 +26,13 @@ public class MinioFixtureTestContainer implements TestRule {
     private ComposeContainer createContainer(List<String> services) {
         ComposeContainer composeContainer = new ComposeContainer(resolveFixtureHome());
         services.forEach(service -> composeContainer.withExposedService(service, servicePort, Wait.forListeningPort()));
-        return composeContainer.withLocalCompose(true);
+        return composeContainer;
     }
 
     @NotNull
     private static File resolveFixtureHome() {
         String userHomeProperty = System.getProperty("fixture.minio-fixture.home");
+        System.out.println("userHomeProperty = " + userHomeProperty);
         File home = new File(userHomeProperty);
         return new File(home, "docker-compose.yml");
     }

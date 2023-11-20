@@ -26,7 +26,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -34,7 +33,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -100,9 +98,9 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     private long lastGeneration = -1;
 
-    public IndexDirectory(Directory in, SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
+    public IndexDirectory(Directory in, SearchDirectory cacheDirectory) {
         super(in);
-        this.cacheDirectory = new SearchDirectory(cacheService, shardId);
+        this.cacheDirectory = Objects.requireNonNull(cacheDirectory);
     }
 
     @Override
@@ -715,7 +713,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
             private CachedDelegate(String name, IndexInput input, boolean clone) {
                 super("cached(" + name + ')', true, input);
-                assert input instanceof SearchIndexInput : input;
+                assert FilterIndexInput.unwrap(input) instanceof SearchIndexInput : input;
                 this.clone = clone;
             }
 
@@ -818,7 +816,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                     if (current.isCached()) {
                         // We clone the actual delegate input. No need to clone our Delegate wrapper with the "cached" flag.
                         IndexInput inputToClone = current.getDelegate();
-                        assert inputToClone instanceof SearchIndexInput : toString();
+                        assert FilterIndexInput.unwrap(inputToClone) instanceof SearchIndexInput : toString();
                         return seekOnClone(((BlobCacheBufferedIndexInput) inputToClone).clone());
                     } else {
                         final var clone = (ReopeningIndexInput) super.clone();
@@ -851,7 +849,7 @@ public class IndexDirectory extends ByteSizeDirectory {
             assert sliceDescription != null;
             return executeLocallyOrReopen(current -> {
                 if (current.isCached()) {
-                    assert current.getDelegate() instanceof SearchIndexInput : toString();
+                    assert FilterIndexInput.unwrap(current.getDelegate()) instanceof SearchIndexInput : toString();
                     return current.slice(sliceDescription, sliceOffset, sliceLength);
                 } else {
                     ensureSlice(sliceDescription, sliceOffset, sliceLength, current);
@@ -889,7 +887,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                 try {
                     if (closed == false) {
                         var next = cacheDirectory.openInput(name, context);
-                        assert next instanceof SearchIndexInput : next;
+                        assert FilterIndexInput.unwrap(next) instanceof SearchIndexInput : next;
                         if (this.sliceDescription != null) {
                             next = next.slice(this.sliceDescription, this.sliceOffset, this.sliceLength);
                         }

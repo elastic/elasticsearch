@@ -568,6 +568,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitState.blobLocations.keySet();
     }
 
+    // Visible for testing
+    @Nullable
+    BlobLocation getBlobLocation(ShardId shardId, String fileName) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        var commitAndBlobLocation = commitState.blobLocations.get(fileName);
+        if (commitAndBlobLocation != null) {
+            return commitAndBlobLocation.blobLocation;
+        }
+        return null;
+    }
+
     private static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
         final ShardCommitState commitState = map.get(shardId);
         if (commitState == null) {

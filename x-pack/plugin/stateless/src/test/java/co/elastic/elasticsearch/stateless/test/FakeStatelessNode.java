@@ -188,7 +188,10 @@ public class FakeStatelessNode implements Closeable {
             );
             localCloseables.add(sharedCacheService);
             indexingDirectory = localCloseables.add(
-                new IndexDirectory(new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath), sharedCacheService, shardId)
+                new IndexDirectory(
+                    new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath),
+                    new SearchDirectory(sharedCacheService, shardId)
+                )
             );
             indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
             searchDirectory = localCloseables.add(new SearchDirectory(sharedCacheService, searchShardPath.getShardId()));

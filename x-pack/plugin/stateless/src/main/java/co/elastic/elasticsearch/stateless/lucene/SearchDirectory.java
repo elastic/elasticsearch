@@ -192,6 +192,20 @@ public class SearchDirectory extends ByteSizeDirectory {
         currentMetadata = Map.copyOf(blobLocations);
     }
 
+    /**
+     * For test usage only.
+     */
+    BlobLocation getBlobLocation(String fileName) {
+        return currentMetadata.get(fileName);
+    }
+
+    /**
+     * For test usage only.
+     */
+    SharedBlobCacheService<FileCacheKey> getCacheService() {
+        return cacheService;
+    }
+
     // TODO this method works because we never prune old commits files
     public OptionalLong getPrimaryTerm(String segmentsFileName) throws FileNotFoundException {
         final BlobLocation location = currentMetadata.get(segmentsFileName);

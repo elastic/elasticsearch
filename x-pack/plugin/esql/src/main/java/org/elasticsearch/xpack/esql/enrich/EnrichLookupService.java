@@ -251,7 +251,7 @@ public class EnrichLookupService {
             final SourceOperator queryOperator = switch (matchType) {
                 case "match", "range" -> {
                     QueryList queryList = QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
-                    yield new EnrichQuerySourceOperator(queryList, searchExecutionContext.getIndexReader());
+                    yield new EnrichQuerySourceOperator(blockFactory, queryList, searchExecutionContext.getIndexReader());
                 }
                 default -> throw new EsqlIllegalArgumentException("illegal match type " + matchType);
             };
@@ -282,7 +282,7 @@ public class EnrichLookupService {
             // merging field-values by position
             final int[] mergingChannels = IntStream.range(0, extractFields.size()).map(i -> i + 1).toArray();
             intermediateOperators.add(
-                new MergePositionsOperator(singleLeaf, inputPage.getPositionCount(), 0, mergingChannels, mergingTypes)
+                new MergePositionsOperator(singleLeaf, inputPage.getPositionCount(), 0, mergingChannels, mergingTypes, blockFactory)
             );
             AtomicReference<Page> result = new AtomicReference<>();
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);

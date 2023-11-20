@@ -68,11 +68,6 @@ responses. See <<esql-rest-columnar>>.
 `query`::
 (Required, object) {esql} query to run. For syntax, refer to <<esql-syntax>>.
 
-[[esql-search-api-time-zone]]
-`time_zone`::
-(Optional, string) ISO-8601 time zone ID for the search. Several {esql}
-date/time functions use this time zone. Defaults to `Z` (UTC).
-
 [discrete]
 [role="child_attributes"]
 [[esql-query-api-response-body]]

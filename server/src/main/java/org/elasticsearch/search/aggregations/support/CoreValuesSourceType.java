@@ -338,14 +338,10 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                             @Override
                             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
                                 // Only extract bounds queries that must filter the results
-                                switch (occur) {
-                                    case MUST:
-                                    case FILTER:
-                                        return this;
-
-                                    default:
-                                        return QueryVisitor.EMPTY_VISITOR;
-                                }
+                                return switch (occur) {
+                                    case MUST, FILTER -> this;
+                                    default -> QueryVisitor.EMPTY_VISITOR;
+                                };
                             };
 
                             @Override
@@ -450,5 +446,5 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     }
 
     /** List containing all members of the enumeration. */
-    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
+    public static final List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
 }

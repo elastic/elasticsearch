@@ -106,7 +106,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
     }
 
     @Override
-    public void close() {
+    protected void doClose() {
         // TODO: Maybe create a sub-task as the parent task of all the lookup tasks
         // then cancel it when this operator terminates early (e.g., have enough result).
     }

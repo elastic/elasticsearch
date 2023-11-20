@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -15,6 +16,8 @@ import org.gradle.api.attributes.Usage;
 import org.gradle.api.distribution.DistributionContainer;
 import org.gradle.api.distribution.plugins.DistributionPlugin;
 import org.gradle.api.file.CopySpec;
+import org.gradle.api.file.FileCopyDetails;
+import org.gradle.api.file.FilePermissions;
 import org.gradle.api.plugins.ApplicationPlugin;
 import org.gradle.api.tasks.Sync;
 
@@ -53,6 +56,7 @@ public class TestFixtureApplicationPlugin implements Plugin<Project> {
     }
 
     private void configureContents(CopySpec copySpec) {
+        copySpec
         File dockerfile = project.file("Dockerfile");
         if (dockerfile.exists()) {
             copySpec.from(project.file("Dockerfile"));

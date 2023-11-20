@@ -25,8 +25,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -45,7 +43,6 @@ import org.junit.runners.model.Statement;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -61,26 +58,11 @@ import static org.hamcrest.Matchers.not;
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
 
-    private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.minio.fixture", "true"));
-
-    @SuppressForbidden(reason = "Forbidden method invocation: java.lang.System#getProperties()")
-    private static List<String> resolveServicesFromSystemProperties() {
-        return System.getProperties()
-            .entrySet()
-            .stream()
-            .filter(entry -> ((String) entry.getKey()).startsWith("fixture.minio-fixture.service"))
-            .map(Map.Entry::getValue)
-            .map(Object::toString)
-            .toList();
-    }
-
-    public static MinioFixtureTestContainer minioFixtureTestContainer = new MinioFixtureTestContainer(USE_FIXTURE);
+    public static MinioFixtureTestContainer minioFixtureTestContainer = new MinioFixtureTestContainer(true);
 
     @ClassRule
     public static TestRule testRule = (base, description) -> {
-        if (USE_FIXTURE) {
-            minioFixtureTestContainer.apply(base, description);
-        }
+        minioFixtureTestContainer.apply(base, description);
         return new Statement() {
             @Override
             public void evaluate() throws Throwable {

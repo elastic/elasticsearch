@@ -6,13 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.repositories.s3;
+package org.elasticsearch.test.fixtures.testcontainers;
 
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 
 public class TestContainersThreadFilter implements ThreadFilter {
     @Override
     public boolean reject(Thread t) {
-        return t.getName().startsWith("testcontainers-wait") || t.getName().startsWith("ducttape");
+        return t.getName().startsWith("testcontainers-") || t.getName().startsWith("ducttape");
     }
 }

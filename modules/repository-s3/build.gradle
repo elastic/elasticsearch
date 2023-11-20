@@ -188,12 +188,7 @@ tasks.named("internalClusterTest").configure {
 }
 
 tasks.named("yamlRestTest").configure {
-  systemProperty("fixture.service.name.1", "S3Fixture")
-  systemProperty("fixture.service.name.2", "S3FixtureEcs")
-  systemProperty("fixture.service.name.3", "S3FixtureEc2")
-  systemProperty("fixture.service.name.4", "S3FixtureWithToken")
-
-  systemProperty("tests.s3.fixture", Boolean.toString(useFixture))
+  systemProperty("tests.use.fixture", Boolean.toString(useFixture))
   systemProperty("s3PermanentAccessKey", s3PermanentAccessKey)
   systemProperty("s3PermanentSecretKey", s3PermanentSecretKey)
   systemProperty("s3TemporaryAccessKey", s3TemporaryAccessKey)
@@ -253,8 +248,6 @@ if (useFixture) {
   // STS (Secure Token Service)
   tasks.register("yamlRestTestSTS", RestIntegTestTask.class) {
     description = "Runs tests with the STS (Secure Token Service)"
-    systemProperty("fixture.service.name.1", "S3FixtureSts")
-
     File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
     // The web identity token can be read only from the plugin config directory because of security restrictions
     // Ideally we would create a symlink, but extraConfigFile doesn't support it

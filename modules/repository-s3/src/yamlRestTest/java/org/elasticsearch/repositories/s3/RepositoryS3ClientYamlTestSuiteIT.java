@@ -12,9 +12,7 @@ import fixture.s3.junit.S3HttpFixtureRule;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
@@ -22,6 +20,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.minio.MinioFixtureTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -38,10 +37,8 @@ import static fixture.s3.junit.S3HttpFixtureRule.Type.S3FixtureSts;
 import static fixture.s3.junit.S3HttpFixtureRule.Type.S3FixtureWithToken;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class RepositoryS3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
-    private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.s3.fixture", "true"));
+    private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.use.fixture", "true"));
     private static final String TEST_TASK = System.getProperty("tests.task");
     private static final S3HttpFixtureRule s3Environment = new S3HttpFixtureRule(USE_FIXTURE, requiredS3Fixtures());
     private static final String s3TemporarySessionToken = "session_token";

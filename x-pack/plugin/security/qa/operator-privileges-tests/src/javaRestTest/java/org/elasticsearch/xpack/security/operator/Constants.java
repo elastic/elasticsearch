@@ -294,6 +294,7 @@ public class Constants {
         "cluster:monitor/ccr/follow_info",
         "cluster:monitor/ccr/follow_stats",
         "cluster:monitor/ccr/stats",
+        "cluster:monitor/data_stream/lifecycle/stats",
         "cluster:monitor/eql/async/status",
         "cluster:monitor/fetch/health/info",
         "cluster:monitor/health",

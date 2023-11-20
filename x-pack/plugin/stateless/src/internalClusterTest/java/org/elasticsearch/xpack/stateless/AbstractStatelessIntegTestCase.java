@@ -19,13 +19,14 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
-import co.elastic.elasticsearch.stateless.engine.StatelessRefreshThrottlingIT;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.blobcache.BlobCachePlugin;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -55,6 +57,8 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.junit.Before;
@@ -72,6 +76,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -112,7 +117,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
         @Override
         public String getFeatureName() {
-            return StatelessRefreshThrottlingIT.SystemIndexTestPlugin.class.getSimpleName();
+            return SystemIndexTestPlugin.class.getSimpleName();
         }
 
         @Override
@@ -138,6 +143,44 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     @Before
     public void setup() {
         useBasePath = randomBoolean();
+    }
+
+    public static void createRepository(Logger logger, String repoName, String type, Settings.Builder settings, boolean verify) {
+        logger.info("--> creating or updating repository [{}] [{}]", repoName, type);
+        assertAcked(clusterAdmin().preparePutRepository(repoName).setVerify(verify).setType(type).setSettings(settings));
+    }
+
+    protected void createRepository(String repoName, String type) {
+        createRepository(logger, repoName, type);
+    }
+
+    public static void createRepository(Logger logger, String repoName, String type) {
+        createRepository(logger, repoName, type, randomRepositorySettings(), true);
+    }
+
+    protected void deleteRepository(String repoName) {
+        assertAcked(clusterAdmin().prepareDeleteRepository(repoName));
+    }
+
+    protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices, List<String> featureStates) {
+        logger.info("--> creating snapshot [{}] of {} in [{}]", snapshot, indices, repositoryName);
+        final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(repositoryName, snapshot)
+            .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
+            .setWaitForCompletion(true)
+            .setFeatureStates(featureStates.toArray(Strings.EMPTY_ARRAY))
+            .get();
+
+        final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
+        return snapshotInfo;
+    }
+
+    private static Settings.Builder randomRepositorySettings() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put("location", randomRepoPath()).put("compress", randomBoolean());
+        return settings;
     }
 
     protected String getFsRepoSanitizedBucketName() {

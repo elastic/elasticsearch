@@ -20,8 +20,10 @@ package co.elastic.elasticsearch.stateless.autoscaling.memory;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -37,9 +39,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
@@ -491,6 +495,145 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(totalIndicesMappingSize.getSizeInBytes(), greaterThan(0L));
             assertThat(totalIndicesMappingSize.getMetricQuality(), equalTo(MetricQuality.EXACT));
         });
+    }
+
+    public void testMemoryMetricsAfterFeatureStateRestore() throws Exception {
+        startIndexNode(INDEX_NODE_SETTINGS);
+
+        final AtomicInteger transportMetricCounter = new AtomicInteger(0);
+        for (var transportService : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = (MockTransportService) transportService;
+            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(PublishHeapMemoryMetricsAction.NAME)) {
+                    transportMetricCounter.incrementAndGet();
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+
+        // create test system index with feature state
+        final XContentBuilder indexMapping = createIndexMapping(randomIntBetween(10, 1000));
+        assertAcked(prepareCreate(SYSTEM_INDEX_NAME).setMapping(indexMapping).setSettings(indexSettings(1, 0).build()).get());
+
+        // to compare memory metrics before and after snapshot `_restore` call
+        final AtomicLong sizeAfterIndexCreate = new AtomicLong();
+
+        assertBusy(() -> assertThat(transportMetricCounter.get(), greaterThanOrEqualTo(1)));
+        assertBusy(() -> {
+            final MemoryMetricsService.IndexMemoryMetrics indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(
+                MemoryMetricsService.class
+            ).getTotalIndicesMappingSize();
+            final long sizeInBytes = indexMemoryMetrics.getSizeInBytes();
+            sizeAfterIndexCreate.set(sizeInBytes);
+            assertThat(indexMemoryMetrics.getMetricQuality(), equalTo(MetricQuality.EXACT));
+        });
+
+        // create test repository
+        createRepository("test-repo", "fs");
+
+        // snapshot feature state
+        final String featureStateName = SystemIndexTestPlugin.class.getSimpleName();
+        createSnapshot("test-repo", "test-snapshot", List.of(), List.of(featureStateName));
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final int currentTransportMetricCounter = transportMetricCounter.get();
+
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
+            if (event.metadataChanged()) {
+                // When you restore a feature state, Elasticsearch closes and overwrites the feature’s existing indices
+                for (Index deletedIndex : event.indicesDeleted()) {
+                    if (SYSTEM_INDEX_NAME.equals(deletedIndex.getName())) {
+                        latch.countDown();
+                    }
+                }
+            }
+        });
+
+        // restore to same index
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snapshot")
+            .setIndices("-*")
+            .setFeatureStates(featureStateName)
+            .setWaitForCompletion(true)
+            .get();
+        assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+        // wait until feature state index is deleted from metadata
+        latch.await(30, TimeUnit.SECONDS);
+        assertThat("Feature state index was not deleted", latch.getCount(), equalTo(0L));
+
+        // assert that fresh data points have arrived
+        assertBusy(() -> assertThat(transportMetricCounter.get(), greaterThan(currentTransportMetricCounter)));
+        assertBusy(() -> {
+            final MemoryMetricsService.IndexMemoryMetrics indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(
+                MemoryMetricsService.class
+            ).getTotalIndicesMappingSize();
+            final long sizeAfterIndexReCreate = indexMemoryMetrics.getSizeInBytes();
+            assertThat(indexMemoryMetrics.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            // ensure that before and after _restore mapping size matches
+            assertThat(sizeAfterIndexReCreate, equalTo(sizeAfterIndexCreate.get()));
+        });
+
+        deleteRepository("test-repo");
+    }
+
+    public void testMemoryMetricsUpdateMappingInTheMiddleOfSnapshotRestore() throws Exception {
+        startIndexNode(INDEX_NODE_SETTINGS);
+
+        // create test system index with feature state
+        final int numberOfFields = randomIntBetween(10, 1000);
+        final XContentBuilder indexMapping = createIndexMapping(numberOfFields);
+        assertAcked(prepareCreate(SYSTEM_INDEX_NAME).setMapping(indexMapping).setSettings(indexSettings(1, 0).build()).get());
+
+        // to compare memory metrics before and after snapshot `_restore` call
+        final AtomicLong sizeAfterIndexCreate = new AtomicLong();
+        assertBusy(() -> {
+            final MemoryMetricsService.IndexMemoryMetrics indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(
+                MemoryMetricsService.class
+            ).getTotalIndicesMappingSize();
+            final long sizeInBytes = indexMemoryMetrics.getSizeInBytes();
+            assertTrue(sizeInBytes > 0);
+            sizeAfterIndexCreate.set(sizeInBytes);
+            assertThat(indexMemoryMetrics.getMetricQuality(), equalTo(MetricQuality.EXACT));
+        });
+
+        // create test repository
+        createRepository("test-repo", "fs");
+
+        // snapshot feature state
+        final String featureStateName = SystemIndexTestPlugin.class.getSimpleName();
+        createSnapshot("test-repo", "test-snapshot", List.of(), List.of(featureStateName));
+
+        // Update index mapping ensuring that we add extra fields
+        assertAcked(
+            indicesAdmin().putMapping(new PutMappingRequest(SYSTEM_INDEX_NAME).source(createIndexMapping(numberOfFields + 10))).get()
+        );
+        assertBusy(() -> {
+            final MemoryMetricsService.IndexMemoryMetrics indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(
+                MemoryMetricsService.class
+            ).getTotalIndicesMappingSize();
+            final long sizeAfterMappingUpdate = indexMemoryMetrics.getSizeInBytes();
+            assertTrue(sizeAfterMappingUpdate > sizeAfterIndexCreate.get());
+        });
+
+        // restore to same index
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snapshot")
+            .setIndices("-*")
+            .setFeatureStates(featureStateName)
+            .setWaitForCompletion(true)
+            .get();
+        assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+        assertBusy(() -> {
+            final MemoryMetricsService.IndexMemoryMetrics indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(
+                MemoryMetricsService.class
+            ).getTotalIndicesMappingSize();
+            final long sizeAfterIndexReCreate = indexMemoryMetrics.getSizeInBytes();
+            // ensure that before and after _restore mapping size matches
+            assertThat(sizeAfterIndexReCreate, equalTo(sizeAfterIndexCreate.get()));
+            assertThat(indexMemoryMetrics.getMetricQuality(), equalTo(MetricQuality.EXACT));
+        });
+
+        deleteRepository("test-repo");
     }
 
     private String startMasterNode() {

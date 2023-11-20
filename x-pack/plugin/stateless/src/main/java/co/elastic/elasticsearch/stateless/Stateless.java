@@ -676,7 +676,7 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isPromotableToPrimary()) {
                     Lucene.cleanLuceneIndex(in);
-                    return new IndexDirectory(in, sharedBlobCacheService.get(), shardRouting.shardId());
+                    return new IndexDirectory(in, createSearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId()));
                 } else {
                     return in;
                 }
@@ -694,7 +694,7 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isSearchable()) {
                     in.close();
-                    return new SearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId());
+                    return createSearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId());
                 } else {
                     return in;
                 }
@@ -1013,6 +1013,11 @@ public class Stateless extends Plugin
                 statelessCommitService.markCommitDeleted(shardId, deletedCommit.getGeneration());
             }
         };
+    }
+
+    // protected to allow tests to override
+    protected SearchDirectory createSearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
+        return new SearchDirectory(cacheService, shardId);
     }
 
     @Override

@@ -53,11 +53,9 @@ dependencies {
 
   testImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation "junit:junit:${versions.junit}"
-  yamlRestTestImplementation testFixtures(project(':test:fixtures:s3-fixture'))
+  yamlRestTestImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation testFixtures(project(':test:fixtures:minio-fixture'))
-
   internalClusterTestImplementation testFixtures(project(':test:fixtures:minio-fixture'))
-
   fixtureDistributions project(':test:fixtures:minio-fixture')
 }
 

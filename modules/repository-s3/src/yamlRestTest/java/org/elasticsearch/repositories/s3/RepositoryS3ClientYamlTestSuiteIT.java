@@ -20,7 +20,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.minio.MinioFixtureTestContainer;
-import org.elasticsearch.test.fixtures.s3.S3HttpFixtureRule;
+import fixture.s3.junit.S3HttpFixtureRule;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -30,11 +30,11 @@ import org.junit.rules.TestRule;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.test.fixtures.s3.S3HttpFixtureRule.S3FixtureType.S3Fixture;
-import static org.elasticsearch.test.fixtures.s3.S3HttpFixtureRule.S3FixtureType.S3FixtureEc2;
-import static org.elasticsearch.test.fixtures.s3.S3HttpFixtureRule.S3FixtureType.S3FixtureEcs;
-import static org.elasticsearch.test.fixtures.s3.S3HttpFixtureRule.S3FixtureType.S3FixtureSts;
-import static org.elasticsearch.test.fixtures.s3.S3HttpFixtureRule.S3FixtureType.S3FixtureWithToken;
+import static fixture.s3.junit.S3HttpFixtureRule.S3FixtureType.S3Fixture;
+import static fixture.s3.junit.S3HttpFixtureRule.S3FixtureType.S3FixtureEc2;
+import static fixture.s3.junit.S3HttpFixtureRule.S3FixtureType.S3FixtureEcs;
+import static fixture.s3.junit.S3HttpFixtureRule.S3FixtureType.S3FixtureSts;
+import static fixture.s3.junit.S3HttpFixtureRule.S3FixtureType.S3FixtureWithToken;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })

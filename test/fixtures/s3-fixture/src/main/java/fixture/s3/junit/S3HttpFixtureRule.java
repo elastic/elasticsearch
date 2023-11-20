@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.test.fixtures.s3;
+package fixture.s3.junit;
 
 import fixture.s3.S3HttpFixture;
 
@@ -16,7 +16,6 @@ import fixture.s3.S3HttpFixtureWithECS;
 import fixture.s3.S3HttpFixtureWithSTS;
 import fixture.s3.S3HttpFixtureWithSessionToken;
 
-import org.jetbrains.annotations.NotNull;
 import org.junit.rules.ExternalResource;
 
 import java.net.InetAddress;
@@ -63,8 +62,7 @@ public class S3HttpFixtureRule extends ExternalResource {
                     "sts_base_path",
                     "sts_access_key",
                     "sts_session_token",
-                    "Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDansFBmtGnIsIapjI6xKR02Yc_2bQ8LZbUXSGm6Ry6_BG7PrtLZtj_dfCTj92xNGed-CrKqjG7nPBjNIL016GGvuS5gSvPRUxWES3VYfm1wl7WTI7jn-Pcb6M-buCgHhFOzTQxod27L9CqnOLio7N3gZAGpsp6n1-AJBOCJckcyXe2c6uD0srOJeZlKUm2eTDVMf8IehDVI0r1QOnTV6KzzAI3OY87Vd_cVMQ"
-                }
+                    "Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDansFBmtGnIsIapjI6xKR02Yc_2bQ8LZbUXSGm6Ry6_BG7PrtLZtj_dfCTj92xNGed-CrKqjG7nPBjNIL016GGvuS5gSvPRUxWES3VYfm1wl7WTI7jn-Pcb6M-buCgHhFOzTQxod27L9CqnOLio7N3gZAGpsp6n1-AJBOCJckcyXe2c6uD0srOJeZlKUm2eTDVMf8IehDVI0r1QOnTV6KzzAI3OY87Vd_cVMQ" }
             );
             configuredFixtures.put(S3FixtureType.S3FixtureSts, fixture);
         } else if (fixtureType == S3FixtureType.S3FixtureWithToken) {
@@ -118,7 +116,6 @@ public class S3HttpFixtureRule extends ExternalResource {
         });
     }
 
-    @NotNull
     private static InetSocketAddress resolveLoopBackAddress() {
         return new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
     }

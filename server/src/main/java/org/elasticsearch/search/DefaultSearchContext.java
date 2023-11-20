@@ -123,7 +123,6 @@ final class DefaultSearchContext extends SearchContext {
     private Query query;
     private ParsedQuery postFilter;
     private Query aliasFilter;
-    private int[] docIdsToLoad;
     private SearchContextAggregations aggregations;
     private SearchHighlightContext highlight;
     private SuggestionSearchContext suggest;
@@ -726,17 +725,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
         this.seqAndPrimaryTerm = seqNoAndPrimaryTerm;
-    }
-
-    @Override
-    public int[] docIdsToLoad() {
-        return docIdsToLoad;
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        this.docIdsToLoad = docIdsToLoad;
-        return this;
     }
 
     @Override

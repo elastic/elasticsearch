@@ -144,13 +144,14 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      indices.put_template:
+      indices.put_index_template:
         name: my-template
         body:
           index_patterns: index-*
-          settings:
-            default_pipeline: "my-pipeline"
-            final_pipeline: "my-final-pipeline"
+          template:
+            settings:
+              default_pipeline: "my-pipeline"
+              final_pipeline: "my-final-pipeline"
 
   - do:
       headers:
@@ -208,12 +209,13 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      indices.put_template:
+      indices.put_index_template:
         name: my-template
         body:
           index_patterns: index-*
-          settings:
-            default_pipeline: "my-pipeline"
+          template:
+            settings:
+              default_pipeline: "my-pipeline"
 
   - do:
       catch: "request"

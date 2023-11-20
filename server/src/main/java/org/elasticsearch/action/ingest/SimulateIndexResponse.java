@@ -31,6 +31,7 @@ public class SimulateIndexResponse extends IndexResponse {
     private final BytesReference source;
     private final XContentType sourceXContentType;
 
+    @SuppressWarnings("this-escape")
     public SimulateIndexResponse(StreamInput in) throws IOException {
         super(in);
         this.source = in.readBytesReference();
@@ -38,6 +39,7 @@ public class SimulateIndexResponse extends IndexResponse {
         setShardInfo(new ReplicationResponse.ShardInfo(0, 0));
     }
 
+    @SuppressWarnings("this-escape")
     public SimulateIndexResponse(
         String id,
         String index,

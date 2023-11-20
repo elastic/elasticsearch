@@ -678,7 +678,7 @@ public final class TextFieldMapper extends FieldMapper {
             super(name, indexed, stored, false, tsi, meta);
             fielddata = false;
             this.isSyntheticSource = isSyntheticSource;
-            this.syntheticSourceDelegate = syntheticSourceDelegate;
+            this.syntheticSourceDelegate = syntheticSourceDelegate;  // TODO rename to "exactDelegate" or something
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.indexPhrases = indexPhrases;
         }
@@ -939,11 +939,16 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (syntheticSourceDelegate != null) {
-                return syntheticSourceDelegate.blockLoader(blContext);
+                return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
+                    @Override
+                    protected String delegatingTo() {
+                        return syntheticSourceDelegate.name();
+                    }
+                };
             }
             if (isSyntheticSource) {
                 if (isStored()) {
-                    return BlockStoredFieldsReader.bytesRefsFromStrings(name());
+                    return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
                 }
                 /*
                  * We *shouldn't fall to this exception. The mapping should be
@@ -957,7 +962,7 @@ public final class TextFieldMapper extends FieldMapper {
                         + "] is not supported because synthetic _source is enabled and we don't have a way to load the fields"
                 );
             }
-            return BlockSourceReader.bytesRefs(SourceValueFetcher.toString(blContext.sourcePaths(name())));
+            return new BlockSourceReader.BytesRefsBlockLoader(SourceValueFetcher.toString(blContext.sourcePaths(name())));
         }
 
         @Override
@@ -1033,6 +1038,10 @@ public final class TextFieldMapper extends FieldMapper {
 
         public boolean isSyntheticSource() {
             return isSyntheticSource;
+        }
+
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate() {
+            return syntheticSourceDelegate;
         }
     }
 

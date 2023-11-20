@@ -38,6 +38,9 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
      * Combine these stored field requirements with those from another StoredFieldsSpec
      */
     public StoredFieldsSpec merge(StoredFieldsSpec other) {
+        if (this == other) {
+            return this;
+        }
         Set<String> mergedFields = new HashSet<>(this.requiredStoredFields);
         mergedFields.addAll(other.requiredStoredFields);
         return new StoredFieldsSpec(

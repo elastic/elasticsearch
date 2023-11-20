@@ -24,6 +24,7 @@ import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.countedkeyword.CountedKeywordMapperPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
@@ -45,6 +46,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             LocalStateProfilingXPackPlugin.class,
             IndexLifecycle.class,
             UnsignedLongMapperPlugin.class,
+            CountedKeywordMapperPlugin.class,
             VersionFieldPlugin.class,
             getTestTransportPlugin()
         );

@@ -51,7 +51,7 @@ public class TestFixtureApplicationConsumerPlugin implements Plugin<Project> {
                     Collection<String> services = fixtureApps.getFixtureApplications().get(appKey);
                     if (services.isEmpty() == false) {
                         String appHomeKey = "fixture." + appKey + ".home";
-                        applySysProps.accept(appHomeKey, file.getAbsolutePath());
+                        applySysProps.accept(appHomeKey, test.getWorkingDir().toPath().relativize(file.toPath()).toString());
                         AtomicInteger index = new AtomicInteger();
                         services.forEach(
                             (serviceName) -> applySysProps.accept("fixture." + appKey + ".service." + index.getAndIncrement(), serviceName)

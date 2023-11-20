@@ -60,7 +60,7 @@ public class NodeMetrics {
         this.nodeService = nodeService;
         this.stats = getNodeStats();
         registerMetricsAndSetInitialState(meterRegistry, stats);
-        ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "es-node-metrics"));
         executor.scheduleAtFixedRate(() -> {
             NodeStats updatedStats = getNodeStats();
             updateCounters(updatedStats, stats);

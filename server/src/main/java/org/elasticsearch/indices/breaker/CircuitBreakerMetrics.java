@@ -133,8 +133,20 @@ public class CircuitBreakerMetrics {
 
     @Override
     public String toString() {
-        return "CircuitBreakerMetrics{registry=%s, parentTripCount=%s, fielddataTripCount=%s, requestTripCount=%s, inFlightRequestsCount=%s, customTripCounts=%s}"
-            .formatted(registry, parentTripCount, fielddataTripCount, requestTripCount, inFlightRequestsCount, customTripCounts);
+        return "CircuitBreakerMetrics{"
+            + "registry="
+            + registry
+            + ", parentTripCount="
+            + parentTripCount
+            + ", fielddataTripCount="
+            + fielddataTripCount
+            + ", requestTripCount="
+            + requestTripCount
+            + ", inFlightRequestsCount="
+            + inFlightRequestsCount
+            + ", customTripCounts="
+            + customTripCounts
+            + '}';
     }
 
     public void addCustomCircuitBreaker(final CircuitBreaker circuitBreaker) {

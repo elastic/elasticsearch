@@ -18,7 +18,8 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A class collecting trip counters for circuit breakers (parent, field data, request, in flight requests and custom child circuit breakers).
+ * A class collecting trip counters for circuit breakers (parent, field data, request, in flight requests and custom child circuit
+ * breakers).
  *
  * We decided to have the name as part of the (long) counter metric name instead of being an attribute because aggregating distinct circuit
  * breakers trip counter values does not make sense, as for instance, summing field_data.trip_count and in_flight_requests.trip_count.

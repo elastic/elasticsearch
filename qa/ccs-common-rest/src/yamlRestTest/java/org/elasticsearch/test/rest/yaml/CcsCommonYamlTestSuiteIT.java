@@ -350,7 +350,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate
         ) throws IOException {
             // on request, we need to replace index specifications by prefixing the remote cluster
-            if (shouldReplaceIndexWithRemote(apiName, params)) {
+            if (shouldReplaceIndexWithRemote(apiName)) {
                 String parameterName = "index";
                 if (apiName.equals("indices.resolve_index")) {
                     // in this specific api, the index parameter is called "name"
@@ -371,7 +371,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             return super.callApi(apiName, params, entity, headers, nodeSelector, pathPredicate);
         }
 
-        private boolean shouldReplaceIndexWithRemote(String apiName, Map<String, String> params) {
+        private boolean shouldReplaceIndexWithRemote(String apiName) {
             if (apiName.equals("scroll")
                 || apiName.equals("clear_scroll")
                 || apiName.equals("async_search.get")

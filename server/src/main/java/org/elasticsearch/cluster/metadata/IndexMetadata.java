@@ -1933,6 +1933,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder putMapping(MappingMetadata mappingMd) {
             mapping = mappingMd;
+            Map<String, List<String>> fieldsForModels = mappingMd.getFieldsForModels();
+            if (fieldsForModels != null) {
+                inferenceModelsForFields = fieldsForModels;
+            }
             return this;
         }
 

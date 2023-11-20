@@ -65,7 +65,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         this.type = mappingMap.keySet().iterator().next();
         Map<String, Object> withoutType = (Map<String, Object>) mappingMap.get(this.type);
         this.routingRequired = routingRequired(withoutType);
-        this.fieldsForModels = inferenceModelsForFields(withoutType);
+        this.fieldsForModels = null;
     }
 
     @SuppressWarnings({ "this-escape", "unchecked" })
@@ -81,7 +81,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
             withoutType = (Map<String, Object>) mapping.get(type);
         }
         this.routingRequired = routingRequired(withoutType);
-        this.fieldsForModels = inferenceModelsForFields(withoutType);;
+        this.fieldsForModels = null;
     }
 
     public static void writeMappingMetadata(StreamOutput out, Map<String, MappingMetadata> mappings) throws IOException {
@@ -120,28 +120,6 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
             }
         }
         return required;
-    }
-
-    // TODO: Remove if not needed
-    private static Map<String, List<String>> inferenceModelsForFields(Map<String, Object> withoutType) {
-        Map<String, List<String>> fieldsForModel = new HashMap<>();
-        if (withoutType.containsKey("properties")) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> propertiesNode = (Map<String, Object>) withoutType.get("properties");
-            for (Map.Entry<String, Object> entry : propertiesNode.entrySet()) {
-                String fieldName = entry.getKey();
-                Object fieldNode = entry.getValue();
-                if (fieldNode instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                    if ("semantic_text".equals(fieldNodeMap.get("type"))) {
-                        Collection<String> fields = fieldsForModel.computeIfAbsent(fieldName, value -> new ArrayList<>());
-                        fields.add((String) fieldNodeMap.get("model_id"));
-                    }
-                }
-            }
-        }
-        return fieldsForModel;
     }
 
     public String type() {

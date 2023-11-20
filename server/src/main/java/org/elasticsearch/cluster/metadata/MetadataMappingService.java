@@ -199,7 +199,6 @@ public class MetadataMappingService {
                 DocumentMapper mapper = mapperService.documentMapper();
                 if (mapper != null) {
                     indexMetadataBuilder.putMapping(new MappingMetadata(mapper));
-                    indexMetadataBuilder.inferenceModelsForfields(mapper.mappers().fieldsForModels());
                 }
                 if (updatedMapping) {
                     indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion());

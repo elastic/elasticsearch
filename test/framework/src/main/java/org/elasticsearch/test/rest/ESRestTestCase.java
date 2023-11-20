@@ -112,6 +112,7 @@ import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1157,7 +1158,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
             Request request = new Request("POST", "/_rollup/job/" + jobId + "/_stop");
-            request.addParameter("ignore", "404");
+            setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND);
             request.addParameter("wait_for_completion", "true");
             request.addParameter("timeout", "10s");
             logger.debug("stopping rollup job [{}]", jobId);
@@ -1168,7 +1169,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
             Request request = new Request("DELETE", "/_rollup/job/" + jobId);
-            request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
+            setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND); // 404s imply someone was racing us to delete this
             logger.debug("deleting rollup job [{}]", jobId);
             adminClient().performRequest(request);
         }
@@ -1845,7 +1846,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         throws IOException {
         final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         if (ignoreMissing) {
-            request.addParameter("ignore", "404");
+            setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND);
         }
         final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), ignoreMissing ? anyOf(equalTo(200), equalTo(404)) : equalTo(200));
@@ -2242,5 +2243,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         return historicalFeatures;
+    }
+
+    public static void setIgnoredErrorResponseCodes(Request request, RestStatus... restStatuses) {
+        request.addParameter(
+            IGNORE_RESPONSE_CODES_PARAM,
+            Arrays.stream(restStatuses).map(restStatus -> Integer.toString(restStatus.getStatus())).collect(Collectors.joining(","))
+        );
     }
 }

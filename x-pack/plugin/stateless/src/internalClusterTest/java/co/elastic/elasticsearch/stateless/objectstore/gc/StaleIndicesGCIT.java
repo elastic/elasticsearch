@@ -419,7 +419,10 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         volatile CountDownLatch batchDeleteBlocked = new CountDownLatch(0);
 
         final AtomicBoolean blockGetChildren = new AtomicBoolean();
+        // This latch is set when operations should be blocked, and then unset when they should resume.
         volatile CountDownLatch blockGetChildrenLatch = new CountDownLatch(0);
+        // This latch is decremented when a caller gets blocked. Allows another caller to wait
+        // for an operation to get blocked.
         volatile CountDownLatch getChildrenBlocked = new CountDownLatch(0);
 
         BlockingDeletesRepository(

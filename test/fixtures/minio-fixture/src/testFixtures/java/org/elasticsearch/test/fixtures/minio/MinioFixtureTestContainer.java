@@ -26,7 +26,7 @@ public class MinioFixtureTestContainer implements TestRule {
     private ComposeContainer createContainer(List<String> services) {
         ComposeContainer composeContainer = new ComposeContainer(resolveFixtureHome());
         services.forEach(service -> composeContainer.withExposedService(service, servicePort, Wait.forListeningPort()));
-        return composeContainer;
+        return composeContainer.withLocalCompose(true);
     }
 
     @NotNull

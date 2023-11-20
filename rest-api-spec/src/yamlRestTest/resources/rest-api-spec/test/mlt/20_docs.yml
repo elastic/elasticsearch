@@ -29,7 +29,8 @@
       search:
         index:   mlt_test_index
         search:
-          query: { term: { _id: "1" } }
+          body:
+            query: { term: { _id: "1" } }
 
   - match: { hits.total: 1 }
 
@@ -37,7 +38,8 @@
       search:
         index:   mlt_test_index
         search:
-          query: { term: { _id: "2" } }
+          body:
+            query: { term: { _id: "2" } }
 
   - match: { hits.total: 1 }
 
@@ -45,7 +47,8 @@
       search:
         index:   mlt_test_index
         search:
-          query: { term: { _id: "3" } }
+          body:
+            query: { term: { _id: "3" } }
 
   - match: { hits.total: 1 }
 

@@ -52,9 +52,11 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
@@ -75,6 +77,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -90,6 +93,7 @@ import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -108,6 +112,7 @@ import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -131,6 +136,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
+
+    private static Map<NodeFeature, Version> historicalFeatures;
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -1151,7 +1158,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
             Request request = new Request("POST", "/_rollup/job/" + jobId + "/_stop");
-            request.addParameter("ignore", "404");
+            setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND);
             request.addParameter("wait_for_completion", "true");
             request.addParameter("timeout", "10s");
             logger.debug("stopping rollup job [{}]", jobId);
@@ -1162,7 +1169,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
             Request request = new Request("DELETE", "/_rollup/job/" + jobId);
-            request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
+            setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND); // 404s imply someone was racing us to delete this
             logger.debug("deleting rollup job [{}]", jobId);
             adminClient().performRequest(request);
         }
@@ -1479,8 +1486,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         return runningTasks;
     }
 
-    public static void assertOK(Response response) {
+    public static Response assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+        return response;
     }
 
     public static ObjectPath assertOKAndCreateObjectPath(Response response) throws IOException {
@@ -1671,23 +1679,20 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(request);
     }
 
-    protected static void expectSoftDeletesWarning(Request request, String indexName) {
-        final List<String> expectedWarnings = List.of(
+    protected static void expectSoftDeletesWarning(Request request, String indexName) throws IOException {
+        final String expectedWarning =
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
                 + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
                 + indexName
-                + "]."
-        );
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            request.setOptions(
-                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false)
-            );
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            request.setOptions(
-                RequestOptions.DEFAULT.toBuilder()
-                    .setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false)
-            );
-        }
+                + "].";
+
+        final var softDeleteDisabledDeprecated = minimumIndexVersion().onOrAfter(IndexVersions.V_7_6_0);
+        request.setOptions(expectVersionSpecificWarnings(v -> {
+            if (softDeleteDisabledDeprecated) {
+                v.current(expectedWarning);
+            }
+            v.compatible(expectedWarning);
+        }));
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
@@ -1842,7 +1847,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         throws IOException {
         final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         if (ignoreMissing) {
-            request.addParameter("ignore", "404");
+            setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND);
         }
         final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), ignoreMissing ? anyOf(equalTo(200), equalTo(404)) : equalTo(200));
@@ -1987,7 +1992,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
      */
     public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
-        boolean mustHavePRRLs = minimumNodeVersion().onOrAfter(Version.V_7_6_0);
+        boolean mustHavePRRLs = minimumIndexVersion().onOrAfter(IndexVersions.V_7_6_0);
         assertBusy(() -> {
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             @SuppressWarnings("unchecked")
@@ -2213,4 +2218,38 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    protected Map<NodeFeature, Version> getHistoricalFeatures() {
+        if (historicalFeatures == null) {
+            Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
+            String metadataPath = System.getProperty("tests.features.metadata.path");
+            if (metadataPath == null) {
+                throw new UnsupportedOperationException("Historical features information is unavailable when using legacy test plugins.");
+            }
+
+            String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
+            for (String metadataFile : metadataFiles) {
+                try (
+                    InputStream in = Files.newInputStream(PathUtils.get(metadataFile));
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, in)
+                ) {
+                    for (Map.Entry<String, String> entry : parser.mapStrings().entrySet()) {
+                        historicalFeaturesMap.put(new NodeFeature(entry.getKey()), Version.fromString(entry.getValue()));
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            historicalFeatures = Collections.unmodifiableMap(historicalFeaturesMap);
+        }
+
+        return historicalFeatures;
+    }
+
+    public static void setIgnoredErrorResponseCodes(Request request, RestStatus... restStatuses) {
+        request.addParameter(
+            IGNORE_RESPONSE_CODES_PARAM,
+            Arrays.stream(restStatuses).map(restStatus -> Integer.toString(restStatus.getStatus())).collect(Collectors.joining(","))
+        );
+    }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
@@ -215,7 +216,7 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
-            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName));
+            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);
@@ -228,7 +229,7 @@ public class CsvTests extends ESTestCase {
     }
 
     public boolean logResults() {
-        return false;
+        return true;
     }
 
     private void doTest() throws Exception {

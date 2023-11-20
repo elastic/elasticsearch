@@ -1,0 +1,5 @@
+pr: 102292
+summary: Consider duplicate stacktraces in custom index
+area: Application
+type: enhancement
+issues: []

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.integration;
+package org.elasticsearch.xpack.inference.mock;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
@@ -29,17 +29,15 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
 import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIfNotEmptyMap;
 
 public class TestInferenceServicePlugin extends Plugin implements InferenceServicePlugin {
 
@@ -104,7 +102,7 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             Map<String, Object> taskSettingsMap;
             // task settings are optional
             if (settings.containsKey(ModelConfigurations.TASK_SETTINGS)) {
-                taskSettingsMap = removeFromMapOrThrowIfNull(settings, ModelConfigurations.TASK_SETTINGS);
+                taskSettingsMap = MapParsingUtils.removeFromMapOrThrowIfNull(settings, ModelConfigurations.TASK_SETTINGS);
             } else {
                 taskSettingsMap = Map.of();
             }
@@ -123,16 +121,16 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             Map<String, Object> config,
             Set<String> platfromArchitectures
         ) {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            Map<String, Object> serviceSettingsMap = MapParsingUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             var serviceSettings = TestServiceSettings.fromMap(serviceSettingsMap);
             var secretSettings = TestSecretSettings.fromMap(serviceSettingsMap);
 
             var taskSettingsMap = getTaskSettingsMap(config);
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-            throwIfNotEmptyMap(config, name());
-            throwIfNotEmptyMap(serviceSettingsMap, name());
-            throwIfNotEmptyMap(taskSettingsMap, name());
+            MapParsingUtils.throwIfNotEmptyMap(config, name());
+            MapParsingUtils.throwIfNotEmptyMap(serviceSettingsMap, name());
+            MapParsingUtils.throwIfNotEmptyMap(taskSettingsMap, name());
 
             return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
         }
@@ -144,8 +142,8 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             Map<String, Object> config,
             Map<String, Object> secrets
         ) {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
+            Map<String, Object> serviceSettingsMap = MapParsingUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            Map<String, Object> secretSettingsMap = MapParsingUtils.removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
             var serviceSettings = TestServiceSettings.fromMap(serviceSettingsMap);
             var secretSettings = TestSecretSettings.fromMap(secretSettingsMap);
@@ -168,7 +166,7 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
                     var results = new ArrayList<TextExpansionResults>();
                     input.forEach(i -> {
                         int numTokensInResult = Strings.tokenizeToStringArray(i, " ").length;
-                        results.add(TextExpansionResultsTests.createRandomResults(numTokensInResult, numTokensInResult));
+                        results.add(createWeightedTokens(numTokensInResult));
                     });
                     listener.onResponse(results);
                 }
@@ -355,5 +353,14 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
         }
+    }
+
+    private static TextExpansionResults createWeightedTokens(int numTokens) {
+        Random rng = new Random();
+        List<TextExpansionResults.WeightedToken> tokenList = new ArrayList<>();
+        for (int i = 0; i < numTokens; i++) {
+            tokenList.add(new TextExpansionResults.WeightedToken(Integer.toString(i), rng.nextFloat()));
+        }
+        return new TextExpansionResults("not_used", tokenList, false);
     }
 }

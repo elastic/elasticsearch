@@ -104,7 +104,10 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
-            IndexDirectory indexDirectory = new IndexDirectory(newFSDirectory(indexDataPath), sharedBlobCacheService, shardId)
+            IndexDirectory indexDirectory = new IndexDirectory(
+                newFSDirectory(indexDataPath),
+                new SearchDirectory(sharedBlobCacheService, shardId)
+            )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
             indexDirectory.getSearchDirectory().setBlobContainer(value -> blobContainer);
@@ -176,7 +179,10 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
-            IndexDirectory indexDirectory = new IndexDirectory(newFSDirectory(indexDataPath), sharedBlobCacheService, shardId)
+            IndexDirectory indexDirectory = new IndexDirectory(
+                newFSDirectory(indexDataPath),
+                new SearchDirectory(sharedBlobCacheService, shardId)
+            )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
             indexDirectory.getSearchDirectory().setBlobContainer(value -> blobContainer);

@@ -86,7 +86,7 @@ public class IndexDirectoryTests extends ESTestCase {
         PathUtilsForTesting.installMock(provider.getFileSystem(null));
         final Path path = PathUtils.get(createTempDir().toString());
         try (
-            Directory directory = new IndexDirectory(FSDirectory.open(path), null, null);
+            Directory directory = new IndexDirectory(FSDirectory.open(path), new SearchDirectory(null, null));
             IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())
         ) {
             indexWriter.commit();
@@ -117,7 +117,10 @@ public class IndexDirectoryTests extends ESTestCase {
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
-            IndexDirectory directory = new IndexDirectory(newFSDirectory(indexDataPath), sharedBlobCacheService, shardId)
+            IndexDirectory directory = new IndexDirectory(
+                newFSDirectory(indexDataPath),
+                new SearchDirectory(sharedBlobCacheService, shardId)
+            )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
             directory.getSearchDirectory().setBlobContainer(value -> blobContainer);
@@ -244,7 +247,10 @@ public class IndexDirectoryTests extends ESTestCase {
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
-            IndexDirectory directory = new IndexDirectory(newFSDirectory(indexDataPath), sharedBlobCacheService, shardId)
+            IndexDirectory directory = new IndexDirectory(
+                newFSDirectory(indexDataPath),
+                new SearchDirectory(sharedBlobCacheService, shardId)
+            )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
             directory.getSearchDirectory().setBlobContainer(value -> blobContainer);
@@ -323,7 +329,10 @@ public class IndexDirectoryTests extends ESTestCase {
                 BlobCacheMetrics.NOOP
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
-            IndexDirectory directory = new IndexDirectory(newFSDirectory(indexDataPath), sharedBlobCacheService, shardId)
+            IndexDirectory directory = new IndexDirectory(
+                newFSDirectory(indexDataPath),
+                new SearchDirectory(sharedBlobCacheService, shardId)
+            )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
             directory.getSearchDirectory().setBlobContainer(value -> blobContainer);

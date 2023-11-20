@@ -19,10 +19,27 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+
 import java.util.Map;
 
 public class SearchDirectoryTestUtils {
+
+    private SearchDirectoryTestUtils() {}
+
     public static void setMetadata(SearchDirectory target, Map<String, BlobLocation> source) {
         target.setMetadata(source);
+    }
+
+    public static BlobLocation getBlobLocation(SearchDirectory target, String fileName) {
+        return target.getBlobLocation(fileName);
+    }
+
+    public static FileCacheKey getCacheKey(SearchIndexInput target) {
+        return target.cacheFile().getCacheKey();
+    }
+
+    public static SharedBlobCacheService<FileCacheKey> getCacheService(SearchDirectory target) {
+        return target.getCacheService();
     }
 }

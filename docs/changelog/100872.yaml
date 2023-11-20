@@ -1,0 +1,5 @@
+pr: 100872
+summary: Improve painless error wrapping
+area: Infra/Scripting
+type: bug
+issues: []

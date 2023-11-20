@@ -1,0 +1,5 @@
+pr: 102389
+summary: CCS with `minimize_roundtrips` performs incremental merges of each `SearchResponse`
+area: Search
+type: enhancement
+issues: []

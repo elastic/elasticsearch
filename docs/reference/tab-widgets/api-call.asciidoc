@@ -7,7 +7,7 @@
 [role="screenshot"]
 image::images/kibana-console.png[{kib} Console,align="center"]
 
-. Run the following example API request in the console:
+. Run the following test API request in Console:
 +
 [source,console]
 ----
@@ -50,7 +50,7 @@ terminal session.
 
 [source,sh]
 ----
-curl -X GET http://localhost:9200/
+curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200
 ----
 // NOTCONSOLE
 

@@ -73,7 +73,8 @@ curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200
 
 *Run {kib}*
 
-{kib} is the user interface for {ecloud}. You can use {kib} to explore your data and manage your cluster.
+{kib} is the user interface for Elastic. You can use {kib} to explore your {es} data and manage your cluster.
+Specifically, we'll be using the Dev Tools *Console* in {kib} to make REST API calls to {es}.
 
 . Pull the {kib} Docker image.
 +

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.breaker;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -161,7 +162,7 @@ public class CircuitBreakerMetrics {
         if (this.customTripCountsTotal.containsKey(circuitBreaker.getName())) {
             throw new IllegalArgumentException("A circuit circuitBreaker named [" + circuitBreaker.getName() + " already exists");
         }
-        final String canonicalName = CIRCUIT_BREAKER_CUSTOM_TRIP_COUNT_TOTAL_TEMPLATE.formatted(circuitBreaker.getName());
+        final String canonicalName = Strings.format(CIRCUIT_BREAKER_CUSTOM_TRIP_COUNT_TOTAL_TEMPLATE, circuitBreaker.getName());
         this.customTripCountsTotal.put(
             canonicalName,
             registry.registerLongCounter(canonicalName, "A custom circuit circuitBreaker [" + circuitBreaker.getName() + "]", "count")

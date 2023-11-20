@@ -22,7 +22,7 @@ public class S3HttpFixture {
 
     private final HttpServer server;
 
-    S3HttpFixture(final String[] args) throws Exception {
+    public S3HttpFixture(final String[] args) throws Exception {
         this(new InetSocketAddress(InetAddress.getByName(args[0]), Integer.parseInt(args[1])), args);
     }
 

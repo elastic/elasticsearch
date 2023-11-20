@@ -6,31 +6,26 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'java-test-fixtures'
 apply plugin: 'java'
 apply plugin: 'elasticsearch.java'
 
 description = 'Fixture for MinIO Storage service'
 
-configurations {
-  implementation.transitive = false
-  runtimeOnly.transitive = false
-  runtimeClasspath.transitive = false
-  runtimeElements.transitive = false
+configurations.all {
+  transitive = false
 }
 
 dependencies {
   testImplementation project(':test:framework')
 
   api "junit:junit:${versions.junit}"
-  implementation project(':test:framework')
-  implementation 'com.github.docker-java:docker-java-transport-zerodep:3.3.4'
-  implementation 'com.github.docker-java:docker-java-transport:3.3.4'
-  implementation 'org.apache.commons:commons-compress:1.24.0'
-  implementation 'org.rnorth.duct-tape:duct-tape:1.0.8'
-  implementation 'com.github.docker-java:docker-java-api:3.3.4'
-  implementation 'com.github.docker-java:docker-java-core:3.3.4'
+  implementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   implementation 'org.testcontainers:testcontainers:1.19.2' //replace with the latest version
   implementation 'org.slf4j:slf4j-api:1.7.36'
-  runtimeOnly 'org.slf4j:slf4j-simple:1.7.36'
+  implementation 'com.github.docker-java:docker-java-api:3.3.4'
+  runtimeOnly 'com.github.docker-java:docker-java-transport-zerodep:3.3.4'
+  runtimeOnly 'com.github.docker-java:docker-java-transport:3.3.4'
+  runtimeOnly 'com.github.docker-java:docker-java-core:3.3.4'
+  runtimeOnly 'org.apache.commons:commons-compress:1.24.0'
+  runtimeOnly 'org.rnorth.duct-tape:duct-tape:1.0.8'
 }

@@ -11,16 +11,12 @@ apply plugin: 'elasticsearch.test.fixtures'
 description = 'Fixture for S3 Storage service'
 tasks.named("test").configure { enabled = false }
 
-configurations {
-  runtimeElements.transitive = false
-}
-
 dependencies {
   api project(':server')
+  api("junit:junit:${versions.junit}") {
+    transitive = false
+  }
   testImplementation project(':test:framework')
-
-  api "junit:junit:${versions.junit}"
-  implementation project(':test:framework')
 }
 
 tasks.named("preProcessFixture").configure {

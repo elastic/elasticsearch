@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.fixtures.minio;
 
-import org.jetbrains.annotations.NotNull;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -18,7 +17,6 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 public class MinioFixtureTestContainer implements TestRule {
 
     private static final int servicePort = 9000;
-    private final boolean enabled;
     private GenericContainer<?> container;
 
     private GenericContainer<?> createContainer() {
@@ -35,15 +33,13 @@ public class MinioFixtureTestContainer implements TestRule {
     }
 
     public MinioFixtureTestContainer(boolean enabled) {
-        this.enabled = enabled;
         if (enabled) {
             this.container = createContainer();
         }
     }
 
-    @NotNull
     @Override
-    public Statement apply(@NotNull Statement base, @NotNull Description description) {
+    public Statement apply(Statement base, Description description) {
         if (container != null) {
             container.start();
         }

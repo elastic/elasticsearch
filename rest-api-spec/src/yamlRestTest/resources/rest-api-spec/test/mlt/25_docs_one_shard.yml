@@ -3,6 +3,11 @@
   - do:
       indices.create:
         index: mlt_one_shard_test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
 
   - do:
       index:

@@ -275,7 +275,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 } else {
                     if (request.isRequireDataStream()) {
                         throw new IndexNotFoundException(
-                            "the index creation request requires a data stream, but no matching index template with data stream template was found for it",
+                            "the index creation request requires a data stream, "
+                                + "but no matching index template with data stream template was found for it",
                             request.index()
                         );
                     }

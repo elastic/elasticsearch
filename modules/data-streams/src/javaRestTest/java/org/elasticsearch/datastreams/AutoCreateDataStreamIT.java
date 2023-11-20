@@ -82,7 +82,8 @@ public class AutoCreateDataStreamIT extends DisabledSecurityDataStreamTestCase {
         assertThat(
             Streams.copyToString(new InputStreamReader(responseException.getResponse().getEntity().getContent(), UTF_8)),
             containsString(
-                "no such index [ingredients_kr] and the index creation request requires a data stream, but no matching index template with data stream template was found for it"
+                "no such index [ingredients_kr] and the index creation request requires a data stream, "
+                    + "but no matching index template with data stream template was found for it"
             )
         );
     }
@@ -104,7 +105,8 @@ public class AutoCreateDataStreamIT extends DisabledSecurityDataStreamTestCase {
         assertThat(
             Streams.copyToString(new InputStreamReader(responseException.getResponse().getEntity().getContent(), UTF_8)),
             containsString(
-                "no such index [recipe_kr] and the index creation request requires a data stream, but no matching index template with data stream template was found for it"
+                "no such index [recipe_kr] and the index creation request requires a data stream, "
+                    + "but no matching index template with data stream template was found for it"
             )
         );
     }

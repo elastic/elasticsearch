@@ -123,11 +123,8 @@ public class MemoryMetricsService implements ClusterStateListener {
 
                 final Index index = indexMetadata.getIndex();
 
-                // index created
-                if (event.indicesCreated().contains(index.getName())) {
-                    // EXACT values will be sent by index node
-                    indicesMemoryMetrics.put(index, new IndexMemoryMetrics(0, MetricQuality.MISSING));
-                }
+                // index created use case, EXACT values will be sent by index node
+                indicesMemoryMetrics.putIfAbsent(index, new IndexMemoryMetrics(0, MetricQuality.MISSING));
 
                 // index mapping update use case
                 final IndexMetadata oldIndexMetadata = event.previousState().metadata().index(index);

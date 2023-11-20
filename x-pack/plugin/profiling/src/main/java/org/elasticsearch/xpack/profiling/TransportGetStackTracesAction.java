@@ -380,7 +380,11 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         // Retrieve the host metadata in parallel. Assume low-cardinality and do not split the query.
         // First, build a set of unique host IDs. There will be no more than maxSupportedUniqueHosts.
         Set<String> uniqueHostIDs = new HashSet<>(maxSupportedUniqueHosts);
-        responseBuilder.hostEventCounts.forEach(hec -> uniqueHostIDs.add(hec.hostID));
+        responseBuilder.hostEventCounts.forEach(hec -> {
+            if (hostsTable.containsKey(hec.hostID) == false) {
+                uniqueHostIDs.add(hec.hostID);
+            }
+        });
         client.prepareSearch("profiling-hosts")
             .setTrackTotalHits(false)
             .setQuery(

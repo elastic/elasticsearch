@@ -1,0 +1,5 @@
+pr: 102385
+summary: Avoid failing search request due to max clause count when searching all fields
+area: Search
+type: enhancement
+issues: []

@@ -108,6 +108,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.BackgroundIndexer;
@@ -868,7 +869,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         RecoveryResponse response = indicesAdmin().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
         Repository repository = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
-        final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
+        final RepositoryData repositoryData = AbstractSnapshotIntegTestCase.getRepositoryData(repository);
         for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
 
             assertThat(indexRecoveryStates.getKey(), equalTo(INDEX_NAME));
@@ -1050,9 +1051,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 if (action.equals(PeerRecoverySourceService.Actions.START_RECOVERY)) {
                     if (recoveryBlocked.tryAcquire()) {
                         PluginsService pluginService = internalCluster().getInstance(PluginsService.class, node.getName());
-                        for (TestAnalysisPlugin plugin : pluginService.filterPlugins(TestAnalysisPlugin.class)) {
-                            plugin.throwParsingError.set(true);
-                        }
+                        pluginService.filterPlugins(TestAnalysisPlugin.class).forEach(p -> p.throwParsingError.set(true));
                     }
                 }
                 connection.sendRequest(requestId, action, request, options);

@@ -14,7 +14,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -244,7 +243,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
-    protected void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
+    protected void refreshDestinationIndex(ActionListener<Void> responseListener) {
         // note: this gets executed _without_ the headers of the user as the user might not have the rights to call
         // _refresh for performance reasons. However this refresh is an internal detail of transform and this is only
         // called for the transform destination index
@@ -253,7 +252,22 @@ class ClientTransformIndexer extends TransformIndexer {
             ClientHelper.TRANSFORM_ORIGIN,
             RefreshAction.INSTANCE,
             new RefreshRequest(transformConfig.getDestination().getIndex()),
-            responseListener
+            ActionListener.wrap(refreshResponse -> {
+                if (refreshResponse.getFailedShards() > 0) {
+                    logger.warn(
+                        "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
+                        getJobId()
+                    );
+                }
+                responseListener.onResponse(null);
+            }, e -> {
+                if (e instanceof IndexNotFoundException) {
+                    // We ignore IndexNotFound error. A non-existent index does not need refreshing.
+                    responseListener.onResponse(null);
+                    return;
+                }
+                responseListener.onFailure(e);
+            })
         );
     }
 

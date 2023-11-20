@@ -36,23 +36,14 @@ public final class ToStringFromIPEvaluator extends AbstractConvertFunction.Abstr
     int positionCount = v.getPositionCount();
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
-      try {
-        return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
-      } catch (Exception e) {
-        registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
-      }
+      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
     }
-    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
         builder.appendBytesRef(evalValue(vector, p, scratchPad));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
@@ -64,7 +55,7 @@ public final class ToStringFromIPEvaluator extends AbstractConvertFunction.Abstr
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    try (BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
@@ -73,17 +64,13 @@ public final class ToStringFromIPEvaluator extends AbstractConvertFunction.Abstr
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          try {
-            BytesRef value = evalValue(block, i, scratchPad);
-            if (positionOpened == false && valueCount > 1) {
-              builder.beginPositionEntry();
-              positionOpened = true;
-            }
-            builder.appendBytesRef(value);
-            valuesAppended = true;
-          } catch (Exception e) {
-            registerException(e);
+          BytesRef value = evalValue(block, i, scratchPad);
+          if (positionOpened == false && valueCount > 1) {
+            builder.beginPositionEntry();
+            positionOpened = true;
           }
+          builder.appendBytesRef(value);
+          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();

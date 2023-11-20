@@ -74,7 +74,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
 
     @Override
     public void runUpdate() {
-        PlainActionFuture<List<DatafeedConfig.Builder>> getdatafeeds = PlainActionFuture.newFuture();
+        PlainActionFuture<List<DatafeedConfig.Builder>> getdatafeeds = new PlainActionFuture<>();
         provider.expandDatafeedConfigs("_all", true, null, getdatafeeds);
         List<DatafeedConfig.Builder> datafeedConfigBuilders = getdatafeeds.actionGet();
         List<DatafeedUpdate> updates = datafeedConfigBuilders.stream()
@@ -96,7 +96,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
 
         List<Exception> failures = new ArrayList<>();
         for (DatafeedUpdate update : updates) {
-            PlainActionFuture<DatafeedConfig> updateDatafeeds = PlainActionFuture.newFuture();
+            PlainActionFuture<DatafeedConfig> updateDatafeeds = new PlainActionFuture<>();
             provider.updateDatefeedConfig(
                 update.getId(),
                 update,

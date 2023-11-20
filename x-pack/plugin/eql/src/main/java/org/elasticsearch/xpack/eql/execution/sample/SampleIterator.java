@@ -47,7 +47,7 @@ import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareR
 
 public class SampleIterator implements Executable {
 
-    private final Logger log = LogManager.getLogger(SampleIterator.class);
+    private static final Logger log = LogManager.getLogger(SampleIterator.class);
 
     private final QueryClient client;
     private final List<SampleCriterion> criteria;

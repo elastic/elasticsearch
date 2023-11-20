@@ -39,10 +39,13 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -101,6 +104,8 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -243,6 +248,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
 
+        final List<Appender> testAppenders = new ArrayList<>(3);
         for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
             Logger leakLogger = LogManager.getLogger(leakLoggerName);
             Appender leakAppender = new AbstractAppender(leakLoggerName, null, PatternLayout.newBuilder().withPattern("%m").build()) {
@@ -258,13 +264,34 @@ public abstract class ESTestCase extends LuceneTestCase {
             };
             leakAppender.start();
             Loggers.addAppender(leakLogger, leakAppender);
-            // shutdown hook so that when the test JVM exits, logging is shutdown too
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                leakAppender.stop();
-                LoggerContext context = (LoggerContext) LogManager.getContext(false);
-                Configurator.shutdown(context);
-            }));
+            testAppenders.add(leakAppender);
         }
+        Logger promiseUncaughtLogger = LogManager.getLogger("io.netty.util.concurrent.DefaultPromise");
+        final Appender uncaughtAppender = new AbstractAppender(
+            promiseUncaughtLogger.getName(),
+            null,
+            PatternLayout.newBuilder().withPattern("%m").build()
+        ) {
+            @Override
+            public void append(LogEvent event) {
+                if (Level.WARN.equals(event.getLevel())) {
+                    synchronized (loggedLeaks) {
+                        loggedLeaks.add(event.getMessage().getFormattedMessage());
+                    }
+                }
+            }
+        };
+        uncaughtAppender.start();
+        Loggers.addAppender(promiseUncaughtLogger, uncaughtAppender);
+        testAppenders.add(uncaughtAppender);
+        // shutdown hook so that when the test JVM exits, logging is shutdown too
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            for (Appender testAppender : testAppenders) {
+                testAppender.stop();
+            }
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            Configurator.shutdown(context);
+        }));
 
         BootstrapForTesting.ensureInitialized();
 
@@ -809,6 +836,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextBoolean();
     }
 
+    public static Boolean randomOptionalBoolean() {
+        return randomBoolean() ? Boolean.TRUE : randomFrom(Boolean.FALSE, null);
+    }
+
     public static byte randomByte() {
         return (byte) random().nextInt();
     }
@@ -999,6 +1030,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static String randomIdentifier() {
         return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
+    }
+
+    public static String randomUUID() {
+        return UUIDs.randomBase64UUID(random());
     }
 
     public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
@@ -1250,6 +1285,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));
         return breakSupplier.getAsBoolean();
+    }
+
+    protected TestThreadPool createThreadPool(ExecutorBuilder<?>... executorBuilders) {
+        return new TestThreadPool(getTestName(), executorBuilders);
     }
 
     public static boolean terminate(ExecutorService... services) {
@@ -2013,9 +2052,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             barrier.await(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("unexpected", e);
+            fail(e);
         } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -2024,8 +2063,12 @@ public abstract class ESTestCase extends LuceneTestCase {
             assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
+    }
+
+    public static <T> T safeAwait(SubscribableListener<T> listener) {
+        return PlainActionFuture.get(listener::addListener, 10, TimeUnit.SECONDS);
     }
 
     public static void safeSleep(long millis) {
@@ -2033,7 +2076,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             Thread.sleep(millis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 

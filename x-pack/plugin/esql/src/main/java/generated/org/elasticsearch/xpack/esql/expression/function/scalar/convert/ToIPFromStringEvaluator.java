@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -38,21 +39,22 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
-      } catch (Exception e) {
+      } catch (IllegalArgumentException  e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
-        builder.appendBytesRef(evalValue(vector, p, scratchPad));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        try {
+          builder.appendBytesRef(evalValue(vector, p, scratchPad));
+        } catch (IllegalArgumentException  e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
@@ -64,7 +66,7 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    try (BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
@@ -81,7 +83,7 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
             }
             builder.appendBytesRef(value);
             valuesAppended = true;
-          } catch (Exception e) {
+          } catch (IllegalArgumentException  e) {
             registerException(e);
           }
         }

@@ -566,7 +566,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
-                        throw new AssertionError("unexpected", e);
+                        fail(e);
                     }
                 }
             }

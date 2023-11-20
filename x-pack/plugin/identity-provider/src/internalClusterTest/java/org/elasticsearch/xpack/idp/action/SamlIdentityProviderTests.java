@@ -276,17 +276,21 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         initRequest.setJsonEntity(Strings.format("""
             {"entity_id":"%s", "acs":"%s","authn_state":%s}
             """, entityId, acsUrl, Strings.toString(authnStateBuilder)));
-        Response initResponse = getRestClient().performRequest(initRequest);
-        ObjectPath initResponseObject = ObjectPath.createFromResponse(initResponse);
-        assertThat(initResponseObject.evaluate("post_url").toString(), equalTo(acsUrl));
-        final String body = initResponseObject.evaluate("saml_response").toString();
+        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(initRequest));
+        Response response = e.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(403));
+        ObjectPath initResponseObject = ObjectPath.createFromResponse(response);
+        assertThat(initResponseObject.evaluate("status"), equalTo(403));
+        final String baseSamlResponseObjectPath = "error.saml_initiate_single_sign_on_response.";
+        assertThat(initResponseObject.evaluate(baseSamlResponseObjectPath + "post_url").toString(), equalTo(acsUrl));
+        final String body = initResponseObject.evaluate(baseSamlResponseObjectPath + "saml_response").toString();
         assertThat(body, containsString("<saml2p:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Requester\"/>"));
         assertThat(body, containsString("InResponseTo=\"" + expectedInResponeTo + "\""));
-        Map<String, String> sp = initResponseObject.evaluate("service_provider");
+        Map<String, String> sp = initResponseObject.evaluate(baseSamlResponseObjectPath + "service_provider");
         assertThat(sp, hasKey("entity_id"));
         assertThat(sp.get("entity_id"), equalTo(entityId));
         assertThat(
-            initResponseObject.evaluate("error"),
+            initResponseObject.evaluate(baseSamlResponseObjectPath + "error"),
             equalTo("User [" + SAMPLE_USER_NAME + "] is not permitted to access service [" + entityId + "]")
         );
     }

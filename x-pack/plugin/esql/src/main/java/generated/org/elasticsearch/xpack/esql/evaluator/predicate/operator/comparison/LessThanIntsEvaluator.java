@@ -54,7 +54,7 @@ public final class LessThanIntsEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public BooleanBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -71,7 +71,7 @@ public final class LessThanIntsEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(LessThan.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
       }

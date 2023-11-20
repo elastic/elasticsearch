@@ -62,3 +62,28 @@ row a = 1 | rename a AS foo | stats bar = count(*) by foo | drop foo;
 bar:long
 1
 ;
+
+dropGroupingMulti#[skip:-8.11.99]
+row a = 1, b = 2 | rename a AS foo, b as bar | stats baz = count(*) by foo, bar | drop foo;
+
+baz:long  | bar:integer
+1         | 2
+;
+
+dropGroupingMulti2#[skip:-8.11.99]
+row a = 1, b = 2 | rename a AS foo, b as bar | stats baz = count(*) by foo, bar | drop foo, bar;
+
+baz:long
+1
+;
+
+
+dropGroupingMultirow#[skip:-8.11.99]
+from employees | rename gender AS foo | stats bar = count(*) by foo | drop foo | sort bar;
+
+bar:long
+10
+33
+57
+;
+

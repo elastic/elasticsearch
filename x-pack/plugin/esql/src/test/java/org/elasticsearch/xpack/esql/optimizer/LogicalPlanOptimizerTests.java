@@ -2472,6 +2472,63 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var row = as(expand.child(), Row.class);
     }
 
+    /**
+     * Expected
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[a{r}#2],[COUNT([2a][KEYWORD]) AS bar]]
+     *   \_Row[[1[INTEGER] AS a]]
+     */
+    public void testRenameStatsDropGroup() {
+        LogicalPlan plan = optimizedPlan("""
+            row a = 1
+            | rename a AS foo
+            | stats bar = count(*) by foo
+            | drop foo""");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        var row = as(agg.child(), Row.class);
+    }
+
+    /**
+     * Expected
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[a{r}#2, bar{r}#8],[COUNT([2a][KEYWORD]) AS baz, b{r}#4 AS bar]]
+     *   \_Row[[1[INTEGER] AS a, 2[INTEGER] AS b]]
+     */
+    public void testMultipleRenameStatsDropGroup() {
+        LogicalPlan plan = optimizedPlan("""
+            row a = 1, b = 2
+            | rename a AS foo, b as bar
+            | stats baz = count(*) by foo, bar
+            | drop foo""");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("a", "bar"));
+        var row = as(agg.child(), Row.class);
+    }
+
+    /**
+     * Expected
+     * Limit[500[INTEGER]]
+     * \_Aggregate[[emp_no{f}#11, bar{r}#4],[MAX(salary{f}#16) AS baz, gender{f}#13 AS bar]]
+     *   \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     */
+    public void testMultipleRenameStatsDropGroupMultirow() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | rename emp_no AS foo, gender as bar
+            | stats baz = max(salary) by foo, bar
+            | drop foo""");
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("emp_no", "bar"));
+        var row = as(agg.child(), EsRelation.class);
+    }
+
     private <T> T aliased(Expression exp, Class<T> clazz) {
         var alias = as(exp, Alias.class);
         return as(alias.child(), clazz);

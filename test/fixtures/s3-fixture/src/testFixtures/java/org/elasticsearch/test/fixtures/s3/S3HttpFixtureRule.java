@@ -93,7 +93,6 @@ public class S3HttpFixtureRule extends ExternalResource {
     public S3HttpFixtureRule(boolean enabled, List<S3FixtureType> enabledFixtures) {
         this.enabled = enabled;
         this.enabledFixtures = enabledFixtures;
-
     }
 
     public String getAddress(S3FixtureType fixtureRuleType) {

@@ -16,6 +16,7 @@ import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.testing.Test;
 
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -51,7 +52,12 @@ public class TestFixtureApplicationConsumerPlugin implements Plugin<Project> {
                     Collection<String> services = fixtureApps.getFixtureApplications().get(appKey);
                     if (services.isEmpty() == false) {
                         String appHomeKey = "fixture." + appKey + ".home";
-                        applySysProps.accept(appHomeKey, test.getWorkingDir().toPath().relativize(file.toPath()).toString());
+
+                        System.out.println("appHomeKey = " + appHomeKey);
+                        Path relativize = test.getWorkingDir().toPath().relativize(file.toPath());
+                        System.out.println("relativize.toFile().getPath() = " + relativize.toFile().getPath());
+
+                        applySysProps.accept(appHomeKey, relativize.toString());
                         AtomicInteger index = new AtomicInteger();
                         services.forEach(
                             (serviceName) -> applySysProps.accept("fixture." + appKey + ".service." + index.getAndIncrement(), serviceName)

@@ -33,7 +33,10 @@ public class MinioFixtureTestContainer implements TestRule {
     private static File resolveFixtureHome() {
         String userHomeProperty = System.getProperty("fixture.minio-fixture.home");
         File home = new File(userHomeProperty);
-        return new File(home, "docker-compose.yml");
+
+        File file = new File(home, "docker-compose.yml");
+        System.out.println("file = " + file.getPath() + "  --  " + file.exists());
+        return file;
     }
 
     public MinioFixtureTestContainer(List<String> services) {

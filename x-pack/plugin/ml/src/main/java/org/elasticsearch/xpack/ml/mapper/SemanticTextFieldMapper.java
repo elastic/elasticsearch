@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.ml.mapper;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -22,7 +19,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SparseVectorFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -167,4 +163,3 @@ public class SemanticTextFieldMapper extends FieldMapper {
         return (SemanticTextFieldType) super.fieldType();
     }
 }
-

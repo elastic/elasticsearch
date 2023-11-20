@@ -2316,10 +2316,7 @@ public class MachineLearning extends Plugin
                 inferenceProcessors.add(semanticTextInferenceProcessor);
             } catch (Exception e) {
                 logger.error(
-                    "Cannot create inference processor for model ["
-                        + modelId
-                        + "] with fields "
-                        + modelsForFieldsEntry.getValue(),
+                    "Cannot create inference processor for model [" + modelId + "] with fields " + modelsForFieldsEntry.getValue(),
                     e
                 );
             }

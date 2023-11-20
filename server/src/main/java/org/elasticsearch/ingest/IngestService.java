@@ -57,7 +57,6 @@ import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
@@ -107,8 +106,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final ScriptService scriptService;
     private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final Map<String, Processor.Factory> processorFactories;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final IndicesService indicesService;
     private final List<IngestPlugin> ingestPlugins;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -188,9 +185,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
-        Supplier<DocumentParsingObserver> documentParsingObserverSupplier,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        IndicesService indicesService
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -209,14 +204,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             matcherWatchdog
         );
 
-        this.processorFactories = processorFactories(
-            ingestPlugins,
-            processorParameters
-        );
+        this.processorFactories = processorFactories(ingestPlugins, processorParameters);
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.indicesService = indicesService;
     }
 
     /**
@@ -227,12 +217,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     IngestService(IngestService ingestService) {
         this.clusterService = ingestService.clusterService;
         this.scriptService = ingestService.scriptService;
+        this.ingestPlugins = ingestService.ingestPlugins;
         this.documentParsingObserverSupplier = ingestService.documentParsingObserverSupplier;
         this.processorFactories = ingestService.processorFactories;
         this.threadPool = ingestService.threadPool;
         this.taskQueue = ingestService.taskQueue;
         this.pipelines = ingestService.pipelines;
         this.state = ingestService.state;
+        this.processorParameters = ingestService.processorParameters;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -810,7 +802,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         private PipelineIterator(String defaultPipeline, String finalPipeline, List<Pipeline> pluginsPipelines) {
             this.defaultPipeline = NOOP_PIPELINE_NAME.equals(defaultPipeline) ? null : defaultPipeline;
             this.finalPipeline = NOOP_PIPELINE_NAME.equals(finalPipeline) ? null : finalPipeline;
-            this.pluginsPipelines =  pluginsPipelines;
+            this.pluginsPipelines = pluginsPipelines;
             this.pipelineSlotIterator = iterator();
         }
 
@@ -1159,12 +1151,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if ((previousIndexMetadata == null) || (currentIndexMetadata.equals(previousIndexMetadata) == false)) {
                     // Did the index not exist before, or it changed? (re)create the pipeline
                     List<Pipeline> pipelineList = ingestPlugins.stream()
-                        .map(
-                            plugin -> plugin.getIngestPipeline(
-                                currentIndexMetadata,
-                                processorParameters
-                            )
-                        ).flatMap(Optional::stream)
+                        .map(plugin -> plugin.getIngestPipeline(currentIndexMetadata, processorParameters))
+                        .flatMap(Optional::stream)
                         .toList();
                     if (pipelineList.isEmpty()) {
                         updatedPluginPipelines.remove(indexName);
@@ -1394,7 +1382,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 IndexSettings.DEFAULT_PIPELINE.get(settings),
                 IndexSettings.FINAL_PIPELINE.get(settings),
                 pluginPipelines == null ? NOOP_PIPELINE_NAME : indexName
-        )
+            )
         );
     }
 

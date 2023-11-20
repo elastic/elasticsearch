@@ -21,9 +21,6 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -217,6 +214,5 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(MappingMetadata::new, in);
     }
-
 
 }

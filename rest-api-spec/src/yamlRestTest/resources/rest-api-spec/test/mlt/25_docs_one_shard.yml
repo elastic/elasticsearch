@@ -31,31 +31,25 @@
       indices.refresh: {}
 
   - do:
-      search:
-        index:   mlt_one_shard_test_index
-        search:
-          body:
-            query: { term: { _id: "1" } }
+      get:
+        index: mlt_one_shard_test_index
+        id: "1"
 
-  - match: { hits.total: 1 }
+  - match: { _source.foo: "bar" }
 
   - do:
-      search:
-        index:   mlt_one_shard_test_index
-        search:
-          body:
-            query: { term: { _id: "2" } }
+      get:
+        index: mlt_one_shard_test_index
+        id: "2"
 
-  - match: { hits.total: 1 }
+  - match: { _source.foo: "baz" }
 
   - do:
-      search:
-        index:   mlt_one_shard_test_index
-        search:
-          body:
-            query: { term: { _id: "3" } }
+      get:
+        index: mlt_one_shard_test_index
+        id: "3"
 
-  - match: { hits.total: 1 }
+  - match: { _source.foo: "foo" }
 
   - do:
       search:

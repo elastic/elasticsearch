@@ -7,13 +7,24 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.plan.logical.EmptyEsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -24,21 +35,27 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
@@ -68,7 +85,8 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, false), limit.child());
+        // assertEquals(new EsRelation(EMPTY, idx, false), limit.child());
+        assertEquals(new EmptyEsRelation(idx), limit.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -86,7 +104,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, false), limit.child());
+        assertEquals(new EmptyEsRelation(idx), limit.child());
     }
 
     public void testAttributeResolution() {
@@ -1120,6 +1138,61 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(agg.groupings(), agg.aggregates());
     }
 
+    public void testEmptyEsRelationOnLimitZeroWithCount() throws IOException {
+        var query = """
+            from test*
+            | stats count=count(*)
+            | sort count desc
+            | limit 0""";
+        var plan = analyzeWithEmptyFieldCapsResponse(query);
+        var limit = as(plan, Limit.class);
+        limit = as(limit.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(0));
+        var orderBy = as(limit.child(), OrderBy.class);
+        var agg = as(orderBy.child(), Aggregate.class);
+        var esRelation = as(agg.child(), EmptyEsRelation.class);
+    }
+
+    public void testEmptyEsRelationOnConstantEvalAndKeep() throws IOException {
+        var query = """
+            from test*
+            | eval c = 1
+            | keep c
+            | limit 2""";
+        var plan = analyzeWithEmptyFieldCapsResponse(query);
+        var limit = as(plan, Limit.class);
+        limit = as(limit.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(2));
+        var project = as(limit.child(), EsqlProject.class);
+        var eval = as(project.child(), Eval.class);
+        var esRelation = as(eval.child(), EmptyEsRelation.class);
+    }
+
+    public void testEmptyEsRelationOnConstantEvalAndStats() throws IOException {
+        var query = """
+            from test*
+            | limit 10
+            | eval x = 1
+            | stats c = count(x)""";
+        var plan = analyzeWithEmptyFieldCapsResponse(query);
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var eval = as(agg.child(), Eval.class);
+        limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(10));
+        var esRelation = as(limit.child(), EmptyEsRelation.class);
+    }
+
+    public void testEmptyEsRelationOnCountStar() throws IOException {
+        var query = """
+            from test*
+            | stats c = count(*)""";
+        var plan = analyzeWithEmptyFieldCapsResponse(query);
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var esRelation = as(agg.child(), EmptyEsRelation.class);
+    }
+
     public void testUnsupportedFieldsInStats() {
         var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
 
@@ -1360,5 +1433,24 @@ public class AnalyzerTests extends ESTestCase {
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
+    
+    private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            EsqlDataTypeRegistry.INSTANCE,
+            "test*",
+            readFieldCapsResponse("empty_field_caps_response.json"),
+            EsqlSession::specificValidity,
+            IndexResolver.PRESERVE_PROPERTIES,
+            IndexResolver.INDEX_METADATA_FIELD
+        );
+        var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
+        return analyze(query, analyzer);
+    }
 
+    private static FieldCapabilitiesResponse readFieldCapsResponse(String resourceName) throws IOException {
+        InputStream stream = AnalyzerTests.class.getResourceAsStream("/" + resourceName);
+        BytesReference ref = Streams.readFully(stream);
+        XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, ref, XContentType.JSON);
+        return FieldCapabilitiesResponse.fromXContent(parser);
+    }
 }

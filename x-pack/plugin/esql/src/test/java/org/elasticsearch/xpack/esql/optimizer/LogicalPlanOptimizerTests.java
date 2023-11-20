@@ -2511,6 +2511,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var row = as(agg.child(), EsRelation.class);
     }
 
+    public void testLimitZeroUsesLocalRelation() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | stats count=count(*)
+            | sort count desc
+            | limit 0""");
+
+        assertThat(plan, instanceOf(LocalRelation.class));
+    }
+
     private <T> T aliased(Expression exp, Class<T> clazz) {
         var alias = as(exp, Alias.class);
         return as(alias.child(), clazz);

@@ -198,7 +198,8 @@ public class EsqlSession {
                 Map.of(),
                 listener,
                 EsqlSession::specificValidity,
-                IndexResolver.PRESERVE_PROPERTIES
+                IndexResolver.PRESERVE_PROPERTIES,
+                IndexResolver.INDEX_METADATA_FIELD
             );
         } else {
             try {
@@ -267,7 +268,8 @@ public class EsqlSession {
         references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.qualifiedName()));
         Set<String> fieldNames = references.names();
         if (fieldNames.isEmpty()) {
-            return IndexResolver.ALL_FIELDS;
+            // return IndexResolver.ALL_FIELDS;
+            return IndexResolver.INDEX_METADATA_FIELD;
         } else {
             fieldNames.addAll(subfields(fieldNames));
             return fieldNames;

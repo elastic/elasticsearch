@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.EmptyEsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -159,6 +160,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     public static final List<Class<? extends LogicalPlan>> LOGICAL_PLAN_NODE_CLS = List.of(
         Aggregate.class,
         Dissect.class,
+        EmptyEsRelation.class,
         Enrich.class,
         EsRelation.class,
         EsqlProject.class,
@@ -473,6 +475,15 @@ public class PlanNamedTypesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
+    public void testEmptyEsRelation() throws IOException {
+        var orig = new EmptyEsRelation(randomEmptyEsIndex());
+        BytesStreamOutput bso = new BytesStreamOutput();
+        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
+        PlanNamedTypes.writeEmptyEsRelation(out, orig);
+        var deser = PlanNamedTypes.readEmptyEsRelation(planStreamInput(bso));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
+    }
+
     public void testEsqlProject() throws IOException {
         var orig = new EsqlProject(
             Source.EMPTY,
@@ -509,6 +520,14 @@ public class PlanNamedTypesTests extends ESTestCase {
     private static void assertNamedEsField(EsField origObj) {
         var deserObj = serializeDeserialize(origObj, (o, v) -> o.writeNamed(EsField.class, v), PlanStreamInput::readEsFieldNamed);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
+    }
+
+    static EsIndex randomEmptyEsIndex() {
+        return new EsIndex(
+            randomAlphaOfLength(randomIntBetween(1, 25)),
+            Collections.emptyMap(),
+            Set.of(randomAlphaOfLength(randomIntBetween(1, 25)), randomAlphaOfLength(randomIntBetween(1, 25)))
+        );
     }
 
     static EsIndex randomEsIndex() {

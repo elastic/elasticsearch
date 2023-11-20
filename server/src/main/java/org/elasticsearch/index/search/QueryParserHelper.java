@@ -120,6 +120,9 @@ public final class QueryParserHelper {
         String fieldSuffix
     ) {
         Set<String> allFields = context.getMatchingFieldNames(fieldOrPattern);
+        // avoid failing search request when using the default value for index.query.default_field (*)
+        int limit = Regex.isMatchAllPattern(fieldOrPattern) ? IndexSearcher.getMaxClauseCount() : Integer.MAX_VALUE;
+
         Map<String, Float> fields = new HashMap<>();
 
         for (String fieldName : allFields) {
@@ -147,6 +150,9 @@ public final class QueryParserHelper {
 
             float w = fields.getOrDefault(fieldName, 1.0F);
             fields.put(fieldName, w * weight);
+            if (fields.size() >= limit) {
+                break;
+            }
         }
         return fields;
     }

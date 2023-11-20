@@ -110,12 +110,37 @@ public class QueryParserHelperTests extends MapperServiceTestCase {
                 IndexSearcher.setMaxClauseCount(4);
                 Exception e = expectThrows(
                     IllegalArgumentException.class,
-                    () -> QueryParserHelper.resolveMappingFields(context, Map.of("field*", 1.0f))
+                    () -> QueryParserHelper.resolveMappingFields(context, Map.of("field*", 1.0f, "*", 1.0f))
                 );
                 assertThat(e.getMessage(), containsString("field expansion matches too many fields"));
 
                 IndexSearcher.setMaxClauseCount(10);
                 assertThat(QueryParserHelper.resolveMappingFields(context, Map.of("field*", 1.0f)).keySet(), hasSize(10));
+            } finally {
+                IndexSearcher.setMaxClauseCount(originalMaxClauseCount);
+            }
+        });
+    }
+
+    public void testFieldExpansionForAllFieldsDoesNotThrowException() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            for (int i = 0; i < 10; i++) {
+                b.startObject("field" + i).field("type", "long").endObject();
+            }
+        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            for (int i = 0; i < 10; i++) {
+                b.field("field" + i, 1L);
+            }
+        }));
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(ir));
+
+            int originalMaxClauseCount = IndexSearcher.getMaxClauseCount();
+            try {
+                IndexSearcher.setMaxClauseCount(4);
+                assertThat(QueryParserHelper.resolveMappingFields(context, Map.of("*", 1.0f)).keySet(), hasSize(4));
             } finally {
                 IndexSearcher.setMaxClauseCount(originalMaxClauseCount);
             }

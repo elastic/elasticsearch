@@ -40,6 +40,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xpack.countedkeyword.CountedTermsAggregationBuilder;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -184,8 +185,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             .addAggregation(new MinAggregationBuilder("min_time").field("@timestamp"))
             .addAggregation(new MaxAggregationBuilder("max_time").field("@timestamp"))
             .addAggregation(
-                // TODO: Replace this with a CountedTermsAggregationBuilder when #101826 is merged.
-                new TermsAggregationBuilder("group_by")
+                new CountedTermsAggregationBuilder("group_by")
                     // 'size' should be max 100k, but might be slightly more. Better be on the safe side.
                     .size(150_000)
                     .field(request.getStackTraceIds())

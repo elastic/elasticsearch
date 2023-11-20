@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 
 import java.util.Collection;
 import java.util.List;
@@ -183,7 +184,11 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public List<Factory> getInferenceServiceFactories() {
-        return List.of(ElserMlNodeService::new, context -> new HuggingFaceElserService(httpFactory, serviceComponents));
+        return List.of(
+            ElserMlNodeService::new,
+            context -> new HuggingFaceElserService(httpFactory, serviceComponents),
+            context -> new OpenAiService(httpFactory, serviceComponents)
+        );
     }
 
     @Override

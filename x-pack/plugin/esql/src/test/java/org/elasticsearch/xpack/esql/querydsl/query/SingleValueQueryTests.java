@@ -57,8 +57,11 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (String fieldType : new String[] { "long", "integer", "short", "byte", "double", "float", "keyword" }) {
-            params.add(new Object[] { new StandardSetup(fieldType, false) });
-            params.add(new Object[] { new StandardSetup(fieldType, true) });
+            for (boolean multivaluedField : new boolean[] { true, false }) {
+                for (boolean allowEmpty : new boolean[] { true, false }) {
+                    params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, allowEmpty, 100) });
+                }
+            }
         }
         params.add(new Object[] { new FieldMissingSetup() });
         return params;
@@ -201,7 +204,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         }
     }
 
-    private record StandardSetup(String fieldType, boolean multivaluedField) implements Setup {
+    private record StandardSetup(String fieldType, boolean multivaluedField, boolean empty, int count) implements Setup {
         @Override
         public XContentBuilder mapping(XContentBuilder builder) throws IOException {
             builder.startObject("i").field("type", "long").endObject();
@@ -212,25 +215,30 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
         @Override
         public List<List<Object>> build(RandomIndexWriter iw) throws IOException {
             List<List<Object>> fieldValues = new ArrayList<>(100);
-            for (int i = 0; i < 100; i++) {
-                // i == 10 forces at least one multivalued field when we're configured for multivalued fields
-                boolean makeMultivalued = multivaluedField && (i == 10 || randomBoolean());
-                List<Object> values;
-                if (makeMultivalued) {
-                    int count = between(2, 10);
-                    Set<Object> set = new HashSet<>(count);
-                    while (set.size() < count) {
-                        set.add(randomValue());
-                    }
-                    values = List.copyOf(set);
-                } else {
-                    values = List.of(randomValue());
-                }
+            for (int i = 0; i < count; i++) {
+                List<Object> values = values(i);
                 fieldValues.add(values);
                 iw.addDocument(docFor(i, values));
             }
-
             return fieldValues;
+        }
+
+        private List<Object> values(int i) {
+            // i == 10 forces at least one multivalued field when we're configured for multivalued fields
+            boolean makeMultivalued = multivaluedField && (i == 10 || randomBoolean());
+            if (makeMultivalued) {
+                int count = between(2, 10);
+                Set<Object> set = new HashSet<>(count);
+                while (set.size() < count) {
+                    set.add(randomValue());
+                }
+                return List.copyOf(set);
+            }
+            // i == 0 forces at least one empty field when we're configured for empty fields
+            if (empty && (i == 0 || randomBoolean())) {
+                return List.of();
+            }
+            return List.of(randomValue());
         }
 
         private Object randomValue() {
@@ -284,7 +292,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                     assertThat(builder.stats().bytesApprox(), equalTo(0));
                     assertThat(builder.stats().bytesNoApprox(), equalTo(0));
 
-                    if (multivaluedField) {
+                    if (multivaluedField || empty) {
                         assertThat(builder.stats().numericSingle(), greaterThanOrEqualTo(0));
                         if (subHasTwoPhase) {
                             assertThat(builder.stats().numericMultiNoApprox(), equalTo(0));
@@ -305,7 +313,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
                     assertThat(builder.stats().numericMultiApprox(), equalTo(0));
                     assertThat(builder.stats().bytesApprox(), equalTo(0));
                     assertThat(builder.stats().bytesNoApprox(), equalTo(0));
-                    if (multivaluedField) {
+                    if (multivaluedField || empty) {
                         assertThat(builder.stats().ordinalsSingle(), greaterThanOrEqualTo(0));
                         if (subHasTwoPhase) {
                             assertThat(builder.stats().ordinalsMultiNoApprox(), equalTo(0));

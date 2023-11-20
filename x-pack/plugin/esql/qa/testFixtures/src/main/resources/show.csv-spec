@@ -40,7 +40,7 @@ least                    |"? least(first:integer|long|double|boolean|keyword|tex
 left                     |"? left(string:keyword, length:integer)"                |[string, length]         |["keyword", "integer"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 length                   |? length(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 log10                    |"? log10(n:integer|long|double|unsigned_long)"          |n                        |"integer|long|double|unsigned_long" | ""                                                 |?                    | ""                      | false                | false
-ltrim                    |? ltrim(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+ltrim                    |"keyword|text ltrim(str:keyword|text)"                  |str                      |"keyword|text"    | ""                                                 |"keyword|text"       |Removes leading whitespaces from a string.| false | false
 max                      |? max(arg1:?)                                           |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 median                   |? median(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 median_absolute_deviation|? median_absolute_deviation(arg1:?)                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
@@ -60,7 +60,7 @@ pow                      |"? pow(base:integer|long|double, exponent:integer|doub
 replace                  |"? replace(arg1:?, arg2:?, arg3:?)"                       | [arg1, arg2, arg3]      | [?, ?, ?]        |["", "", ""]                                        |?                    | ""                      | [false, false, false]| false 
 right                    |"? right(string:keyword, length:integer)"     |[string, length]         |["keyword", "integer"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 round                    |? round(arg1:?, arg2:?)                                 |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
-rtrim                    |? rtrim(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+rtrim                    |"keyword|text rtrim(str:keyword|text)"                  |str                      |"keyword|text"    | ""                                                 |"keyword|text"       |Removes trailing whitespaces from a string.| false | false
 sin                      |"double sin(n:integer|long|double|unsigned_long)" |n                        |"integer|long|double|unsigned_long"           |An angle, in radians                                |double               |Returns the trigonometric sine of an angle  | false      | false
 sinh                     |"double sinh(n:integer|long|double|unsigned_long)"|n                        |"integer|long|double|unsigned_long"           | ""                                                 |double                    | ""                      | false                | false
 split                    |? split(arg1:?, arg2:?)                                 |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
@@ -88,9 +88,9 @@ to_string                |"? to_string(v:unsigned_long|date|boolean|double|ip|te
 to_ul                    |? to_ul(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_ulong                 |? to_ulong(arg1:?)                                      |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_unsigned_long         |? to_unsigned_long(arg1:?)                              |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
-to_ver                   |"? to_ver(v:keyword|text|version)"                      |v                        |"keyword|text|version"| ""                                                 |?                    | ""                      | false                | false
-to_version               |"? to_version(v:keyword|text|version)"                  |v                        |"keyword|text|version"| ""                                                 |?                    | ""                      | false                | false
-trim                     |? trim(arg1:?)                                          |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+to_ver                   |"? to_ver(v:keyword|text|version)"                      |v                        |"keyword|text|version"| ""                                             |?                    | ""                      | false                | false
+to_version               |"? to_version(v:keyword|text|version)"                  |v                        |"keyword|text|version"| ""                                             |?                    | ""                      | false                | false
+trim                     |"keyword|text trim(str:keyword|text)"                   |str                      |"keyword|text"    | ""                                                 |"keyword|text"       |Removes leading and trailing whitespaces from a string.| false | false
 ;
 
 
@@ -129,7 +129,7 @@ synopsis:keyword
 "? left(string:keyword, length:integer)"                              
 ? length(arg1:?)                                        
 "? log10(n:integer|long|double|unsigned_long)"    
-? ltrim(arg1:?)                                         
+"keyword|text ltrim(str:keyword|text)"
 ? max(arg1:?)                                           
 ? median(arg1:?)                                        
 ? median_absolute_deviation(arg1:?)                     
@@ -149,7 +149,7 @@ synopsis:keyword
 "? replace(arg1:?, arg2:?, arg3:?)"
 "? right(string:keyword, length:integer)"     
 ? round(arg1:?, arg2:?)                                 
-? rtrim(arg1:?)                                         
+"keyword|text rtrim(str:keyword|text)"
 "double sin(n:integer|long|double|unsigned_long)" 
 "double sinh(n:integer|long|double|unsigned_long)"
 ? split(arg1:?, arg2:?)                                 
@@ -179,7 +179,7 @@ synopsis:keyword
 ? to_unsigned_long(arg1:?)                              
 "? to_ver(v:keyword|text|version)"
 "? to_version(v:keyword|text|version)"
-? trim(arg1:?)                                          
+"keyword|text trim(str:keyword|text)"
 ;
 
 

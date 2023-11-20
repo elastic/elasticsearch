@@ -44,6 +44,7 @@ import co.elastic.elasticsearch.stateless.cache.ClearBlobCacheRestHandler;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesResponse;
 import co.elastic.elasticsearch.stateless.cache.action.TransportClearBlobCacheAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterStateCleanupService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
@@ -403,6 +404,8 @@ public class Stateless extends Plugin
         components.add(commitCleaner);
         var commitService = new StatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
         components.add(commitService);
+        var clusterStateCleanupService = new StatelessClusterStateCleanupService(threadPool, objectStoreService, clusterService);
+        clusterService.addListener(clusterStateCleanupService);
         // Allow wrapping non-Guiced version for testing
         commitService = wrapStatelessCommitService(commitService);
         clusterService.addListener(commitService);
@@ -617,6 +620,10 @@ public class Stateless extends Plugin
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
             BlobStoreHealthIndicator.CHECK_TIMEOUT_SETTING,
+            StatelessClusterStateCleanupService.CLUSTER_STATE_CLEANUP_DELAY_SETTING,
+            StatelessClusterStateCleanupService.RETRY_TIMEOUT_SETTING,
+            StatelessClusterStateCleanupService.RETRY_INITIAL_DELAY_SETTING,
+            StatelessClusterStateCleanupService.RETRY_MAX_DELAY_SETTING,
             ObjectStoreGCTask.STALE_INDICES_GC_ENABLED_SETTING,
             ObjectStoreGCTask.STALE_TRANSLOGS_GC_ENABLED_SETTING,
             ObjectStoreGCTask.STALE_TRANSLOGS_GC_FILES_LIMIT_SETTING,

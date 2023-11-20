@@ -12,6 +12,9 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -36,6 +39,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.IngestScript;
@@ -76,6 +80,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.core.ml.utils.MlTaskState;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -86,6 +91,8 @@ import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -104,6 +111,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -121,11 +129,6 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     // The ML jobs can trigger many tasks that are not easily tracked. For this reason, here we list
     // all the tasks that should be excluded from the cleanup jobs because they are not related to the tests.
     private static final Set<String> UNRELATED_TASKS = Set.of(TransportListTasksAction.TYPE.name(), HealthNode.TASK_NAME);
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -510,6 +513,31 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             jobNode.set(jobStats.getNode().getName());
         });
         return jobNode.get();
+    }
+
+    protected void assertRecentLastTaskStateChangeTime(String taskId, Duration howRecent, String queryNode) {
+        ClusterStateRequest csRequest = new ClusterStateRequest().clear().metadata(true);
+        ClusterStateResponse csResponse = client(queryNode).execute(ClusterStateAction.INSTANCE, csRequest).actionGet();
+        PersistentTasksCustomMetadata tasks = csResponse.getState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        assertNotNull(tasks);
+        PersistentTasksCustomMetadata.PersistentTask<?> task = tasks.getTask(taskId);
+        assertNotNull(task);
+        assertThat(task.getState(), instanceOf(MlTaskState.class));
+        MlTaskState state = (MlTaskState) task.getState();
+        assertNotNull(state.getLastStateChangeTime());
+        Instant now = Instant.now();
+        assertTrue(
+            "["
+                + taskId
+                + " has last state change time ["
+                + state.getLastStateChangeTime()
+                + "] that is more than ["
+                + howRecent
+                + "] behind current time ["
+                + now
+                + "]",
+            state.getLastStateChangeTime().isAfter(now.minus(howRecent))
+        );
     }
 
     /**

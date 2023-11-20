@@ -43,6 +43,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -287,15 +288,15 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             .aggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.filter("all", termQuery("multi", "test"))))
             .aggregation(AggregationBuilders.filter("test1", termQuery("name", "test1")));
 
-        SearchResponse searchResponse = client().search(new SearchRequest("test").source(sourceBuilder)).actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+        assertNoFailuresAndResponse(client().search(new SearchRequest("test").source(sourceBuilder)), response -> {
+            assertThat(response.getHits().getTotalHits().value, equalTo(100L));
 
-        Global global = searchResponse.getAggregations().get("global");
-        Filter all = global.getAggregations().get("all");
-        Filter test1 = searchResponse.getAggregations().get("test1");
-        assertThat(test1.getDocCount(), equalTo(1L));
-        assertThat(all.getDocCount(), equalTo(100L));
+            Global global = response.getAggregations().get("global");
+            Filter all = global.getAggregations().get("all");
+            Filter test1 = response.getAggregations().get("test1");
+            assertThat(test1.getDocCount(), equalTo(1L));
+            assertThat(all.getDocCount(), equalTo(100L));
+        });
     }
 
     public void testFailedSearchWithWrongQuery() throws Exception {

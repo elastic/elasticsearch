@@ -17,13 +17,14 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.spi.XContentProvider;
 import org.junit.rules.ExternalResource;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -59,7 +60,6 @@ public class RecordingApmServer extends ExternalResource {
                     try {
                         String msg = received.poll(1L, TimeUnit.SECONDS);
                         if (msg != null && msg.isEmpty() == false) {
-                            logger.info("APM server received: " + msg);
                             consumer.accept(msg);
                         }
 
@@ -83,7 +83,6 @@ public class RecordingApmServer extends ExternalResource {
                 try (InputStream requestBody = exchange.getRequestBody()) {
                     if (requestBody != null) {
                         var read = readJsonMessages(requestBody);
-                        read.forEach(s -> logger.debug(s));
                         received.addAll(read);
                     }
                 }
@@ -97,7 +96,7 @@ public class RecordingApmServer extends ExternalResource {
 
     private List<String> readJsonMessages(InputStream input) throws IOException {
         // parse NDJSON
-        return Arrays.stream(new String(input.readAllBytes(), StandardCharsets.UTF_8).split(System.lineSeparator())).toList();
+        return new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8)).lines().toList();
     }
 
     public int getPort() {

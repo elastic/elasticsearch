@@ -99,7 +99,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                             connection,
                             shardFetchRequest,
                             task,
-                            new SearchActionListener<FetchSearchResult>(querySearchResult.getSearchShardTarget(), index) {
+                            new SearchActionListener<>(querySearchResult.getSearchShardTarget(), index) {
                                 @Override
                                 protected void innerOnResponse(FetchSearchResult response) {
                                     fetchResults.setOnce(response.getShardIndex(), response);

@@ -29,7 +29,7 @@ import static org.elasticsearch.core.Types.forciblyCast;
  */
 final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> implements Releasable {
     private class Slot {
-        int value;
+        final int value;
 
         Slot(int initial) {
             this.value = initial;

@@ -1,5 +1,0 @@
-pr: 101497
-summary: Fix snapshot double finalization
-area: Snapshot/Restore
-type: bug
-issues: []

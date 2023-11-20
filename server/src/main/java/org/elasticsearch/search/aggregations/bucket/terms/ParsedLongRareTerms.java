@@ -57,10 +57,6 @@ public class ParsedLongRareTerms extends ParsedRareTerms {
             return null;
         }
 
-        public Number getKeyAsNumber() {
-            return key;
-        }
-
         @Override
         protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             builder.field(CommonFields.KEY.getPreferredName(), key);

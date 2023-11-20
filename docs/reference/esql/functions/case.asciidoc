@@ -4,7 +4,7 @@
 
 *Syntax*
 
-[source,txt]
+[source,esql]
 ----
 CASE(condition1, value1[, ..., conditionN, valueN][, default_value])
 ----
@@ -27,7 +27,8 @@ Accepts pairs of conditions and values. The function returns the value that
 belongs to the first condition that evaluates to `true`.
 
 If the number of arguments is odd, the last argument is the default value which
-is returned when no condition matches.
+is returned when no condition matches. If the number of arguments is even, and
+no condition matches, the function returns `null`.
 
 *Example*
 

@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
@@ -95,9 +96,12 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         InferModelAction.Request inferRequest = InferModelAction.Request.forTextInput(
             modelId,
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
-            List.of(modelText)
+            List.of(modelText),
+            false,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
         );
         inferRequest.setHighPriority(true);
+        inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, InferModelAction.INSTANCE, inferRequest, ActionListener.wrap(response -> {
             if (response.getInferenceResults().isEmpty()) {

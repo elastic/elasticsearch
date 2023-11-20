@@ -35,7 +35,6 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -274,13 +273,12 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        client = new NoOpClient(getTestName());
-        threadPool = new TestThreadPool(getTestName());
+        threadPool = createThreadPool();
+        client = new NoOpClient(threadPool);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
@@ -1070,7 +1068,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             public void failureCountChanged() {}
 
             @Override
-            public void fail(String message, ActionListener<Void> listener) {
+            public void fail(Throwable exception, String message, ActionListener<Void> listener) {
                 assertTrue(failIndexerCalled.compareAndSet(false, true));
                 assertTrue(failureMessage.compareAndSet(null, message));
             }

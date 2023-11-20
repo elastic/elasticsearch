@@ -156,15 +156,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             if (rowStrideReaders.isEmpty()) {
                 return;
             }
-            BlockLoaderStoredFieldsFromLeafLoader storedFields = null;
-            if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-                storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                    // TODO enable the optimization by passing non-null to docs if correct
-                    StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx(shard, segment), null),
-                    storedFieldsSpec.requiresSource()
+            if (storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
+                throw new IllegalStateException(
+                    "found row stride readers [" + rowStrideReaders + "] without stored fields [" + storedFieldsSpec + "]"
                 );
-                trackStoredFields(storedFieldsSpec); // TODO when optimization is enabled add it to tracking
             }
+            BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                // TODO enable the optimization by passing non-null to docs if correct
+                StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx(shard, segment), null),
+                storedFieldsSpec.requiresSource()
+            );
+            trackStoredFields(storedFieldsSpec); // TODO when optimization is enabled add it to tracking
             for (int p = 0; p < docs.getPositionCount(); p++) {
                 int doc = docs.getInt(p);
                 if (storedFields != null) {
@@ -207,17 +209,15 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                     lastShard = shard;
                     lastSegment = segment;
                     StoredFieldsSpec storedFieldsSpec = storedFieldsSpecForShard(shard);
+                    storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                        StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx(shard, segment), null),
+                        storedFieldsSpec.requiresSource()
+                    );
                     if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-                        storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                            StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx(shard, segment), null),
-                            storedFieldsSpec.requiresSource()
-                        );
                         trackStoredFields(storedFieldsSpec);
                     }
                 }
-                if (storedFields != null) {
-                    storedFields.advanceTo(doc);
-                }
+                storedFields.advanceTo(doc);
                 for (int r = 0; r < blocks.length; r++) {
                     fields.get(r).rowStride.reader(shard, segment, doc).read(doc, storedFields, builders[r]);
                 }

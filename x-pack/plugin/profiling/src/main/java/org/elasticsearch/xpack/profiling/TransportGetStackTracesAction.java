@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.countedkeyword.CountedTermsAggregationBuilder;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -95,6 +96,8 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         TimeValue.timeValueHours(6),
         Setting.Property.NodeScope
     );
+
+    private static final int maxSupportedUniqueHosts = 10_000;
 
     private final NodeClient nodeClient;
     private final ProfilingLicenseChecker licenseChecker;
@@ -242,7 +245,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 // a maximum of 100k (plus a bit due to rounding errors).
                 new TermsAggregationBuilder("group_by")
                     // 'size' specifies the max number of host ID we support per request.
-                    .size(20_000)
+                    .size(maxSupportedUniqueHosts)
                     .field("host.id")
                     // 'execution_hint: map' skips the slow building of ordinals that we don't need.
                     // Especially with high cardinality fields, this makes aggregations really slow.
@@ -269,7 +272,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
                 // needed to load it.
                 long totalFinalCount = 0;
-                List<HostEventCount> hostEventCounts = new ArrayList<>(102400);
+                List<HostEventCount> hostEventCounts = new ArrayList<>(150_000);
                 Map<String, TraceEvent> stackTraceEvents = new TreeMap<>();
                 for (StringTerms.Bucket hostBucket : hosts.getBuckets()) {
                     String hostid = hostBucket.getKeyAsString();
@@ -375,8 +378,10 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         }
 
         // Retrieve the host metadata in parallel. Assume low-cardinality and do not split the query.
+        // First, build a set of unique host IDs. There will be no more than maxSupportedUniqueHosts.
+        Set<String> uniqueHostIDs = new HashSet<>(maxSupportedUniqueHosts);
+        responseBuilder.hostEventCounts.forEach(hec -> uniqueHostIDs.add(hec.hostID));
         client.prepareSearch("profiling-hosts")
-            .setSize(10000)
             .setTrackTotalHits(false)
             .setQuery(
                 QueryBuilders.boolQuery()
@@ -389,7 +394,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                             .format("epoch_millis")
                     )
                     // Filter for host we are interested in.
-                    .filter(QueryBuilders.termsQuery("host.id", responseBuilder.hostEventCounts.stream().map(hec -> hec.hostID).toList()))
+                    .filter(QueryBuilders.termsQuery("host.id", uniqueHostIDs))
             )
             .setCollapse(
                 // Collapse on host.id to get a single host metadata for each host.

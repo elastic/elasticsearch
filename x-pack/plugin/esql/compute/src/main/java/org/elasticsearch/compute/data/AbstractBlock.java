@@ -102,7 +102,7 @@ abstract class AbstractBlock implements Block {
 
     @Override
     public final void incRef() {
-        if (references <= 0) {
+        if (isReleased()) {
             throw new IllegalStateException("can't increase refCount on already released block [" + this + "]");
         }
         references++;
@@ -110,7 +110,7 @@ abstract class AbstractBlock implements Block {
 
     @Override
     public final boolean tryIncRef() {
-        if (references <= 0) {
+        if (isReleased()) {
             return false;
         }
         references++;
@@ -119,7 +119,7 @@ abstract class AbstractBlock implements Block {
 
     @Override
     public final boolean decRef() {
-        if (references <= 0) {
+        if (isReleased()) {
             throw new IllegalStateException("can't release already released block [" + this + "]");
         }
 

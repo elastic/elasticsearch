@@ -32,7 +32,7 @@ import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.fixtures.minio.MinioFixtureTestContainer;
+import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.not;
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
 
     @ClassRule
-    public static MinioFixtureTestContainer minioFixtureTestContainer = new MinioFixtureTestContainer(true);
+    public static MinioTestContainer minio = new MinioTestContainer(true).withE
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -100,7 +100,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         Settings.Builder settings = Settings.builder()
             .put("bucket", System.getProperty("test.s3.bucket"))
             .put("base_path", System.getProperty("test.s3.base", "testpath"));
-        final String endpoint = minioFixtureTestContainer.getServiceUrl();
+        final String endpoint = minio.getAddress();
         if (endpoint != null) {
             settings.put("endpoint", endpoint);
         } else {

@@ -9,18 +9,16 @@
 package org.elasticsearch.test.fixtures.minio;
 
 import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
-public class MinioFixtureTestContainer implements TestRule {
+public class MinioTestContainer extends GenericContainer<MinioTestContainer> implements TestRule {
 
     private static final int servicePort = 9000;
-    private GenericContainer<?> container;
+    private final boolean enabled;
 
-    private GenericContainer<?> createContainer() {
-        return new GenericContainer<>(
+    public MinioTestContainer(boolean enabled) {
+        super(
             new ImageFromDockerfile().withDockerfileFromBuilder(
                 builder -> builder.from("minio/minio:RELEASE.2021-03-01T04-20-55Z")
                     .env("MINIO_ACCESS_KEY", "s3_test_access_key")
@@ -29,33 +27,21 @@ public class MinioFixtureTestContainer implements TestRule {
                     .cmd("server", "/minio/data")
                     .build()
             )
-        ).withExposedPorts(servicePort);
-    }
-
-    public MinioFixtureTestContainer(boolean enabled) {
+        );
         if (enabled) {
-            this.container = createContainer();
+            addExposedPort(servicePort);
         }
+        this.enabled = enabled;
     }
 
     @Override
-    public Statement apply(Statement base, Description description) {
-        if (container != null) {
-            container.start();
+    public void start() {
+        if (enabled) {
+            super.start();
         }
-        return new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                base.evaluate();
-            }
-        };
     }
 
-    private int getServicePort() {
-        return container.getMappedPort(servicePort);
-    }
-
-    public String getServiceUrl() {
-        return "http://127.0.0.1:" + getServicePort();
+    public String getAddress() {
+        return "http://127.0.0.1:" + getMappedPort(servicePort);
     }
 }

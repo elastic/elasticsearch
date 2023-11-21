@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.fixtures.minio.MinioFixtureTestContainer;
+import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.junit.BeforeClass;
@@ -25,17 +25,17 @@ import java.util.List;
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3MinioClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
 
-    public static MinioFixtureTestContainer minioFixtureTestContainer = new MinioFixtureTestContainer(USE_FIXTURE);
+    public static MinioTestContainer minio = new MinioTestContainer(USE_FIXTURE);
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .keystore("s3.client.integration_test_permanent.access_key", System.getProperty("s3PermanentAccessKey"))
         .keystore("s3.client.integration_test_permanent.secret_key", System.getProperty("s3PermanentSecretKey"))
-        .setting("s3.client.integration_test_permanent.endpoint", () -> minioFixtureTestContainer.getServiceUrl())
+        .setting("s3.client.integration_test_permanent.endpoint", () -> minio.getAddress())
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(minioFixtureTestContainer).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(minio).around(cluster);
 
     @BeforeClass
     public static void onlyWhenRunWithTestFixture() {

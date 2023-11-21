@@ -112,10 +112,8 @@ public class S3HttpFixture extends ExternalResource {
     }
 
     private static InetSocketAddress resolveAddress(String address, int port) {
-        InetAddress byName = null;
         try {
-            byName = InetAddress.getByName(address);
-            return new InetSocketAddress(byName, port);
+            return new InetSocketAddress(InetAddress.getByName(address), port);
         } catch (UnknownHostException e) {
             throw new RuntimeException(e);
         }

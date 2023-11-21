@@ -14,8 +14,8 @@ import java.util.Map;
 
 /**
  * Functional interface for supplying system properties to an Elasticsearch node. This interface is designed to be implemented by tests
- * and fixtures wanting to provide system properties to an {@link ElasticsearchCluster} in a dynamic fashion. Instances are evaluated lazily at
- * cluster start time.
+ * and fixtures wanting to provide system properties to an {@link ElasticsearchCluster} in a dynamic fashion.
+ * Instances are evaluated lazily at cluster start time.
  */
 public interface SystemPropertyProvider {
 

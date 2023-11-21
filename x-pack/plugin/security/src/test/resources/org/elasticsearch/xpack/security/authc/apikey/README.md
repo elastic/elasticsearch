@@ -1,6 +1,6 @@
 # Explanation of files in this directory
 
-`rsa-private-jwkset.json`, `rsa-public-jwkset.json`, `hmac-jwkset.json`
+`rsa-private-jwkset.json`, `rsa-public-jwkset.json`
 -----------------------------------------------------------------------
 
 These files are created by running the tests in `JwtRealmGenerateTests`.

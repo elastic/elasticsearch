@@ -104,12 +104,7 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                                 protected void innerOnResponse(FetchSearchResult response) {
                                     fetchResults.setOnce(response.getShardIndex(), response);
                                     response.incRef();
-                                    if (counter.countDown()) {
-                                        sendResponse(reducedQueryPhase, fetchResults);
-                                        for (FetchSearchResult fetchSearchResult : fetchResults.asList()) {
-                                            fetchSearchResult.decRef();
-                                        }
-                                    }
+                                    consumeResponse(counter, reducedQueryPhase);
                                 }
 
                                 @Override
@@ -128,13 +123,20 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                     } else {
                         // the counter is set to the total size of docIdsToLoad
                         // which can have null values so we have to count them down too
-                        if (counter.countDown()) {
-                            sendResponse(reducedQueryPhase, fetchResults);
-                        }
+                        consumeResponse(counter, reducedQueryPhase);
                     }
                 }
             }
         };
+    }
+
+    private void consumeResponse(CountDown counter, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
+        if (counter.countDown()) {
+            sendResponse(reducedQueryPhase, fetchResults);
+            for (FetchSearchResult fetchSearchResult : fetchResults.asList()) {
+                fetchSearchResult.decRef();
+            }
+        }
     }
 
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -131,7 +132,7 @@ public class Connector implements Writeable, ToXContentObject {
     ) {
         this.connectorId = connectorId;
         this.apiKeyId = apiKeyId;
-        this.configuration = configuration;
+        this.configuration = Objects.requireNonNullElse(configuration, Collections.emptyMap());
         this.customScheduling = customScheduling;
         this.description = description;
         this.error = error;
@@ -160,7 +161,7 @@ public class Connector implements Writeable, ToXContentObject {
         this.features = in.readOptionalWriteable(ConnectorFeatures::new);
         this.filtering = in.readOptionalCollectionAsList(ConnectorFiltering::new);
         this.indexName = in.readOptionalString();
-        this.isNative = in.readBoolean();
+        this.isNative = in.readOptionalBoolean();
         this.language = in.readOptionalString();
         this.syncInfo = in.readOptionalWriteable(ConnectorSyncInfo::new);
         this.name = in.readOptionalString();
@@ -169,7 +170,7 @@ public class Connector implements Writeable, ToXContentObject {
         this.serviceType = in.readOptionalString();
         this.status = in.readEnum(ConnectorStatus.class);
         this.syncCursor = in.readGenericValue();
-        this.syncNow = in.readBoolean();
+        this.syncNow = in.readOptionalBoolean();
     }
 
     public static final ParseField ID_FIELD = new ParseField("connector_id");
@@ -231,7 +232,7 @@ public class Connector implements Writeable, ToXContentObject {
         out.writeOptionalWriteable(features);
         out.writeOptionalCollection(filtering);
         out.writeOptionalString(indexName);
-        out.writeBoolean(isNative);
+        out.writeOptionalBoolean(isNative);
         out.writeOptionalString(language);
         out.writeOptionalWriteable(syncInfo);
         out.writeOptionalString(name);
@@ -240,7 +241,7 @@ public class Connector implements Writeable, ToXContentObject {
         out.writeOptionalString(serviceType);
         out.writeEnum(status);
         out.writeGenericValue(syncCursor);
-        out.writeBoolean(syncNow);
+        out.writeOptionalBoolean(syncNow);
     }
 
     public String getConnectorId() {

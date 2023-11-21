@@ -600,10 +600,13 @@ synthetic _source:
   - do:
       bulk:
         index: test2
+        refresh: true
         body:
           - { index: { } }
           - { gender: 3 }
   - do:
+      # The script can't process a bucket without a salary value for gender '3'.
+      catch: /path not supported for \[top_salary_hits\]:\ \[_source.salary\]./
       search:
         index: test2
         size: 0
@@ -629,13 +632,6 @@ synthetic _source:
                     buckets_path:
                       ts: top_salary_hits[_source.salary]
                     script: "params.ts < 8000"
-
-  # Empty bucket for gender '3' affects nothing.
-  - length: { aggregations.genders.buckets: 1}
-  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.total.value: 4}
-  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.gender: 1}
-  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.salary: 4000}
-  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.birth_date: 1982}
 
   - do:
       catch: /path not supported for \[top_salary_hits\]:\ \[_source.nosuchfield\]./

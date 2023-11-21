@@ -1,0 +1,5 @@
+pr: 102417
+summary: "ESQL: emit warnings from single-value functions processing multi-values"
+area: ES|QL
+type: feature
+issues: []

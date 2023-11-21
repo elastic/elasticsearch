@@ -31,7 +31,7 @@ public class RestPutConnectorAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        PutConnectorAction.Request request = new PutConnectorAction.Request(
+        PutConnectorAction.Request request = PutConnectorAction.Request.fromXContentBytes(
             restRequest.param("connector_id"),
             restRequest.content(),
             restRequest.getXContentType()

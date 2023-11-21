@@ -11,17 +11,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
-public class ConnectorSyncInfo implements Writeable, ToXContentObject {
+public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
     @Nullable
     private final String lastAccessControlSyncError;
     @Nullable
@@ -85,24 +81,6 @@ public class ConnectorSyncInfo implements Writeable, ToXContentObject {
         this.lastSynced = in.readOptionalString();
     }
 
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ConnectorSyncInfo, String> PARSER = new ConstructingObjectParser<>(
-        "connector",
-        false,
-        (args, connectorId) -> new Builder().setLastAccessControlSyncError((String) args[0])
-            .setLastAccessControlSyncScheduledAt((String) args[1])
-            .setLastAccessControlSyncStatus((ConnectorSyncStatus) args[2])
-            .setLastDeletedDocumentCount((Long) args[3])
-            .setLastIncrementalSyncScheduledAt((String) args[4])
-            .setLastIndexedDocumentCount((Long) args[5])
-            .setLastSeen((String) args[6])
-            .setLastSyncError((String) args[7])
-            .setLastSyncScheduledAt((String) args[8])
-            .setLastSyncStatus((ConnectorSyncStatus) args[9])
-            .setLastSynced((String) args[10])
-            .createConnectorSyncInfo()
-    );
-
     public static final ParseField LAST_ACCESS_CONTROL_SYNC_ERROR = new ParseField("last_access_control_sync_error");
     public static final ParseField LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD = new ParseField("last_access_control_sync_status");
     public static final ParseField LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD = new ParseField("last_access_control_sync_scheduled_at");
@@ -115,33 +93,20 @@ public class ConnectorSyncInfo implements Writeable, ToXContentObject {
     public static final ParseField LAST_SYNC_STATUS_FIELD = new ParseField("last_sync_status");
     public static final ParseField LAST_SYNCED_FIELD = new ParseField("last_synced");
 
-    static {
-        PARSER.declareString(optionalConstructorArg(), LAST_ACCESS_CONTROL_SYNC_ERROR);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ConnectorSyncStatus.connectorSyncStatus(p.text()),
-            LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD,
-            ObjectParser.ValueType.STRING
-        );
-        PARSER.declareString(optionalConstructorArg(), LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_DELETED_DOCUMENT_COUNT_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_INDEXED_DOCUMENT_COUNT_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_SEEN_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_SYNC_ERROR_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_SYNC_SCHEDULED_AT_FIELD);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ConnectorSyncStatus.connectorSyncStatus(p.text()),
-            LAST_SYNC_STATUS_FIELD,
-            ObjectParser.ValueType.STRING
-        );
-        PARSER.declareString(optionalConstructorArg(), LAST_SYNCED_FIELD);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
+        builder.field(LAST_ACCESS_CONTROL_SYNC_ERROR.getPreferredName(), lastAccessControlSyncError);
+        builder.field(LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD.getPreferredName(), lastAccessControlSyncStatus);
+        builder.field(LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastAccessControlSyncScheduledAt);
+        builder.field(LAST_DELETED_DOCUMENT_COUNT_FIELD.getPreferredName(), lastDeletedDocumentCount);
+        builder.field(LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastIncrementalSyncScheduledAt);
+        builder.field(LAST_INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName(), lastIndexedDocumentCount);
+        builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
+        builder.field(LAST_SYNC_ERROR_FIELD.getPreferredName(), lastSyncError);
+        builder.field(LAST_SYNC_SCHEDULED_AT_FIELD.getPreferredName(), lastSyncScheduledAt);
+        builder.field(LAST_SYNC_STATUS_FIELD.getPreferredName(), lastSyncStatus);
+        builder.field(LAST_SYNCED_FIELD.getPreferredName(), lastSynced);
+        return builder;
     }
 
     @Override
@@ -228,7 +193,7 @@ public class ConnectorSyncInfo implements Writeable, ToXContentObject {
             return this;
         }
 
-        public ConnectorSyncInfo createConnectorSyncInfo() {
+        public ConnectorSyncInfo build() {
             return new ConnectorSyncInfo(
                 lastAccessControlSyncError,
                 lastAccessControlSyncScheduledAt,

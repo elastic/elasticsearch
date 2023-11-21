@@ -7,27 +7,18 @@
 
 package org.elasticsearch.xpack.application.connector;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import java.util.Objects;
 
 /**
  * A connector document consists of:
@@ -51,8 +42,7 @@ public class Connector implements Writeable, ToXContentObject {
     @Nullable
     private final ConnectorFeatures features;
 
-    // TODO: it's a pretty complex object, it will come as a separate PR
-    // private final List<ConnectorFilteringConfig> filtering;
+    private final List<ConnectorFiltering> filtering;
 
     @Nullable
     private final String indexName;
@@ -85,6 +75,7 @@ public class Connector implements Writeable, ToXContentObject {
         String description,
         String error,
         ConnectorFeatures features,
+        List<ConnectorFiltering> filtering,
         String indexName,
         Boolean isNative,
         String language,
@@ -104,15 +95,16 @@ public class Connector implements Writeable, ToXContentObject {
         this.description = description;
         this.error = error;
         this.features = features;
+        this.filtering = filtering;
         this.indexName = indexName;
-        this.isNative = isNative;
+        this.isNative = Objects.requireNonNullElse(isNative, false);
         this.language = language;
-        this.syncInfo = syncInfo;
+        this.syncInfo = Objects.requireNonNullElse(syncInfo, new ConnectorSyncInfo.Builder().build());
         this.name = name;
         this.pipeline = pipeline;
         this.scheduling = scheduling;
         this.serviceType = serviceType;
-        this.status = status;
+        this.status = Objects.requireNonNullElse(status, this.isNative ? ConnectorStatus.NEEDS_CONFIGURATION : ConnectorStatus.CREATED);
         this.syncCursor = syncCursor;
         this.syncNow = syncNow;
     }
@@ -125,6 +117,7 @@ public class Connector implements Writeable, ToXContentObject {
         this.description = in.readOptionalString();
         this.error = in.readOptionalString();
         this.features = in.readOptionalWriteable(ConnectorFeatures::new);
+        this.filtering = in.readOptionalCollectionAsList(ConnectorFiltering::new);
         this.indexName = in.readOptionalString();
         this.isNative = in.readBoolean();
         this.language = in.readOptionalString();
@@ -133,35 +126,10 @@ public class Connector implements Writeable, ToXContentObject {
         this.pipeline = in.readOptionalWriteable(ConnectorIngestPipeline::new);
         this.scheduling = in.readOptionalWriteable(ConnectorScheduling::new);
         this.serviceType = in.readOptionalString();
-        this.status = ConnectorStatus.valueOf(in.readString());
+        this.status = in.readEnum(ConnectorStatus.class);
         this.syncCursor = in.readGenericValue();
         this.syncNow = in.readBoolean();
     }
-
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Connector, String> PARSER = new ConstructingObjectParser<>(
-        "connector",
-        false,
-        (args, connectorId) -> new Builder().setConnectorId(connectorId)
-            .setApiKeyId((String) args[0])
-            .setConfiguration((Map<String, Object>) args[1])
-            .setCustomScheduling((ConnectorCustomSchedule) args[2])
-            .setDescription((String) args[3])
-            .setError((String) args[4])
-            .setFeatures((ConnectorFeatures) args[5])
-            .setIndexName((String) args[6])
-            .setIsNative((Boolean) args[7])
-            .setLanguage((String) args[8])
-            .setSyncInfo((ConnectorSyncInfo) args[9])
-            .setName((String) args[10])
-            .setPipeline((ConnectorIngestPipeline) args[11])
-            .setScheduling((ConnectorScheduling) args[12])
-            .setServiceType((String) args[13])
-            .setStatus((ConnectorStatus) args[14])
-            .setSyncCursor(args[15])
-            .setSyncNow((Boolean) args[26])
-            .build()
-    );
 
     public static final ParseField ID_FIELD = new ParseField("connector_id");
     public static final ParseField API_KEY_ID_FIELD = new ParseField("api_key_id");
@@ -170,6 +138,7 @@ public class Connector implements Writeable, ToXContentObject {
     public static final ParseField DESCRIPTION_FIELD = new ParseField("description");
     public static final ParseField ERROR_FIELD = new ParseField("error");
     public static final ParseField FEATURES_FIELD = new ParseField("features");
+    public static final ParseField FILTERING_FIELD = new ParseField("filtering");
     public static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
     public static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
     public static final ParseField LANGUAGE_FIELD = new ParseField("language");
@@ -182,129 +151,29 @@ public class Connector implements Writeable, ToXContentObject {
     public static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
     public static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
 
-    static {
-        PARSER.declareString(optionalConstructorArg(), API_KEY_ID_FIELD);
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (parser, context) -> parser.map(),
-            CONFIGURATION_FIELD,
-            ObjectParser.ValueType.OBJECT
-        );
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ConnectorCustomSchedule.fromXContent(p),
-            CUSTOM_SCHEDULING_FIELD,
-            ObjectParser.ValueType.OBJECT
-        );
-        PARSER.declareString(optionalConstructorArg(), DESCRIPTION_FIELD);
-        PARSER.declareString(optionalConstructorArg(), ERROR_FIELD);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ConnectorFeatures.fromXContent(p),
-            FEATURES_FIELD,
-            ObjectParser.ValueType.OBJECT
-        );
-        PARSER.declareString(optionalConstructorArg(), INDEX_NAME_FIELD);
-        PARSER.declareBoolean(optionalConstructorArg(), IS_NATIVE_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LANGUAGE_FIELD);
-//        PARSER.declareField(
-//            optionalConstructorArg(),
-//            (p, c) -> ConnectorSyncInfo.fromXContent(p),
-//            SYN,
-//            ObjectParser.ValueType.OBJECT
-//        );
-        PARSER.declareString(optionalConstructorArg(), NAME_FIELD);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ConnectorIngestPipeline.fromXContent(p),
-            PIPELINE_FIELD,
-            ObjectParser.ValueType.OBJECT
-        );
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ConnectorScheduling.fromXContent(p),
-            SCHEDULING_FIELD,
-            ObjectParser.ValueType.OBJECT
-        );
-        PARSER.declareString(optionalConstructorArg(), SERVICE_TYPE_FIELD);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> ConnectorStatus.connectorStatus(p.text()),
-            STATUS_FIELD,
-            ObjectParser.ValueType.STRING
-        );
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (parser, context) -> parser.map(),
-            SYNC_CURSOR_FIELD,
-            ObjectParser.ValueType.OBJECT_OR_NULL
-        );
-        PARSER.declareString(optionalConstructorArg(), SYNC_NOW_FIELD);
-    }
-
-    public static Connector fromXContentBytes(String connectorId, BytesReference source, XContentType xContentType) {
-        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
-            return Connector.fromXContent(connectorId, parser);
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
-        }
-    }
-
-    public static Connector fromXContent(String connectorId, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, connectorId);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
             builder.field(ID_FIELD.getPreferredName(), connectorId);
-            if (apiKeyId != null) {
-                builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
-            }
-            if (configuration != null) {
-                builder.field(CONFIGURATION_FIELD.getPreferredName(), configuration);
-            }
-            if (customScheduling != null) {
-                builder.field(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
-            }
-            if (description != null) {
-                builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
-            }
-            if (error != null) {
-                builder.field(ERROR_FIELD.getPreferredName(), error);
-            }
-            if (features != null) {
-                builder.field(FEATURES_FIELD.getPreferredName(), features);
-            }
-            if (indexName != null) {
-                builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
-            }
+            builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
+            builder.field(CONFIGURATION_FIELD.getPreferredName(), configuration);
+            builder.field(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
+            builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
+            builder.field(ERROR_FIELD.getPreferredName(), error);
+            builder.field(FEATURES_FIELD.getPreferredName(), features);
+            builder.field(FILTERING_FIELD.getPreferredName(), filtering);
+            builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
             builder.field(IS_NATIVE_FIELD.getPreferredName(), isNative);
-            if (language != null) {
-                builder.field(LANGUAGE_FIELD.getPreferredName(), language);
-            }
-            if (syncInfo != null) {
-                syncInfo.toXContent(builder, params);
-            }
-            if (name != null) {
-                builder.field(NAME_FIELD.getPreferredName(), name);
-            }
-            if (pipeline != null) {
-                builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);
-            }
-            if (scheduling != null) {
-                builder.field(SCHEDULING_FIELD.getPreferredName(), scheduling);
-            }
-            if (serviceType != null) {
-                builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
-            }
-            if (syncCursor != null) {
-                builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
-            }
-            if (status != null) {
-                builder.field(STATUS_FIELD.getPreferredName(), status.toString());
-            }
+            builder.field(LANGUAGE_FIELD.getPreferredName(), language);
+            syncInfo.toXContent(builder, params);
+            builder.field(NAME_FIELD.getPreferredName(), name);
+            builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);
+            builder.field(SCHEDULING_FIELD.getPreferredName(), scheduling);
+            builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
+            builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
+            builder.field(STATUS_FIELD.getPreferredName(), status.toString());
+            builder.field(SYNC_NOW_FIELD.getPreferredName(), syncNow);
         }
         builder.endObject();
         return builder;
@@ -319,6 +188,7 @@ public class Connector implements Writeable, ToXContentObject {
         out.writeOptionalString(description);
         out.writeOptionalString(error);
         out.writeOptionalWriteable(features);
+        out.writeOptionalCollection(filtering);
         out.writeOptionalString(indexName);
         out.writeBoolean(isNative);
         out.writeOptionalString(language);
@@ -327,12 +197,12 @@ public class Connector implements Writeable, ToXContentObject {
         out.writeOptionalWriteable(pipeline);
         out.writeOptionalWriteable(scheduling);
         out.writeOptionalString(serviceType);
-        out.writeString(status.name());
+        out.writeEnum(status);
         out.writeGenericValue(syncCursor);
         out.writeBoolean(syncNow);
     }
 
-    public String id() {
+    public String getConnectorId() {
         return connectorId;
     }
 
@@ -345,6 +215,7 @@ public class Connector implements Writeable, ToXContentObject {
         private String description;
         private String error;
         private ConnectorFeatures features;
+        private List<ConnectorFiltering> filtering;
         private String indexName;
         private Boolean isNative;
         private String language;
@@ -368,12 +239,12 @@ public class Connector implements Writeable, ToXContentObject {
         }
 
         public Builder setConfiguration(Map<String, Object> configuration) {
-            this.configuration = (configuration != null) ? configuration : Collections.emptyMap();
+            this.configuration = configuration;
             return this;
         }
 
         public Builder setCustomScheduling(ConnectorCustomSchedule customScheduling) {
-            this.customScheduling = (customScheduling != null) ? customScheduling : new ConnectorCustomSchedule.Builder().build();
+            this.customScheduling = customScheduling;
             return this;
         }
 
@@ -392,13 +263,18 @@ public class Connector implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setFiltering(List<ConnectorFiltering> filtering) {
+            this.filtering = filtering;
+            return this;
+        }
+
         public Builder setIndexName(String indexName) {
             this.indexName = indexName;
             return this;
         }
 
         public Builder setIsNative(Boolean isNative) {
-            this.isNative = (isNative != null) ? isNative : false;
+            this.isNative = isNative;
             return this;
         }
 
@@ -456,6 +332,7 @@ public class Connector implements Writeable, ToXContentObject {
                 description,
                 error,
                 features,
+                filtering,
                 indexName,
                 isNative,
                 language,

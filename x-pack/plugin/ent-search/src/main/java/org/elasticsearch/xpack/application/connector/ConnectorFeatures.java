@@ -97,30 +97,42 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.startObject("document_level_security");
-            {
-                builder.field("enabled", documentLevelSecurityEnabled);
+            if (documentLevelSecurityEnabled != null) {
+                builder.startObject("document_level_security");
+                {
+                    builder.field("enabled", documentLevelSecurityEnabled);
+                }
+                builder.endObject();
             }
-            builder.endObject();
-            builder.field("filtering_advanced_config", filteringAdvancedConfigEnabled);
-            builder.field("filtering_rules", filteringRulesEnabled);
-            builder.startObject("incremental_sync");
-            {
-                builder.field("enabled", incrementalSyncEnabled);
+            if (filteringAdvancedConfigEnabled != null) {
+                builder.field("filtering_advanced_config", filteringAdvancedConfigEnabled);
+            }
+            if (filteringRulesEnabled != null) {
+                builder.field("filtering_rules", filteringRulesEnabled);
+            }
+            if (incrementalSyncEnabled != null) {
+                builder.startObject("incremental_sync");
+                {
+                    builder.field("enabled", incrementalSyncEnabled);
+                }
             }
             builder.endObject();
             builder.startObject("sync_rules");
             {
-                builder.startObject("advanced");
-                {
-                    builder.field("enabled", syncRulesAdvancedEnabled);
+                if (syncRulesAdvancedEnabled != null) {
+                    builder.startObject("advanced");
+                    {
+                        builder.field("enabled", syncRulesAdvancedEnabled);
+                    }
+                    builder.endObject();
                 }
-                builder.endObject();
-                builder.startObject("basic");
-                {
-                    builder.field("enabled", syncRulesBasicEnabled);
+                if (syncRulesBasicEnabled != null) {
+                    builder.startObject("basic");
+                    {
+                        builder.field("enabled", syncRulesBasicEnabled);
+                    }
+                    builder.endObject();
                 }
-                builder.endObject();
             }
             builder.endObject();
         }

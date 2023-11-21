@@ -16,15 +16,6 @@ public enum ConnectorStatus {
     CONNECTED,
     ERROR;
 
-    public static ConnectorStatus connectorStatus(String status) {
-        for (ConnectorStatus connectorStatus : ConnectorStatus.values()) {
-            if (connectorStatus.name().equalsIgnoreCase(status)) {
-                return connectorStatus;
-            }
-        }
-        throw new IllegalArgumentException("Unknown ConnectorStatus: " + status);
-    }
-
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);

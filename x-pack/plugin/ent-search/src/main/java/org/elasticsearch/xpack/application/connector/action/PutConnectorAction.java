@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -16,15 +17,20 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.connector.Connector;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PutConnectorAction extends ActionType<PutConnectorAction.Response> {
 
@@ -37,24 +43,91 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
 
     public static class Request extends ActionRequest implements ToXContentObject {
 
-        private final Connector connector;
+        private final String connectorId;
+        private final String description;
+        private final String indexName;
+        private final Boolean isNative;
+        private final String language;
+        private final String name;
+        private final String serviceType;
 
-        public Request(Connector connector) {
-            this.connector = connector;
+        public Request(
+            String connectorId,
+            String description,
+            String indexName,
+            Boolean isNative,
+            String language,
+            String name,
+            String serviceType
+        ) {
+            this.connectorId = connectorId;
+            this.description = description;
+            this.indexName = indexName;
+            this.isNative = isNative;
+            this.language = language;
+            this.name = name;
+            this.serviceType = serviceType;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.connector = new Connector(in);
+            this.connectorId = in.readString();
+            this.description = in.readOptionalString();
+            this.indexName = in.readOptionalString();
+            this.isNative = in.readOptionalBoolean();
+            this.language = in.readOptionalString();
+            this.name = in.readOptionalString();
+            this.serviceType = in.readOptionalString();
         }
 
-        public Request(String connectorId, BytesReference content, XContentType contentType) {
-            this.connector = Connector.fromXContentBytes(connectorId, content, contentType);
+        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
+            "connector_put_request",
+            false,
+            ((args, connectorId) -> new Request(
+                connectorId,
+                (String) args[0],
+                (String) args[1],
+                (Boolean) args[2],
+                (String) args[3],
+                (String) args[4],
+                (String) args[5]
+            ))
+        );
+
+        static {
+            PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("index_name"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("is_native"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("language"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("name"));
+            PARSER.declareString(optionalConstructorArg(), new ParseField("service_type"));
+        }
+
+        public static Request fromXContentBytes(String connectorId, BytesReference source, XContentType xContentType) {
+            try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+                return Request.fromXContent(parser, connectorId);
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
+            }
+        }
+
+        public static Request fromXContent(XContentParser parser, String connectorId) throws IOException {
+            return PARSER.parse(parser, connectorId);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return connector.toXContent(builder, params);
+            builder.startObject();
+            {
+                builder.field("description", description);
+                builder.field("index_name", indexName);
+                builder.field("is_native", isNative);
+                builder.field("language", language);
+                builder.field("name", name);
+                builder.field("service_type", serviceType);
+            }
+            builder.endObject();
+            return builder;
         }
 
         @Override
@@ -62,17 +135,52 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
 
             ActionRequestValidationException validationException = null;
 
-            if (Strings.isNullOrEmpty(connector.id())) {
+            if (Strings.isNullOrEmpty(getConnectorId())) {
                 validationException = addValidationError("connector_id cannot be null or empty", validationException);
             }
 
             return validationException;
         }
 
-        public Connector connector() {
-            return connector;
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(connectorId);
+            out.writeOptionalString(description);
+            out.writeOptionalString(indexName);
+            out.writeOptionalBoolean(isNative);
+            out.writeOptionalString(language);
+            out.writeOptionalString(name);
+            out.writeOptionalString(serviceType);
         }
 
+        public String getConnectorId() {
+            return connectorId;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public String getIndexName() {
+            return indexName;
+        }
+
+        public Boolean getIsNative() {
+            return isNative;
+        }
+
+        public String getLanguage() {
+            return language;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getServiceType() {
+            return serviceType;
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

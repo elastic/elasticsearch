@@ -18,15 +18,6 @@ public enum ConnectorSyncStatus {
     PENDING,
     SUSPENDED;
 
-    public static ConnectorSyncStatus connectorSyncStatus(String status) {
-        for (ConnectorSyncStatus syncStatus : ConnectorSyncStatus.values()) {
-            if (syncStatus.name().equalsIgnoreCase(status)) {
-                return syncStatus;
-            }
-        }
-        throw new IllegalArgumentException("Unknown SyncStatus: " + status);
-    }
-
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);

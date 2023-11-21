@@ -29,7 +29,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
 
     private final Map<String, ConfigurationOverride> configurationOverrides;
-    private final boolean enabled;
+    private final Boolean enabled;
     private final String interval;
     @Nullable
     private final String lastSynced;
@@ -37,7 +37,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
 
     private ConnectorCustomSchedule(
         Map<String, ConfigurationOverride> configurationOverrides,
-        boolean enabled,
+        Boolean enabled,
         String interval,
         String lastSynced,
         String name
@@ -69,7 +69,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         "connector_custom_schedule",
         true,
         args -> new Builder().setConfigurationOverrides((Map<String, ConfigurationOverride>) args[0])
-            .setEnabled((boolean) args[1])
+            .setEnabled((Boolean) args[1])
             .setInterval((String) args[2])
             .setLastSynced((String) args[3])
             .setName((String) args[4])
@@ -96,15 +96,21 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(CONFIG_OVERRIDES_FIELD.getPreferredName(), configurationOverrides);
-        builder.field(ENABLED_FIELD.getPreferredName(), enabled);
-        builder.field(INTERVAL_FIELD.getPreferredName(), interval);
-
+        if (configurationOverrides != null) {
+            builder.field(CONFIG_OVERRIDES_FIELD.getPreferredName(), configurationOverrides);
+        }
+        if (enabled != null) {
+            builder.field(ENABLED_FIELD.getPreferredName(), enabled);
+        }
+        if (interval != null) {
+            builder.field(INTERVAL_FIELD.getPreferredName(), interval);
+        }
         if (lastSynced != null) {
             builder.field(LAST_SYNCED_FIELD.getPreferredName(), lastSynced);
         }
-
-        builder.field(NAME_FIELD.getPreferredName(), name);
+        if (name != null) {
+            builder.field(NAME_FIELD.getPreferredName(), name);
+        }
         builder.endObject();
         return builder;
     }
@@ -121,7 +127,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
     public static class Builder {
 
         private Map<String, ConfigurationOverride> configurationOverrides;
-        private boolean enabled;
+        private Boolean enabled;
         private String interval;
         private String lastSynced;
         private String name;
@@ -131,7 +137,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setEnabled(boolean enabled) {
+        public Builder setEnabled(Boolean enabled) {
             this.enabled = enabled;
             return this;
         }

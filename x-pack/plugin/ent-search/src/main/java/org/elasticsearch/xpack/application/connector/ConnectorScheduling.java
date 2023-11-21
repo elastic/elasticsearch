@@ -198,4 +198,13 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
             }
         }
     }
+
+    public static ConnectorScheduling getDefaultConnectorScheduling() {
+        return new ConnectorScheduling.Builder().setAccessControl(
+            new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval("0 0 0 * * ?").build()
+        )
+            .setFull(new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval("0 0 0 * * ?").build())
+            .setIncremental(new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval("0 0 0 * * ?").build())
+            .build();
+    }
 }

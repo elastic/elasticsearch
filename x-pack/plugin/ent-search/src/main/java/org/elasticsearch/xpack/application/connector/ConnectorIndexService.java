@@ -13,33 +13,33 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.xcontent.ToXContent;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
 public class ConnectorIndexService {
 
     private final Client client;
 
+    private final Client clientWithOrigin;
+
     public static final String CONNECTOR_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
 
     public ConnectorIndexService(Client client) {
         this.client = client;
-    }
-
-    private void validateConnector(Connector connector) {
-        // todo: index service level validations
+        this.clientWithOrigin = new OriginSettingClient(client, CONNECTORS_ORIGIN);
     }
 
     public void putConnector(Connector connector, ActionListener<DocWriteResponse> listener) {
         try {
-            validateConnector(connector);
             final IndexRequest indexRequest = new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
-                .id(connector.id())
+                .id(connector.getConnectorId())
                 .opType(DocWriteRequest.OpType.INDEX)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
-            client.index(indexRequest, listener);
+            clientWithOrigin.index(indexRequest, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }

@@ -17,7 +17,14 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorCustomSchedule;
+import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
+import org.elasticsearch.xpack.application.connector.ConnectorScheduling;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 public class TransportPutConnectorAction extends HandledTransportAction<PutConnectorAction.Request, PutConnectorAction.Response> {
 
@@ -42,7 +49,19 @@ public class TransportPutConnectorAction extends HandledTransportAction<PutConne
 
     @Override
     protected void doExecute(Task task, PutConnectorAction.Request request, ActionListener<PutConnectorAction.Response> listener) {
-        Connector connector = request.connector();
+        Connector connector = new Connector.Builder().setConnectorId(request.getConnectorId())
+            .setDescription(request.getDescription())
+            .setIndexName(request.getIndexName())
+            .setIsNative(request.getIsNative())
+            .setLanguage(request.getLanguage())
+            .setName(Objects.requireNonNullElse(request.getName(), ""))
+            .setServiceType(request.getServiceType())
+            // Default values
+            .setConfiguration(Collections.emptyMap())
+            .setCustomScheduling(new ConnectorCustomSchedule.Builder().build())
+            .setScheduling(ConnectorScheduling.getDefaultConnectorScheduling())
+            .setFiltering(List.of(ConnectorFiltering.getDefaultConnectorFilteringConfig()))
+            .build();
         connectorIndexService.putConnector(connector, listener.map(r -> new PutConnectorAction.Response(r.getResult())));
     }
 }

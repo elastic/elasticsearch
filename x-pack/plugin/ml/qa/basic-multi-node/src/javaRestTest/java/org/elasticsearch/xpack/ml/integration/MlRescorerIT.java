@@ -237,11 +237,12 @@ public class MlRescorerIT extends ESRestTestCase {
 
         searchResponse = searchDfs("""
             {
-            "rescore": {
-                "window_size": 10,
-                "learn_to_rank": {
-                    "model_id": "basic-ltr-model",
-                    "params": { "keyword": "TV" }
+                "rescore": {
+                    "window_size": 10,
+                    "learn_to_rank": {
+                        "model_id": "basic-ltr-model",
+                        "params": { "keyword": "TV" }
+                    }
                 }
             }""");
 

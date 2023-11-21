@@ -166,8 +166,8 @@ public class PointInTimeIT extends ESIntegTestCase {
 
         {
 
-                OpenPointInTimeRequest request = new OpenPointInTimeRequest("*").keepAlive(TimeValue.timeValueMinutes(2));
-                final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+            OpenPointInTimeRequest request = new OpenPointInTimeRequest("*").keepAlive(TimeValue.timeValueMinutes(2));
+            final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
             try {
                 SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), response.getPointInTimeId());
                 String[] actualIndices = searchContextId.getActualIndices();

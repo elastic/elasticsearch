@@ -84,6 +84,13 @@ public class TransportGetTopNFunctionsAction extends HandledTransportAction<GetS
                 String executable = response.getExecutables().getOrDefault(fileId, "");
 
                 for (Frame frame : stackFrame.frames()) {
+                    // The samples associated with a frame provide the total number of
+                    // traces in which that frame has appeared at least once. However, a
+                    // frame may appear multiple times in a trace, and thus to avoid
+                    // counting it multiple times we need to record the frames seen so
+                    // far in each trace. Instead of using the entire frame information
+                    // to determine if a frame has already been seen within a given
+                    // stacktrace, we use the frame group ID for a frame.
                     String frameGroupId = FrameGroupID.create(fileId, addressOrLine, executable, frame.fileName(), frame.functionName());
                     if (builder.setCurrentTopNFunction(frameGroupId) == false) {
                         builder.addTopNFunction(
@@ -107,6 +114,7 @@ public class TransportGetTopNFunctionsAction extends HandledTransportAction<GetS
                         builder.addToCurrentInclusiveCount(samples);
                     }
                     if (i == frameCount - 1) {
+                        // Leaf frame: sum up counts for exclusive CPU.
                         builder.addToCurrentExclusiveCount(samples);
                     }
                 }

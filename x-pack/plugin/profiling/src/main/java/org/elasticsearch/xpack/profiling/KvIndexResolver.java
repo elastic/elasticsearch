@@ -98,13 +98,14 @@ public class KvIndexResolver {
         }
 
         if (log.isDebugEnabled()) {
+            log.debug("start " + eventStart);
             log.debug(
                 "Resolved index pattern ["
                     + indexPattern
                     + "] in time range ["
-                    + eventStart.toEpochMilli()
+                    + eventStart
                     + ", "
-                    + eventEnd.toEpochMilli()
+                    + eventEnd
                     + "] to indices ["
                     + matchingIndices.stream().map(Index::getName).collect(Collectors.joining(", "))
                     + "]."

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -53,6 +54,7 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
 public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContent, Releasable {
+    public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
     private final List<ColumnInfo> columns;
     private final List<Page> pages;
@@ -120,32 +122,39 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params unused) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+        boolean[] keepColumns = new boolean[columns.size()];
+        if (dropNullColumns) {
+            for (int c = 0; c < keepColumns.length; c++) {
+                keepColumns[c] = allColumnsAreNull(c) == false;
+                System.err.println(c + " "  + keepColumns[c]);
+            }
+        } else {
+            Arrays.fill(keepColumns, true);
+        }
         final BytesRef scratch = new BytesRef();
         final Iterator<? extends ToXContent> valuesIt;
         if (pages.isEmpty()) {
             valuesIt = Collections.emptyIterator();
         } else if (columnar) {
-            valuesIt = Iterators.flatMap(
-                Iterators.forRange(
-                    0,
-                    columns().size(),
-                    column -> Iterators.concat(
-                        Iterators.single(((builder, params) -> builder.startArray())),
-                        Iterators.flatMap(pages.iterator(), page -> {
-                            ColumnInfo.PositionToXContent toXContent = columns.get(column)
-                                .positionToXContent(page.getBlock(column), scratch);
-                            return Iterators.forRange(
-                                0,
-                                page.getPositionCount(),
-                                position -> (builder, params) -> toXContent.positionToXContent(builder, params, position)
-                            );
-                        }),
-                        ChunkedToXContentHelper.endArray()
-                    )
-                ),
-                Function.identity()
-            );
+            valuesIt = Iterators.flatMap(Iterators.forRange(0, columns().size(), column -> {
+                if (keepColumns[column] == false) {
+                    return Collections.emptyIterator();
+                }
+                return Iterators.concat(
+                    Iterators.single(((builder, p) -> builder.startArray())),
+                    Iterators.flatMap(pages.iterator(), page -> {
+                        ColumnInfo.PositionToXContent toXContent = columns.get(column).positionToXContent(page.getBlock(column), scratch);
+                        return Iterators.forRange(
+                            0,
+                            page.getPositionCount(),
+                            position -> (builder, p) -> toXContent.positionToXContent(builder, p, position)
+                        );
+                    }),
+                    ChunkedToXContentHelper.endArray()
+                );
+            }), Function.identity());
         } else {
             valuesIt = Iterators.flatMap(pages.iterator(), page -> {
                 final int columnCount = columns.size();
@@ -154,22 +163,36 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                 for (int column = 0; column < columnCount; column++) {
                     toXContents[column] = columns.get(column).positionToXContent(page.getBlock(column), scratch);
                 }
-                return Iterators.forRange(0, page.getPositionCount(), position -> (builder, params) -> {
+                return Iterators.forRange(0, page.getPositionCount(), position -> (builder, p) -> {
                     builder.startArray();
                     for (int c = 0; c < columnCount; c++) {
-                        toXContents[c].positionToXContent(builder, params, position);
+                        if (keepColumns[c]) {
+                            toXContents[c].positionToXContent(builder, p, position);
+                        }
                     }
                     return builder.endArray();
                 });
             });
         }
-        return Iterators.concat(ChunkedToXContentHelper.startObject(), ChunkedToXContentHelper.singleChunk((builder, params) -> {
+        return Iterators.concat(ChunkedToXContentHelper.startObject(), ChunkedToXContentHelper.singleChunk((builder, p) -> {
             builder.startArray("columns");
-            for (ColumnInfo col : columns) {
-                col.toXContent(builder, params);
+            for (int c = 0; c < columns.size(); c++) {
+                if (keepColumns[c]) {
+                    ColumnInfo col = columns.get(c);
+                    col.toXContent(builder, p);
+                }
             }
             return builder.endArray();
         }), ChunkedToXContentHelper.array("values", valuesIt), ChunkedToXContentHelper.endObject());
+    }
+
+    private boolean allColumnsAreNull(int c) {
+        for (Page page : pages) {
+            if (page.getBlock(c).areAllValuesNull() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

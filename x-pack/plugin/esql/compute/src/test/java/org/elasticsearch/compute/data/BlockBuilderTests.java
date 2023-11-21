@@ -46,11 +46,11 @@ public class BlockBuilderTests extends ESTestCase {
     }
 
     public void testAllNulls() {
-        for (int numEntries : List.of(1, randomIntBetween(1, 100))) {
+        for (int numEntries : List.of(1, between(1, 100), between(101, 1000))) {
             testAllNullsImpl(elementType.newBlockBuilder(0, blockFactory), numEntries);
-            testAllNullsImpl(elementType.newBlockBuilder(100, blockFactory), numEntries);
-            testAllNullsImpl(elementType.newBlockBuilder(1000, blockFactory), numEntries);
-            testAllNullsImpl(elementType.newBlockBuilder(randomIntBetween(0, 100), blockFactory), numEntries);
+            testAllNullsImpl(elementType.newBlockBuilder(numEntries, blockFactory), numEntries);
+            testAllNullsImpl(elementType.newBlockBuilder(numEntries * 10, blockFactory), numEntries);
+            testAllNullsImpl(elementType.newBlockBuilder(between(0, numEntries), blockFactory), numEntries);
         }
     }
 
@@ -60,15 +60,12 @@ public class BlockBuilderTests extends ESTestCase {
         }
         try (Block block = builder.build()) {
             assertThat(block.getPositionCount(), is(numEntries));
-            assertThat(block.isNull(0), is(true));
-            assertThat(block.isNull(numEntries - 1), is(true));
-            assertThat(block.isNull(randomPosition(numEntries)), is(true));
+            for (int p = 0; p < numEntries; p++) {
+                assertThat(block.isNull(p), is(true));
+            }
+            assertThat(block.areAllValuesNull(), is(true));
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
-    }
-
-    static int randomPosition(int positionCount) {
-        return positionCount == 1 ? 0 : randomIntBetween(0, positionCount - 1);
     }
 
     public void testCloseWithoutBuilding() {

@@ -209,6 +209,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100653")
     public void testDownsampleIndexWithRollingRestart() throws Exception {
         try (InternalTestCluster cluster = internalCluster()) {
             final List<String> masterNodes = cluster.startMasterOnlyNodes(1);

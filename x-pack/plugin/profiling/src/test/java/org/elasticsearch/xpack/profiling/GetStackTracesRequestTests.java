@@ -31,9 +31,10 @@ public class GetStackTracesRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         Integer sampleSize = randomBoolean() ? randomIntBetween(0, Integer.MAX_VALUE) : null;
         Double requestedDuration = randomBoolean() ? randomDoubleBetween(0.001, Double.MAX_VALUE, true) : null;
+        Double customCostFactor = randomBoolean() ? randomDoubleBetween(0.1, 5.0, true) : null;
         QueryBuilder query = randomBoolean() ? new BoolQueryBuilder() : null;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(sampleSize, requestedDuration, query, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(sampleSize, requestedDuration, customCostFactor, query, null, null);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
             try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
@@ -124,21 +125,21 @@ public class GetStackTracesRequestTests extends ESTestCase {
     }
 
     public void testValidateWrongSampleSize() {
-        GetStackTracesRequest request = new GetStackTracesRequest(randomIntBetween(Integer.MIN_VALUE, 0), 1.0d, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(randomIntBetween(Integer.MIN_VALUE, 0), 1.0d, 1.0d, null, null, null);
         List<String> validationErrors = request.validate().validationErrors();
         assertEquals(1, validationErrors.size());
         assertTrue(validationErrors.get(0).contains("[sample_size] must be greater or equals than 1"));
     }
 
     public void testValidateStacktraceWithoutIndices() {
-        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, null, null, randomAlphaOfLength(3));
+        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, 1.0d, null, null, randomAlphaOfLength(3));
         List<String> validationErrors = request.validate().validationErrors();
         assertEquals(1, validationErrors.size());
         assertEquals("[stacktrace_ids] must not be set", validationErrors.get(0));
     }
 
     public void testValidateIndicesWithoutStacktraces() {
-        GetStackTracesRequest request = new GetStackTracesRequest(null, 1.0d, null, randomAlphaOfLength(5), randomFrom("", null));
+        GetStackTracesRequest request = new GetStackTracesRequest(null, 1.0d, 1.0d, null, randomAlphaOfLength(5), randomFrom("", null));
         List<String> validationErrors = request.validate().validationErrors();
         assertEquals(1, validationErrors.size());
         assertEquals("[stacktrace_ids] is mandatory", validationErrors.get(0));
@@ -146,7 +147,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
 
     public void testConsidersCustomIndicesInRelatedIndices() {
         String customIndex = randomAlphaOfLength(5);
-        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, null, customIndex, randomAlphaOfLength(3));
+        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, 1.0d, null, customIndex, randomAlphaOfLength(3));
         String[] indices = request.indices();
         assertEquals(4, indices.length);
         assertTrue("custom index not contained in indices list", Set.of(indices).contains(customIndex));
@@ -154,7 +155,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
 
     public void testConsidersDefaultIndicesInRelatedIndices() {
         String customIndex = randomAlphaOfLength(5);
-        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, 1.0d, null, null, null);
         String[] indices = request.indices();
         assertEquals(15, indices.length);
     }

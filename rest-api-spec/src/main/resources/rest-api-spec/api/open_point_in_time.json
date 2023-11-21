@@ -58,7 +58,7 @@
       }
     },
     "body":{
-      "description":"An index filter specified with the Query DSL"
+      "description":"An index_filter specified with the Query DSL"
     }
   }
 }

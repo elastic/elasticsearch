@@ -50,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -186,14 +187,15 @@ public class PointInTimeIT extends ESIntegTestCase {
                 String[] actualIndices = searchContextId.getActualIndices();
                 assertEquals(1, actualIndices.length);
                 assertEquals("index-3", actualIndices[0]);
-                SearchResponse resp = prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(50).get();
-                assertNoFailures(resp);
-                assertHitCount(resp, numDocs);
-                assertNotNull(resp.pointInTimeId());
-                assertThat(resp.pointInTimeId(), equalTo(pitId));
-                for (SearchHit hit : resp.getHits()) {
-                    assertEquals("index-3", hit.getIndex());
-                }
+                assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(50), resp -> {
+                    assertNoFailures(resp);
+                    assertHitCount(resp, numDocs);
+                    assertNotNull(resp.pointInTimeId());
+                    assertThat(resp.pointInTimeId(), equalTo(pitId));
+                    for (SearchHit hit : resp.getHits()) {
+                        assertEquals("index-3", hit.getIndex());
+                    }
+                });
             } finally {
                 closePointInTime(pitId);
             }

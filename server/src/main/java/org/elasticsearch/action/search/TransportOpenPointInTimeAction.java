@@ -51,7 +51,7 @@ import java.util.function.BiFunction;
 
 public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenPointInTimeRequest, OpenPointInTimeResponse> {
 
-    private static final Logger logger = LogManager.getLogger(TransportSearchAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportOpenPointInTimeAction.class);
 
     public static final String OPEN_SHARD_READER_CONTEXT_NAME = "indices:data/read/open_reader_context";
 

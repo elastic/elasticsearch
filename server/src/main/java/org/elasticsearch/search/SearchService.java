@@ -714,7 +714,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             executor.success();
         }
         // This will incRef the QuerySearchResult when it gets created
-        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
+        return QueryFetchSearchResult.of(context.queryResult(), context.fetchResult());
     }
 
     public void executeQueryPhase(
@@ -865,7 +865,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                     executor.success();
                 }
-                return searchContext.fetchResult();
+                var fetchResult = searchContext.fetchResult();
+                fetchResult.incRef();
+                return fetchResult;
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 // we handle the failure in the failure listener below
@@ -1579,14 +1581,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
         return indicesService.buildAliasFilter(state, index, resolvedExpressions);
-    }
-
-    public void canMatch(ShardSearchRequest request, ActionListener<CanMatchShardResponse> listener) {
-        try {
-            listener.onResponse(canMatch(request));
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
     }
 
     public void canMatch(CanMatchNodeRequest request, ActionListener<CanMatchNodeResponse> listener) {

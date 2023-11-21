@@ -197,3 +197,12 @@ is_infinite              |? is_infinite(arg1:?)                                 
 is_nan                   |? is_nan(arg1:?)                                        |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
 // end::showFunctionsFiltered-result[]
 ;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102120
+countFunctions#[skip:-8.11.99]
+show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
+
+a:long | b:long | c:long
+82     | 82     | 82
+;

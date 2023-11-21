@@ -585,16 +585,20 @@ public class LocalExecutionPlanner {
                 inputId = ne.id();
             }
             Layout.ChannelAndType input = source.layout.get(inputId);
-            Layout.ChannelSet channelSet = inputChannelToOutputIds.computeIfAbsent(
-                input.channel(),
-                ignore -> new Layout.ChannelSet(new HashSet<>(), input.type())
-            );
+            Layout.ChannelSet channelSet = inputChannelToOutputIds.get(input.channel());
+            boolean newSet = false;
+            if (channelSet == null) {
+                channelSet = new Layout.ChannelSet(new HashSet<>(), input.type());
+                newSet = true;// I cannot add an empty set, I'll do it later
+            }
             if (channelSet.type() != input.type()) {
                 throw new IllegalArgumentException("type mismatch for aliases");
             }
             channelSet.nameIds().add(ne.id());
 
-            layout.append(channelSet);
+            if (newSet) {
+                layout.append(channelSet);
+            }
             projectionList.add(input.channel());
         }
 

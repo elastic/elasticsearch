@@ -53,7 +53,6 @@ public class TransportGetTopNFunctionsAction extends HandledTransportAction<GetS
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), task);
         StopWatch watch = new StopWatch("getTopNFunctionsAction");
         client.execute(GetStackTracesAction.INSTANCE, request, ActionListener.wrap(searchResponse -> {
-            long responseStart = System.nanoTime();
             StopWatch processingWatch = new StopWatch("Processing response");
             GetTopNFunctionsResponse topNFunctionsResponse = buildTopNFunctions(searchResponse);
             log.debug(() -> watch.report() + " " + processingWatch.report());

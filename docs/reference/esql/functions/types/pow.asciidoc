@@ -4,7 +4,7 @@ base | exponent | result
 double | double | double
 double | integer | double
 integer | double | double
-integer | integer | integer
+integer | integer | double
 long | double | double
-long | integer | long
+long | integer | double
 |===

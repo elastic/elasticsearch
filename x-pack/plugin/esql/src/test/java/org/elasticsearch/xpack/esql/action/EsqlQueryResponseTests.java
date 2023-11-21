@@ -11,6 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,6 +33,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -40,6 +42,8 @@ import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -112,6 +116,20 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 );
                 case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
                 case "null" -> builder.appendNull();
+                case "_source" -> {
+                    try {
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(
+                            BytesReference.bytes(
+                                JsonXContent.contentBuilder()
+                                    .startObject()
+                                    .field(randomAlphaOfLength(3), randomAlphaOfLength(10))
+                                    .endObject()
+                            ).toBytesRef()
+                        );
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
                 default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
             return builder.build();

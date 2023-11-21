@@ -22,8 +22,13 @@ import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -104,19 +109,19 @@ public class MultivalueDedupeTests extends ESTestCase {
     public void testDedupeAdaptive() {
         BlockFactory blockFactory = blockFactory();
         BasicBlockTests.RandomBlock b = randomBlock();
-        assertDeduped(blockFactory, b, MultivalueDedupe.dedupeToBlockAdaptive(Block.Ref.floating(b.block()), blockFactory));
+        assertDeduped(blockFactory, b, MultivalueDedupe.dedupeToBlockAdaptive(b.block(), blockFactory));
     }
 
     public void testDedupeViaCopyAndSort() {
         BlockFactory blockFactory = blockFactory();
         BasicBlockTests.RandomBlock b = randomBlock();
-        assertDeduped(blockFactory, b, MultivalueDedupe.dedupeToBlockUsingCopyAndSort(Block.Ref.floating(b.block()), blockFactory));
+        assertDeduped(blockFactory, b, MultivalueDedupe.dedupeToBlockUsingCopyAndSort(b.block(), blockFactory));
     }
 
     public void testDedupeViaCopyMissing() {
         BlockFactory blockFactory = blockFactory();
         BasicBlockTests.RandomBlock b = randomBlock();
-        assertDeduped(blockFactory, b, MultivalueDedupe.dedupeToBlockUsingCopyMissing(Block.Ref.floating(b.block()), blockFactory));
+        assertDeduped(blockFactory, b, MultivalueDedupe.dedupeToBlockUsingCopyMissing(b.block(), blockFactory));
     }
 
     private BasicBlockTests.RandomBlock randomBlock() {
@@ -131,18 +136,20 @@ public class MultivalueDedupeTests extends ESTestCase {
         );
     }
 
-    private void assertDeduped(BlockFactory blockFactory, BasicBlockTests.RandomBlock b, Block.Ref deduped) {
-        try (Block dedupedBlock = deduped.block()) {
-            if (dedupedBlock != b.block()) {
-                assertThat(dedupedBlock.blockFactory(), sameInstance(blockFactory));
+    private void assertDeduped(BlockFactory blockFactory, BasicBlockTests.RandomBlock b, Block deduped) {
+        try {
+            if (deduped != b.block()) {
+                assertThat(deduped.blockFactory(), sameInstance(blockFactory));
             }
             for (int p = 0; p < b.block().getPositionCount(); p++) {
                 List<Object> v = b.values().get(p);
                 Matcher<? extends Object> matcher = v == null
                     ? nullValue()
                     : containsInAnyOrder(v.stream().collect(Collectors.toSet()).stream().sorted().toArray());
-                BlockTestUtils.assertPositionValues(dedupedBlock, p, matcher);
+                BlockTestUtils.assertPositionValues(deduped, p, matcher);
             }
+        } finally {
+            Releasables.closeExpectNoException(deduped);
         }
     }
 
@@ -263,7 +270,7 @@ public class MultivalueDedupeTests extends ESTestCase {
         if (previousValues.contains(true)) {
             everSeen[2] = true;
         }
-        IntBlock hashes = new MultivalueDedupeBoolean(Block.Ref.floating(b.block())).hash(everSeen);
+        IntBlock hashes = new MultivalueDedupeBoolean((BooleanBlock) b.block()).hash(everSeen);
         List<Boolean> hashedValues = new ArrayList<>();
         if (everSeen[1]) {
             hashedValues.add(false);
@@ -277,7 +284,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     private void assertBytesRefHash(Set<BytesRef> previousValues, BasicBlockTests.RandomBlock b) {
         BytesRefHash hash = new BytesRefHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeBytesRef(Block.Ref.floating(b.block())).hash(hash);
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hash(hash);
         assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
         assertHash(b, hashes.ords(), hash.size(), previousValues, i -> hash.get(i, new BytesRef()));
     }
@@ -285,7 +292,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     private void assertIntHash(Set<Integer> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt(Block.Ref.floating(b.block())).hash(hash);
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hash(hash);
         assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
         assertHash(b, hashes.ords(), hash.size(), previousValues, i -> (int) hash.get(i));
     }
@@ -293,7 +300,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     private void assertLongHash(Set<Long> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong(Block.Ref.floating(b.block())).hash(hash);
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hash(hash);
         assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
         assertHash(b, hashes.ords(), hash.size(), previousValues, i -> hash.get(i));
     }
@@ -301,7 +308,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     private void assertDoubleHash(Set<Double> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(d -> hash.add(Double.doubleToLongBits(d)));
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeDouble(Block.Ref.floating(b.block())).hash(hash);
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeDouble((DoubleBlock) b.block()).hash(hash);
         assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
         assertHash(b, hashes.ords(), hash.size(), previousValues, i -> Double.longBitsToDouble(hash.get(i)));
     }

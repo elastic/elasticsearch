@@ -183,10 +183,9 @@ public class TestClustersPlugin implements Plugin<Project> {
         @Inject
         public abstract BuildEventsListenerRegistry getEventsListenerRegistry();
 
+        @SuppressWarnings("checkstyle:RedundantModifier")
         @Inject
-        public TestClustersHookPlugin() {
-
-        }
+        public TestClustersHookPlugin() {}
 
         public void apply(Project project) {
             if (project != project.getRootProject()) {
@@ -202,7 +201,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                 .registerIfAbsent(TEST_CLUSTER_TASKS_SERVICE, TaskEventsService.class, spec -> {});
 
             TestClustersRegistry registry = registryProvider.get();
-
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
             // that are defined in the build script and the ones that will actually be used in this invocation of gradle
             // we use this information to determine when the last task that required the cluster executed so that we can
@@ -260,7 +258,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         }
 
         public void registry(TestClustersRegistry registry) {
-            registryProvider = registry;
+            this.registryProvider = registry;
         }
 
         @Override

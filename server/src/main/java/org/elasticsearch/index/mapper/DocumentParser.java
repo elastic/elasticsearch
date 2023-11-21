@@ -87,7 +87,7 @@ public final class DocumentParser {
             : DocumentParsingObserver.EMPTY_INSTANCE;
         try (
             XContentParser parser = documentParsingObserver.wrapParser(
-                XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
+                XContentHelper.createParser(parserConfiguration, source.source(), xContentType) // here we grab it
             )
         ) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
@@ -116,7 +116,7 @@ public final class DocumentParser {
             context.id(),
             source.routing(),
             context.reorderParentAndGetDocs(),
-            context.sourceToParse().source(),
+            context.sourceToParse().source(), // pass it along
             context.sourceToParse().getXContentType(),
             dynamicUpdate
         ) {

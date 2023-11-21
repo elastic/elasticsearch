@@ -8,17 +8,18 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 import java.util.Objects;
 
-public class SourceToParse {
+public class SourceToParse implements Releasable {
 
-    private final BytesReference source;
+    private final ReleasableBytesReference source;
 
     private final String id;
 
@@ -40,7 +41,12 @@ public class SourceToParse {
         this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
-        this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
+        Objects.requireNonNull(source);
+        if (source instanceof ReleasableBytesReference releasableSource) {
+            this.source = releasableSource.retain();
+        } else {
+            this.source = ReleasableBytesReference.wrap(source);
+        }
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
@@ -48,6 +54,10 @@ public class SourceToParse {
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
+        this(id, ReleasableBytesReference.wrap(source), xContentType);
+    }
+
+    public SourceToParse(String id, ReleasableBytesReference source, XContentType xContentType) {
         this(id, source, xContentType, null, Map.of(), false);
     }
 
@@ -55,7 +65,7 @@ public class SourceToParse {
         return toBeReported;
     }
 
-    public BytesReference source() {
+    public ReleasableBytesReference source() {
         return this.source;
     }
 
@@ -87,5 +97,10 @@ public class SourceToParse {
 
     public XContentType getXContentType() {
         return this.xContentType;
+    }
+
+    @Override
+    public void close() {
+        this.source.decRef();
     }
 }

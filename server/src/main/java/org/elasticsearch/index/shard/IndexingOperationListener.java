@@ -83,6 +83,7 @@ public interface IndexingOperationListener {
                     logger.warn(() -> "preIndex listener [" + listener + "] failed", e);
                 }
             }
+            // operation.incRef
             return operation;
         }
 

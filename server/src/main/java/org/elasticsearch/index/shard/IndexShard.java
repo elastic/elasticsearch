@@ -973,7 +973,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
-                return new Engine.IndexResult(update, operation.parsedDoc().id());
+                String id = operation.parsedDoc().id();
+                operation.close();
+                return new Engine.IndexResult(update, id); // TODO come back to this
             }
         } catch (Exception e) {
             // We treat any exception during parsing and or mapping update as a document level failure
@@ -983,7 +985,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             verifyNotClosed(e);
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo, sourceToParse.id());
         }
-
+        operation.close();
         return index(engine, operation);
     }
 
@@ -1086,6 +1088,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 throw e;
             }
             indexingOperationListeners.postIndex(shardId, preIndex, result);
+            // preIndex.close();
             return result;
         } finally {
             active.set(true);

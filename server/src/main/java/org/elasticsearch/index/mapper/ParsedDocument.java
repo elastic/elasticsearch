@@ -13,6 +13,8 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -22,7 +24,7 @@ import java.util.List;
 /**
  * The result of parsing a document.
  */
-public class ParsedDocument {
+public class ParsedDocument implements Releasable {
 
     private final Field version;
 
@@ -33,7 +35,7 @@ public class ParsedDocument {
 
     private final List<LuceneDocument> documents;
 
-    private BytesReference source;
+    private ReleasableBytesReference source;
     private XContentType xContentType;
 
     private Mapping dynamicMappingsUpdate;
@@ -57,7 +59,7 @@ public class ParsedDocument {
             "",
             null,
             Collections.singletonList(document),
-            new BytesArray("{}"),
+            ReleasableBytesReference.wrap(new BytesArray("{}")),
             XContentType.JSON,
             null
         );
@@ -81,7 +83,7 @@ public class ParsedDocument {
             id,
             null,
             Collections.singletonList(document),
-            new BytesArray("{}"),
+            ReleasableBytesReference.wrap(new BytesArray("{}")),
             XContentType.JSON,
             null
         );
@@ -97,6 +99,20 @@ public class ParsedDocument {
         XContentType xContentType,
         Mapping dynamicMappingsUpdate
     ) {
+        this(version, seqID, id, routing, documents, ReleasableBytesReference.wrap(source), xContentType, dynamicMappingsUpdate);
+    }
+
+    public ParsedDocument(
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        String id,
+        String routing,
+        List<LuceneDocument> documents,
+        ReleasableBytesReference source,
+        XContentType xContentType,
+        Mapping dynamicMappingsUpdate
+    ) {
+        source.incRef();
         this.version = version;
         this.seqID = seqID;
         this.id = id;
@@ -143,7 +159,7 @@ public class ParsedDocument {
         return this.xContentType;
     }
 
-    public void setSource(BytesReference source, XContentType xContentType) {
+    public void setSource(ReleasableBytesReference source, XContentType xContentType) {
         this.source = source;
         this.xContentType = xContentType;
     }
@@ -171,5 +187,10 @@ public class ParsedDocument {
 
     public String documentDescription() {
         return "id";
+    }
+
+    @Override
+    public void close() {
+        source.decRef();
     }
 }

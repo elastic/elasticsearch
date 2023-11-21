@@ -59,6 +59,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -417,7 +418,31 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             document.add(new StoredField(SourceFieldMapper.NAME, ref.bytes, ref.offset, ref.length));
         }
-        return new ParsedDocument(versionField, seqID, id, routing, Arrays.asList(document), source, XContentType.JSON, mappingUpdate);
+        final ParsedDocument parsedDocument;
+        if (source instanceof ReleasableBytesReference releasableSource) {
+            parsedDocument = new ParsedDocument(
+                versionField,
+                seqID,
+                id,
+                routing,
+                Arrays.asList(document),
+                releasableSource,
+                XContentType.JSON,
+                mappingUpdate
+            );
+        } else {
+            parsedDocument = new ParsedDocument(
+                versionField,
+                seqID,
+                id,
+                routing,
+                Arrays.asList(document),
+                source,
+                XContentType.JSON,
+                mappingUpdate
+            );
+        }
+        return parsedDocument;
     }
 
     public static CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
@@ -449,7 +474,9 @@ public abstract class EngineTestCase extends ESTestCase {
                 source.endObject();
             }
             source.endObject();
-            return nestedMapper.parse(new SourceToParse(docId, BytesReference.bytes(source), XContentType.JSON));
+            return nestedMapper.parse(
+                new SourceToParse(docId, ReleasableBytesReference.wrap(BytesReference.bytes(source)), XContentType.JSON)
+            );
         };
     }
 

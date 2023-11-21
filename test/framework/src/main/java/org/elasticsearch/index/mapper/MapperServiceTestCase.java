@@ -27,6 +27,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -292,7 +293,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
      * Build a {@link SourceToParse} with an id of {@code "1"}.
      */
     protected static SourceToParse source(String source) {
-        return new SourceToParse("1", new BytesArray(source), XContentType.JSON);
+        return new SourceToParse("1", ReleasableBytesReference.wrap(new BytesArray(source)), XContentType.JSON);
     }
 
     /**

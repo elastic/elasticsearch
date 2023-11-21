@@ -592,8 +592,10 @@ public abstract class TransportReplicationAction<
         final Task task
     ) {
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
-        ActionListener<ReplicaResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
-
+        ActionListener<ReplicaResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), () -> {
+            releasable.close();
+            replicaRequest.close();
+        });
         try {
             new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
         } catch (RuntimeException e) {
@@ -1299,7 +1301,8 @@ public abstract class TransportReplicationAction<
     /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/
     public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest
         implements
-            RawIndexingDataTransportRequest {
+            RawIndexingDataTransportRequest,
+            Releasable {
 
         /** {@link AllocationId#getId()} of the shard this request is sent to **/
         private final String targetAllocationID;
@@ -1418,9 +1421,16 @@ public abstract class TransportReplicationAction<
         public String toString() {
             return "request: " + request + ", target allocation id: " + targetAllocationID + ", primary term: " + primaryTerm;
         }
+
+        @Override
+        public void close() {
+            if (request instanceof Releasable releasable) { // TODO
+                releasable.close();
+            }
+        }
     }
 
-    protected static final class ConcreteReplicaRequest<R extends TransportRequest> extends ConcreteShardRequest<R> {
+    protected static final class ConcreteReplicaRequest<R extends TransportRequest> extends ConcreteShardRequest<R> implements Releasable {
 
         private final long globalCheckpoint;
         private final long maxSeqNoOfUpdatesOrDeletes;

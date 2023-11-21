@@ -18,6 +18,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
@@ -27,11 +28,13 @@ import java.util.Set;
 public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
     implements
         Accountable,
-        RawIndexingDataTransportRequest {
+        RawIndexingDataTransportRequest,
+        Releasable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
     private final BulkItemRequest[] items;
+    private boolean closed = false;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
@@ -153,5 +156,15 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             sum += item.ramBytesUsed();
         }
         return sum;
+    }
+
+    @Override
+    public void close() {
+        if (closed == false) {
+            for (BulkItemRequest item : items) {
+                item.close();
+            }
+            closed = true;
+        }
     }
 }

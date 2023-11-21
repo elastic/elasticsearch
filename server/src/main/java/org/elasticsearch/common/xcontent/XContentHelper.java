@@ -112,7 +112,8 @@ public class XContentHelper {
         } else {
             // TODO now that we have config we make a method on bytes to do this building wihout needing this check everywhere
             if (bytes.hasArray()) {
-                return xContentType.xContent().createParser(config, bytes.array(), bytes.arrayOffset(), bytes.length());
+                return xContentType.xContent().createParser(config, bytes.array(), bytes.arrayOffset(), bytes.length()); // TODO
+                                                                                                                         // incrementRef
             }
             return xContentType.xContent().createParser(config, bytes.streamInput());
         }

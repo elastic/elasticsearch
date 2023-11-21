@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -91,7 +92,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Nullable
     private String routing;
 
-    private BytesReference source;
+    private ReleasableBytesReference source;
 
     private OpType opType = OpType.INDEX;
 
@@ -149,7 +150,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        source = in.readBytesReference();
+        source = in.readReleasableBytesReference();
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
@@ -378,7 +379,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * The source of the document to index, recopied to a new array if it is unsafe.
      */
-    public BytesReference source() {
+    public ReleasableBytesReference source() {
         return source;
     }
 
@@ -489,7 +490,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the document to index in bytes form.
      */
     public IndexRequest source(BytesReference source, XContentType xContentType) {
-        this.source = Objects.requireNonNull(source);
+        this.source = ReleasableBytesReference.wrap(Objects.requireNonNull(source));
         this.contentType = Objects.requireNonNull(xContentType);
         return this;
     }
@@ -875,4 +876,25 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             return Collections.unmodifiableList(executedPipelines);
         }
     }
+
+    @Override
+    public void incRef() {
+        source.tryIncRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return source.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return source.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return source.hasReferences();
+    }
+
 }

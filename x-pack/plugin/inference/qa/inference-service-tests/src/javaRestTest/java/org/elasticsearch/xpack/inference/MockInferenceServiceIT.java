@@ -36,7 +36,6 @@ public class MockInferenceServiceIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .setting("xpack.ml.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .plugin("org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin")
@@ -111,11 +110,11 @@ public class MockInferenceServiceIT extends ESRestTestCase {
 
         var serviceSettings = (Map<String, Object>) getModel.get("service_settings");
         assertNull(serviceSettings.get("api_key"));
-        assertNotNull(serviceSettings.get("model_id"));
+        assertNotNull(serviceSettings.get("model"));
 
         var putServiceSettings = (Map<String, Object>) putModel.get("service_settings");
-        assertNull(serviceSettings.get("api_key"));
-        assertNotNull(serviceSettings.get("model_id"));
+        assertNull(putServiceSettings.get("api_key"));
+        assertNotNull(putServiceSettings.get("model"));
     }
 
     private Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {

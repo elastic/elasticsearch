@@ -12,8 +12,6 @@ dependencies {
   compileOnly project(':x-pack:plugin:core')
   compileOnly project(':x-pack:plugin:inference')
   compileOnly project(':x-pack:plugin:ml')
-//  compileOnly testArtifact(project(xpackModule('core')))
-  javaRestTestImplementation project(':x-pack:plugin:inference')
 }
 
 tasks.named("javaRestTest").configure {

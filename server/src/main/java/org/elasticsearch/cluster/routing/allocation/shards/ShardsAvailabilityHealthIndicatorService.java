@@ -692,40 +692,41 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ShardRouting shardRouting
     ) {
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
-        List<String> rolePreferences = indexMetadata.getTierPreference();
-        if (rolePreferences.isEmpty() == false) {
+        if (indexMetadata.getTierPreference().isEmpty() == false) {
             List<NodeAllocationResult> dataTierAllocationResults = nodeAllocationResults.stream()
                 .filter(hasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
                 .toList();
             if (dataTierAllocationResults.isEmpty()) {
                 // Shard must be allocated on specific tiers but no nodes were enabled for those tiers.
-                for (String tier : rolePreferences) {
+                for (String tier : indexMetadata.getTierPreference()) {
                     Optional.ofNullable(getAddNodesWithRoleAction(tier)).ifPresent(diagnosisDefs::add);
                 }
             } else {
                 // Collect the nodes from the tiers this index is allowed on
-                Set<DiscoveryNode> relevantRoleNodes = dataTierAllocationResults.stream()
+                Set<DiscoveryNode> dataTierNodes = dataTierAllocationResults.stream()
                     .map(NodeAllocationResult::getNode)
                     .collect(Collectors.toSet());
 
                 // Determine the unique roles available on the allowed tier nodes
-                Set<String> rolesAvailable = relevantRoleNodes.stream()
+                Set<String> dataTierRolesAvailable = dataTierNodes.stream()
                     .map(DiscoveryNode::getRoles)
                     .flatMap(Set::stream)
                     .map(DiscoveryNodeRole::roleName)
                     .collect(Collectors.toSet());
 
                 // Determine which tier this index would most prefer to live on
-                String preferredRole = rolePreferences.stream().filter(rolesAvailable::contains).findFirst().orElse(null);
+                String preferredTier = indexMetadata.getTierPreference()
+                    .stream()
+                    .filter(dataTierRolesAvailable::contains)
+                    .findFirst()
+                    .orElse(null);
 
                 // Run checks for data tier specific problems
                 diagnosisDefs.addAll(
-                    checkNodesWithRoleAtShardLimit(indexMetadata, clusterState, dataTierAllocationResults, relevantRoleNodes, preferredRole)
+                    checkNodesWithRoleAtShardLimit(indexMetadata, clusterState, dataTierAllocationResults, dataTierNodes, preferredTier)
                 );
-                diagnosisDefs.addAll(
-                    checkDataTierShouldMigrate(indexMetadata, dataTierAllocationResults, preferredRole, relevantRoleNodes)
-                );
-                checkNotEnoughNodesWithRole(dataTierAllocationResults, preferredRole).ifPresent(diagnosisDefs::add);
+                diagnosisDefs.addAll(checkDataTierShouldMigrate(indexMetadata, dataTierAllocationResults, preferredTier, dataTierNodes));
+                checkNotEnoughNodesWithRole(dataTierAllocationResults, preferredTier).ifPresent(diagnosisDefs::add);
             }
         }
         return diagnosisDefs;

@@ -83,7 +83,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                         1.0F
                     );
                     fetchResult.shardResult(hits, fetchProfile(profiled));
-                    QueryFetchSearchResult fetchSearchResult = new QueryFetchSearchResult(queryResult, fetchResult);
+                    QueryFetchSearchResult fetchSearchResult = QueryFetchSearchResult.of(queryResult, fetchResult);
                     try {
                         fetchSearchResult.setShardIndex(0);
                         results.consumeResult(fetchSearchResult, () -> {});

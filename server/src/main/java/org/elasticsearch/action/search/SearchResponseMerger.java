@@ -16,7 +16,6 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
-import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.shard.ShardId;
@@ -72,6 +71,7 @@ import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs
 // from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
 // cluster response would have the fetch results.
 final class SearchResponseMerger {
+
     final int from;
     final int size;
     final int trackTotalHitsUpTo;
@@ -130,7 +130,7 @@ final class SearchResponseMerger {
 
     /**
      * Add a search response to the list of responses to be merged together into one.
-     * Merges currently happen at once when all responses are available and {@link #getMergedResponse(Clusters)} )} is called.
+     * Merges currently happen at once when all responses are available and {@link #getMergedResponse()} )} is called.
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
     synchronized void add(SearchResponse searchResponse) {
@@ -141,7 +141,7 @@ final class SearchResponseMerger {
         // do an incremental merge, as the CCSActionListener will call getMergedResponse to create the final response
         // after this method returns
         if (progressListener != null && progressListener != SearchProgressListener.NOOP && numExpectedResponses != numResponses()) {
-            progressListener.notifyCcsReduce(getMergedResponse(clusters));
+            progressListener.notifyCcsReduce(getMergedResponse());
         }
     }
 
@@ -153,8 +153,7 @@ final class SearchResponseMerger {
      * Returns the merged response. To be called once all responses have been added through {@link #add(SearchResponse)}
      * so that all responses are merged into a single one.
      */
-    /// MP TODO: remove clusters arg and use the one passed into the ctor
-    synchronized SearchResponse getMergedResponse(Clusters clusters) {
+    synchronized SearchResponse getMergedResponse() {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {

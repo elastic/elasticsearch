@@ -792,7 +792,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             @Override
             SearchResponse createFinalResponse() {
-                return searchResponseMerger.getMergedResponse(clusters);
+                return searchResponseMerger.getMergedResponse();
             }
         };
     }

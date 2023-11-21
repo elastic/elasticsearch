@@ -118,7 +118,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     // multiple threads doing CAS updates.
     // Wait up to 1 minute (+10s in thread to ensure it does not time out) for threads to complete previous round before initiating next
     // round.
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102255")
     public void testSeqNoCASLinearizability() {
         final int disruptTimeSeconds = scaledRandomIntBetween(1, 8);
 
@@ -434,24 +433,31 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                 history
             );
             LinearizabilityChecker.SequentialSpec spec = new CASSequentialSpec(initialVersion);
-            boolean linearizable = false;
+            Boolean linearizable = null;
             try {
                 linearizable = LinearizabilityChecker.isLinearizable(spec, history, missingResponseGenerator());
             } catch (LinearizabilityCheckAborted e) {
-                logger.warn("linearizability check check was aborted", e);
+                logger.warn("linearizability check was aborted, assuming linearizable", e);
             } finally {
                 try {
-                    if (linearizable) {
+                    if (Boolean.TRUE.equals(linearizable)) {
                         // ensure that we can serialize all histories.
                         writeHistory(new OutputStreamStreamOutput(OutputStream.nullOutputStream()), history);
                     } else {
-                        logger.error("Linearizability check failed. Spec: {}, initial version: {}", spec, initialVersion);
+                        final var outcome = linearizable == null ? "inconclusive" : "unlinearizable";
+
+                        logger.error(
+                            "Linearizability check did not succeed. Spec: {}, initial version: {}, outcome: {}",
+                            spec,
+                            initialVersion,
+                            outcome
+                        );
                         // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
                         try (
                             var chunkedLoggingStream = ChunkedLoggingStream.create(
                                 logger,
                                 Level.ERROR,
-                                "raw unlinearizable history in partition " + id,
+                                "raw " + outcome + " history in partition " + id,
                                 ReferenceDocs.LOGGING // any old docs link will do
                             );
                             var output = new OutputStreamStreamOutput(chunkedLoggingStream)
@@ -462,20 +468,20 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             var chunkedLoggingStream = ChunkedLoggingStream.create(
                                 logger,
                                 Level.ERROR,
-                                "visualisation of unlinearizable history in partition " + id,
+                                "visualisation of " + outcome + " history in partition " + id,
                                 ReferenceDocs.LOGGING // any old docs link will do
                             );
                             var writer = new OutputStreamWriter(chunkedLoggingStream, StandardCharsets.UTF_8)
                         ) {
                             LinearizabilityChecker.writeVisualisation(spec, history, missingResponseGenerator(), writer);
                         }
+                        assertNull("Must not be unlinearizable", linearizable);
                     }
                 } catch (IOException e) {
                     logger.error("failure writing out history", e);
                     fail(e);
                 }
             }
-            assertTrue("Must be linearizable", linearizable);
         }
     }
 

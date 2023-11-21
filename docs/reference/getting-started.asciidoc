@@ -55,12 +55,20 @@ Submit the following indexing request to add a single document to the
 Since the index doesn't exist yet, the
 request automatically creates it.
 
+////
+[source,console]
+----
+PUT books
+----
+// TESTSETUP
+////
+
 [source,console]
 ----
 POST books/_doc
 {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
 ----
-// TEST[skip:TODO]
+// TEST[s/_doc/_doc?refresh=wait_for/]
 
 The response includes metadata that {es} generates for the document including a unique `_id` for the document within the index.
 
@@ -108,7 +116,7 @@ POST /_bulk
 { "index" : { "_index" : "books" } }
 {"name": "The Handmaids Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 You should receive a response indicating there were no errors.
 
@@ -225,7 +233,7 @@ GET books/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 By default, the `hits` section of the response includes up to the first 10
 documents that match the search.
@@ -293,7 +301,7 @@ GET books/_search
   "_source": false
 }
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 The response contains each hit's `fields` values as a flat array.
 
@@ -418,7 +426,7 @@ GET /books/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 The response contains the books that match the query.
 
@@ -492,7 +500,7 @@ GET /books/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 The response’s `aggregations` object contains aggregation results.
 

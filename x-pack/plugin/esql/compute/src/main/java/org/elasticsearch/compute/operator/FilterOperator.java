@@ -78,7 +78,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
                 }
                 success = true;
             } finally {
-                Releasables.closeExpectNoException(page::releaseBlocks);
+                page.releaseBlocks();
                 if (success == false) {
                     Releasables.closeExpectNoException(filteredBlocks);
                 }

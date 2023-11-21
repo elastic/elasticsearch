@@ -71,11 +71,13 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
+    public boolean isReleased() {
+        return super.isReleased() || vector.isReleased();
+    }
+
+    @Override
+    public void closeInternal() {
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
     }
 

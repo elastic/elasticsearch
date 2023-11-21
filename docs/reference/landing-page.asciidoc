@@ -172,9 +172,6 @@
     <li>
       <a href="xpack-alerting.html">Alerting</a>
     </li>
-    <li>
-      <a href="https://www.elastic.co/search-labs/tutorials/examples">Notebook examples</a>
-    </li>
   </ul>
 </div>
 
@@ -220,6 +217,9 @@
     </li>
      <li>
       <a href="https://www.elastic.co/search-labs">Search Labs</a>
+    </li>
+    <li>
+      <a href="https://www.elastic.co/search-labs/tutorials/examples">Notebook examples</a>
     </li>
   </ul>
 </div>

@@ -259,7 +259,6 @@ permitted in container names.
 * Container names must be from 3 through 63 characters long.
 
 [[repository-azure-linearizable-registers]]
-[discrete]
 ==== Linearizable register implementation
 
 The linearizable register implementation for Azure repositories is based on

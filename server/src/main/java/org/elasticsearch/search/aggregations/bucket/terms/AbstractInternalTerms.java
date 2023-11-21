@@ -204,7 +204,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             if (lastBucket != null && cmp.compare(top.current(), lastBucket) != 0) {
                 // the key changed so bundle up the last key's worth of buckets
                 boolean shouldContinue = sink.apply(
-                    new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
+                    new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
                 );
                 if (false == shouldContinue) {
                     return;
@@ -228,7 +228,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         }
 
         if (sameTermBuckets.isEmpty() == false) {
-            sink.apply(new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
+            sink.apply(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
         }
     }
 
@@ -249,7 +249,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         }
         for (List<B> sameTermBuckets : bucketMap.values()) {
             boolean shouldContinue = sink.apply(
-                new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
+                new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
             );
             if (false == shouldContinue) {
                 return;

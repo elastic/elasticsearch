@@ -83,6 +83,11 @@ public class BwcSetupExtension {
                 return getJavaHome(Integer.parseInt(minimumCompilerVersion));
             }));
 
+            // temporally workaround for reworked gradle enterprise setup
+            // removed when PR https://github.com/elastic/elasticsearch/pull/102180 backported
+            // to all BWC branches
+            loggedExec.getEnvironment().put("BUILDKITE", "false");
+
             if (BuildParams.isCi() && OS.current() != OS.WINDOWS) {
                 // TODO: Disabled for now until we can figure out why files are getting corrupted
                 // loggedExec.getEnvironment().put("GRADLE_RO_DEP_CACHE", System.getProperty("user.home") + "/gradle_ro_cache");

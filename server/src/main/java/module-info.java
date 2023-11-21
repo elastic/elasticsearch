@@ -407,6 +407,7 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.features.FeatureInfrastructureFeatures,
             org.elasticsearch.health.HealthFeatures,
+            org.elasticsearch.cluster.service.TransportFeatures,
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures,
             org.elasticsearch.indices.IndicesFeatures;

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -19,7 +20,7 @@ import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -62,33 +63,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     @Override
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
         Layout.Builder layout = source.layout.builder();
-
         var sourceAttr = fieldExtractExec.sourceAttribute();
-
-        PhysicalOperation op = source;
+        List<IndexReader> readers = searchContexts.stream().map(s -> s.searcher().getIndexReader()).toList();
+        List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
+        int docChannel = source.layout.get(sourceAttr.id()).channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             if (attr instanceof FieldAttribute fa && fa.getExactInfo().hasExact()) {
                 attr = fa.exactAttribute();
             }
             layout.append(attr);
-            Layout previousLayout = op.layout;
-
             DataType dataType = attr.dataType();
             String fieldName = attr.name();
-            List<BlockDocValuesReader.Factory> factories = BlockReaderFactories.factories(
-                searchContexts,
-                fieldName,
-                EsqlDataTypes.isUnsupported(dataType)
-            );
-
-            int docChannel = previousLayout.get(sourceAttr.id()).channel();
-
-            op = op.with(
-                new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(factories, docChannel, fieldName),
-                layout.build()
-            );
+            List<BlockLoader> loaders = BlockReaderFactories.loaders(searchContexts, fieldName, EsqlDataTypes.isUnsupported(dataType));
+            fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, loaders));
         }
-        return op;
+        return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
     }
 
     public static Function<SearchContext, Query> querySupplier(QueryBuilder queryBuilder) {
@@ -173,7 +162,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            BlockReaderFactories.factories(searchContexts, attrSource.name(), EsqlDataTypes.isUnsupported(attrSource.dataType())),
+            BlockReaderFactories.loaders(searchContexts, attrSource.name(), EsqlDataTypes.isUnsupported(attrSource.dataType())),
+            searchContexts.stream().map(s -> s.searcher().getIndexReader()).toList(),
             groupElementType,
             docChannel,
             attrSource.name(),

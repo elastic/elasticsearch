@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.TestSecurityClient;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.oidc.C2IdOpTestCase;
 import org.hamcrest.Matchers;
@@ -151,7 +152,10 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
         final Map<String, Object> authenticateResponse = super.callAuthenticateApiUsingBearerToken(
             idJwt,
             RequestOptions.DEFAULT.toBuilder()
-                .addHeader(JwtRealm.HEADER_CLIENT_AUTHENTICATION, JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + sharedSecret)
+                .addHeader(
+                    JwtRealm.HEADER_CLIENT_AUTHENTICATION,
+                    JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + sharedSecret
+                )
                 .build()
         );
         return authenticateResponse;

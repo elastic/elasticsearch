@@ -104,6 +104,6 @@ final class InstanceType implements ToXContentObject {
 
     @Override
     public String toString() {
-        return name;
+        return name + " in region " + region;
     }
 }

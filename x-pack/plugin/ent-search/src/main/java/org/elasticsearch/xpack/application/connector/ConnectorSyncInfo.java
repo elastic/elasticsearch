@@ -42,6 +42,19 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
     @Nullable
     private final String lastSynced;
 
+    /**
+     * @param lastAccessControlSyncError      The last error message related to access control sync, if any.
+     * @param lastAccessControlSyncScheduledAt The timestamp when the last access control sync was scheduled.
+     * @param lastAccessControlSyncStatus     The status of the last access control sync.
+     * @param lastDeletedDocumentCount        The count of documents last deleted during sync.
+     * @param lastIncrementalSyncScheduledAt  The timestamp when the last incremental sync was scheduled.
+     * @param lastIndexedDocumentCount        The count of documents last indexed during sync.
+     * @param lastSeen                        The timestamp when the connector was last active or seen.
+     * @param lastSyncError                   The last error message encountered during sync, if any.
+     * @param lastSyncScheduledAt             The timestamp when the last sync was scheduled.
+     * @param lastSyncStatus                  The status of the last sync.
+     * @param lastSynced                      The timestamp when the connector was last successfully synchronized.
+     */
     private ConnectorSyncInfo(
         String lastAccessControlSyncError,
         String lastAccessControlSyncScheduledAt,

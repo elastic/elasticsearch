@@ -19,6 +19,9 @@ import org.elasticsearch.xcontent.ToXContent;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 
+/**
+ * A service that manages persistent {@link Connector} configurations.
+ */
 public class ConnectorIndexService {
 
     private final Client client;

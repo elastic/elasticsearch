@@ -19,6 +19,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDateFormatterPattern;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 
 public final class ConnectorTestUtils {
@@ -85,7 +86,14 @@ public final class ConnectorTestUtils {
             .setEnabled(randomBoolean())
             .setLastSynced(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setName(randomAlphaOfLength(10))
-            .setConfigurationOverrides(Collections.emptyMap())
+            .setConfigurationOverrides(
+                new ConnectorCustomSchedule.ConfigurationOverrides.Builder().setMaxCrawlDepth(randomInt())
+                    .setSitemapDiscoveryDisabled(randomBoolean())
+                    .setDomainAllowList(randomList(1, 5, () -> randomAlphaOfLength(5)))
+                    .setSeedUrls(randomList(1, 5, () -> randomAlphaOfLength(5)))
+                    .setSitemapUrls(randomList(1, 5, () -> randomAlphaOfLength(5)))
+                    .build()
+            )
             .build();
     }
 

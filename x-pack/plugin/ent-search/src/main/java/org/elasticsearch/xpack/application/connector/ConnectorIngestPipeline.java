@@ -25,10 +25,10 @@ public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
     private final Boolean runMlInference;
 
     private ConnectorIngestPipeline(Boolean extractBinaryContent, String name, Boolean reduceWhitespace, Boolean runMlInference) {
-        this.extractBinaryContent = extractBinaryContent;
-        this.name = name;
-        this.reduceWhitespace = reduceWhitespace;
-        this.runMlInference = runMlInference;
+        this.extractBinaryContent = Objects.requireNonNull(extractBinaryContent, EXTRACT_BINARY_CONTENT_FIELD.getPreferredName());
+        this.name = Objects.requireNonNull(name, NAME_FIELD.getPreferredName());
+        this.reduceWhitespace = Objects.requireNonNull(reduceWhitespace, REDUCE_WHITESPACE_FIELD.getPreferredName());
+        this.runMlInference = Objects.requireNonNull(runMlInference, RUN_ML_INFERENCE_FIELD.getPreferredName());
     }
 
     public ConnectorIngestPipeline(StreamInput in) throws IOException {

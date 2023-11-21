@@ -22,9 +22,29 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A connector document consists of:
+ * Represents a Connector in the Elasticsearch ecosystem. Connectors are used for integrating
+ * and synchronizing external data sources with Elasticsearch. Each Connector instance encapsulates
+ * various settings and state information, including:
  * <ul>
- *     <li>...</li>
+ *     <li>A unique identifier for distinguishing different connectors.</li>
+ *     <li>API key for authenticating with Elasticsearch, ensuring secure access.</li>
+ *     <li>A configuration mapping which holds specific settings and parameters for the connector's operation.</li>
+ *     <li>A {@link ConnectorCustomSchedule} object that defines custom scheduling.</li>
+ *     <li>A description providing an overview or purpose of the connector.</li>
+ *     <li>An error string capturing the latest error encountered during the connector's operation, if any.</li>
+ *     <li>A {@link ConnectorFeatures} object encapsulating the set of features enabled for this connector.</li>
+ *     <li>A list of {@link ConnectorFiltering} objects for applying filtering rules to the data processed by the connector.</li>
+ *     <li>The name of the Elasticsearch index where the synchronized data is stored or managed.</li>
+ *     <li>A boolean flag 'isNative' indicating whether the connector is a native Elasticsearch connector.</li>
+ *     <li>The language associated with the connector.</li>
+ *     <li>A {@link ConnectorSyncInfo} object containing synchronization state and history information.</li>
+ *     <li>The name of the connector.</li>
+ *     <li>A {@link ConnectorIngestPipeline} object specifying the data ingestion pipeline configuration.</li>
+ *     <li>A {@link ConnectorScheduling} object with the scheduling configuration to trigger data sync.</li>
+ *     <li>The type of connector.</li>
+ *     <li>A {@link ConnectorStatus} indicating the current status of the connector.</li>
+ *     <li>A sync cursor, used for incremental syncs.</li>
+ *     <li>A boolean flag 'syncNow', which, when set, triggers an immediate synchronization operation.</li>
  * </ul>
  */
 public class Connector implements Writeable, ToXContentObject {
@@ -65,6 +85,29 @@ public class Connector implements Writeable, ToXContentObject {
 
     private final Boolean syncNow;
 
+    /**
+     * Constructor for Connector.
+     *
+     * @param connectorId        Unique identifier for the connector.
+     * @param apiKeyId           API key ID used for authentication/authorization against ES.
+     * @param configuration      Configuration settings for the connector.
+     * @param customScheduling   Custom scheduling settings for the connector.
+     * @param description        Description of the connector.
+     * @param error              Information about the last error encountered by the connector, if any.
+     * @param features           Features enabled for the connector.
+     * @param filtering          Filtering settings applied by the connector.
+     * @param indexName          Name of the index associated with the connector.
+     * @param isNative           Flag indicating whether the connector is a native type.
+     * @param language           The language supported by the connector.
+     * @param syncInfo           Information about the synchronization state of the connector.
+     * @param name               Name of the connector.
+     * @param pipeline           Ingest pipeline configuration.
+     * @param scheduling         Scheduling settings for regular data synchronization.
+     * @param serviceType        Type of service the connector integrates with.
+     * @param status             Current status of the connector.
+     * @param syncCursor         Position or state indicating the current point of synchronization.
+     * @param syncNow            Flag indicating whether an immediate synchronization is requested.
+     */
     private Connector(
         String connectorId,
         String apiKeyId,

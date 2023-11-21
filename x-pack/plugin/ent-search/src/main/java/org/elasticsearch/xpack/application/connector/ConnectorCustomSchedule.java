@@ -19,9 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -29,29 +27,38 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
 
-    private final Map<String, ConfigurationOverride> configurationOverrides;
+    private final ConfigurationOverrides configurationOverrides;
     private final Boolean enabled;
     private final String interval;
     @Nullable
     private final String lastSynced;
     private final String name;
 
+    /**
+     * Constructor for ConnectorCustomSchedule.
+     *
+     * @param configurationOverrides Configuration overrides {@link ConfigurationOverrides} specifies custom settings overrides.
+     * @param enabled                Flag indicating whether the custom schedule is active or not.
+     * @param interval               The interval at which the custom schedule runs, specified in a cron-like format.
+     * @param lastSynced             The timestamp of the last successful synchronization performed under this custom schedule, if any.
+     * @param name                   The name of the custom schedule, used for identification and reference purposes.
+     */
     private ConnectorCustomSchedule(
-        Map<String, ConfigurationOverride> configurationOverrides,
+        ConfigurationOverrides configurationOverrides,
         Boolean enabled,
         String interval,
         String lastSynced,
         String name
     ) {
-        this.configurationOverrides = configurationOverrides;
-        this.enabled = enabled;
-        this.interval = interval;
+        this.configurationOverrides = Objects.requireNonNull(configurationOverrides, CONFIG_OVERRIDES_FIELD.getPreferredName());
+        this.enabled = Objects.requireNonNull(enabled, ENABLED_FIELD.getPreferredName());
+        this.interval = Objects.requireNonNull(interval, INTERVAL_FIELD.getPreferredName());
         this.lastSynced = lastSynced;
-        this.name = name;
+        this.name = Objects.requireNonNull(interval, NAME_FIELD.getPreferredName());
     }
 
     public ConnectorCustomSchedule(StreamInput in) throws IOException {
-        this.configurationOverrides = in.readMap(StreamInput::readString, ConfigurationOverride::new);
+        this.configurationOverrides = new ConfigurationOverrides(in);
         this.enabled = in.readBoolean();
         this.interval = in.readString();
         this.lastSynced = in.readOptionalString();
@@ -65,11 +72,10 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
 
     public static final ParseField NAME_FIELD = new ParseField("name");
 
-    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ConnectorCustomSchedule, Void> PARSER = new ConstructingObjectParser<>(
         "connector_custom_schedule",
         true,
-        args -> new Builder().setConfigurationOverrides((Map<String, ConfigurationOverride>) args[0])
+        args -> new Builder().setConfigurationOverrides((ConfigurationOverrides) args[0])
             .setEnabled((Boolean) args[1])
             .setInterval((String) args[2])
             .setLastSynced((String) args[3])
@@ -80,7 +86,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
     static {
         PARSER.declareField(
             constructorArg(),
-            (parser, context) -> parser.map(HashMap::new, ConfigurationOverride::fromXContent),
+            (parser, context) -> ConfigurationOverrides.fromXContent(parser),
             CONFIG_OVERRIDES_FIELD,
             ObjectParser.ValueType.OBJECT
         );
@@ -110,7 +116,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(configurationOverrides, StreamOutput::writeString, StreamOutput::writeGenericValue);
+        out.writeWriteable(configurationOverrides);
         out.writeBoolean(enabled);
         out.writeString(interval);
         out.writeOptionalString(lastSynced);
@@ -136,13 +142,13 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
 
     public static class Builder {
 
-        private Map<String, ConfigurationOverride> configurationOverrides;
+        private ConfigurationOverrides configurationOverrides;
         private Boolean enabled;
         private String interval;
         private String lastSynced;
         private String name;
 
-        public Builder setConfigurationOverrides(Map<String, ConfigurationOverride> configurationOverrides) {
+        public Builder setConfigurationOverrides(ConfigurationOverrides configurationOverrides) {
             this.configurationOverrides = configurationOverrides;
             return this;
         }
@@ -172,7 +178,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         }
     }
 
-    public static class ConfigurationOverride implements Writeable, ToXContentObject {
+    public static class ConfigurationOverrides implements Writeable, ToXContentObject {
         @Nullable
         private final Integer maxCrawlDepth;
         @Nullable
@@ -184,7 +190,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         @Nullable
         private final List<String> seedUrls;
 
-        private ConfigurationOverride(
+        private ConfigurationOverrides(
             Integer maxCrawlDepth,
             Boolean sitemapDiscoveryDisabled,
             List<String> domainAllowList,
@@ -198,7 +204,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
             this.seedUrls = seedUrls;
         }
 
-        public ConfigurationOverride(StreamInput in) throws IOException {
+        public ConfigurationOverrides(StreamInput in) throws IOException {
             this.maxCrawlDepth = in.readOptionalInt();
             this.sitemapDiscoveryDisabled = in.readOptionalBoolean();
             this.domainAllowList = in.readOptionalStringCollectionAsList();
@@ -213,7 +219,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         public static final ParseField SEED_URLS_FIELD = new ParseField("seed_urls");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<ConfigurationOverride, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<ConfigurationOverrides, Void> PARSER = new ConstructingObjectParser<>(
             "configuration_override",
             true,
             args -> new Builder().setMaxCrawlDepth((Integer) args[0])
@@ -232,7 +238,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
             PARSER.declareStringArray(optionalConstructorArg(), SEED_URLS_FIELD);
         }
 
-        public static ConfigurationOverride fromXContent(XContentParser parser) throws IOException {
+        public static ConfigurationOverrides fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
 
@@ -271,7 +277,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            ConfigurationOverride that = (ConfigurationOverride) o;
+            ConfigurationOverrides that = (ConfigurationOverrides) o;
             return Objects.equals(maxCrawlDepth, that.maxCrawlDepth)
                 && Objects.equals(sitemapDiscoveryDisabled, that.sitemapDiscoveryDisabled)
                 && Objects.equals(domainAllowList, that.domainAllowList)
@@ -317,8 +323,8 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
                 return this;
             }
 
-            public ConfigurationOverride build() {
-                return new ConfigurationOverride(maxCrawlDepth, sitemapDiscoveryDisabled, domainAllowList, sitemapUrls, seedUrls);
+            public ConfigurationOverrides build() {
+                return new ConfigurationOverrides(maxCrawlDepth, sitemapDiscoveryDisabled, domainAllowList, sitemapUrls, seedUrls);
             }
         }
     }

@@ -9,6 +9,16 @@ package org.elasticsearch.xpack.application.connector;
 
 import java.util.Locale;
 
+/**
+ * Enum representing the various states of a Connector:
+ * <ul>
+ *     <li><b>CREATED</b>: The connector has been created but is not yet configured.</li>
+ *     <li><b>NEEDS_CONFIGURATION</b>: The connector requires further configuration to become operational.</li>
+ *     <li><b>CONFIGURED</b>: The connector has been configured but has not yet established a connection.</li>
+ *     <li><b>CONNECTED</b>: The connector is successfully connected and operational.</li>
+ *     <li><b>ERROR</b>: The connector encountered an error and may not be operational.</li>
+ * </ul>
+ */
 public enum ConnectorStatus {
     CREATED,
     NEEDS_CONFIGURATION,

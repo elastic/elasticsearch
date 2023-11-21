@@ -38,9 +38,9 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
     public static final ParseField INCREMENTAL_FIELD = new ParseField("incremental");
 
     private ConnectorScheduling(ScheduleConfig accessControl, ScheduleConfig full, ScheduleConfig incremental) {
-        this.accessControl = accessControl;
-        this.full = full;
-        this.incremental = incremental;
+        this.accessControl = Objects.requireNonNull(accessControl, ACCESS_CONTROL_FIELD.getPreferredName());
+        this.full = Objects.requireNonNull(full, FULL_FIELD.getPreferredName());
+        this.incremental = Objects.requireNonNull(incremental, INCREMENTAL_FIELD.getPreferredName());
     }
 
     public ConnectorScheduling(StreamInput in) throws IOException {
@@ -150,7 +150,7 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
 
         private ScheduleConfig(boolean enabled, String interval) {
             this.enabled = enabled;
-            this.interval = interval;
+            this.interval = Objects.requireNonNull(interval, INTERVAL_FIELD.getPreferredName());
         }
 
         public ScheduleConfig(StreamInput in) throws IOException {

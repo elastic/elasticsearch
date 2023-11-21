@@ -79,6 +79,7 @@ public class GetTopNFunctionsResponse extends ActionResponse implements ChunkedT
             Iterators.single((b, p) -> b.field("TotalCount", totalCount)),
             Iterators.single((b, p) -> b.field("SelfCPU", selfCPU)),
             Iterators.single((b, p) -> b.field("TotalCPU", totalCPU)),
+            ChunkedToXContentHelper.array("TopN", Iterators.map(topNFunctions.iterator(), e -> (b, p) -> b.value(e))),
             ChunkedToXContentHelper.endObject()
         );
     }

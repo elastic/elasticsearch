@@ -12,9 +12,11 @@ import com.nimbusds.jwt.JWTClaimsSet;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Validates a string claim against a list of allowed values. The validation is successful
@@ -30,13 +32,12 @@ import java.util.Map;
  */
 public class JwtStringClaimValidator implements JwtFieldValidator {
 
-    public static JwtStringClaimValidator ALLOW_ALL_SUBJECTS = new JwtStringClaimValidator("sub", null, true);
+    public static JwtStringClaimValidator ALLOW_ALL_SUBJECTS = new JwtStringClaimValidator("sub", List.of("*"), true);
 
     private final String claimName;
     @Nullable
     private final Map<String, String> fallbackClaimNames;
-    @Nullable
-    private final List<String> allowedClaimValues;
+    private final Predicate<String> allowedClaimValuesPredicate;
     // Whether the claim should be a single string
     private final boolean singleValuedClaim;
 
@@ -52,7 +53,7 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
     ) {
         this.claimName = claimName;
         this.fallbackClaimNames = fallbackClaimNames;
-        this.allowedClaimValues = allowedClaimValues;
+        this.allowedClaimValuesPredicate = Automatons.predicate(allowedClaimValues);
         this.singleValuedClaim = singleValuedClaim;
     }
 
@@ -63,16 +64,14 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
         if (claimValues == null) {
             throw new IllegalArgumentException("missing required string claim [" + fallbackableClaim + "]");
         }
-
-        if (allowedClaimValues != null && false == claimValues.stream().anyMatch(allowedClaimValues::contains)) {
+        if (false == claimValues.stream().anyMatch(allowedClaimValuesPredicate)) {
             throw new IllegalArgumentException(
                 "string claim ["
                     + fallbackableClaim
                     + "] has value ["
                     + Strings.collectionToCommaDelimitedString(claimValues)
-                    + "] which does not match allowed claim values ["
-                    + Strings.collectionToCommaDelimitedString(allowedClaimValues)
-                    + "]"
+                    + "] which does not match allowed claim values "
+                    + allowedClaimValuesPredicate
             );
         }
     }

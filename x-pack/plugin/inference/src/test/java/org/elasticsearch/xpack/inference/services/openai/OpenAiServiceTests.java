@@ -13,7 +13,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
 import org.hamcrest.Matchers;
@@ -46,6 +45,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
@@ -523,7 +523,7 @@ public class OpenAiServiceTests extends ESTestCase {
         var mockModel = getInvalidModel("model_id", "service_name");
 
         try (var service = new OpenAiService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
-            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(mockModel, List.of(""), new HashMap<>(), listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
@@ -569,20 +569,12 @@ public class OpenAiServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
-            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(model, List.of("abc"), new HashMap<>(), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT).get(0);
+            var result = listener.actionGet(TIMEOUT);
 
-            assertThat(
-                result.asMap(),
-                Matchers.is(
-                    Map.of(
-                        TextEmbeddingResults.TEXT_EMBEDDING,
-                        List.of(Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.0123F, -0.0123F)))
-                    )
-                )
-            );
+            assertThat(result.asMap(), Matchers.is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));

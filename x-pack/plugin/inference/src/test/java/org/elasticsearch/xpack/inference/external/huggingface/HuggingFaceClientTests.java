@@ -12,7 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
@@ -39,6 +38,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterS
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequestTests.createRequest;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
+import static org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests.buildExpectation;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -89,12 +89,12 @@ public class HuggingFaceClientTests extends ESTestCase {
                 new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY)
             );
 
-            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
 
-            var result = listener.actionGet(TIMEOUT).get(0);
+            var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(Map.of(DEFAULT_RESULTS_FIELD, Map.of(".", 0.13315596f))));
+            assertThat(result.asMap(), is(buildExpectation(List.of(Map.of(".", 0.13315596f)), false)));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -146,7 +146,7 @@ public class HuggingFaceClientTests extends ESTestCase {
                 )
             );
 
-            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -179,7 +179,7 @@ public class HuggingFaceClientTests extends ESTestCase {
             sender,
             new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY)
         );
-        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
         huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
 

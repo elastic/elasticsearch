@@ -39,19 +39,6 @@ public record SparseEmbeddingResults(List<Embedding> embeddings, boolean isTrunc
         this(in.readCollectionAsList(Embedding::new), in.readBoolean());
     }
 
-    // public static SparseEmbeddingResults create(List<TextExpansionResults> expansionResults, boolean isTruncated) {
-    // return new SparseEmbeddingResults(
-    // expansionResults.stream()
-    // .map(
-    // expansion -> new Embedding(
-    // expansion.getWeightedTokens().stream().map(token -> new WeightedToken(token.token(), token.weight())).toList()
-    // )
-    // )
-    // .toList(),
-    // isTruncated
-    // );
-    // }
-
     public static SparseEmbeddingResults create(List<? extends InferenceResults> results) {
         boolean isTruncated = false;
         List<Embedding> embeddings = new ArrayList<>(results.size());
@@ -91,6 +78,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings, boolean isTrunc
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(embeddings);
+        out.writeBoolean(isTruncated);
     }
 
     public Map<String, Object> asMap() {

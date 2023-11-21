@@ -7,19 +7,15 @@
 
 package org.elasticsearch.xpack.inference.results;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.results.TestUtils.toJsonString;
 import static org.hamcrest.Matchers.is;
 
 public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingResults> {
@@ -103,15 +99,6 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             }"""));
     }
 
-    private static String toJsonString(ToXContentFragment entity) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
-        builder.startObject();
-        entity.toXContent(builder, null);
-        builder.endObject();
-
-        return Strings.toString(builder);
-    }
-
     @Override
     protected Writeable.Reader<TextEmbeddingResults> instanceReader() {
         return TextEmbeddingResults::new;
@@ -134,5 +121,12 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             embeddings.add(createRandomEmbedding());
             return new TextEmbeddingResults(embeddings);
         }
+    }
+
+    public static Map<String, Object> buildExpectation(List<List<Float>> embeddings) {
+        return Map.of(
+            TextEmbeddingResults.TEXT_EMBEDDING,
+            embeddings.stream().map(embedding -> Map.of(TextEmbeddingResults.Embedding.EMBEDDING, embedding)).toList()
+        );
     }
 }

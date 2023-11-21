@@ -414,57 +414,81 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             200,
             client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret)).getStatusLine().getStatusCode()
         );
-        // update the secret in the secure settings
-        final MockSecureSettings newSecureSettings = new MockSecureSettings();
-        newSecureSettings.setString(
-            "xpack.security.authc.realms.jwt." + realm0.name() + ".client_authentication.shared_secret",
-            "realm0updatedSecret"
-        );
-        newSecureSettings.setString(
-            "xpack.security.authc.realms.jwt." + realm1.name() + ".client_authentication.shared_secret",
-            "realm1updatedSecret"
-        );
-        newSecureSettings.setString(
-            "xpack.security.authc.realms.jwt." + realm2.name() + ".client_authentication.shared_secret",
-            "realm2updatedSecret"
-        );
-        // reload settings
         final PluginsService plugins = getInstanceFromNode(PluginsService.class);
         final LocalStateSecurity localStateSecurity = plugins.filterPlugins(LocalStateSecurity.class).findFirst().get();
-        for (Plugin p : localStateSecurity.plugins()) {
-            if (p instanceof Security securityPlugin) {
-                Settings.Builder newSettingsBuilder = Settings.builder().setSecureSettings(newSecureSettings);
-                securityPlugin.reload(newSettingsBuilder.build());
+        // update the secret in the secure settings
+        try {
+            final MockSecureSettings newSecureSettings = new MockSecureSettings();
+            newSecureSettings.setString(
+                "xpack.security.authc.realms.jwt." + realm0.name() + ".client_authentication.shared_secret",
+                "realm0updatedSecret"
+            );
+            newSecureSettings.setString(
+                "xpack.security.authc.realms.jwt." + realm1.name() + ".client_authentication.shared_secret",
+                "realm1updatedSecret"
+            );
+            newSecureSettings.setString(
+                "xpack.security.authc.realms.jwt." + realm2.name() + ".client_authentication.shared_secret",
+                "realm2updatedSecret"
+            );
+            // reload settings
+            for (Plugin p : localStateSecurity.plugins()) {
+                if (p instanceof Security securityPlugin) {
+                    Settings.Builder newSettingsBuilder = Settings.builder().setSecureSettings(newSecureSettings);
+                    securityPlugin.reload(newSettingsBuilder.build());
+                }
+            }
+            // ensure the old value still works for realm 0 (default grace period)
+            assertEquals(
+                200,
+                client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), jwt0SharedSecret)).getStatusLine().getStatusCode()
+            );
+            assertEquals(
+                200,
+                client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), "realm0updatedSecret")).getStatusLine().getStatusCode()
+            );
+            // ensure the old value still works for realm 1 (explicit grace period)
+            assertEquals(
+                200,
+                client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), jwt1SharedSecret)).getStatusLine().getStatusCode()
+            );
+            assertEquals(
+                200,
+                client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), "realm1updatedSecret")).getStatusLine().getStatusCode()
+            );
+            // ensure the old value does not work for realm 2 (no grace period)
+            ResponseException exception = expectThrows(
+                ResponseException.class,
+                () -> client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret)).getStatusLine().getStatusCode()
+            );
+            assertEquals(401, exception.getResponse().getStatusLine().getStatusCode());
+            assertEquals(
+                200,
+                client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), "realm2updatedSecret")).getStatusLine().getStatusCode()
+            );
+        } finally {
+            // update them back to their original values
+            final MockSecureSettings newSecureSettings = new MockSecureSettings();
+            newSecureSettings.setString(
+                "xpack.security.authc.realms.jwt." + realm0.name() + ".client_authentication.shared_secret",
+                jwt0SharedSecret
+            );
+            newSecureSettings.setString(
+                "xpack.security.authc.realms.jwt." + realm1.name() + ".client_authentication.shared_secret",
+                jwt1SharedSecret
+            );
+            newSecureSettings.setString(
+                "xpack.security.authc.realms.jwt." + realm2.name() + ".client_authentication.shared_secret",
+                jwt2SharedSecret
+            );
+            // reload settings
+            for (Plugin p : localStateSecurity.plugins()) {
+                if (p instanceof Security securityPlugin) {
+                    Settings.Builder newSettingsBuilder = Settings.builder().setSecureSettings(newSecureSettings);
+                    securityPlugin.reload(newSettingsBuilder.build());
+                }
             }
         }
-        // ensure the old value still works for realm 0 (default grace period)
-        assertEquals(
-            200,
-            client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), jwt0SharedSecret)).getStatusLine().getStatusCode()
-        );
-        assertEquals(
-            200,
-            client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), "realm0updatedSecret")).getStatusLine().getStatusCode()
-        );
-        // ensure the old value still works for realm 1 (explicit grace period)
-        assertEquals(
-            200,
-            client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), jwt1SharedSecret)).getStatusLine().getStatusCode()
-        );
-        assertEquals(
-            200,
-            client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), "realm1updatedSecret")).getStatusLine().getStatusCode()
-        );
-        // ensure the old value does not work for realm 2 (no grace period)
-        ResponseException exception = expectThrows(
-            ResponseException.class,
-            () -> client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret)).getStatusLine().getStatusCode()
-        );
-        assertEquals(401, exception.getResponse().getStatusLine().getStatusCode());
-        assertEquals(
-            200,
-            client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), "realm2updatedSecret")).getStatusLine().getStatusCode()
-        );
     }
 
     private SignedJWT getSignedJWT(JWTClaimsSet claimsSet, byte[] hmacKeyBytes) throws Exception {

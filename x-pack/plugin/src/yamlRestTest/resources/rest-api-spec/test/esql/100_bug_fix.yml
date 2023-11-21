@@ -1,6 +1,8 @@
 ---
-"Bug fix https://github.com/elastic/elasticsearch/issues/99472":
+"Coalesce and to_ip functions":
   - skip:
+      version: " - 8.11.99"
+      reason: "fixes in 8.12 or later"
       features: warnings
   - do:
       bulk:
@@ -54,7 +56,10 @@
   - match: { values.1: [ 20, null, "255.255.255.255", "255.255.255.255"] }
 
 ---
-"Bug fix https://github.com/elastic/elasticsearch/issues/101489":
+"unsupported and invalid mapped fields":
+  - skip:
+      version: " - 8.11.99"
+      reason: "fixes in 8.12 or later"
   - do:
       indices.create:
         index: index1

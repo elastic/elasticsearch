@@ -45,7 +45,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.BlockReaderFactories;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -230,9 +229,8 @@ public class OperatorTests extends MapperServiceTestCase {
                         }
                     },
                         new OrdinalsGroupingOperator(
-                            List.of(
-                                BlockReaderFactories.loaderToFactory(reader, new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null))
-                            ),
+                            List.of(new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null)),
+                            List.of(reader),
                             ElementType.BYTES_REF,
                             0,
                             gField,

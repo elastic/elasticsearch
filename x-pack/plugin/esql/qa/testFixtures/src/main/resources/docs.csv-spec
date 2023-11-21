@@ -560,11 +560,13 @@ random
 // tag::random[]
 ROW a = "row 1" 
 | EVAL r = RANDOM()
+| WHERE r > 0 AND r <= 1
+| keep a
 // end::random[]
 ;
 
 // tag::random-result[]
-a:keyword  | r:double
-row 1        | 0.07725270284440489
+a:keyword
+row 1
 // end::random-result[]
 ;

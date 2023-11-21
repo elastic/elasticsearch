@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -16,33 +20,35 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Function that emits a pseudo random number.
  */
-public class Random extends ScalarFunction {
+public class Random extends ScalarFunction implements EvaluatorMapper {
 
     public Random(Source source) {
-        super(source);
+        super(source, List.of());
     }
 
     @Override
-    public Object fold() {
-        return Math.random();
+    protected Expression.TypeResolution resolveType() {
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        return new Random(source());
-    }
-
-    public final boolean foldable() {
-        return true;
+    public boolean foldable() {
+        return false;
     }
 
     @Override
-    public final DataType dataType() {
-        return DataTypes.DOUBLE;
+    public final int hashCode() {
+        return Random.class.hashCode();
+    }
+
+    @Override
+    public final boolean equals(Object obj) {
+        return obj != null && obj.getClass() == getClass();
     }
 
     @Override
@@ -51,7 +57,27 @@ public class Random extends ScalarFunction {
     }
 
     @Override
-    protected final NodeInfo<? extends Expression> info() {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator) {
+        return new RandomNoSeedEvaluator.Factory();
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataTypes.DOUBLE;
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new Random(source());
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this);
+    }
+
+    @Evaluator(extraName = "NoSeed")
+    static double process() {
+        return Randomness.get().nextDouble();
     }
 }

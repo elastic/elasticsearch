@@ -21,7 +21,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(473, response.getTotalFrames());
 
         assertNotNull(response.getStackTraceEvents());
-        assertEquals(4L, (long) response.getStackTraceEvents().get("L7kj7UvlKbT-vN73el4faQ"));
+        assertEquals(4L, response.getStackTraceEvents().get("L7kj7UvlKbT-vN73el4faQ").count);
 
         assertNotNull(response.getStackTraces());
         // just do a high-level spot check. Decoding is tested in unit-tests
@@ -54,8 +54,8 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals(43, response.getTotalFrames());
 
         assertNotNull(response.getStackTraceEvents());
-        assertEquals(3L, (long) response.getStackTraceEvents().get("Ce77w10WeIDow3kd1jowlA"));
-        assertEquals(2L, (long) response.getStackTraceEvents().get("JvISdnJ47BQ01489cwF9DA"));
+        assertEquals(3L, response.getStackTraceEvents().get("Ce77w10WeIDow3kd1jowlA").count);
+        assertEquals(2L, response.getStackTraceEvents().get("JvISdnJ47BQ01489cwF9DA").count);
 
         assertNotNull(response.getStackTraces());
         // just do a high-level spot check. Decoding is tested in unit-tests

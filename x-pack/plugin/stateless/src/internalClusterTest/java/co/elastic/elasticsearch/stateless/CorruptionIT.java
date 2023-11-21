@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -89,6 +90,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
  * TODO: Increase network delay disruption and maybe use other NetworkDisruption types.
  * TODO: Add random object store failures beyond max retries (https://elasticco.atlassian.net/browse/ES-6453)
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-7393, https://elasticco.atlassian.net/browse/ES-7394")
 public class CorruptionIT extends AbstractStatelessIntegTestCase {
 
     private static final boolean TEST_HARDER = RandomizedTest.systemPropertyAsBoolean("tests.harder", false);

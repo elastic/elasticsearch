@@ -171,7 +171,11 @@ public class TransportVersions {
     public static final TransportVersion ML_STATE_CHANGE_TIMESTAMPS = def(8_540_00_0);
     public static final TransportVersion DATA_STREAM_FAILURE_STORE_ADDED = def(8_541_00_0);
     public static final TransportVersion ML_INFERENCE_OPENAI_ADDED = def(8_542_00_0);
-    public static final TransportVersion INFERENCE_SERVICE_RESULTS_ADDED = def(8_543_00_0);
+    public static final TransportVersion SHUTDOWN_MIGRATION_STATUS_INCLUDE_COUNTS = def(8_543_00_0);
+    public static final TransportVersion TRANSFORM_GET_CHECKPOINT_QUERY_AND_CLUSTER_ADDED = def(8_544_00_0);
+    public static final TransportVersion GRANT_API_KEY_CLIENT_AUTHENTICATION_ADDED = def(8_545_00_0);
+    public static final TransportVersion PIT_WITH_INDEX_FILTER = def(8_546_00_0);
+    public static final TransportVersion INFERENCE_SERVICE_RESULTS_ADDED = def(8_547_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

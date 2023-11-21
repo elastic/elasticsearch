@@ -322,10 +322,6 @@ public abstract class SearchContext implements Releasable {
     /** controls whether the sequence number and primary term of the last modification to each hit should be returned */
     public abstract void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm);
 
-    public abstract int[] docIdsToLoad();
-
-    public abstract SearchContext docIdsToLoad(int[] docIdsToLoad);
-
     public abstract DfsSearchResult dfsResult();
 
     /**

@@ -92,6 +92,7 @@ import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -104,6 +105,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
@@ -199,13 +201,28 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             () -> clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
         );
 
-        logger.info("--> Go through a loop of creating and deleting a snapshot to trigger repository cleanup");
+        logger.info("--> trigger repository cleanup");
         clusterAdmin().prepareCleanupRepository("test-repo").get();
 
-        // Expect two files to remain in the repository:
-        // (1) index-(N+1)
-        // (2) index-latest
-        assertFileCount(repo, 2);
+        // Expect two or three files to remain in the repository:
+        // (1) index-latest
+        // (2) index-(N+1)
+        // (3) index-N (maybe: a fully successful deletion removes this, but cleanup does not, see #100718)
+
+        final var blobPaths = getAllFilesInDirectoryAndDescendants(repo);
+        final var blobPathsString = blobPaths.toString();
+        assertTrue(blobPathsString, blobPaths.remove(repo.resolve(BlobStoreRepository.INDEX_LATEST_BLOB)));
+        assertThat(blobPathsString, blobPaths, anyOf(hasSize(1), hasSize(2)));
+        final var repoGenerations = blobPaths.stream().mapToLong(blobPath -> {
+            final var blobName = repo.relativize(blobPath).toString();
+            assertThat(blobPathsString, blobName, startsWith(BlobStoreRepository.INDEX_FILE_PREFIX));
+            return Long.parseLong(blobName.substring(BlobStoreRepository.INDEX_FILE_PREFIX.length()));
+        }).toArray();
+
+        if (repoGenerations.length == 2) {
+            assertEquals(blobPathsString, 1, Math.abs(repoGenerations[0] - repoGenerations[1]));
+        }
+
         logger.info("--> done");
     }
 

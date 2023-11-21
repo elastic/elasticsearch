@@ -935,4 +935,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             default -> throw new IllegalArgumentException();
         };
     }
+
+    /**
+     * All string types (keyword, text, match_only_text, etc).
+     */
+    protected static DataType[] strings() {
+        return EsqlDataTypes.types().stream().filter(DataTypes::isString).toArray(DataType[]::new);
+    }
 }

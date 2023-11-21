@@ -372,6 +372,15 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         List<List<String>> slicedEventIds = sliced(eventIds, desiredSlices);
         ClusterState clusterState = clusterService.state();
         List<Index> indices = resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
+
+        // Build a set of unique host IDs.
+        Set<String> uniqueHostIDs = new HashSet<>(responseBuilder.hostEventCounts.size());
+        responseBuilder.hostEventCounts.forEach(hec -> {
+            if (hostsTable.containsKey(hec.hostID) == false) {
+                uniqueHostIDs.add(hec.hostID);
+            }
+        });
+
         StackTraceHandler handler = new StackTraceHandler(
             clusterState,
             client,
@@ -379,20 +388,18 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             submitListener,
             eventIds.size(),
             // We need to expect a set of slices for each resolved index, plus one for the host metadata.
-            slicedEventIds.size() * indices.size() + 1
+            slicedEventIds.size() * indices.size() + (uniqueHostIDs.isEmpty() ? 0 : 1)
         );
         for (List<String> slice : slicedEventIds) {
             mget(client, indices, slice, ActionListener.wrap(handler::onResponse, submitListener::onFailure));
         }
 
+        if (uniqueHostIDs.isEmpty()) {
+            handler.calculateCO2AndCosts();
+            return;
+        }
+
         // Retrieve the host metadata in parallel. Assume low-cardinality and do not split the query.
-        // First, build a set of unique host IDs. There will be no more than maxSupportedUniqueHosts.
-        Set<String> uniqueHostIDs = new HashSet<>(MAX_TRACE_EVENTS_RESULT_SIZE);
-        responseBuilder.hostEventCounts.forEach(hec -> {
-            if (hostsTable.containsKey(hec.hostID) == false) {
-                uniqueHostIDs.add(hec.hostID);
-            }
-        });
         client.prepareSearch("profiling-hosts")
             .setTrackTotalHits(false)
             .setQuery(
@@ -494,8 +501,14 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 hostsTable.putIfAbsent(host.hostID, host);
             }
             log.debug(hostsWatch::report);
-            log.debug("Got [{}] host metadata items", hostsTable.size());
+            log.debug("Have [{}] host metadata items", hostsTable.size());
 
+            calculateCO2AndCosts();
+
+            mayFinish();
+        }
+
+        public void calculateCO2AndCosts() {
             // Do the CO2 and cost calculation in parallel to waiting for frame metadata.
             StopWatch watch = new StopWatch("calculateCO2AndCosts");
             CO2Calculator co2Calculator = new CO2Calculator(costsService, hostsTable, responseBuilder.requestedDuration);
@@ -524,8 +537,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 Strings.collectionToDelimitedStringWithLimit(missingStackTraces, ",", "", "", 3, stringBuilder);
                 log.warn("CO2/cost calculator: missing trace events for StackTraceID [" + stringBuilder + "].");
             }
-
-            mayFinish();
         }
 
         public void mayFinish() {

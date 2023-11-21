@@ -11,6 +11,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -51,7 +53,7 @@ final class InstanceType implements ToXContentObject {
         // ],
         String provider = "", region = "", instanceType = "";
 
-        String[] tags = (String[]) source.get("profiling.host.tags");
+        List<String> tags = listOf(source.get("profiling.host.tags"));
         for (String tag : tags) {
             String[] kv = tag.toLowerCase(Locale.ROOT).split(":", 2);
             if (kv.length != 2) {
@@ -73,6 +75,17 @@ final class InstanceType implements ToXContentObject {
         }
 
         return new InstanceType(provider, region, instanceType);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> List<T> listOf(Object o) {
+        if (o instanceof List) {
+            return (List<T>) o;
+        } else if (o != null) {
+            return List.of((T) o);
+        } else {
+            return Collections.emptyList();
+        }
     }
 
     @Override

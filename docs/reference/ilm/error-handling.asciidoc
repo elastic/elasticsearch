@@ -211,7 +211,7 @@ The index name must match the regex pattern `^.*-\d+` for the rollover action to
 The most common problem is that the index name does not contain trailing digits.
 For example, `my-index` does not match the pattern requirement.
 
-The preferred solution is using data streams so bootstraping the initial time series index is not needed
+The preferred solution is to use <<data-streams,data streams>> so bootstrapping the initial time series index is not needed.
 
 Without using data streams, the solution is to append a numeric value to the index name. For example, `my-index-000001` is the expected index name created by <<ilm-gs-alias-bootstrap,bootstrapping the initial time series index with a write index alias>>.
 

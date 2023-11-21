@@ -731,7 +731,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         return diagnosisDefs;
     }
 
-    private List<Diagnosis.Definition> checkNodesWithRoleAtShardLimit(
+    protected List<Diagnosis.Definition> checkNodesWithRoleAtShardLimit(
         IndexMetadata indexMetadata,
         ClusterState clusterState,
         List<NodeAllocationResult> nodeRoleAllocationResults,
@@ -742,7 +742,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         if (nodeRoleAllocationResults.stream().allMatch(hasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
             List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
             // We need the routing nodes for the tiers this index is allowed on to determine the offending shard limits
-            List<RoutingNode> dataTierRoutingNodes = clusterState.getRoutingNodes()
+            List<RoutingNode> candidateNodes = clusterState.getRoutingNodes()
                 .stream()
                 .filter(routingNode -> nodesWithRoles.contains(routingNode.node()))
                 .toList();
@@ -755,19 +755,19 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             // Determine which total_shards_per_node settings are keeping things from allocating
             boolean clusterShardsPerNodeShouldChange = false;
             if (clusterShardsPerNode > 0) {
-                int minShardCountInTier = dataTierRoutingNodes.stream()
+                int minShardCountWithRole = candidateNodes.stream()
                     .map(RoutingNode::numberOfOwningShards)
                     .min(Integer::compareTo)
                     .orElse(-1);
-                clusterShardsPerNodeShouldChange = minShardCountInTier >= clusterShardsPerNode;
+                clusterShardsPerNodeShouldChange = minShardCountWithRole >= clusterShardsPerNode;
             }
             boolean indexShardsPerNodeShouldChange = false;
             if (indexShardsPerNode > 0) {
-                int minShardCountInTier = dataTierRoutingNodes.stream()
+                int minShardCountWithRole = candidateNodes.stream()
                     .map(routingNode -> routingNode.numberOfOwningShardsForIndex(indexMetadata.getIndex()))
                     .min(Integer::compareTo)
                     .orElse(-1);
-                indexShardsPerNodeShouldChange = minShardCountInTier >= indexShardsPerNode;
+                indexShardsPerNodeShouldChange = minShardCountWithRole >= indexShardsPerNode;
             }
 
             // Add appropriate diagnosis
@@ -780,8 +780,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     Optional.ofNullable(getIncreaseShardLimitIndexSettingAction(role)).ifPresent(diagnosisDefs::add);
                 }
             } else {
-                // We couldn't determine a desired tier. This is likely because there are no tiers in the cluster,
-                // only `data` nodes. Give a generic ask for increasing the shard limit.
+                // We couldn't determine a desired role. Give a generic ask for increasing the shard limit.
                 if (clusterShardsPerNodeShouldChange) {
                     diagnosisDefs.add(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING);
                 }

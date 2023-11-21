@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -65,9 +65,9 @@ public class RestForceMergeAction extends BaseRestHandler {
             if (validationException != null) {
                 throw validationException;
             }
-            final var responseFuture = new ListenableActionFuture<ForceMergeResponse>();
-            final var task = client.executeLocally(ForceMergeAction.INSTANCE, mergeRequest, responseFuture);
-            responseFuture.addListener(new LoggingTaskListener<>(task));
+            final var responseListener = new SubscribableListener<ForceMergeResponse>();
+            final var task = client.executeLocally(ForceMergeAction.INSTANCE, mergeRequest, responseListener);
+            responseListener.addListener(new LoggingTaskListener<>(task));
             return sendTask(client.getLocalNodeId(), task);
         }
     }

@@ -34,6 +34,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -43,8 +44,10 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -71,6 +74,7 @@ public class HuggingFaceElserActionTests extends ESTestCase {
         webServer.close();
     }
 
+    @SuppressWarnings("unchecked")
     public void testExecute_ReturnsSuccessfulResponse() throws IOException {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
@@ -88,10 +92,10 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
             var action = createAction(getUrl(webServer), sender);
 
-            PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-            action.execute("abc", listener);
+            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            action.execute(List.of("abc"), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(TIMEOUT).get(0);
 
             assertThat(result.asMap(), is(Map.of(DEFAULT_RESULTS_FIELD, Map.of(".", 0.13315596f))));
             assertThat(webServer.requests(), hasSize(1));
@@ -104,7 +108,9 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(1));
-            assertThat(requestMap.get("inputs"), is("abc"));
+            assertThat(requestMap.get("inputs"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("inputs");
+            assertThat(inputList, contains("abc"));
         }
     }
 
@@ -121,8 +127,8 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
         var action = createAction(getUrl(webServer), sender);
 
-        PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-        action.execute("abc", listener);
+        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+        action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -142,8 +148,8 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
         var action = createAction(getUrl(webServer), sender);
 
-        PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-        action.execute("abc", listener);
+        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+        action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -156,8 +162,8 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
         var action = createAction(getUrl(webServer), sender);
 
-        PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-        action.execute("abc", listener);
+        PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+        action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

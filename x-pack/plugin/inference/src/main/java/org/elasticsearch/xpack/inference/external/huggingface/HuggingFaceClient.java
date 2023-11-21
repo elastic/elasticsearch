@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFa
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
+import java.util.List;
 
 public class HuggingFaceClient {
     private static final Logger logger = LogManager.getLogger(HuggingFaceClient.class);
@@ -38,7 +39,7 @@ public class HuggingFaceClient {
         );
     }
 
-    public void send(HuggingFaceElserRequest request, ActionListener<InferenceResults> listener) throws IOException {
+    public void send(HuggingFaceElserRequest request, ActionListener<List<? extends InferenceResults>> listener) throws IOException {
         this.sender.send(request.createRequest(), ELSER_RESPONSE_HANDLER, listener);
     }
 

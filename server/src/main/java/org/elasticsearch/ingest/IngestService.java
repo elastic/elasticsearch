@@ -1429,7 +1429,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         defaultPipeline = Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME);
         finalPipeline = Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME);
 
-        return Optional.of(new Pipelines(defaultPipeline, finalPipeline, null));
+        return Optional.of(new Pipelines(defaultPipeline, finalPipeline, NOOP_PIPELINE_NAME));
     }
 
     /**

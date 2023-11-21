@@ -492,11 +492,7 @@ public final class MappingLookup {
         }
     }
 
-    public List<String> fieldsForModel(String modelName) {
-        return fieldTypeLookup.fieldsForModel(modelName);
-    }
-
-    public Map<String, List<String>> fieldsForModels() {
+    public Map<String, Set<String>> fieldsForModels() {
         return fieldTypeLookup.fieldsForModel();
     }
 }

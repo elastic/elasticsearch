@@ -523,15 +523,6 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
-    public static final Setting<String> INFERENCE_PIPELINE = new Setting<>(
-        "index.inference_pipeline",
-        IngestService.NOOP_PIPELINE_NAME,
-        Function.identity(),
-        Property.PrivateIndex,
-        Property.IndexScope,
-        Property.ServerlessPublic
-    );
-
     /**
      * Marks an index to be searched throttled. This means that never more than one shard of such an index will be searched concurrently
      */

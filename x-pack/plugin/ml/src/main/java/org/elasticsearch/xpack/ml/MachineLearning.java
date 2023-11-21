@@ -465,6 +465,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -2287,13 +2288,13 @@ public class MachineLearning extends Plugin
             return Optional.empty();
         }
 
-        Map<String, List<String>> inferenceModelsForFields = indexMetadata.getInferenceModelsForFields();
+        Map<String, Set<String>> inferenceModelsForFields = indexMetadata.getInferenceModelsForFields();
         if (inferenceModelsForFields.isEmpty()) {
             return Optional.empty();
         }
 
         Collection<Processor> inferenceProcessors = new ArrayList<>();
-        for (Map.Entry<String, List<String>> modelsForFieldsEntry : inferenceModelsForFields.entrySet()) {
+        for (Map.Entry<String, Set<String>> modelsForFieldsEntry : inferenceModelsForFields.entrySet()) {
             Map<String, Object> inferenceConfig = new HashMap<>();
             String modelId = modelsForFieldsEntry.getKey();
             inferenceConfig.put("model_id", modelId);

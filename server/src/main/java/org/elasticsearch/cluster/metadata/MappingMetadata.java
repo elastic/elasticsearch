@@ -21,9 +21,9 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
@@ -43,7 +43,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
 
     private final boolean routingRequired;
 
-    private final Map<String, List<String>> fieldsForModels;
+    private final Map<String, Set<String>> fieldsForModels;
 
     public MappingMetadata(DocumentMapper docMapper) {
         this.type = docMapper.type();
@@ -127,7 +127,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         return this.source;
     }
 
-    public Map<String, List<String>> getFieldsForModels() {
+    public Map<String, Set<String>> getFieldsForModels() {
         return fieldsForModels;
     }
 
@@ -205,7 +205,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
         source = CompressedXContent.readCompressedString(in);
         routingRequired = in.readBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD)) {
-            fieldsForModels = in.readMapOfLists(StreamInput::readString);
+            fieldsForModels = in.readMap(StreamInput::readString, i -> i.readCollectionAsImmutableSet(StreamInput::readString));
         } else {
             fieldsForModels = Map.of();
         }

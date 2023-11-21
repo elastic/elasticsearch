@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 public class SemanticTextInferenceProcessor extends AbstractProcessor implements WrappingProcessor {
@@ -25,7 +26,7 @@ public class SemanticTextInferenceProcessor extends AbstractProcessor implements
     public static final String TYPE = "semanticTextInference";
     public static final String TAG = "semantic_text";
 
-    private final Map<String, List<String>> fieldsForModels;
+    private final Map<String, Set<String>> fieldsForModels;
 
     private final Processor wrappedProcessor;
 
@@ -36,7 +37,7 @@ public class SemanticTextInferenceProcessor extends AbstractProcessor implements
         Client client,
         InferenceAuditor inferenceAuditor,
         String description,
-        Map<String, List<String>> fieldsForModels
+        Map<String, Set<String>> fieldsForModels
     ) {
         super(TAG, description);
         this.client = client;
@@ -54,7 +55,7 @@ public class SemanticTextInferenceProcessor extends AbstractProcessor implements
         return new CompoundProcessor(inferenceProcessors);
     }
 
-    private InferenceProcessor createInferenceProcessor(String modelId, List<String> fields) {
+    private InferenceProcessor createInferenceProcessor(String modelId, Set<String> fields) {
         List<InferenceProcessor.Factory.InputConfig> inputConfigs = fields.stream()
             .map(f -> new InferenceProcessor.Factory.InputConfig(f, "ml.inference", f, Map.of()))
             .toList();

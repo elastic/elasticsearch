@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
@@ -89,11 +90,7 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         super(input);
         this.modelId = input.readString();
         this.params = input.readMap();
-        if (input.readBoolean()) {
-            this.learnToRankConfig = new LearnToRankConfig(input);
-        } else {
-            this.learnToRankConfig = null;
-        }
+        this.learnToRankConfig = (LearnToRankConfig) input.readOptionalNamedWriteable(InferenceConfig.class);
         this.learnToRankService = learnToRankService;
 
         this.localModel = null;
@@ -258,13 +255,7 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         assert localModel == null || rescoreOccurred : "Unnecessarily populated local model object";
         out.writeString(modelId);
         out.writeGenericMap(params);
-
-        if (learnToRankConfig != null) {
-            out.writeBoolean(true);
-            learnToRankConfig.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalNamedWriteable(learnToRankConfig);
     }
 
     @Override

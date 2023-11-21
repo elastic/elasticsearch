@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.querydsl.query;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
@@ -76,12 +74,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
     }
 
     public void testMatchAll() throws IOException {
-        testCase(
-            new SingleValueQuery(new MatchAll(Source.EMPTY), "foo").asBuilder(),
-            false,
-            false,
-            this::runCase
-        );
+        testCase(new SingleValueQuery(new MatchAll(Source.EMPTY), "foo").asBuilder(), false, false, this::runCase);
     }
 
     public void testMatchSome() throws IOException {
@@ -172,8 +165,10 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
 
         // query's count runs against the full set, not just min-to-max
         if (fieldValues.stream().anyMatch(x -> x.size() > 1)) {
-            assertWarnings("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
+            assertWarnings(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+            );
         }
     }
 

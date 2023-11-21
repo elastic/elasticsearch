@@ -123,7 +123,8 @@ public class FilterTests extends ESTestCase {
         var queryFilter = singleValueQuery(
             rangeQuery(EMP_NO).gt(value).includeUpper(false),
             EMP_NO,
-            ((SingleValueQuery.Builder) builder).source());
+            ((SingleValueQuery.Builder) builder).source()
+        );
         var expected = Queries.combine(FILTER, asList(restFilter, queryFilter));
         assertEquals(expected.toString(), filter.toString());
     }
@@ -271,7 +272,6 @@ public class FilterTests extends ESTestCase {
             out.writeNamedWriteable(inner);
             out.writeString(field);
             writeSource(out, source);
-
 
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),

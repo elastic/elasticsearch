@@ -89,7 +89,11 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         super(input);
         this.modelId = input.readString();
         this.params = input.readMap();
-        this.learnToRankConfig = input.readOptionalNamedWriteable(LearnToRankConfig.class);
+        if (input.readBoolean()) {
+            this.learnToRankConfig = new LearnToRankConfig(input);
+        } else {
+            this.learnToRankConfig = null;
+        }
         this.learnToRankService = learnToRankService;
 
         this.localModel = null;
@@ -254,7 +258,13 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
         assert localModel == null || rescoreOccurred : "Unnecessarily populated local model object";
         out.writeString(modelId);
         out.writeGenericMap(params);
-        out.writeOptionalNamedWriteable(learnToRankConfig);
+
+        if (learnToRankConfig != null) {
+            out.writeBoolean(true);
+            learnToRankConfig.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     @Override

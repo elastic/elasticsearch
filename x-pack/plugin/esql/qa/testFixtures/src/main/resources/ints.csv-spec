@@ -1,6 +1,6 @@
 // Integral types-specific tests
 
-inLongAndInt
+inLongAndInt#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where avg_worked_seconds in (372957040, salary_change.long, 236703986) | where emp_no in (10017, emp_no - 1) | keep emp_no, avg_worked_seconds;
 warning:Line 1:24: evaluation of [avg_worked_seconds in (372957040, salary_change.long, 236703986)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -240,7 +240,7 @@ d:double       |d2i:integer   |overflow:integer
 123.4          |123           |null    
 ;
 
-lessThanMultivalue
+lessThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where salary_change.int < 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [salary_change.int < 1] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -254,7 +254,7 @@ emp_no:integer |salary_change.int:integer
 10030          | 0
 ;
 
-greaterThanMultivalue
+greaterThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where salary_change.int > 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [salary_change.int > 1] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -268,7 +268,7 @@ emp_no:integer |salary_change.int:integer
 10086          |13
 ;
 
-equalToMultivalue
+equalToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where salary_change.int == 0 | keep emp_no, salary_change.int | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change.int == 0] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -281,7 +281,7 @@ emp_no:integer |salary_change.int:integer
 10093          | 0
 ;
 
-equalToOrEqualToMultivalue
+equalToOrEqualToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where salary_change.int == 1 or salary_change.int == 8 | keep emp_no, salary_change.int | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change.int] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -292,7 +292,7 @@ emp_no:integer |salary_change.int:integer
 10044          |8
 ;
 
-inMultivalue
+inMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where salary_change.int in (1, 7) | keep emp_no, salary_change.int | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change.int in (1, 7)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -303,7 +303,7 @@ emp_no:integer |salary_change.int:integer
 10079          |7
 ;
 
-notLessThanMultivalue
+notLessThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where not(salary_change.int < 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [not(salary_change.int < 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change.int < 1] failed, treating result as null. Only first 20 failures recorded.]
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
@@ -317,7 +317,7 @@ emp_no:integer |salary_change.int:integer
 10079          | 7
 ;
 
-notGreaterThanMultivalue
+notGreaterThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where not(salary_change.int > 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [not(salary_change.int > 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change.int > 1] failed, treating result as null. Only first 20 failures recorded.]
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
@@ -331,7 +331,7 @@ emp_no:integer |salary_change.int:integer
 10020          | -5
 ;
 
-notEqualToMultivalue
+notEqualToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
 from employees | where not(salary_change.int == 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [not(salary_change.int == 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change.int == 1] failed, treating result as null. Only first 20 failures recorded.]
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]

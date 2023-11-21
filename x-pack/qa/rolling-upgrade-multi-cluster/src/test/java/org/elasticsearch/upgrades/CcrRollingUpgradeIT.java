@@ -88,7 +88,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102000")
     public void testAutoFollowing() throws Exception {
         String leaderIndex1 = "logs-20200101";
         String leaderIndex2 = "logs-20200102";
@@ -240,7 +239,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102010")
     public void testBiDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
 
@@ -372,7 +370,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     private static void verifyTotalHitCount(final String index, final int expectedTotalHits, final RestClient client) throws IOException {
         final Request request = new Request("GET", "/" + index + "/_search");
         request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        Map<?, ?> response = toMap(client.performRequest(request));
+        setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND); // trip the assertOK (i.e. retry an assertBusy) rather than throwing
+        Map<?, ?> response = toMap(assertOK(client.performRequest(request)));
         final int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
         assertThat(totalHits, equalTo(expectedTotalHits));
     }

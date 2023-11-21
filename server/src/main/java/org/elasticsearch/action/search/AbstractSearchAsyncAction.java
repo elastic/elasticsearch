@@ -160,13 +160,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.executor = executor;
         this.request = request;
         this.task = task;
-        this.listener = ActionListener.runAfter(listener, this::releaseContext);
+        this.listener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
         this.minTransportVersion = clusterState.getMinTransportVersion();
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
+        // register the release of the query consumer to free up the circuit breaker memory
+        // at the end of the search
+        addReleasable(resultConsumer::decRef);
         this.clusters = clusters;
     }
 
@@ -187,10 +190,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public void addReleasable(Releasable releasable) {
         releasables.add(releasable);
-    }
-
-    public void releaseContext() {
-        Releasables.close(releasables);
     }
 
     /**

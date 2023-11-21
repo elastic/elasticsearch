@@ -480,6 +480,26 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         Stream<CanMatchShardResponse> getSuccessfulResults() {
             return Stream.empty();
         }
+
+        @Override
+        public void incRef() {
+
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return false;
+        }
+
+        @Override
+        public boolean decRef() {
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return false;
+        }
     }
 
     private GroupShardsIterator<SearchShardIterator> getIterator(

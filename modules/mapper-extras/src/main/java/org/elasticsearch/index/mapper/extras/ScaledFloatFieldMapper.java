@@ -310,13 +310,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
                 // Counters are not supported by ESQL so we load them in null
-                return BlockDocValuesReader.nulls();
+                return BlockLoader.CONSTANT_NULLS;
             }
             if (hasDocValues()) {
                 double scalingFactorInverse = 1d / scalingFactor;
-                return BlockDocValuesReader.doubles(name(), l -> l * scalingFactorInverse);
+                return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l * scalingFactorInverse);
             }
-            return BlockSourceReader.doubles(sourceValueFetcher(blContext.sourcePaths(name())));
+            return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

@@ -33,6 +33,8 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -116,6 +118,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     // multiple threads doing CAS updates.
     // Wait up to 1 minute (+10s in thread to ensure it does not time out) for threads to complete previous round before initiating next
     // round.
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102255")
     public void testSeqNoCASLinearizability() {
         final int disruptTimeSeconds = scaledRandomIntBetween(1, 8);
 
@@ -448,12 +451,23 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             var chunkedLoggingStream = ChunkedLoggingStream.create(
                                 logger,
                                 Level.ERROR,
-                                "unlinearizable history",
+                                "raw unlinearizable history in partition " + id,
                                 ReferenceDocs.LOGGING // any old docs link will do
                             );
                             var output = new OutputStreamStreamOutput(chunkedLoggingStream)
                         ) {
                             writeHistory(output, history);
+                        }
+                        try (
+                            var chunkedLoggingStream = ChunkedLoggingStream.create(
+                                logger,
+                                Level.ERROR,
+                                "visualisation of unlinearizable history in partition " + id,
+                                ReferenceDocs.LOGGING // any old docs link will do
+                            );
+                            var writer = new OutputStreamWriter(chunkedLoggingStream, StandardCharsets.UTF_8)
+                        ) {
+                            LinearizabilityChecker.writeVisualisation(spec, history, missingResponseGenerator(), writer);
                         }
                     }
                 } catch (IOException e) {

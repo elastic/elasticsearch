@@ -398,7 +398,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
             return randomDouble();
         }
         assumeFalse("https://github.com/elastic/elasticsearch/issues/70585", true);
-        // TODO: unsigned long has a max value of (2^64)-1, but it can't be used in the randomDoubleBetween method because it's too large
         return randomDoubleBetween(0L, Long.MAX_VALUE, true);
     }
 

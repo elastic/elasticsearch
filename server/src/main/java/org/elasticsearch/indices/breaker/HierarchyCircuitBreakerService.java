@@ -501,7 +501,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 HierarchyCircuitBreakerService::realMemoryUsage,
                 createYoungGcCountSupplier(),
                 System::currentTimeMillis,
-                5000,
+                500,
                 lockTimeout
             );
         } else {
@@ -542,6 +542,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         private long blackHole;
         private final ReleasableLock lock = new ReleasableLock(new ReentrantLock());
+        // used to throttle logging
+        private int attemptNo;
 
         G1OverLimitStrategy(
             JvmInfo jvmInfo,
@@ -588,9 +590,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             boolean leader = false;
             int allocationIndex = 0;
             long allocationDuration = 0;
+            long begin = 0;
             try (ReleasableLock locked = lock.tryAcquire(lockTimeout)) {
                 if (locked != null) {
-                    long begin = timeSupplier.getAsLong();
+                    this.attemptNo++;
+                    begin = timeSupplier.getAsLong();
                     leader = begin >= lastCheckTime + minimumInterval;
                     overLimitTriggered(leader);
                     if (leader) {
@@ -622,15 +626,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         long now = timeSupplier.getAsLong();
                         this.lastCheckTime = now;
                         allocationDuration = now - begin;
-                    } else {
-                        logger.info(
-                            "not attempting to trigger G1GC due to time interval [{}] being lower than [{}]",
-                            begin - lastCheckTime,
-                            minimumInterval
-                        );
+                        this.attemptNo = 0;
                     }
                 }
             } catch (InterruptedException e) {
+                logger.info("could not acquire lock when attempting to trigger G1GC due to high heap usage");
                 Thread.currentThread().interrupt();
                 // fallthrough
             }
@@ -645,8 +645,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         allocationIndex,
                         allocationDuration
                     );
-                } else {
-                    logger.info("memory usage down, before [{}], after [{}]", memoryUsed.baseUsage, current);
+                } else if (attemptNo < 10 || Long.bitCount(attemptNo) == 1) {
+                    logger.info(
+                        "memory usage down after [{}], before [{}], after [{}]",
+                        begin - lastCheckTime,
+                        memoryUsed.baseUsage,
+                        current
+                    );
                 }
                 return new MemoryUsage(
                     current,
@@ -663,8 +668,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         allocationIndex,
                         allocationDuration
                     );
-                } else {
-                    logger.info("memory usage not down, before [{}], after [{}]", memoryUsed.baseUsage, current);
+                } else if (attemptNo < 10 || Long.bitCount(attemptNo) == 1) {
+                    logger.info(
+                        "memory usage not down after [{}], before [{}], after [{}]",
+                        begin - lastCheckTime,
+                        memoryUsed.baseUsage,
+                        current
+                    );
                 }
                 // prefer original measurement when reporting if heap usage was not brought down.
                 return memoryUsed;

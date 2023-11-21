@@ -622,6 +622,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         long now = timeSupplier.getAsLong();
                         this.lastCheckTime = now;
                         allocationDuration = now - begin;
+                    } else {
+                        logger.info(
+                            "not attempting to trigger G1GC due to time interval [{}] being lower than [{}]",
+                            begin - lastCheckTime,
+                            minimumInterval
+                        );
                     }
                 }
             } catch (InterruptedException e) {
@@ -639,6 +645,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         allocationIndex,
                         allocationDuration
                     );
+                } else {
+                    logger.info("memory usage down, before [{}], after [{}]", memoryUsed.baseUsage, current);
                 }
                 return new MemoryUsage(
                     current,
@@ -655,6 +663,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         allocationIndex,
                         allocationDuration
                     );
+                } else {
+                    logger.info("memory usage not down, before [{}], after [{}]", memoryUsed.baseUsage, current);
                 }
                 // prefer original measurement when reporting if heap usage was not brought down.
                 return memoryUsed;

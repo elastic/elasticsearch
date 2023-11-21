@@ -52,7 +52,7 @@ documents in searchable indices.
 
 Submit the following indexing request to add a single document to the
 `books` index.
-Since `index` doesn't exist yet, the
+Since the index doesn't exist yet, the
 request automatically creates it.
 
 [source,console]
@@ -60,11 +60,13 @@ request automatically creates it.
 POST books/_doc
 {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
 ----
-// TEST[skip:for now]
-// TEST[s/_doc/_doc?refresh=wait_for/]
+// TEST[skip:TODO]
 
 The response includes metadata that {es} generates for the document including a unique `_id` for the document within the index.
 
+.Expand to see example response
+[%collapsible]
+===============
 [source,console-result]
 ----
 {
@@ -81,10 +83,8 @@ The response includes metadata that {es} generates for the document including a 
   "_primary_term": 1
 }
 ----
-// TESTRESPONSE[skip:for now]
-// TESTRESPONSE[s/"_index": "books"/"_index": $body._index/]
-// TESTRESPONSE[s/"_id": "O0lG2IsBaSa7VYx_rEia"/"_id": $body._id/]
-// TESTRESPONSE[s/"result": "created"/"result": $body.result/]
+// TEST[skip:TODO]
+===============
 
 [discrete]
 [[add-multiple-documents]]
@@ -108,12 +108,13 @@ POST /_bulk
 { "index" : { "_index" : "books" } }
 {"name": "The Handmaids Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
 ----
-// TEST[skip:for now]
-// TEST[continued]
-// TEST[s/_bulk/_bulk?refresh=wait_for/]
+// TEST[skip:TODO]
 
-You should receive a response indicating there were no errors:
+You should receive a response indicating there were no errors.
 
+.Expand to see example response
+[%collapsible]
+===============
 [source,console-result]
 ----
 {
@@ -203,11 +204,8 @@ You should receive a response indicating there were no errors:
   ]
 }
 ----
-// TESTRESPONSE[skip:for now]
-// TESTRESPONSE[s/"took": 189/"took": $body.took/]
-// TESTRESPONSE[s/"_index": "books"/"_index": $body.items.0.index._index/]
-// TESTRESPONSE[s/"_id": "IEkx2IsBaSa7VYx_vkj6"/"_id": $body.items.0.index._id/]
-// TESTRESPONSE[s/"_index": "books"/"_index": $body.items.1.index._index/]
+// TEST[skip:TODO]
+===============
 
 [discrete]
 [[qs-search-data]]
@@ -227,14 +225,16 @@ GET books/_search
   }
 }
 ----
-// TEST[skip:for now]
-// TEST[continued]
+// TEST[skip:TODO]
 
 By default, the `hits` section of the response includes up to the first 10
 documents that match the search.
 The `_source` of each hit contains the original
 JSON object submitted during indexing.
 
+.Expand to see example response
+[%collapsible]
+===============
 [source,console-result]
 ----
 {
@@ -268,11 +268,8 @@ JSON object submitted during indexing.
   }
 }
 ----
-//TESTRESPONSE[skip:for now]
-// TESTRESPONSE[s/"took": 2/"took": $body.took/]
-// TESTRESPONSE[s/"_index": ".ds-logs-my_app-default-2099-05-06-000001"/"_index": $body.hits.hits.0._index/]
-// TESTRESPONSE[s/"_id": "PdjWongB9KPnaVm2IyaL"/"_id": $body.hits.hits.0._id/]
-// TESTRESPONSE[s/\.\.\./$body.hits.hits.1,$body.hits.hits.2/]
+// TEST[skip:TODO]
+===============
 
 [discrete]
 [[get-specific-fields]]
@@ -296,12 +293,13 @@ GET books/_search
   "_source": false
 }
 ----
-// TEST[SKIP:for now]
-// TEST[continued]
-// TEST[s/_search/_search?filter_path=hits.hits&size=1/]
+// TEST[skip:TODO]
 
 The response contains each hit's `fields` values as a flat array.
 
+.Expand to see example response
+[%collapsible]
+===============
 [source,console-result]
 ----
 {
@@ -384,11 +382,8 @@ The response contains each hit's `fields` values as a flat array.
   }
 }
 ----
-// TESTRESPONSE[SKIP:for now]
-// TESTRESPONSE[s/\.\.\.//]
-// TESTRESPONSE[s/"_index": ".ds-logs-my_app-default-2099-05-06-000001"/"_index": $body.hits.hits.0._index/]
-// TESTRESPONSE[s/"_id": "PdjWongB9KPnaVm2IyaL"/"_id": $body.hits.hits.0._id/]
-// TESTRESPONSE[s/4081940742000\n        \]\n      \},\n/4081940742000\]}/]
+// TEST[skip:TODO]
+===============
 
 [discrete]
 [[combine-queries]]
@@ -423,11 +418,13 @@ GET /books/_search
   }
 }
 ----
-// TEST[skip:for now]
-// TEST[continued]
+// TEST[skip:TODO]
 
 The response contains the books that match the query.
 
+.Expand to see example response
+[%collapsible]
+===============
 [source,console-result]
 ----
 {
@@ -461,11 +458,8 @@ The response contains the books that match the query.
   }
 }
 ----
-// TESTRESPONSE[SKIP:for now]
-// TESTRESPONSE[s/"took": 1/"took": $body.took/]
-// TESTRESPONSE[s/"_index": "books"/"_index": $body.hits.hits.0._index/]
-// TESTRESPONSE[s/"_id": "I0kx2IsBaSa7VYx_vkj6"/"_id": $body.hits.hits.0._id/]
-// TESTRESPONSE[s/\.\.\./$body.hits.hits.1,$body.hits.hits.2/]
+// TEST[skip:TODO]
+===============
 
 [discrete]
 [[aggregate-data]]
@@ -498,11 +492,13 @@ GET /books/_search
   }
 }
 ----
-// TEST[skip:for now]
-// TEST[continued]
+// TEST[skip:TODO]
 
 The response’s `aggregations` object contains aggregation results.
 
+.Expand to see example response
+[%collapsible]
+===============
 [source,console-result]
 ----
 {
@@ -574,7 +570,8 @@ The response’s `aggregations` object contains aggregation results.
   }
 }
 ----
-// TESTRESPONSE[SKIP:for now]
+// TEST[skip:TODO]
+===============
 
 [discrete]
 [[whats-next]]

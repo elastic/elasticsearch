@@ -1324,4 +1324,10 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertFalse(dv.advanceExact(3));
         });
     }
+
+    @Override
+    protected boolean supportsColumnAtATimeReader(MappedFieldType ft) {
+        TextFieldMapper.TextFieldType text = (TextFieldType) ft;
+        return text.syntheticSourceDelegate() != null && text.syntheticSourceDelegate().hasDocValues();
+    }
 }

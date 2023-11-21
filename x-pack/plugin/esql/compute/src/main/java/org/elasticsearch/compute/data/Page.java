@@ -14,8 +14,6 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.Objects;
 
 /**
@@ -235,39 +233,7 @@ public final class Page implements Writeable {
 
         blocksReleased = true;
 
-        // blocks can be used as multiple columns
-        var map = new IdentityHashMap<Block, Boolean>(mapSize(blocks.length));
-        for (Block b : blocks) {
-            if (map.putIfAbsent(b, Boolean.TRUE) == null) {
-                Releasables.closeExpectNoException(b);
-            }
-        }
-    }
-
-    /**
-     * Returns a Page from the given blocks and closes all blocks that are not included, from the current Page.
-     * That is, allows clean-up of the current page _after_ external manipulation of the blocks.
-     * The current page should no longer be used and be considered closed.
-     */
-    public Page newPageAndRelease(Block... keep) {
-        if (blocksReleased) {
-            throw new IllegalStateException("can't create new page from already released page");
-        }
-
-        blocksReleased = true;
-
-        var newPage = new Page(positionCount, keep);
-        var set = Collections.newSetFromMap(new IdentityHashMap<Block, Boolean>(mapSize(keep.length)));
-        set.addAll(Arrays.asList(keep));
-
-        // close blocks that have been left out
-        for (Block b : blocks) {
-            if (set.contains(b) == false) {
-                Releasables.closeExpectNoException(b);
-            }
-        }
-
-        return newPage;
+        Releasables.closeExpectNoException(blocks);
     }
 
     static int mapSize(int expectedSize) {

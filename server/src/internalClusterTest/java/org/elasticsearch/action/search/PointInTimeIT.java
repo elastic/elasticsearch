@@ -165,22 +165,27 @@ public class PointInTimeIT extends ESIntegTestCase {
         refresh();
 
         {
-            OpenPointInTimeRequest request = new OpenPointInTimeRequest("*").keepAlive(TimeValue.timeValueMinutes(2));
-            final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
-            SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), response.getPointInTimeId());
-            String[] actualIndices = searchContextId.getActualIndices();
-            assertEquals(3, actualIndices.length);
+
+                OpenPointInTimeRequest request = new OpenPointInTimeRequest("*").keepAlive(TimeValue.timeValueMinutes(2));
+                final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+            try {
+                SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), response.getPointInTimeId());
+                String[] actualIndices = searchContextId.getActualIndices();
+                assertEquals(3, actualIndices.length);
+            } finally {
+                closePointInTime(response.getPointInTimeId());
+            }
         }
         {
             OpenPointInTimeRequest request = new OpenPointInTimeRequest("*").keepAlive(TimeValue.timeValueMinutes(2));
             request.indexFilter(new RangeQueryBuilder("@timestamp").gte("2023-03-01"));
             final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
             String pitId = response.getPointInTimeId();
-            SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), pitId);
-            String[] actualIndices = searchContextId.getActualIndices();
-            assertEquals(1, actualIndices.length);
-            assertEquals("index-3", actualIndices[0]);
             try {
+                SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), pitId);
+                String[] actualIndices = searchContextId.getActualIndices();
+                assertEquals(1, actualIndices.length);
+                assertEquals("index-3", actualIndices[0]);
                 SearchResponse resp = prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(50).get();
                 assertNoFailures(resp);
                 assertHitCount(resp, numDocs);

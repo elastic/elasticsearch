@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
 import java.net.InetAddress;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -1429,7 +1430,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         if (state != null) {
             builder.updateTaskState(
                 MlTasks.dataFrameAnalyticsTaskId(id),
-                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId() - (isStale ? 1 : 0), null)
+                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId() - (isStale ? 1 : 0), null, Instant.now())
             );
         }
     }

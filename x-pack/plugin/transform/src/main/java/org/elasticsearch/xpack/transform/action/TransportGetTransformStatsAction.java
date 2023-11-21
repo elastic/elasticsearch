@@ -121,14 +121,15 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         TransformTask transformTask,
         ActionListener<Response> listener
     ) {
-        // Little extra insurance, make sure we only return transforms that aren't cancelled
         ClusterState clusterState = clusterService.state();
         String nodeId = clusterState.nodes().getLocalNode().getId();
         final TaskId parentTaskId = new TaskId(nodeId, actionTask.getId());
 
+        // If the _stats request is cancelled there is no point in continuing this work on the task level
         if (actionTask.notifyIfCancelled(listener)) {
             return;
         }
+        // Little extra insurance, make sure we only return transforms that aren't cancelled
         if (transformTask.isCancelled()) {
             listener.onResponse(new Response(Collections.emptyList()));
             return;

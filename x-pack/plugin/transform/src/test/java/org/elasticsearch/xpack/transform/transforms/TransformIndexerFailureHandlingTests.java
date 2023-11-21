@@ -1068,7 +1068,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             public void failureCountChanged() {}
 
             @Override
-            public void fail(String message, ActionListener<Void> listener) {
+            public void fail(Throwable exception, String message, ActionListener<Void> listener) {
                 assertTrue(failIndexerCalled.compareAndSet(false, true));
                 assertTrue(failureMessage.compareAndSet(null, message));
             }

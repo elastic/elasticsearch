@@ -707,8 +707,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable scope = tracer.withScope(SpanId.forTask(context.getTask()));
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
-            shortcutDocIdsToLoad(context);
-            fetchPhase.execute(context);
+            fetchPhase.execute(context, shortcutDocIdsToLoad(context));
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
@@ -857,11 +856,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
-                searchContext.docIdsToLoad(request.docIds());
                 try (
                     SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())
                 ) {
-                    fetchPhase.execute(searchContext);
+                    fetchPhase.execute(searchContext, request.docIds());
                     if (readerContext.singleSession()) {
                         freeReaderContext(request.contextId());
                     }
@@ -1464,7 +1462,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Shortcut ids to load, we load only "from" and up to "size". The phase controller
      * handles this as well since the result is always size * shards for Q_T_F
      */
-    private static void shortcutDocIdsToLoad(SearchContext context) {
+    private static int[] shortcutDocIdsToLoad(SearchContext context) {
         final int[] docIdsToLoad;
         int docsOffset = 0;
         final Suggest suggest = context.queryResult().suggest();
@@ -1502,7 +1500,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 docIdsToLoad[docsOffset++] = option.getDoc().doc;
             }
         }
-        context.docIdsToLoad(docIdsToLoad);
+        return docIdsToLoad;
     }
 
     private static void processScroll(InternalScrollSearchRequest request, SearchContext context) {

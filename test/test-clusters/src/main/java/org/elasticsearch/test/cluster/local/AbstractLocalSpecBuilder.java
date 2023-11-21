@@ -217,6 +217,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
         return cast(this);
     }
 
+    @Override
+    public T systemProperty(String key, Supplier<String> value, Predicate<LocalClusterSpec.LocalNodeSpec> predicate) {
+        this.systemPropertyProviders.add(s -> predicate.test(s) ? Map.of(key, value.get()) : Map.of());
+        return cast(this);
+    }
+
     public Map<String, String> getSystemProperties() {
         return inherit(() -> parent.getSystemProperties(), systemProperties);
     }

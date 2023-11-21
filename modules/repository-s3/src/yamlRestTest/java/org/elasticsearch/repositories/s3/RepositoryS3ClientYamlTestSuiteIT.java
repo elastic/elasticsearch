@@ -16,7 +16,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.junit.ClassRule;
@@ -30,7 +29,7 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
 
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE);
     public static final S3HttpFixtureWithSessionToken s3HttpFixtureWithSessionToken = new S3HttpFixtureWithSessionToken(USE_FIXTURE);
-    public static final S3HttpFixtureWithEC2 s3HttpFixtureWithEC2 = new S3HttpFixtureWithEC2(USE_FIXTURE);
+    public static final S3HttpFixtureWithEC2 s3Ec2 = new S3HttpFixtureWithEC2(USE_FIXTURE);
 
     private static final String s3TemporarySessionToken = "session_token";
 
@@ -46,29 +45,21 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
             );
     }
 
-    public static ElasticsearchCluster cluster = configureCluster();
-
-    private static ElasticsearchCluster configureCluster() {
-        LocalClusterSpecBuilder<ElasticsearchCluster> cluster = ElasticsearchCluster.local().module("repository-s3");
-        cluster.keystore("s3.client.integration_test_permanent.access_key", System.getProperty("s3PermanentAccessKey"))
-            .keystore("s3.client.integration_test_permanent.secret_key", System.getProperty("s3PermanentSecretKey"))
-            .keystore("s3.client.integration_test_temporary.access_key", System.getProperty("s3TemporaryAccessKey"))
-            .keystore("s3.client.integration_test_temporary.secret_key", System.getProperty("s3TemporarySecretKey"))
-            .keystore("s3.client.integration_test_temporary.session_token", s3TemporarySessionToken);
-        if (USE_FIXTURE) {
-            cluster.setting("s3.client.integration_test_permanent.endpoint", s3Fixture::getAddress)
-                .setting("s3.client.integration_test_temporary.endpoint", s3HttpFixtureWithSessionToken::getAddress)
-                .setting("s3.client.integration_test_ec2.endpoint", s3HttpFixtureWithEC2::getAddress)
-                .systemProperty("com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", s3HttpFixtureWithEC2::getAddress);
-        }
-        return cluster.build();
-    }
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("repository-s3")
+        .keystore("s3.client.integration_test_permanent.access_key", System.getProperty("s3PermanentAccessKey"))
+        .keystore("s3.client.integration_test_permanent.secret_key", System.getProperty("s3PermanentSecretKey"))
+        .keystore("s3.client.integration_test_temporary.access_key", System.getProperty("s3TemporaryAccessKey"))
+        .keystore("s3.client.integration_test_temporary.secret_key", System.getProperty("s3TemporarySecretKey"))
+        .keystore("s3.client.integration_test_temporary.session_token", s3TemporarySessionToken)
+        .setting("s3.client.integration_test_permanent.endpoint", s3Fixture::getAddress)
+        .setting("s3.client.integration_test_temporary.endpoint", s3HttpFixtureWithSessionToken::getAddress, (nodeSpec) -> USE_FIXTURE)
+        .setting("s3.client.integration_test_ec2.endpoint", s3Ec2::getAddress, (n) -> USE_FIXTURE)
+        .systemProperty("com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", s3Ec2::getAddress, (n) -> USE_FIXTURE)
+        .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(s3Fixture)
-        .around(s3HttpFixtureWithEC2)
-        .around(s3HttpFixtureWithSessionToken)
-        .around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(s3Ec2).around(s3HttpFixtureWithSessionToken).around(cluster);
 
     public RepositoryS3ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

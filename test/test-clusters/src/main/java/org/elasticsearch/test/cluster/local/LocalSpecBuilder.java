@@ -123,9 +123,15 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T systemProperty(String property, String value);
 
     /**
-     * Adds a system property to node JVM arguments computed by the given supplier.
+     * Adds a system property to node JVM arguments computed by the given supplier
      */
     T systemProperty(String property, Supplier<String> supplier);
+
+    /**
+     * Adds a system property to node JVM arguments computed by the given supplier
+     * when the given predicate evaluates to {@code true}.
+     */
+    T systemProperty(String setting, Supplier<String> value, Predicate<LocalNodeSpec> predicate);
 
     /**
      * Register a {@link SystemPropertyProvider}.

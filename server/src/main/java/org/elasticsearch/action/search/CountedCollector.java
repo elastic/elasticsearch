@@ -25,6 +25,7 @@ final class CountedCollector<R extends SearchPhaseResult> {
 
     CountedCollector(ArraySearchPhaseResults<R> resultConsumer, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
         this.resultConsumer = resultConsumer;
+        resultConsumer.incRef();
         this.counter = new CountDown(expectedOps);
         this.onFinish = onFinish;
         this.context = context;
@@ -37,7 +38,11 @@ final class CountedCollector<R extends SearchPhaseResult> {
     void countDown() {
         assert counter.isCountedDown() == false : "more operations executed than specified";
         if (counter.countDown()) {
-            onFinish.run();
+            try {
+                onFinish.run();
+            } finally {
+                resultConsumer.decRef();
+            }
         }
     }
 

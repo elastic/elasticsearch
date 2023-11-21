@@ -38,6 +38,10 @@ import java.util.stream.Collectors;
  *         }
  *     ]
  * }
+ *
+ * This class represents the way that the {@link org.elasticsearch.xpack.inference.services.openai.OpenAiService}
+ * formatted the response for the embeddings type. This represents what was returned prior to the
+ * {@link org.elasticsearch.TransportVersions#INFERENCE_SERVICE_RESULTS_ADDED} version.
  * @deprecated use {@link TextEmbeddingResults} instead
  */
 @Deprecated

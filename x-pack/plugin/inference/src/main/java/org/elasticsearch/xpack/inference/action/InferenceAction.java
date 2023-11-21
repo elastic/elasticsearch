@@ -202,7 +202,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 // It could be either a List<LegacyTextEmbeddingResults> if it was the openai result
                 // or it would be the List<InferenceResults> aka List<TextEmbeddingResults> from ml plugin
                 // for hugging face elser and elser
-                results = transformToResult(in.readNamedWriteableCollectionAsList(InferenceResults.class));
+                results = transformToServiceResults(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             } else if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
                 // It should only be List<InferenceResults> aka List<TextEmbeddingResults> from ml plugin for
                 // hugging face elser and elser
@@ -215,7 +215,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         }
 
         @SuppressWarnings("deprecation")
-        private static InferenceServiceResults transformToResult(List<? extends InferenceResults> parsedResults) {
+        private static InferenceServiceResults transformToServiceResults(List<? extends InferenceResults> parsedResults) {
             if (parsedResults.isEmpty()) {
                 throw new ElasticsearchStatusException(
                     "Failed to transform results to response format, expected a non-empty list, please remove and re-add the service",

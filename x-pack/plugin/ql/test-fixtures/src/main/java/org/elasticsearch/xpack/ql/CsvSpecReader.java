@@ -99,7 +99,7 @@ public final class CsvSpecReader {
                 if (idx >= 0) {
                     assertTrue("Invalid warning spec: closing delimiter (]) missing: `" + warning + "`", warning.endsWith("]"));
                     if (forEmulated) {
-                        if (idx + EMULATED_PREFIX.length() <  warning.length() - 1) {
+                        if (idx + EMULATED_PREFIX.length() < warning.length() - 1) {
                             warnings.add(warning.substring(idx + EMULATED_PREFIX.length(), warning.length() - 1));
                         }
                     } else if (idx > 0) {

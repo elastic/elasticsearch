@@ -171,7 +171,7 @@ public class TransportVersions {
     public static final TransportVersion ML_STATE_CHANGE_TIMESTAMPS = def(8_540_00_0);
     public static final TransportVersion DATA_STREAM_FAILURE_STORE_ADDED = def(8_541_00_0);
     public static final TransportVersion ML_INFERENCE_OPENAI_ADDED = def(8_542_00_0);
-    public static final TransportVersion INFERENCE_SINGLE_RESULT_FIELD_ADDED = def(8_543_00_0);
+    public static final TransportVersion INFERENCE_SERVICE_RESULTS_ADDED = def(8_543_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

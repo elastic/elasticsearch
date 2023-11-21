@@ -196,13 +196,20 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SINGLE_RESULT_FIELD_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_RESULTS_ADDED)) {
                 results = in.readNamedWriteable(InferenceServiceResults.class);
             } else if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_OPENAI_ADDED)) {
+                // It could be either a List<LegacyTextEmbeddingResults> if it was the openai result
+                // or it would be the List<InferenceResults> aka List<TextEmbeddingResults> from ml plugin
+                // for hugging face elser and elser
                 results = transformToResult(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             } else if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+                // It should only be List<InferenceResults> aka List<TextEmbeddingResults> from ml plugin for
+                // hugging face elser and elser
                 results = transformToSparseEmbeddingResult(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             } else {
+                // It should only be InferenceResults aka TextEmbeddingResults from ml plugin for
+                // hugging face elser and elser
                 results = transformToSparseEmbeddingResult(List.of(in.readNamedWriteable(InferenceResults.class)));
             }
         }
@@ -260,9 +267,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SINGLE_RESULT_FIELD_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_RESULTS_ADDED)) {
                 out.writeNamedWriteable(results);
             } else if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+                // This includes the legacy openai response format of List<TextEmbedding> and hugging face elser and elser
                 out.writeNamedWriteableCollection(results.transformToLegacyFormat());
             } else {
                 out.writeNamedWriteable(results.transformToLegacyFormat().get(0));

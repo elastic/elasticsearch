@@ -217,7 +217,8 @@ class S3BlobStore implements BlobStore {
      */
     private static long getHttpRequestTimeInMicros(Request<?> request) {
         List<TimingInfo> requestTimesIncludingRetries;
-        requestTimesIncludingRetries = request.getAWSRequestMetrics().getTimingInfo()
+        requestTimesIncludingRetries = request.getAWSRequestMetrics()
+            .getTimingInfo()
             .getAllSubMeasurements(AWSRequestMetrics.Field.HttpRequestTime.name());
 
         // Here we calculate the timing in Microseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB

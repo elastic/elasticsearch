@@ -51,7 +51,8 @@ public final class RepositoriesModule {
     ) {
         // TODO: refactor APM metrics into their own class, passed in as a dependancy.
         telemetryProvider.getMeterRegistry().registerLongCounter(METRIC_REQUESTS_COUNT, "repository request counter", "unit");
-        telemetryProvider.getMeterRegistry().registerLongCounter(HTTP_REQUEST_TIME_IN_MICROS_COUNT, "HttpRequestTime in microseconds expressed as as a count", "micros");
+        telemetryProvider.getMeterRegistry()
+            .registerLongCounter(HTTP_REQUEST_TIME_IN_MICROS_COUNT, "HttpRequestTime in microseconds expressed as as a count", "micros");
 
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(

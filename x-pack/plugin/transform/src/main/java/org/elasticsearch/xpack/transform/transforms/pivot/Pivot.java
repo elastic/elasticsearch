@@ -97,7 +97,15 @@ public class Pivot extends AbstractCompositeAggFunction {
             listener.onResponse(emptyMap());
             return;
         }
-        SchemaUtil.deduceMappings(client, headers, config, sourceConfig.getIndex(), sourceConfig.getRuntimeMappings(), listener);
+        SchemaUtil.deduceMappings(
+            client,
+            headers,
+            config,
+            sourceConfig.getIndex(),
+            sourceConfig.getQueryConfig().getQuery(),
+            sourceConfig.getRuntimeMappings(),
+            listener
+        );
     }
 
     /**

@@ -185,6 +185,7 @@ public class AsyncOperatorTests extends ESTestCase {
         operator.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102264")
     public void testFailure() throws Exception {
         DriverContext driverContext = driverContext();
         final SequenceLongBlockSourceOperator sourceOperator = new SequenceLongBlockSourceOperator(

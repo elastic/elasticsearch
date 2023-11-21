@@ -1,10 +1,6 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
-
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -46,7 +42,7 @@ dependencies {
   api 'javax.xml.bind:jaxb-api:2.2.2'
 
   testImplementation project(':test:fixtures:s3-fixture')
-  yamlRestTestImplementation "junit:junit:${versions.junit}"
+  yamlRestTestImplementation project(":test:framework")
   yamlRestTestImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation project(':test:fixtures:minio-fixture')
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')
@@ -179,9 +175,6 @@ tasks.named("processYamlRestTestResources").configure {
 tasks.named("internalClusterTest").configure {
   // this is tested explicitly in a separate test task
   exclude '**/S3RepositoryThirdPartyTests.class'
-  // TODO: check
-  //systemProperty "tests.security.manager", "false"
-
 }
 
 tasks.named("yamlRestTest").configure {
@@ -191,92 +184,13 @@ tasks.named("yamlRestTest").configure {
   systemProperty("s3TemporaryAccessKey", s3TemporaryAccessKey)
   systemProperty("s3TemporarySecretKey", s3TemporarySecretKey)
   systemProperty("s3EC2AccessKey", s3PermanentAccessKey)
-  systemProperty 'tests.rest.blacklist', (
-      useFixture ?
-        ['repository_s3/50_repository_ecs_credentials/*',
-         'repository_s3/60_repository_sts_credentials/*']
-        :
-        [
-          'repository_s3/30_repository_temporary_credentials/*',
-          'repository_s3/40_repository_ec2_credentials/*',
-          'repository_s3/50_repository_ecs_credentials/*',
-          'repository_s3/60_repository_sts_credentials/*'
-        ]
-    ).join(",")
-}
 
-if (useFixture) {
-  normalization {
-    runtimeClasspath {
-      // ignore generated address file for the purposes of build avoidance
-      ignore 's3Fixture.address'
-    }
-  }
-}
-
-if (useFixture) {
-  // MinIO
-  tasks.register("yamlRestTestMinio", RestIntegTestTask) {
-    description = "Runs REST tests using the Minio repository."
-    // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
-    systemProperty("s3PermanentAccessKey", s3PermanentAccessKey)
-    systemProperty("s3PermanentSecretKey", s3PermanentSecretKey)
-
-    systemProperty 'tests.rest.blacklist', [
-      'repository_s3/30_repository_temporary_credentials/*',
-      'repository_s3/40_repository_ec2_credentials/*',
-      'repository_s3/50_repository_ecs_credentials/*',
-      'repository_s3/60_repository_sts_credentials/*'
-    ].join(",")
-  }
-
-  // ECS
-  tasks.register("yamlRestTestECS", RestIntegTestTask.class) {
-    description = "Runs tests using the ECS repository."
-    systemProperty 'tests.rest.blacklist', [
-      'repository_s3/10_basic/*',
-      'repository_s3/20_repository_permanent_credentials/*',
-      'repository_s3/30_repository_temporary_credentials/*',
-      'repository_s3/40_repository_ec2_credentials/*',
-      'repository_s3/60_repository_sts_credentials/*'
-    ].join(",")
-  }
-
-  // STS (Secure Token Service)
-  tasks.register("yamlRestTestSTS", RestIntegTestTask.class) {
-    description = "Runs tests with the STS (Secure Token Service)"
-    File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
-    // The web identity token can be read only from the plugin config directory because of security restrictions
-    // Ideally we would create a symlink, but extraConfigFile doesn't support it
-    nonInputProperties.systemProperty("awsWebIdentityTokenExternalLocation", awsWebIdentityTokenExternalLocation.getAbsolutePath())
-    systemProperty 'tests.rest.blacklist', [
-      'repository_s3/10_basic/*',
-      'repository_s3/20_repository_permanent_credentials/*',
-      'repository_s3/30_repository_temporary_credentials/*',
-      'repository_s3/40_repository_ec2_credentials/*',
-      'repository_s3/50_repository_ecs_credentials/*'
-    ].join(",")
-  }
-
-  // Sanity test for STS Regional Endpoints
-  tasks.register("yamlRestTestRegionalSTS", RestIntegTestTask.class) {
-    description = "Runs tests with the Regional STS Endpoint"
-    File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
-    // The web identity token can be read only from the plugin config directory because of security restrictions
-    // Ideally we would create a symlink, but extraConfigFile doesn't support it
-    nonInputProperties.systemProperty("awsWebIdentityTokenExternalLocation", awsWebIdentityTokenExternalLocation.getAbsolutePath())
-
-    // Run just the basic sanity test to make sure ES starts up and loads the S3 repository with
-    // a regional endpoint without an error. It would be great to make actual requests against
-    // a test fixture, but setting the region means using a production endpoint
-    systemProperty 'tests.rest.blacklist', [
-      'repository_s3/20_repository_permanent_credentials/*',
-      'repository_s3/30_repository_temporary_credentials/*',
-      'repository_s3/40_repository_ec2_credentials/*',
-      'repository_s3/50_repository_ecs_credentials/*',
-      'repository_s3/60_repository_sts_credentials/*'
-    ].join(",")
-  }
+  // ideally we could resolve an env path in cluster config as resource similar to configuring a config file
+  // not sure how common this is, but it would be nice to support
+  File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
+  // The web identity token can be read only from the plugin config directory because of security restrictions
+  // Ideally we would create a symlink, but extraConfigFile doesn't support it
+  nonInputProperties.systemProperty("awsWebIdentityTokenExternalLocation", awsWebIdentityTokenExternalLocation.getAbsolutePath())
 }
 
 // 3rd Party Tests
@@ -286,7 +200,7 @@ tasks.register("s3ThirdPartyTest", Test) {
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
   include '**/S3RepositoryThirdPartyTests.class'
-  // TODO: check
+  // test container accesses ~/.testcontainers.properties read
   systemProperty "tests.security.manager", "false"
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
@@ -326,12 +240,6 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
-tasks.withType(RestIntegTestTask.class).configureEach {
-  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-  SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
-  setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
-  setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
-}
 tasks.named("check").configure {
   dependsOn(tasks.withType(Test))
 }

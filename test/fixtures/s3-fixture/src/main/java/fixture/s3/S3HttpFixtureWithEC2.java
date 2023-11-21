@@ -11,7 +11,6 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.rest.RestStatus;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
@@ -28,14 +27,22 @@ public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
         super(args);
     }
 
-    public S3HttpFixtureWithEC2(InetSocketAddress inetSocketAddress, String[] strings) throws IOException {
+    public S3HttpFixtureWithEC2(boolean enabled) {
+        this(enabled, "ec2_bucket", "ec2_base_path", "ec2_access_key", "ec2_session_token");
+    }
+
+    public S3HttpFixtureWithEC2(boolean enabled, String... args) {
+        super(enabled, args);
+    }
+
+    public S3HttpFixtureWithEC2(InetSocketAddress inetSocketAddress, String[] strings) {
         super(inetSocketAddress, strings);
     }
 
     @Override
     protected HttpHandler createHandler(final String[] args) {
-        final String ec2AccessKey = Objects.requireNonNull(args[4]);
-        final String ec2SessionToken = Objects.requireNonNull(args[5], "session token is missing");
+        final String ec2AccessKey = Objects.requireNonNull(args[2]);
+        final String ec2SessionToken = Objects.requireNonNull(args[3], "session token is missing");
         final HttpHandler delegate = super.createHandler(args);
 
         return exchange -> {

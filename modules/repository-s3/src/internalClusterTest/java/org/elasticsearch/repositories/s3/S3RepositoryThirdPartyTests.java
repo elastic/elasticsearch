@@ -11,8 +11,7 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
 import com.amazonaws.services.s3.model.MultipartUpload;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -34,11 +33,10 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixtures.minio.MinioFixtureTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.ClassRule;
-import org.junit.rules.TestRule;
-import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -54,22 +52,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-@ThreadLeakAction({ ThreadLeakAction.Action.WARN, ThreadLeakAction.Action.INTERRUPT })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
 
-    public static MinioFixtureTestContainer minioFixtureTestContainer = new MinioFixtureTestContainer(true);
-
     @ClassRule
-    public static TestRule testRule = (base, description) -> {
-        minioFixtureTestContainer.apply(base, description);
-        return new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                base.evaluate();
-            }
-        };
-    };
+    public static MinioFixtureTestContainer minioFixtureTestContainer = new MinioFixtureTestContainer(true);
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

@@ -12,23 +12,41 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.rest.RestStatus;
+import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Objects;
 
-public class S3HttpFixture {
+public class S3HttpFixture extends ExternalResource {
 
     private final HttpServer server;
 
-    public S3HttpFixture(final String[] args) throws Exception {
-        this(new InetSocketAddress(InetAddress.getByName(args[0]), Integer.parseInt(args[1])), args);
+    private boolean enabled;
+
+    public S3HttpFixture(boolean enabled) {
+        this(enabled, "bucket", "base_path_integration_tests", "s3_test_access_key");
     }
 
-    public S3HttpFixture(InetSocketAddress inetSocketAddress, final String[] args) throws IOException {
-        this.server = HttpServer.create(inetSocketAddress, 0);
-        this.server.createContext("/", Objects.requireNonNull(createHandler(args)));
+    public S3HttpFixture(boolean enabled, String... args) {
+        this(resolveAddress("localhost", 0), args);
+        this.enabled = enabled;
+    }
+
+    public S3HttpFixture(final String[] args) throws Exception {
+        this(resolveAddress(args[0], Integer.parseInt(args[1])), args);
+    }
+
+    public S3HttpFixture(InetSocketAddress inetSocketAddress, String... args) {
+        try {
+            this.server = HttpServer.create(inetSocketAddress, 0);
+            this.server.createContext("/", Objects.requireNonNull(createHandler(args)));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     final void startWithWait() throws Exception {
@@ -46,9 +64,9 @@ public class S3HttpFixture {
     }
 
     protected HttpHandler createHandler(final String[] args) {
-        final String bucket = Objects.requireNonNull(args[2]);
-        final String basePath = args[3];
-        final String accessKey = Objects.requireNonNull(args[4]);
+        final String bucket = Objects.requireNonNull(args[0]);
+        final String basePath = args[1];
+        final String accessKey = Objects.requireNonNull(args[2]);
 
         return new S3HttpHandler(bucket, basePath) {
             @Override
@@ -67,7 +85,8 @@ public class S3HttpFixture {
         if (args == null || args.length < 5) {
             throw new IllegalArgumentException("S3HttpFixture expects 5 arguments [address, port, bucket, base path, access key]");
         }
-        final S3HttpFixture fixture = new S3HttpFixture(args);
+        InetSocketAddress inetSocketAddress = resolveAddress(args[0], Integer.parseInt(args[1]));
+        final S3HttpFixture fixture = new S3HttpFixture(inetSocketAddress, Arrays.copyOfRange(args, 2, args.length));
         fixture.startWithWait();
     }
 
@@ -77,5 +96,28 @@ public class S3HttpFixture {
 
     public void stop(int delay) {
         server.stop(delay);
+    }
+
+    protected void before() throws Throwable {
+        if (enabled) {
+            start();
+        }
+    }
+
+    @Override
+    protected void after() {
+        if (enabled) {
+            stop(0);
+        }
+    }
+
+    private static InetSocketAddress resolveAddress(String address, int port) {
+        InetAddress byName = null;
+        try {
+            byName = InetAddress.getByName(address);
+            return new InetSocketAddress(byName, port);
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

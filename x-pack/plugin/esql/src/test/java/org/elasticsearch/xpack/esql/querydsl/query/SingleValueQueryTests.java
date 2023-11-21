@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.querydsl.query;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
@@ -78,7 +80,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
             new SingleValueQuery(new MatchAll(Source.EMPTY), "foo").asBuilder(),
             false,
             false,
-            (fieldValues, count) -> assertThat(count, equalTo((int) fieldValues.stream().filter(l -> l.size() == 1).count()))
+            this::runCase
         );
     }
 
@@ -88,15 +90,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
             new SingleValueQuery.Builder(new RangeQueryBuilder("i").lt(max), "foo", new SingleValueQuery.Stats(), Source.EMPTY),
             false,
             false,
-            (fieldValues, count) -> {
-                int expected = 0;
-                for (int i = 0; i < max; i++) {
-                    if (fieldValues.get(i).size() == 1) {
-                        expected++;
-                    }
-                }
-                assertThat(count, equalTo(expected));
-            }
+            (fieldValues, count) -> runCase(fieldValues, count, null, max)
         );
     }
 
@@ -110,7 +104,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
             ),
             false,
             true,
-            (fieldValues, count) -> assertThat(count, equalTo((int) fieldValues.stream().filter(l -> l.size() == 1).count()))
+            this::runCase
         );
     }
 
@@ -146,7 +140,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
             new SingleValueQuery(new MatchAll(Source.EMPTY).negate(Source.EMPTY), "foo").negate(Source.EMPTY).asBuilder(),
             false,
             false,
-            (fieldValues, count) -> assertThat(count, equalTo((int) fieldValues.stream().filter(l -> l.size() == 1).count()))
+            this::runCase
         );
     }
 
@@ -156,21 +150,35 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
             new SingleValueQuery(new RangeQuery(Source.EMPTY, "i", null, false, max, false, null), "foo").negate(Source.EMPTY).asBuilder(),
             false,
             true,
-            (fieldValues, count) -> {
-                int expected = 0;
-                for (int i = max; i < 100; i++) {
-                    if (fieldValues.get(i).size() == 1) {
-                        expected++;
-                    }
-                }
-                assertThat(count, equalTo(expected));
-            }
+            (fieldValues, count) -> runCase(fieldValues, count, max, 100)
         );
     }
 
     @FunctionalInterface
     interface TestCase {
         void run(List<List<Object>> fieldValues, int count) throws IOException;
+    }
+
+    private void runCase(List<List<Object>> fieldValues, int count, Integer docsStart, Integer docsStop) {
+        int expected = 0;
+        int min = docsStart != null ? docsStart : 0;
+        int max = docsStop != null ? docsStop : fieldValues.size();
+        for (int i = min; i < max; i++) {
+            if (fieldValues.get(i).size() == 1) {
+                expected++;
+            }
+        }
+        assertThat(count, equalTo(expected));
+
+        // query's count runs against the full set, not just min-to-max
+        if (fieldValues.stream().anyMatch(x -> x.size() > 1)) {
+            assertWarnings("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
+        }
+    }
+
+    private void runCase(List<List<Object>> fieldValues, int count) {
+        runCase(fieldValues, count, null, null);
     }
 
     private void testCase(SingleValueQuery.Builder builder, boolean rewritesToMatchNone, boolean subHasTwoPhase, TestCase testCase)

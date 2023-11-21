@@ -163,6 +163,10 @@ public class SingleValueQuery extends Query {
             return field;
         }
 
+        public Source source() {
+            return source;
+        }
+
         @Override
         public String getWriteableName() {
             return ENTRY.name;

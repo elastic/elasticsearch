@@ -682,6 +682,10 @@ unsigned_long:
 
 ---
 _source:
+  - skip:
+      version: " - 8.11.99"
+      reason: "_source is available in 8.12+"
+
   - do:
       bulk:
         index: test
@@ -706,6 +710,10 @@ _source:
 
 ---
 _source disabled:
+  - skip:
+      version: " - 8.11.99"
+      reason: "_source is available in 8.12+"
+
   - do:
       indices.create:
         index: test

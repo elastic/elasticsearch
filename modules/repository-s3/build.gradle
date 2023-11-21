@@ -51,7 +51,6 @@ dependencies {
   yamlRestTestImplementation project(':test:fixtures:minio-fixture')
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')
   testRuntimeOnly project(":test:framework")
-
 }
 
 restResources {
@@ -288,7 +287,7 @@ tasks.register("s3ThirdPartyTest", Test) {
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
   include '**/S3RepositoryThirdPartyTests.class'
   // TODO: check
-  //systemProperty "tests.security.manager", "false"
+  systemProperty "tests.security.manager", "false"
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket

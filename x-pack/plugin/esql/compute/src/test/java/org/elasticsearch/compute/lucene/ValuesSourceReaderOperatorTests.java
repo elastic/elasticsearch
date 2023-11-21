@@ -380,9 +380,26 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         void check(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readersBuilt);
     }
 
-    record FieldCase(ValuesSourceReaderOperator.FieldInfo info, CheckResults checkResults, CheckReaders checkReaders) {
-        FieldCase(MappedFieldType ft, CheckResults checkResults, CheckReaders checkReaders) {
+    interface CheckReadersWithName {
+        void check(String name, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readersBuilt);
+    }
+
+    record FieldCase(ValuesSourceReaderOperator.FieldInfo info, CheckResults checkResults, CheckReadersWithName checkReaders) {
+        FieldCase(MappedFieldType ft, CheckResults checkResults, CheckReadersWithName checkReaders) {
             this(fieldInfo(ft), checkResults, checkReaders);
+        }
+
+        FieldCase(MappedFieldType ft, CheckResults checkResults, CheckReaders checkReaders) {
+            this(
+                ft,
+                checkResults,
+                (name, forcedRowByRow, pageCount, segmentCount, readersBuilt) -> checkReaders.check(
+                    forcedRowByRow,
+                    pageCount,
+                    segmentCount,
+                    readersBuilt
+                )
+            );
         }
     }
 
@@ -390,9 +407,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
      * Asserts that {@link ValuesSourceReaderOperator#status} claims that only
      * the expected readers are built after loading singleton pages.
      */
-    // @Repeat(iterations = 100)
     public void testLoadAllStatus() {
-        DriverContext driverContext = driverContext();
         testLoadAllStatus(false);
     }
 
@@ -400,7 +415,6 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
      * Asserts that {@link ValuesSourceReaderOperator#status} claims that only
      * the expected readers are built after loading non-singleton pages.
      */
-    // @Repeat(iterations = 100)
     public void testLoadAllStatusAllInOnePage() {
         testLoadAllStatus(true);
     }
@@ -421,7 +435,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) operators.get(i).status();
             assertThat(status.pagesProcessed(), equalTo(input.size()));
             FieldCase fc = cases.get(i);
-            fc.checkReaders.check(allInOnePage, input.size(), reader.leaves().size(), status.readersBuilt());
+            fc.checkReaders.check(fc.info.name(), allInOnePage, input.size(), reader.leaves().size(), status.readersBuilt());
         }
     }
 
@@ -436,6 +450,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 docValuesNumberField("mv_long", NumberFieldMapper.NumberType.LONG),
                 checks::mvLongsFromDocValues,
                 StatusChecks::mvLongsFromDocValues
+            )
+        );
+        r.add(
+            new FieldCase(
+                docValuesNumberField("missing_long", NumberFieldMapper.NumberType.LONG),
+                checks::constantNulls,
+                StatusChecks::constantNulls
             )
         );
         r.add(
@@ -456,6 +477,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 docValuesNumberField("mv_int", NumberFieldMapper.NumberType.INTEGER),
                 checks::mvIntsFromDocValues,
                 StatusChecks::mvIntsFromDocValues
+            )
+        );
+        r.add(
+            new FieldCase(
+                docValuesNumberField("missing_int", NumberFieldMapper.NumberType.INTEGER),
+                checks::constantNulls,
+                StatusChecks::constantNulls
             )
         );
         r.add(
@@ -483,6 +511,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             )
         );
         r.add(
+            new FieldCase(
+                docValuesNumberField("missing_short", NumberFieldMapper.NumberType.SHORT),
+                checks::constantNulls,
+                StatusChecks::constantNulls
+            )
+        );
+        r.add(
             new FieldCase(docValuesNumberField("byte", NumberFieldMapper.NumberType.BYTE), checks::bytes, StatusChecks::bytesFromDocValues)
         );
         r.add(
@@ -490,6 +525,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 docValuesNumberField("mv_byte", NumberFieldMapper.NumberType.BYTE),
                 checks::mvBytes,
                 StatusChecks::mvBytesFromDocValues
+            )
+        );
+        r.add(
+            new FieldCase(
+                docValuesNumberField("missing_byte", NumberFieldMapper.NumberType.BYTE),
+                checks::constantNulls,
+                StatusChecks::constantNulls
             )
         );
         r.add(
@@ -506,8 +548,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 StatusChecks::mvDoublesFromDocValues
             )
         );
+        r.add(
+            new FieldCase(
+                docValuesNumberField("missing_double", NumberFieldMapper.NumberType.DOUBLE),
+                checks::constantNulls,
+                StatusChecks::constantNulls
+            )
+        );
         r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("bool"), checks::bools, StatusChecks::boolFromDocValues));
         r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("mv_bool"), checks::mvBools, StatusChecks::mvBoolFromDocValues));
+        r.add(new FieldCase(new BooleanFieldMapper.BooleanFieldType("missing_bool"), checks::constantNulls, StatusChecks::constantNulls));
         r.add(new FieldCase(new KeywordFieldMapper.KeywordFieldType("kwd"), checks::strings, StatusChecks::keywordsFromDocValues));
         r.add(
             new FieldCase(
@@ -516,6 +566,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 StatusChecks::mvKeywordsFromDocValues
             )
         );
+        r.add(new FieldCase(new KeywordFieldMapper.KeywordFieldType("missing_kwd"), checks::constantNulls, StatusChecks::constantNulls));
         r.add(new FieldCase(storedKeywordField("stored_kwd"), checks::strings, StatusChecks::keywordsFromStored));
         r.add(new FieldCase(storedKeywordField("mv_stored_kwd"), checks::mvStringsUnordered, StatusChecks::mvKeywordsFromStored));
         r.add(new FieldCase(sourceKeywordField("source_kwd"), checks::strings, StatusChecks::keywordsFromSource));
@@ -542,6 +593,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 textFieldWithDelegate("mv_text_with_delegate", new KeywordFieldMapper.KeywordFieldType("mv_kwd")),
                 checks::mvStringsFromDocValues,
                 StatusChecks::mvTextWithDelegate
+            )
+        );
+        r.add(
+            new FieldCase(
+                textFieldWithDelegate("missing_text_with_delegate", new KeywordFieldMapper.KeywordFieldType("missing_kwd")),
+                checks::constantNulls,
+                StatusChecks::constantNullTextWithDelegate
             )
         );
         r.add(new FieldCase(new ProvidedIdFieldMapper(() -> false).fieldType(), checks::ids, StatusChecks::id));
@@ -876,6 +934,26 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             }
         }
 
+        static void constantNullTextWithDelegate(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+            if (forcedRowByRow) {
+                assertMap(
+                    readers,
+                    matchesMap().entry(
+                        "missing_text_with_delegate:row_stride:Delegating[to=missing_kwd, impl=constant_nulls]",
+                        segmentCount
+                    )
+                );
+            } else {
+                assertMap(
+                    readers,
+                    matchesMap().entry(
+                        "missing_text_with_delegate:column_at_a_time:Delegating[to=missing_kwd, impl=constant_nulls]",
+                        lessThanOrEqualTo(pageCount)
+                    )
+                );
+            }
+        }
+
         private static void docValues(
             String name,
             String type,
@@ -959,22 +1037,19 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             );
         }
 
-        static void constantBytes(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+        static void constantBytes(String name, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
             if (forcedRowByRow) {
-                assertMap(readers, matchesMap().entry("constant_bytes:row_stride:constant[[66 6f 6f]]", segmentCount));
+                assertMap(readers, matchesMap().entry(name + ":row_stride:constant[[66 6f 6f]]", segmentCount));
             } else {
-                assertMap(
-                    readers,
-                    matchesMap().entry("constant_bytes:column_at_a_time:constant[[66 6f 6f]]", lessThanOrEqualTo(pageCount))
-                );
+                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:constant[[66 6f 6f]]", lessThanOrEqualTo(pageCount)));
             }
         }
 
-        static void constantNulls(boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
+        static void constantNulls(String name, boolean forcedRowByRow, int pageCount, int segmentCount, Map<?, ?> readers) {
             if (forcedRowByRow) {
-                assertMap(readers, matchesMap().entry("null:row_stride:constant_nulls", segmentCount));
+                assertMap(readers, matchesMap().entry(name + ":row_stride:constant_nulls", segmentCount));
             } else {
-                assertMap(readers, matchesMap().entry("null:column_at_a_time:constant_nulls", lessThanOrEqualTo(pageCount)));
+                assertMap(readers, matchesMap().entry(name + ":column_at_a_time:constant_nulls", lessThanOrEqualTo(pageCount)));
             }
         }
     }

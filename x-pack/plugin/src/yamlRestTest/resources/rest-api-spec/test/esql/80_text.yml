@@ -1,6 +1,8 @@
 ---
 setup:
   - skip:
+      version: " - 8.10.99"
+      reason: "ESQL is available in 8.11+"
       features: allowed_warnings_regex
   - do:
       indices.create:

@@ -201,6 +201,7 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void addFetchResult() {
         this.fetchResult = new FetchSearchResult(this.readerContext.id(), this.shardTarget);
+        addReleasable(fetchResult::decRef);
     }
 
     @Override

@@ -215,7 +215,7 @@ The preferred solution is using data streams so bootstraping the initial time se
 
 Without using data streams, the solution is to append a numeric value to the index name. For example, `my-index-000001` is the expected index name created by <<ilm-gs-alias-bootstrap,bootstrapping the initial time series index with a write index alias>>.
 
-Note that it is not possible to rename an index so you will need to reindex (https://www.elastic.co/guide/en/elasticsearch/reference/8.11/docs-reindex.html) the data in `my-index` using the desired rollover alias name (after bootstraping the initial time series index) or data stream name
+Note that it is not possible to rename an index so you will need to <<docs-reindex,reindex>> the data in `my-index`, using the desired rollover alias name (after bootstrapping the initial time series index) or data stream name.
 
 [discrete]
 ==== CircuitBreakingException: [x] data too large, data for [y]

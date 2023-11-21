@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.not;
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
 
     @ClassRule
-    public static MinioTestContainer minio = new MinioTestContainer(true).withE
+    public static MinioTestContainer minio = new MinioTestContainer(true);
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

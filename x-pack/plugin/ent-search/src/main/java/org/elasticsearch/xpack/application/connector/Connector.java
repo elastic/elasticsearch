@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,6 +61,7 @@ public class Connector implements Writeable, ToXContentObject {
     private final String error;
     @Nullable
     private final ConnectorFeatures features;
+    @Nullable
     private final List<ConnectorFiltering> filtering;
     @Nullable
     private final String indexName;
@@ -82,7 +82,7 @@ public class Connector implements Writeable, ToXContentObject {
     private final ConnectorStatus status;
     @Nullable
     private final Object syncCursor;
-
+    @Nullable
     private final Boolean syncNow;
 
     /**
@@ -131,21 +131,21 @@ public class Connector implements Writeable, ToXContentObject {
     ) {
         this.connectorId = connectorId;
         this.apiKeyId = apiKeyId;
-        this.configuration = Objects.requireNonNullElse(configuration, Collections.emptyMap());
+        this.configuration = configuration;
         this.customScheduling = customScheduling;
         this.description = description;
         this.error = error;
         this.features = features;
         this.filtering = filtering;
         this.indexName = indexName;
-        this.isNative = Objects.requireNonNullElse(isNative, false);
+        this.isNative = isNative;
         this.language = language;
         this.syncInfo = Objects.requireNonNullElse(syncInfo, new ConnectorSyncInfo.Builder().build());
         this.name = name;
         this.pipeline = pipeline;
         this.scheduling = scheduling;
         this.serviceType = serviceType;
-        this.status = Objects.requireNonNullElse(status, this.isNative ? ConnectorStatus.NEEDS_CONFIGURATION : ConnectorStatus.CREATED);
+        this.status = status;
         this.syncCursor = syncCursor;
         this.syncNow = syncNow;
     }

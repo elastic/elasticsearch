@@ -393,7 +393,7 @@ x:double
 1
 ;
 
-powUnsignedLongU#[skip:-8.11.99,reason:return type changed in 8.12]L
+powUnsignedLongUL#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
 
 x:double
@@ -407,7 +407,7 @@ x:double
 1.0
 ;
 
-powIntULOverrun
+powIntULOverrun#[skip:-8.11.99,reason:return type changed in 8.12]
 row x = pow(2, 9223372036854775808);
 warning:Line 1:9: evaluation of [pow(2, 9223372036854775808)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:9: java.lang.ArithmeticException: invalid result when computing pow

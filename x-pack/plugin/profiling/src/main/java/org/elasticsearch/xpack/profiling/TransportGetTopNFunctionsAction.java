@@ -68,7 +68,7 @@ public class TransportGetTopNFunctionsAction extends HandledTransportAction<GetS
         }
 
         for (Map.Entry<String, StackTrace> st : response.getStackTraces().entrySet()) {
-            Set<String> frameGroupsPerStackTrace = new HashSet<String>();
+            Set<String> frameGroupsPerStackTrace = new HashSet<>();
             String stackTraceId = st.getKey();
             StackTrace stackTrace = st.getValue();
             long samples = response.getStackTraceEvents().getOrDefault(stackTraceId, 0L);

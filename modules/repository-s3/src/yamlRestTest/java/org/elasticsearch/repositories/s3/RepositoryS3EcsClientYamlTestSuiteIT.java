@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.s3;
 import fixture.s3.S3HttpFixtureWithECS;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -18,8 +19,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
-
-import java.util.List;
 
 public class RepositoryS3EcsClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
     private static final S3HttpFixtureWithECS s3Ecs = new S3HttpFixtureWithECS(USE_FIXTURE);
@@ -38,14 +37,9 @@ public class RepositoryS3EcsClientYamlTestSuiteIT extends AbstractRepositoryS3Cl
         assumeTrue("Only run with fixture enabled", USE_FIXTURE);
     }
 
-    protected List<String> blackListed() {
-        return List.of(
-            "repository_s3/10_basic/*",
-            "repository_s3/20_repository_permanent_credentials/*",
-            "repository_s3/30_repository_temporary_credentials/*",
-            "repository_s3/40_repository_ec2_credentials/*",
-            "repository_s3/60_repository_sts_credentials/*"
-        );
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return createParameters(new String[] { "repository_s3/50_repository_ecs_credentials" });
     }
 
     public RepositoryS3EcsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -19,8 +20,6 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
-
-import java.util.List;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3MinioClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
@@ -42,13 +41,9 @@ public class RepositoryS3MinioClientYamlTestSuiteIT extends AbstractRepositoryS3
         assumeTrue("Only run with fixture enabled", USE_FIXTURE);
     }
 
-    protected List<String> blackListed() {
-        return List.of(
-            "repository_s3/30_repository_temporary_credentials/*",
-            "repository_s3/40_repository_ec2_credentials/*",
-            "repository_s3/50_repository_ecs_credentials/*",
-            "repository_s3/60_repository_sts_credentials/*"
-        );
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return createParameters(new String[] { "repository_s3/10_basic", "repository_s3/20_repository_permanent_credentials" });
     }
 
     public RepositoryS3MinioClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

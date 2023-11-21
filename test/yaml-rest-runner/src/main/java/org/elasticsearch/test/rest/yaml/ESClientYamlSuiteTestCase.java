@@ -162,10 +162,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             for (final String entry : blacklistAdditions) {
                 blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
             }
-            for (final String entry : blackListed()) {
-                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
-            }
-
         }
         assert restTestExecutionContext != null;
         assert adminExecutionContext != null;
@@ -175,10 +171,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
-    }
-
-    protected List<String> blackListed() {
-        return List.of();
     }
 
     /**

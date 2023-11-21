@@ -9,14 +9,13 @@
 package org.elasticsearch.repositories.s3;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
-
-import java.util.List;
 
 public class RepositoryS3RegionalStsClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
     @ClassRule
@@ -37,14 +36,9 @@ public class RepositoryS3RegionalStsClientYamlTestSuiteIT extends AbstractReposi
         assumeTrue("Only run with fixture enabled", USE_FIXTURE);
     }
 
-    protected List<String> blackListed() {
-        return List.of(
-            "repository_s3/20_repository_permanent_credentials/*",
-            "repository_s3/30_repository_temporary_credentials/*",
-            "repository_s3/40_repository_ec2_credentials/*",
-            "repository_s3/50_repository_ecs_credentials/*",
-            "repository_s3/60_repository_sts_credentials/*"
-        );
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return createParameters(new String[] { "repository_s3/10_basic" });
     }
 
     public RepositoryS3RegionalStsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

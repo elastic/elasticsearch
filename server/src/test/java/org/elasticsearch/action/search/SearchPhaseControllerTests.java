@@ -347,9 +347,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         assertThat(mergedResponse.profile(), is(anEmptyMap()));
                     }
                 } finally {
-                    for (SearchPhaseResult searchPhaseResult : fetchResults.asList()) {
-                        searchPhaseResult.decRef();
-                    }
+                    fetchResults.asList().forEach(TransportMessage::decRef);
                 }
             } finally {
                 queryResults.asList().forEach(TransportMessage::decRef);
@@ -430,9 +428,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.sortedTopDocs().scoreDocs().length));
                     assertThat(mergedResponse.profile(), is(anEmptyMap()));
                 } finally {
-                    for (SearchPhaseResult searchPhaseResult : fetchResults.asList()) {
-                        searchPhaseResult.decRef();
-                    }
+                    fetchResults.asList().forEach(TransportMessage::decRef);
                 }
             } finally {
 

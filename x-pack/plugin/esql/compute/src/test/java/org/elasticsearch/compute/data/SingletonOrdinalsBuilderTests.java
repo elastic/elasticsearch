@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -120,6 +121,37 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
         BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
         blockFactories.add(factory);
         return new DriverContext(bigArrays, factory);
+    }
+
+    public void testAllNull() throws IOException {
+        BlockFactory factory = breakingDriverContext().blockFactory();
+        int count = 1000;
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            for (int i = 0; i < count; i++) {
+                for (BytesRef v : new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") }) {
+                    indexWriter.addDocument(List.of(new SortedDocValuesField("f", v)));
+                }
+            }
+            try (IndexReader reader = indexWriter.getReader()) {
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    SortedDocValues docValues = ctx.reader().getSortedDocValues("f");
+                    try (SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
+                        for (int i = 0; i < ctx.reader().maxDoc(); i++) {
+                            if (ctx.reader().getLiveDocs() == null || ctx.reader().getLiveDocs().get(i)) {
+                                assertThat(docValues.advanceExact(i), equalTo(true));
+                                builder.appendNull();
+                            }
+                        }
+                        try (BytesRefBlock built = builder.build()) {
+                            for (int p = 0; p < built.getPositionCount(); p++) {
+                                assertThat(built.isNull(p), equalTo(true));
+                            }
+                            assertThat(built.areAllValuesNull(), equalTo(true));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @After

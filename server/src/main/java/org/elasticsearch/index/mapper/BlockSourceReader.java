@@ -35,7 +35,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     public final void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
         List<Object> values = fetcher.fetchValues(storedFields.source(), docId, ignoredValues);
         ignoredValues.clear();  // TODO do something with these?
-        if (values == null) {
+        if (values == null || values.isEmpty()) {
             builder.appendNull();
             return;
         }

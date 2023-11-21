@@ -193,11 +193,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         return false; // enable http
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     public void testFieldAlias() {
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("distance", "route_length_miles").get();
 
@@ -669,7 +664,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 )
             );
             BlockingOnRewriteQueryBuilder.blockOnRewrite();
-            PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Response> future = new PlainActionFuture<>();
             Request restRequest = new Request("POST", "/_field_caps?fields=*");
             restRequest.setEntity(new StringEntity("""
                       {

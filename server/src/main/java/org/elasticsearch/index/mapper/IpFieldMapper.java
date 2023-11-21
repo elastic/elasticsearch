@@ -69,7 +69,7 @@ public class IpFieldMapper extends FieldMapper {
         return (IpFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -89,7 +89,6 @@ public class IpFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final ScriptCompiler scriptCompiler;
 
-        @SuppressWarnings("this-escape")
         public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -409,7 +408,7 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return BlockDocValuesReader.bytesRefsFromOrds(name());
+                return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
             return null;
         }

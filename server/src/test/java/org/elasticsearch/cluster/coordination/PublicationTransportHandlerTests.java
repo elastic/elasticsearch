@@ -155,7 +155,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 IOUtils.close(in);
             }
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            return fail(e);
         }
     }
 
@@ -387,13 +387,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    throw new AssertionError("unexpected", e);
+                                    fail(e);
                                 }
                             }), new Task(randomNonNegativeLong(), "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of()));
                     } catch (IncompatibleClusterStateVersionException e) {
                         context.handler().handleException(new RemoteTransportException("wrapped", e));
                     } catch (Exception e) {
-                        throw new AssertionError("unexpected", e);
+                        fail(e);
                     }
                 }
             };

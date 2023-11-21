@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.NumberFormatException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -39,21 +40,22 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantIntBlockWith(evalValue(vector, 0, scratchPad), positionCount);
-      } catch (Exception e) {
+      } catch (NumberFormatException  e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
-        builder.appendInt(evalValue(vector, p, scratchPad));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        try {
+          builder.appendInt(evalValue(vector, p, scratchPad));
+        } catch (NumberFormatException  e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static int evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
@@ -65,7 +67,7 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    try (IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
@@ -82,7 +84,7 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
             }
             builder.appendInt(value);
             valuesAppended = true;
-          } catch (Exception e) {
+          } catch (NumberFormatException  e) {
             registerException(e);
           }
         }

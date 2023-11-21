@@ -4,9 +4,9 @@
 
 **Syntax**
 
-[source,txt]
+[source,esql]
 ----
-DISSECT input "pattern" [ append_separator="<separator>"]
+DISSECT input "pattern" [APPEND_SEPARATOR="<separator>"]
 ----
 
 *Parameters*
@@ -16,9 +16,9 @@ The column that contains the string you want to structure.  If the column has
 multiple values, `DISSECT` will process each value.
 
 `pattern`::
-A dissect pattern.
+A <<esql-dissect-patterns,dissect pattern>>.
 
-`append_separator="<separator>"`::
+`<separator>`::
 A string used as the separator between appended values, when using the <<esql-append-modifier,append modifier>>.
 
 *Description*
@@ -29,7 +29,7 @@ delimiter-based pattern, and extracts the specified keys as columns.
 
 Refer to <<esql-process-data-with-dissect>> for the syntax of dissect patterns.
 
-*Example*
+*Examples*
 
 // tag::examples[]
 The following example parses a string that contains a timestamp, some text, and

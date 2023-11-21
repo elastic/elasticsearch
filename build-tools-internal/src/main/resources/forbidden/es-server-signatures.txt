@@ -155,3 +155,14 @@ org.elasticsearch.cluster.ClusterStateTaskExecutor$TaskContext#success(java.util
 
 @defaultMessage ClusterState#compatibilityVersions are for internal use only. Use ClusterState#getMinVersions or a different version. See TransportVersion javadocs for more info.
 org.elasticsearch.cluster.ClusterState#compatibilityVersions()
+
+@defaultMessage ClusterFeatures#nodeFeatures is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
+org.elasticsearch.cluster.ClusterFeatures#nodeFeatures()
+@defaultMessage ClusterFeatures#allNodeFeatures is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
+org.elasticsearch.cluster.ClusterFeatures#allNodeFeatures()
+@defaultMessage ClusterFeatures#clusterHasFeature is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
+org.elasticsearch.cluster.ClusterFeatures#clusterHasFeature(org.elasticsearch.features.NodeFeature)
+
+@defaultMessage Use a Thread constructor with a name, anonymous threads are more difficult to debug
+java.lang.Thread#<init>(java.lang.Runnable)
+java.lang.Thread#<init>(java.lang.ThreadGroup, java.lang.Runnable)

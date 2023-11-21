@@ -92,9 +92,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-public class EsqlFunctionRegistry extends FunctionRegistry {
+public final class EsqlFunctionRegistry extends FunctionRegistry {
 
-    @SuppressWarnings("this-escape")
     public EsqlFunctionRegistry() {
         register(functions());
     }

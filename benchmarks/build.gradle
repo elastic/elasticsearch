@@ -8,7 +8,8 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.java'
+apply plugin: org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin
+apply plugin: 'java-library'
 apply plugin: 'application'
 
 application {

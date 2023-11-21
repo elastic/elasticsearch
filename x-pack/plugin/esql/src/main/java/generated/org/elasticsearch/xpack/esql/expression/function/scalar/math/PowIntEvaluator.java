@@ -59,7 +59,7 @@ public final class PowIntEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
-    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (baseBlock.isNull(p) || baseBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -81,7 +81,7 @@ public final class PowIntEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, DoubleVector baseVector, DoubleVector exponentVector) {
-    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendInt(Pow.processInt(baseVector.getDouble(p), exponentVector.getDouble(p)));

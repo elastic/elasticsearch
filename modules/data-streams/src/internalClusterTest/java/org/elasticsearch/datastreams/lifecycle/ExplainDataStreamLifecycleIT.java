@@ -49,6 +49,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -59,10 +60,6 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(DataStreamsPlugin.class, MockTransportService.TestPlugin.class);
-    }
-
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     @Override
@@ -252,7 +249,9 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 // index has not been rolled over yet
                 assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
 
-                assertThat(explainIndex.getError(), containsString("maximum normal shards open"));
+                assertThat(explainIndex.getError(), notNullValue());
+                assertThat(explainIndex.getError().error(), containsString("maximum normal shards open"));
+                assertThat(explainIndex.getError().retryCount(), greaterThanOrEqualTo(1));
             }
         });
 
@@ -352,16 +351,12 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                patterns,
-                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle),
-                null,
-                null,
-                null,
-                metadata,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
+                .metadata(metadata)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }

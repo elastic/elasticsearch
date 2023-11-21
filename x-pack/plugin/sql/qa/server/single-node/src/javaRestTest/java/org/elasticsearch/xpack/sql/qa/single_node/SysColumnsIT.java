@@ -7,8 +7,16 @@
 
 package org.elasticsearch.xpack.sql.qa.single_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.jdbc.SysColumnsTestCase;
+import org.junit.ClassRule;
 
 public class SysColumnsIT extends SysColumnsTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
 
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 }

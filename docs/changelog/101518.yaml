@@ -1,0 +1,6 @@
+pr: 101518
+summary: Check that scripts produce correct json in render template action
+area: Search
+type: bug
+issues:
+ - 101477

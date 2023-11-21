@@ -37,9 +37,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestIndexActionTests extends RestActionTestCase {
+public final class RestIndexActionTests extends RestActionTestCase {
 
-    @SuppressWarnings("this-escape")
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
     private final AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference<>();

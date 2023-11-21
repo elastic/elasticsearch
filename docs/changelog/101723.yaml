@@ -1,0 +1,6 @@
+pr: 101723
+summary: Allowing non-dynamic index settings to be updated by automatically unassigning
+  shards
+area: Indices APIs
+type: enhancement
+issues: []

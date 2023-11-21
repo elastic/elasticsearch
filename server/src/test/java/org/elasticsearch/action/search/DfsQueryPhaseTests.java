@@ -81,30 +81,38 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    queryResult.size(2); // the size of the result set
-                    listener.onResponse(queryResult);
+                    try {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        queryResult.size(2); // the size of the result set
+                        listener.onResponse(queryResult);
+                    } finally {
+                        queryResult.decRef();
+                    }
                 } else if (request.contextId().getId() == 2) {
                     QuerySearchResult queryResult = new QuerySearchResult(
                         new ShardSearchContextId("", 123),
                         new SearchShardTarget("node2", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(84, 2.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    queryResult.size(2); // the size of the result set
-                    listener.onResponse(queryResult);
+                    try {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(84, 2.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        queryResult.size(2); // the size of the result set
+                        listener.onResponse(queryResult);
+                    } finally {
+                        queryResult.decRef();
+                    }
                 } else {
                     fail("no such request ID: " + request.contextId());
                 }
@@ -172,15 +180,19 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    queryResult.size(2); // the size of the result set
-                    listener.onResponse(queryResult);
+                    try {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        queryResult.size(2); // the size of the result set
+                        listener.onResponse(queryResult);
+                    } finally {
+                        queryResult.decRef();
+                    }
                 } else if (request.contextId().getId() == 2) {
                     listener.onFailure(new MockDirectoryWrapper.FakeIOException());
                 } else {
@@ -252,15 +264,19 @@ public class DfsQueryPhaseTests extends ESTestCase {
                         new SearchShardTarget("node1", new ShardId("test", "na", 0), null),
                         null
                     );
-                    queryResult.topDocs(
-                        new TopDocsAndMaxScore(
-                            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
-                            2.0F
-                        ),
-                        new DocValueFormat[0]
-                    );
-                    queryResult.size(2); // the size of the result set
-                    listener.onResponse(queryResult);
+                    try {
+                        queryResult.topDocs(
+                            new TopDocsAndMaxScore(
+                                new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                                2.0F
+                            ),
+                            new DocValueFormat[0]
+                        );
+                        queryResult.size(2); // the size of the result set
+                        listener.onResponse(queryResult);
+                    } finally {
+                        queryResult.decRef();
+                    }
                 } else if (request.contextId().getId() == 2) {
                     throw new UncheckedIOException(new MockDirectoryWrapper.FakeIOException());
                 } else {

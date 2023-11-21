@@ -91,7 +91,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return BlockStoredFieldsReader.id();
+            return new BlockStoredFieldsReader.IdBlockLoader();
         }
 
         @Override

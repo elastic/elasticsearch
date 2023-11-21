@@ -656,6 +656,20 @@ public class MachineLearning extends Plugin
         Property.NodeScope
     );
 
+    // Serverless only - trigger scale up if necessary
+    public static final Setting<ByteSizeValue> DUMMY_ENTITY_MEMORY = Setting.memorySizeSetting(
+        "xpack.ml.dummy_entity_memory",
+        ByteSizeValue.ofBytes(0),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Integer> DUMMY_ENTITY_PROCESSORS = Setting.intSetting(
+        "xpack.ml.dummy_entity_processors",
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<TimeValue> PROCESS_CONNECT_TIMEOUT = Setting.timeSetting(
         "xpack.ml.process_connect_timeout",
         TimeValue.timeValueSeconds(10),
@@ -785,7 +799,9 @@ public class MachineLearning extends Plugin
             NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
-            DELAYED_DATA_CHECK_FREQ
+            DELAYED_DATA_CHECK_FREQ,
+            DUMMY_ENTITY_MEMORY,
+            DUMMY_ENTITY_PROCESSORS
         );
     }
 

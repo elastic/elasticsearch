@@ -1424,9 +1424,7 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void close() {
-            if (request instanceof Releasable releasable) { // TODO
-                releasable.close();
-            }
+            request.decRef();
         }
     }
 

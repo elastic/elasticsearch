@@ -16,13 +16,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class BulkItemRequest implements Writeable, Accountable, Releasable {
+public class BulkItemRequest implements Writeable, Accountable, RefCounted {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
 
@@ -114,7 +114,22 @@ public class BulkItemRequest implements Writeable, Accountable, Releasable {
     }
 
     @Override
-    public void close() {
-        request.decRef();
+    public void incRef() {
+        request.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return request.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return request.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return request.hasReferences();
     }
 }

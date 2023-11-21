@@ -18,7 +18,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
@@ -28,8 +27,7 @@ import java.util.Set;
 public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
     implements
         Accountable,
-        RawIndexingDataTransportRequest,
-        Releasable {
+        RawIndexingDataTransportRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
@@ -159,12 +157,42 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     }
 
     @Override
-    public void close() {
+    public void incRef() {
+        for (BulkItemRequest item : items) {
+            item.incRef();
+        }
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        boolean incremented = false;
+        for (BulkItemRequest item : items) {
+            incremented = incremented || item.tryIncRef();
+        }
+        return incremented;
+    }
+
+    @Override
+    public boolean decRef() {
         if (closed == false) {
+            boolean decremented = false;
             for (BulkItemRequest item : items) {
-                item.close();
+                decremented = decremented || item.decRef();
             }
             closed = true;
+            return decremented;
+        } else {
+            return true;
         }
+    }
+
+    @Override
+    public boolean hasReferences() {
+        for (BulkItemRequest item : items) {
+            if (item.hasReferences()) {
+                return true;
+            }
+        }
+        return false;
     }
 }

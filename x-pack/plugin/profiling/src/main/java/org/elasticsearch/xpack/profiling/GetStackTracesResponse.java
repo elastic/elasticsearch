@@ -6,7 +6,10 @@
  */
 package org.elasticsearch.xpack.profiling;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -212,4 +215,12 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     public int hashCode() {
         return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
     }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
+
+    private static final Logger log = LogManager.getLogger(TransportGetStackTracesAction.class);
+
 }

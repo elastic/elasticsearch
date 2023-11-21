@@ -591,9 +591,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             int allocationIndex = 0;
             long allocationDuration = 0;
             long begin = 0;
+            int attemptNoCopy = 0;
             try (ReleasableLock locked = lock.tryAcquire(lockTimeout)) {
                 if (locked != null) {
-                    this.attemptNo++;
+                    attemptNoCopy = ++this.attemptNo;
                     begin = timeSupplier.getAsLong();
                     leader = begin >= lastCheckTime + minimumInterval;
                     overLimitTriggered(leader);
@@ -645,7 +646,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         allocationIndex,
                         allocationDuration
                     );
-                } else if (attemptNo < 10 || Long.bitCount(attemptNo) == 1) {
+                } else if (attemptNoCopy < 10 || Long.bitCount(attemptNoCopy) == 1) {
                     logger.info(
                         "memory usage down after [{}], before [{}], after [{}]",
                         begin - lastCheckTime,
@@ -668,7 +669,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         allocationIndex,
                         allocationDuration
                     );
-                } else if (attemptNo < 10 || Long.bitCount(attemptNo) == 1) {
+                } else if (attemptNoCopy < 10 || Long.bitCount(attemptNoCopy) == 1) {
                     logger.info(
                         "memory usage not down after [{}], before [{}], after [{}]",
                         begin - lastCheckTime,

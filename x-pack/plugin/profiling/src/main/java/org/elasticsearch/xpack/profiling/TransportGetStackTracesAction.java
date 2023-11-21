@@ -197,6 +197,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
         responseBuilder.setSamplingRate(1.0d);
         responseBuilder.setRequestedDuration(request.getRequestedDuration());
+        responseBuilder.setCustomCostFactor(request.getCustomCostFactor());
         client.prepareSearch(request.indices())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -239,6 +240,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
         responseBuilder.setSamplingRate(eventsIndex.getSampleRate());
         responseBuilder.setRequestedDuration(request.getRequestedDuration());
+        responseBuilder.setCustomCostFactor(request.getCustomCostFactor());
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -497,7 +499,12 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             // Do the CO2 and cost calculation in parallel to waiting for frame metadata.
             StopWatch watch = new StopWatch("calculateCO2AndCosts");
             CO2Calculator co2Calculator = new CO2Calculator(costsService, hostsTable, responseBuilder.requestedDuration);
-            CostCalculator costCalculator = new CostCalculator(costsService, hostsTable, responseBuilder.requestedDuration);
+            CostCalculator costCalculator = new CostCalculator(
+                costsService,
+                hostsTable,
+                responseBuilder.requestedDuration,
+                responseBuilder.customCostFactor
+            );
             Map<String, TraceEvent> events = responseBuilder.stackTraceEvents;
             List<String> missingStackTraces = new ArrayList<>();
             for (HostEventCount hec : responseBuilder.hostEventCounts) {
@@ -703,6 +710,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private double samplingRate;
         private long totalSamples;
         private double requestedDuration;
+        private Double customCostFactor;
 
         public void setStackTraces(Map<String, StackTrace> stackTraces) {
             this.stackTraces = stackTraces;
@@ -758,6 +766,10 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
         public void setRequestedDuration(double requestedDuration) {
             this.requestedDuration = requestedDuration;
+        }
+
+        public void setCustomCostFactor(Double customCostFactor) {
+            this.customCostFactor = customCostFactor;
         }
 
         public void setTotalSamples(long totalSamples) {

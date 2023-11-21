@@ -14,15 +14,22 @@ final class CostCalculator {
     private static final double SECONDS_PER_HOUR = 60 * 60;
     private static final double SECONDS_PER_YEAR = SECONDS_PER_HOUR * 24 * 365.0d; // unit: seconds
     private static final double DEFAULT_COST_USD_PER_CORE_HOUR = 0.0425d; // unit: USD / (core * hour)
-    private static final double CUSTOM_COST_FACTOR = 1.0d;
+    private static final double DEFAULT_CUSTOM_COST_FACTOR = 1.0d;
     private final CostsService costsService;
     private final Map<String, HostMetadata> hostMetadata;
     private final double samplingDurationInSeconds;
+    private final double customCostFactor;
 
-    CostCalculator(CostsService costsService, Map<String, HostMetadata> hostMetadata, double samplingDurationInSeconds) {
+    CostCalculator(
+        CostsService costsService,
+        Map<String, HostMetadata> hostMetadata,
+        double samplingDurationInSeconds,
+        Double customCostFactor
+    ) {
         this.costsService = costsService;
         this.hostMetadata = hostMetadata;
         this.samplingDurationInSeconds = samplingDurationInSeconds;
+        this.customCostFactor = customCostFactor == null ? DEFAULT_CUSTOM_COST_FACTOR : customCostFactor;
     }
 
     public double annualCostsUSD(String hostID, double samples) {
@@ -38,7 +45,7 @@ final class CostCalculator {
             return annualCoreHours * DEFAULT_COST_USD_PER_CORE_HOUR;
         }
 
-        return annualCoreHours * costs.costFactor * CUSTOM_COST_FACTOR;
+        return annualCoreHours * costs.costFactor * customCostFactor;
     }
 
     public static double annualCoreHours(double duration, double samples, double samplingFrequency) {

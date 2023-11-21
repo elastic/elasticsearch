@@ -19,11 +19,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
-public class CostsService {
+public class InstanceTypeService {
     private final Map<InstanceType, CostEntry> costsPerDatacenter = new HashMap<>();
 
     public void load() {
-        try (GZIPInputStream in = new GZIPInputStream(CostsService.class.getClassLoader().getResourceAsStream("profiling-costs.json.gz"))) {
+        try (
+            GZIPInputStream in = new GZIPInputStream(
+                InstanceTypeService.class.getClassLoader().getResourceAsStream("profiling-costs.json.gz")
+            )
+        ) {
             XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, in);
             if (parser.currentToken() == null) {
                 parser.nextToken();

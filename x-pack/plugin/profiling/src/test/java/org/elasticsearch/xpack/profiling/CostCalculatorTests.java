@@ -17,8 +17,8 @@ public class CostCalculatorTests extends ESTestCase {
     private static final String HOST_ID_B = "2220256254710195392";
 
     public void testCreateFromRegularSource() {
-        CostsService costsService = new CostsService();
-        costsService.load();
+        InstanceTypeService instanceTypeService = new InstanceTypeService();
+        instanceTypeService.load();
 
         // tag::noformat
         Map<String, HostMetadata> hostsTable = Map.ofEntries(
@@ -50,7 +50,7 @@ public class CostCalculatorTests extends ESTestCase {
         double samplingDurationInSeconds = 1_800d; // 30 minutes
         long samples = 100_000L; // 100k samples
         double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 20d);
-        CostCalculator costCalculator = new CostCalculator(costsService, hostsTable, samplingDurationInSeconds, null);
+        CostCalculator costCalculator = new CostCalculator(instanceTypeService, hostsTable, samplingDurationInSeconds, null);
 
         // Checks whether the cost calculation is based on the pre-calculated lookup data.
         checkCostCalculation(costCalculator.annualCostsUSD(HOST_ID_A, samples), annualCoreHours, 0.061d);

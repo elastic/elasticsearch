@@ -19,12 +19,12 @@ final class CO2Calculator {
     private static final double DEFAULT_DATACENTER_PUE = 1.7d;
     private static final double CUSTOM_CO2_FACTOR = 1.0d;
     private static final Provider DEFAULT_PROVIDER = new Provider(DEFAULT_DATACENTER_PUE, Collections.emptyMap());
-    private final CostsService costsService;
+    private final InstanceTypeService instanceTypeService;
     private final Map<String, HostMetadata> hostMetadata;
     private final double samplingDurationInSeconds;
 
-    CO2Calculator(CostsService costsService, Map<String, HostMetadata> hostMetadata, double samplingDurationInSeconds) {
-        this.costsService = costsService;
+    CO2Calculator(InstanceTypeService instanceTypeService, Map<String, HostMetadata> hostMetadata, double samplingDurationInSeconds) {
+        this.instanceTypeService = instanceTypeService;
         this.hostMetadata = hostMetadata;
         this.samplingDurationInSeconds = samplingDurationInSeconds;
     }
@@ -37,7 +37,7 @@ final class CO2Calculator {
             return DEFAULT_KILOWATTS_PER_CORE * DEFAULT_CO2_TONS_PER_KWH * annualCoreHours * DEFAULT_DATACENTER_PUE;
         }
 
-        CostEntry costs = costsService.getCosts(host.instanceType);
+        CostEntry costs = instanceTypeService.getCosts(host.instanceType);
         if (costs == null) {
             return getKiloWattsPerCore(host) * getCO2TonsPerKWH(host) * annualCoreHours * getDatacenterPUE(host);
         }

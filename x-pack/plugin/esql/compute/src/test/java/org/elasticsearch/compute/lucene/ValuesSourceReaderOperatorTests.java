@@ -61,6 +61,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -130,7 +131,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     static Operator.OperatorFactory factory(IndexReader reader, String name, BlockLoader loader) {
         return new ValuesSourceReaderOperator.Factory(
             List.of(new ValuesSourceReaderOperator.FieldInfo(name, List.of(loader))),
-            List.of(reader),
+            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
             0
         );
     }
@@ -337,7 +338,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         operators.add(
             new ValuesSourceReaderOperator.Factory(
                 List.of(fieldInfo(docValuesNumberField("key", NumberFieldMapper.NumberType.INTEGER))),
-                List.of(reader),
+                List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
                 0
             ).get(driverContext)
         );
@@ -347,7 +348,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             cases.removeAll(b);
             tests.addAll(b);
             operators.add(
-                new ValuesSourceReaderOperator.Factory(b.stream().map(i -> i.info).toList(), List.of(reader), 0).get(driverContext)
+                new ValuesSourceReaderOperator.Factory(
+                    b.stream().map(i -> i.info).toList(),
+                    List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
+                    0
+                ).get(driverContext)
             );
         }
         List<Page> results = drive(operators, input.iterator(), driverContext);
@@ -400,7 +405,6 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
      * Asserts that {@link ValuesSourceReaderOperator#status} claims that only
      * the expected readers are built after loading non-singleton pages.
      */
-    // @Repeat(iterations = 100)
     public void testLoadAllStatusAllInOnePage() {
         testLoadAllStatus(true);
     }
@@ -411,7 +415,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         List<FieldCase> cases = infoAndChecksForEachType(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         // Build one operator for each field, so we get a unique map to assert on
         List<Operator> operators = cases.stream()
-            .map(i -> new ValuesSourceReaderOperator.Factory(List.of(i.info), List.of(reader), 0).get(driverContext))
+            .map(
+                i -> new ValuesSourceReaderOperator.Factory(
+                    List.of(i.info),
+                    List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
+                    0
+                ).get(driverContext)
+            )
             .toList();
         if (allInOnePage) {
             input = List.of(CannedSourceOperator.mergePages(input));

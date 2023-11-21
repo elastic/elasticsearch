@@ -11,26 +11,31 @@ package org.elasticsearch.rest;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpHeadersValidationException;
+import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,12 +45,15 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -57,7 +65,6 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.elasticsearch.rest.RestStatus.NOT_ACCEPTABLE;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestController implements HttpServerTransport.Dispatcher {
@@ -96,15 +103,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final UsageService usageService;
     private final Tracer tracer;
     // If true, the ServerlessScope annotations will be enforced
-    private final boolean serverlessEnabled;
+    private final ServerlessApiProtections apiProtections;
 
     public RestController(
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer,
-        boolean serverlessEnabled
+        Tracer tracer
     ) {
         this.usageService = usageService;
         this.tracer = tracer;
@@ -115,7 +121,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
-        this.serverlessEnabled = serverlessEnabled;
+        this.apiProtections = new ServerlessApiProtections(false);
+    }
+
+    public ServerlessApiProtections getApiProtections() {
+        return apiProtections;
     }
 
     /**
@@ -350,8 +360,27 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler, ThreadContext threadContext)
-        throws Exception {
+    @Override
+    public Map<String, HttpRouteStats> getStats() {
+        final Iterator<MethodHandlers> methodHandlersIterator = handlers.allNodeValues();
+        final SortedMap<String, HttpRouteStats> allStats = new TreeMap<>();
+        while (methodHandlersIterator.hasNext()) {
+            final MethodHandlers mh = methodHandlersIterator.next();
+            final HttpRouteStats stats = mh.getStats();
+            if (stats.requestCount() > 0 || stats.responseCount() > 0) {
+                allStats.put(mh.getPath(), stats);
+            }
+        }
+        return Collections.unmodifiableSortedMap(allStats);
+    }
+
+    private void dispatchRequest(
+        RestRequest request,
+        RestChannel channel,
+        RestHandler handler,
+        MethodHandlers methodHandlers,
+        ThreadContext threadContext
+    ) throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
             if (isContentTypeDisallowed(request) || handler.mediaTypesValid(request) == false) {
@@ -374,7 +403,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         RestChannel responseChannel = channel;
-        if (serverlessEnabled) {
+        if (apiProtections.isEnabled()) {
             Scope scope = handler.getServerlessScope();
             if (scope == null) {
                 handleServerlessRequestToProtectedResource(request.uri(), request.method(), responseChannel);
@@ -388,7 +417,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, methodHandlers);
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -408,7 +437,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
             }
-
             handler.handleRequest(request, responseChannel, client);
         } catch (Exception e) {
             responseChannel.sendResponse(new RestResponse(responseChannel, e));
@@ -538,7 +566,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     }
                 } else {
                     startTrace(threadContext, channel, handlers.getPath());
-                    dispatchRequest(request, channel, handler, threadContext);
+                    dispatchRequest(request, channel, handler, handlers, threadContext);
                     return;
                 }
             }
@@ -661,17 +689,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     public static void handleServerlessRequestToProtectedResource(String uri, RestRequest.Method method, RestChannel channel)
         throws IOException {
-        try (XContentBuilder builder = channel.newErrorBuilder()) {
-            builder.startObject();
-            {
-                builder.field(
-                    "error",
-                    "uri [" + uri + "] with method [" + method + "] exists but is not available when running in " + "serverless mode"
-                );
-            }
-            builder.endObject();
-            channel.sendResponse(new RestResponse(NOT_FOUND, builder));
-        }
+        String msg = "uri [" + uri + "] with method [" + method + "] exists but is not available when running in serverless mode";
+        channel.sendResponse(new RestResponse(channel, new ApiNotAvailableException(msg)));
     }
 
     /**
@@ -693,12 +712,21 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
+        private final MethodHandlers methodHandlers;
+        private final long startTime;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+        ResourceHandlingHttpChannel(
+            RestChannel delegate,
+            CircuitBreakerService circuitBreakerService,
+            int contentLength,
+            MethodHandlers methodHandlers
+        ) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
+            this.methodHandlers = methodHandlers;
+            this.startTime = rawRelativeTimeInMillis();
         }
 
         @Override
@@ -757,6 +785,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
             boolean success = false;
             try {
                 close();
+                methodHandlers.addRequestStats(contentLength);
+                methodHandlers.addResponseTime(rawRelativeTimeInMillis() - startTime);
+                if (response.isChunked() == false) {
+                    methodHandlers.addResponseStats(response.content().length());
+                } else {
+                    response = RestResponse.chunked(
+                        response.status(),
+                        new EncodedLengthTrackingChunkedRestResponseBody(response.chunkedContent(), methodHandlers)
+                    );
+                }
                 delegate.sendResponse(response);
                 success = true;
             } finally {
@@ -766,12 +804,51 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
 
+        private static long rawRelativeTimeInMillis() {
+            return TimeValue.nsecToMSec(System.nanoTime());
+        }
+
         private void close() {
             // attempt to close once atomically
             if (closed.compareAndSet(false, true) == false) {
                 throw new IllegalStateException("Channel is already closed");
             }
             inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+        }
+    }
+
+    private static class EncodedLengthTrackingChunkedRestResponseBody implements ChunkedRestResponseBody {
+
+        private final ChunkedRestResponseBody delegate;
+        private final MethodHandlers methodHandlers;
+        private long encodedLength = 0;
+
+        private EncodedLengthTrackingChunkedRestResponseBody(ChunkedRestResponseBody delegate, MethodHandlers methodHandlers) {
+            this.delegate = delegate;
+            this.methodHandlers = methodHandlers;
+        }
+
+        @Override
+        public boolean isDone() {
+            return delegate.isDone();
+        }
+
+        @Override
+        public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
+            final ReleasableBytesReference bytesReference = delegate.encodeChunk(sizeHint, recycler);
+            encodedLength += bytesReference.length();
+            return bytesReference;
+        }
+
+        @Override
+        public String getResponseContentTypeString() {
+            return delegate.getResponseContentTypeString();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+            methodHandlers.addResponseStats(encodedLength);
         }
     }
 

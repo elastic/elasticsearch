@@ -57,7 +57,7 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
     }
 
     @Override
-    public void close() {
+    protected void doClose() {
         preallocated.close();
     }
 

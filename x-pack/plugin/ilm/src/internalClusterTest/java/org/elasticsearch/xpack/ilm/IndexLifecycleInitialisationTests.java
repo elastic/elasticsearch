@@ -104,15 +104,9 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         nodeSettings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         nodeSettings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
 
-        // This is necessary to prevent ILM and SLM installing a lifecycle policy, these tests assume a blank slate
+        // This is necessary to prevent ILM installing a lifecycle policy, these tests assume a blank slate
         nodeSettings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false);
-        nodeSettings.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         return nodeSettings.build();
-    }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     @Override
@@ -589,14 +583,14 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         public static ObservableAction readObservableAction(StreamInput in) throws IOException {
-            List<Step> steps = in.readList(ObservableClusterStateWaitStep::new);
+            List<Step> steps = in.readCollectionAsList(ObservableClusterStateWaitStep::new);
             boolean safe = in.readBoolean();
             return new ObservableAction(steps, safe);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(getSteps().stream().map(s -> (ObservableClusterStateWaitStep) s).collect(Collectors.toList()));
+            out.writeCollection(getSteps().stream().map(s -> (ObservableClusterStateWaitStep) s).collect(Collectors.toList()));
             out.writeBoolean(isSafeAction());
         }
     }

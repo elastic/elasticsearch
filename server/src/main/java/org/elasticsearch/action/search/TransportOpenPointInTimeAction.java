@@ -21,7 +21,8 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -37,6 +38,7 @@ import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -60,14 +62,20 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         TransportSearchAction transportSearchAction,
         SearchTransportService searchTransportService
     ) {
-        super(OpenPointInTimeAction.NAME, transportService, actionFilters, OpenPointInTimeRequest::new);
+        super(
+            OpenPointInTimeAction.NAME,
+            transportService,
+            actionFilters,
+            OpenPointInTimeRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;
         this.searchTransportService = searchTransportService;
         transportService.registerRequestHandler(
             OPEN_SHARD_READER_CONTEXT_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardOpenReaderRequest::new,
             new ShardOpenReaderRequestHandler()
         );
@@ -155,17 +163,40 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                         OPEN_SHARD_READER_CONTEXT_NAME,
                         shardRequest,
                         task,
-                        new ActionListenerResponseHandler<>(phaseListener, ShardOpenReaderResponse::new)
+                        new ActionListenerResponseHandler<>(
+                            phaseListener,
+                            ShardOpenReaderResponse::new,
+                            TransportResponseHandler.TRANSPORT_WORKER
+                        )
                     );
                 }
 
                 @Override
                 protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
                     return new SearchPhase(getName()) {
+
+                        private void onExecuteFailure(Exception e) {
+                            onPhaseFailure(this, "sending response failed", e);
+                        }
+
                         @Override
                         public void run() {
-                            final AtomicArray<SearchPhaseResult> atomicArray = results.getAtomicArray();
-                            sendSearchResponse(InternalSearchResponse.EMPTY_WITH_TOTAL_HITS, atomicArray);
+                            execute(new AbstractRunnable() {
+                                @Override
+                                public void onFailure(Exception e) {
+                                    onExecuteFailure(e);
+                                }
+
+                                @Override
+                                protected void doRun() {
+                                    sendSearchResponse(InternalSearchResponse.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
+                                }
+
+                                @Override
+                                public boolean isForceExecution() {
+                                    return true; // we already created the PIT, no sense in rejecting the task that sends the response.
+                                }
+                            });
                         }
                     };
                 }
@@ -237,7 +268,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
     private class ShardOpenReaderRequestHandler implements TransportRequestHandler<ShardOpenReaderRequest> {
         @Override
-        public void messageReceived(ShardOpenReaderRequest request, TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(ShardOpenReaderRequest request, TransportChannel channel, Task task) {
             searchService.openReaderContext(
                 request.getShardId(),
                 request.keepAlive,

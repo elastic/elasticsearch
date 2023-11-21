@@ -56,7 +56,6 @@ public final class TransformAggregations {
     private static final List<String> UNSUPPORTED_AGGS = Arrays.asList(
         "adjacency_matrix",
         "auto_date_histogram",
-        "boxplot", // https://github.com/elastic/elasticsearch/issues/52189
         "composite", // DONT because it makes no sense
         "date_histogram",
         "date_range",
@@ -120,7 +119,8 @@ public final class TransformAggregations {
         RARE_TERMS("rare_terms", FLATTENED),
         MISSING("missing", LONG),
         TOP_METRICS("top_metrics", SOURCE),
-        STATS("stats", DOUBLE);
+        STATS("stats", DOUBLE),
+        BOXPLOT("boxplot", DOUBLE);
 
         private final String aggregationType;
         private final String targetMapping;

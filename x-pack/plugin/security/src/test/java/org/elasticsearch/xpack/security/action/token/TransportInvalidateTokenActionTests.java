@@ -15,9 +15,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.MockLicenseState;
@@ -39,7 +38,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.time.Clock;
-import java.util.Base64;
 import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest.Type.ACCESS_TOKEN;
@@ -58,6 +56,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         .build();
 
     private ThreadPool threadPool;
+    private TransportService transportService;
     private Client client;
     private SecurityIndexManager securityIndex;
     private ClusterService clusterService;
@@ -67,6 +66,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     @Before
     public void setup() {
         threadPool = new TestThreadPool(getTestName());
+        transportService = mock(TransportService.class);
         securityContext = new SecurityContext(Settings.EMPTY, threadPool.getThreadContext());
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -78,10 +78,12 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     }
 
     public void testInvalidateTokensWhenIndexUnavailable() throws Exception {
-        when(securityIndex.isAvailable()).thenReturn(false);
+
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
         when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
-        when(securityIndex.getUnavailableReason()).thenReturn(new ElasticsearchException("simulated"));
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS))
+            .thenReturn(new ElasticsearchException("simulated"));
         final TokenService tokenService = new TokenService(
             SETTINGS,
             Clock.systemUTC(),
@@ -93,12 +95,15 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
             clusterService
         );
         final TransportInvalidateTokenAction action = new TransportInvalidateTokenAction(
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService
         );
 
-        InvalidateTokenRequest request = new InvalidateTokenRequest(generateAccessTokenString(), ACCESS_TOKEN.getValue(), null, null);
+        Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(true);
+        InvalidateTokenRequest request = new InvalidateTokenRequest(
+                tokenService.prependVersionAndEncodeAccessToken(TransportVersion.current(), newTokenBytes.v1()),
+                ACCESS_TOKEN.getValue(), null, null);
         PlainActionFuture<InvalidateTokenResponse> accessTokenfuture = new PlainActionFuture<>();
         action.doExecute(null, request, accessTokenfuture);
         ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, accessTokenfuture::actionGet);
@@ -106,7 +111,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         assertThat(ese.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
 
         request = new InvalidateTokenRequest(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), UUIDs.randomBase64UUID()),
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), newTokenBytes.v2()),
             REFRESH_TOKEN.getValue(),
             null,
             null
@@ -119,10 +124,10 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     }
 
     public void testInvalidateTokensWhenIndexClosed() throws Exception {
-        when(securityIndex.isAvailable()).thenReturn(false);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
         when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
-        when(securityIndex.getUnavailableReason()).thenReturn(
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(
             new IndexClosedException(new Index(INTERNAL_SECURITY_TOKENS_INDEX_7, ClusterState.UNKNOWN_UUID))
         );
         final TokenService tokenService = new TokenService(
@@ -136,12 +141,15 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
             clusterService
         );
         final TransportInvalidateTokenAction action = new TransportInvalidateTokenAction(
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService
         );
 
-        InvalidateTokenRequest request = new InvalidateTokenRequest(generateAccessTokenString(), ACCESS_TOKEN.getValue(), null, null);
+        Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(true);
+        InvalidateTokenRequest request = new InvalidateTokenRequest(
+                tokenService.prependVersionAndEncodeAccessToken(TransportVersion.current(), newTokenBytes.v1()),
+                ACCESS_TOKEN.getValue(), null, null);
         PlainActionFuture<InvalidateTokenResponse> accessTokenfuture = new PlainActionFuture<>();
         action.doExecute(null, request, accessTokenfuture);
         ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, accessTokenfuture::actionGet);
@@ -149,7 +157,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         assertThat(ese.status(), equalTo(RestStatus.BAD_REQUEST));
 
         request = new InvalidateTokenRequest(
-            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), UUIDs.randomBase64UUID()),
+            TokenService.prependVersionAndEncodeRefreshToken(TransportVersion.current(), tokenService.getRandomTokenBytes(true).v2()),
             REFRESH_TOKEN.getValue(),
             null,
             null
@@ -159,15 +167,6 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
         ElasticsearchSecurityException ese2 = expectThrows(ElasticsearchSecurityException.class, refreshTokenfuture::actionGet);
         assertThat(ese2.getMessage(), containsString("failed to invalidate token"));
         assertThat(ese2.status(), equalTo(RestStatus.BAD_REQUEST));
-    }
-
-    private String generateAccessTokenString() throws Exception {
-        try (BytesStreamOutput out = new BytesStreamOutput(TokenService.MINIMUM_BASE64_BYTES)) {
-            out.setTransportVersion(TransportVersion.current());
-            TransportVersion.writeVersion(TransportVersion.current(), out);
-            out.writeString(UUIDs.randomBase64UUID());
-            return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
-        }
     }
 
     @After

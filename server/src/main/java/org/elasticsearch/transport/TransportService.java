@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
@@ -37,13 +38,14 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -56,6 +58,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -77,14 +80,10 @@ public class TransportService extends AbstractLifecycleComponent
      * A feature flag enabling transport upgrades for serverless.
      */
     private static final String SERVERLESS_TRANSPORT_SYSTEM_PROPERTY = "es.serverless_transport";
-    private static final boolean SERVERLESS_TRANSPORT_FEATURE_FLAG;
-    static {
-        final boolean serverlessFlag = Booleans.parseBoolean(System.getProperty(SERVERLESS_TRANSPORT_SYSTEM_PROPERTY), false);
-        if (serverlessFlag && Build.CURRENT.isSnapshot() == false) {
-            throw new IllegalArgumentException("Enabling serverless transport is only supported in snapshot builds");
-        }
-        SERVERLESS_TRANSPORT_FEATURE_FLAG = serverlessFlag;
-    }
+    private static final boolean SERVERLESS_TRANSPORT_FEATURE_FLAG = Booleans.parseBoolean(
+        System.getProperty(SERVERLESS_TRANSPORT_SYSTEM_PROPERTY),
+        false
+    );
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
@@ -254,6 +253,7 @@ public class TransportService extends AbstractLifecycleComponent
         );
     }
 
+    @SuppressWarnings("this-escape")
     public TransportService(
         Settings settings,
         Transport transport,
@@ -291,12 +291,12 @@ public class TransportService extends AbstractLifecycleComponent
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
             HandshakeRequest::new,
             (request, channel, task) -> channel.sendResponse(
-                new HandshakeResponse(localNode.getVersion(), Build.CURRENT.hash(), localNode, clusterName)
+                new HandshakeResponse(localNode.getVersion(), Build.current().hash(), localNode, clusterName)
             )
         );
     }
@@ -378,11 +378,11 @@ public class TransportService extends AbstractLifecycleComponent
                         holderToNotify.action(),
                         new NodeClosedException(localNode)
                     );
-                    final var executor = handler.executor();
-                    if (executor.equals(ThreadPool.Names.SAME)) {
+                    final var executor = handler.executor(threadPool);
+                    if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                         handler.handleException(exception);
                     } else {
-                        threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, exception) {
+                        executor.execute(new ForkingResponseHandlerRunnable(handler, exception, threadPool) {
                             @Override
                             protected void doRun() {
                                 handler.handleException(exception);
@@ -597,7 +597,7 @@ public class TransportService extends AbstractLifecycleComponent
                 } else {
                     l.onResponse(response);
                 }
-            }), HandshakeResponse::new, ThreadPool.Names.GENERIC)
+            }), HandshakeResponse::new, threadPool.generic())
         );
     }
 
@@ -672,9 +672,9 @@ public class TransportService extends AbstractLifecycleComponent
                     + "] of version ["
                     + version
                     + "] but this node is build ["
-                    + Build.CURRENT.hash()
+                    + Build.current().hash()
                     + "] of version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "] which has an incompatible wire format",
                 e
             );
@@ -705,7 +705,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         private static boolean isIncompatibleBuild(Version version, String buildHash) {
-            return version == Version.CURRENT && Build.CURRENT.hash().equals(buildHash) == false;
+            return version == Version.CURRENT && Build.current().hash().equals(buildHash) == false;
         }
     }
 
@@ -748,21 +748,38 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         TransportResponseHandler<T> handler
     ) {
-        final Transport.Connection connection;
+        final Transport.Connection connection = getConnectionOrFail(node, action, handler);
+        if (connection != null) {
+            sendRequest(connection, action, request, options, handler);
+        }
+    }
+
+    /**
+     * Get connection to the given {@code node} if possible and fail {@code handler} otherwise.
+     *
+     * @return connection if one could be found to {@code node} or null otherwise
+     */
+    @Nullable
+    private Transport.Connection getConnectionOrFail(DiscoveryNode node, String action, TransportResponseHandler<?> handler) {
         try {
-            connection = getConnection(node);
+            var connection = getConnection(node);
+            if (connection == null) {
+                final var ex = new NodeNotConnectedException(node, "Node not connected");
+                assert false : ex;
+                throw ex;
+            }
+            return connection;
         } catch (TransportException transportException) {
             // should only be a NodeNotConnectedException in practice, but handle all cases anyway to be sure
             assert transportException instanceof NodeNotConnectedException : transportException;
             handleSendRequestException(handler, transportException);
-            return;
+            return null;
         } catch (Exception exception) {
             // shouldn't happen in practice, but handle it anyway to be sure
             assert false : exception;
             handleSendRequestException(handler, new SendRequestTransportException(node, action, exception));
-            return;
+            return null;
         }
-        sendRequest(connection, action, request, options, handler);
     }
 
     /**
@@ -831,10 +848,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
-    private static <T extends TransportResponse> void handleSendRequestException(
-        TransportResponseHandler<T> handler,
-        TransportException transportException
-    ) {
+    private static void handleSendRequestException(TransportResponseHandler<?> handler, TransportException transportException) {
         try {
             handler.handleException(transportException);
         } catch (Exception innerException) {
@@ -865,21 +879,10 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         final TransportResponseHandler<T> handler
     ) {
-        final Transport.Connection connection;
-        try {
-            connection = getConnection(node);
-        } catch (TransportException transportException) {
-            // should only be a NodeNotConnectedException in practice, but handle all cases anyway to be sure
-            assert transportException instanceof NodeNotConnectedException : transportException;
-            handleSendRequestException(handler, transportException);
-            return;
-        } catch (Exception exception) {
-            // shouldn't happen in practice, but handle it anyway to be sure
-            assert false : exception;
-            handleSendRequestException(handler, new SendRequestTransportException(node, action, exception));
-            return;
+        final Transport.Connection connection = getConnectionOrFail(node, action, handler);
+        if (connection != null) {
+            sendChildRequest(connection, action, request, parentTask, options, handler);
         }
-        sendChildRequest(connection, action, request, parentTask, options, handler);
     }
 
     public <T extends TransportResponse> void sendChildRequest(
@@ -999,8 +1002,8 @@ public class TransportService extends AbstractLifecycleComponent
                 assert false : action;
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
-            final String executor = reg.getExecutor();
-            if (ThreadPool.Names.SAME.equals(executor)) {
+            final Executor executor = reg.getExecutor();
+            if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                 try (var ignored = threadPool.getThreadContext().newTraceContext()) {
                     try {
                         reg.processMessageReceived(request, channel);
@@ -1012,7 +1015,7 @@ public class TransportService extends AbstractLifecycleComponent
                 boolean success = false;
                 request.incRef();
                 try {
-                    threadPool.executor(executor).execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
+                    executor.execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
                         @Override
                         protected void doRun() throws Exception {
                             reg.processMessageReceived(request, channel);
@@ -1127,7 +1130,7 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public <Request extends TransportRequest> void registerRequestHandler(
         String action,
-        String executor,
+        Executor executor,
         Writeable.Reader<Request> requestReader,
         TransportRequestHandler<Request> handler
     ) {
@@ -1158,7 +1161,7 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public <Request extends TransportRequest> void registerRequestHandler(
         String action,
-        String executor,
+        Executor executor,
         boolean forceExecution,
         boolean canTripCircuitBreaker,
         Writeable.Reader<Request> requestReader,
@@ -1291,12 +1294,10 @@ public class TransportService extends AbstractLifecycleComponent
             return;
         }
 
-        // Callback that an exception happened, but on a different thread since we don't
-        // want handlers to worry about stack overflows.
-        // Execute on the current thread in the special case of a node shut down to notify the listener even when the threadpool has
-        // already been shut down.
-        final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
-        threadPool.executor(executor).execute(new AbstractRunnable() {
+        // Callback that an exception happened, but on a different thread since we don't want handlers to worry about stack overflows.
+        final var executor = threadPool.generic();
+        assert executor.isShutdown() == false : "connections should all be closed before threadpool shuts down";
+        executor.execute(new AbstractRunnable() {
             @Override
             public void doRun() {
                 for (Transport.ResponseContext<?> holderToNotify : pruned) {
@@ -1374,7 +1375,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         private void scheduleTimeout(TimeValue timeout) {
-            this.cancellable = threadPool.schedule(this, timeout, ThreadPool.Names.GENERIC);
+            this.cancellable = threadPool.schedule(this, timeout, threadPool.generic());
         }
     }
 
@@ -1421,13 +1422,13 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public String executor() {
-            return delegate.executor();
+        public Executor executor(ThreadPool threadPool) {
+            return delegate.executor(threadPool);
         }
 
         @Override
         public String toString() {
-            return getClass().getName() + "/" + delegate.toString();
+            return getClass().getSimpleName() + "[" + delegate.toString() + "]";
         }
 
         void setTimeoutHandler(TimeoutHandler timeoutHandler) {
@@ -1474,12 +1475,12 @@ public class TransportService extends AbstractLifecycleComponent
                         // handler already completed, likely by a timeout which is logged elsewhere
                         return;
                     }
-                    final String executor = handler.executor();
-                    if (ThreadPool.Names.SAME.equals(executor)) {
+                    final var executor = handler.executor(threadPool);
+                    if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                         processResponse(handler, response);
                     } else {
                         response.incRef();
-                        threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, null) {
+                        executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {
                             @Override
                             protected void doRun() {
                                 processResponse(handler, response);
@@ -1525,11 +1526,11 @@ public class TransportService extends AbstractLifecycleComponent
                     return;
                 }
                 final RemoteTransportException rtx = wrapInRemote(exception);
-                final String executor = handler.executor();
-                if (ThreadPool.Names.SAME.equals(executor)) {
+                final var executor = handler.executor(threadPool);
+                if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     processException(handler, rtx);
                 } else {
-                    threadPool.executor(executor).execute(new ForkingResponseHandlerRunnable(handler, rtx) {
+                    executor.execute(new ForkingResponseHandlerRunnable(handler, rtx, threadPool) {
                         @Override
                         protected void doRun() {
                             processException(handler, rtx);
@@ -1671,11 +1672,11 @@ public class TransportService extends AbstractLifecycleComponent
 
     static {
         // Ensure that this property, introduced and immediately deprecated in 7.11, is not used in 8.x
+        @UpdateForV9 // we can remove this whole block in v9
         final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
         if (System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY) != null) {
             throw new IllegalArgumentException("system property [" + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] must not be set");
         }
-        assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // we can remove this whole block in v9
     }
 
     private record UnregisterChildTransportResponseHandler<T extends TransportResponse>(
@@ -1703,8 +1704,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public String executor() {
-            return handler.executor();
+        public Executor executor(ThreadPool threadPool) {
+            return handler.executor(threadPool);
         }
 
         @Override

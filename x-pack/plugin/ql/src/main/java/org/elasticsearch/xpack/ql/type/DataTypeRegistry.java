@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ql.type;
 
+import org.elasticsearch.index.mapper.TimeSeriesParams;
+
 import java.util.Collection;
 
 /**
@@ -19,7 +21,7 @@ public interface DataTypeRegistry {
     //
     Collection<DataType> dataTypes();
 
-    DataType fromEs(String typeName);
+    DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType);
 
     DataType fromJava(Object value);
 

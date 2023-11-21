@@ -25,7 +25,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestGraphActionTests extends RestActionTestCase {
+public final class RestGraphActionTests extends RestActionTestCase {
     private final List<String> compatibleMediaType = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
     @Before

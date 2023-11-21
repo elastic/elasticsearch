@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.annotations;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -28,9 +27,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 
 import static java.lang.Thread.currentThread;
@@ -56,6 +57,7 @@ public class AnnotationIndex {
     public static final List<String> OLD_INDEX_NAMES = List.of(".ml-annotations-6");
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
+    public static final int ANNOTATION_INDEX_MAPPINGS_VERSION = 1;
 
     /**
      * Create the .ml-annotations-6 index with correct mappings if it does not already exist. This index is read and written by the UI
@@ -102,7 +104,8 @@ public class AnnotationIndex {
                 client,
                 state,
                 masterNodeTimeout,
-                finalListener
+                finalListener,
+                ANNOTATION_INDEX_MAPPINGS_VERSION
             ),
             finalListener::onFailure
         );
@@ -209,9 +212,10 @@ public class AnnotationIndex {
 
     public static String annotationsMapping() {
         return TemplateUtils.loadTemplate(
-            "/org/elasticsearch/xpack/core/ml/annotations_index_mappings.json",
-            Version.CURRENT.toString(),
-            MAPPINGS_VERSION_VARIABLE
+            "/ml/annotations_index_mappings.json",
+            MlIndexAndAlias.BWC_MAPPINGS_VERSION, // Only needed for BWC with pre-8.10.0 nodes
+            MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.managed.index.version", Integer.toString(ANNOTATION_INDEX_MAPPINGS_VERSION))
         );
     }
 }

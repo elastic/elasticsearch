@@ -18,9 +18,7 @@ and prevent them from operating normally.
 Before upgrading to 8.7, review these changes and take the described steps
 to mitigate the impact.
 
-// tag::notable-breaking-changes[]
 There are no notable breaking changes in {es} 8.7.
-// end::notable-breaking-changes[]
 But there are some less critical breaking changes.
 
 [discrete]

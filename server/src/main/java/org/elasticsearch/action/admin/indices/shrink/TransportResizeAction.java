@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -31,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.tasks.Task;
@@ -43,7 +42,6 @@ import java.util.Locale;
  * Main class to initiate resizing (shrink / split) an index into a new index
  */
 public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, ResizeResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportResizeAction.class);
 
     private final MetadataCreateIndexService createIndexService;
     private final Client client;
@@ -89,7 +87,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             ResizeRequest::new,
             indexNameExpressionResolver,
             ResizeResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.createIndexService = createIndexService;
         this.client = client;
@@ -163,12 +161,13 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             client.execute(
                 IndicesStatsAction.INSTANCE,
                 statsRequest,
-                listener.delegateFailure(
-                    (delegatedListener, indicesStatsResponse) -> delegatedListener.onResponse(
-                        new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(indicesStatsResponse.getPrimaries().store, i -> {
+                listener.safeMap(
+                    indicesStatsResponse -> new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
+                        indicesStatsResponse.getPrimaries().store,
+                        i -> {
                             IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                             return shard == null ? null : shard.getPrimary().getDocs();
-                        })
+                        }
                     )
                 )
             );

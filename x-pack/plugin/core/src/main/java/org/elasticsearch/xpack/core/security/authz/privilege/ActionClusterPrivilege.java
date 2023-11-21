@@ -14,7 +14,7 @@ import java.util.Set;
 /**
  * A {@link NamedClusterPrivilege} that can be used to define an access to cluster level actions.
  */
-public class ActionClusterPrivilege implements NamedClusterPrivilege {
+public final class ActionClusterPrivilege implements NamedClusterPrivilege {
     private final String name;
     private final Set<String> allowedActionPatterns;
     private final Set<String> excludedActionPatterns;

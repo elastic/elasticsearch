@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -17,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Files;
@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 
 public class DanglingIndicesStateTests extends ESTestCase {
 
-    private static final Settings indexSettings = indexSettings(Version.CURRENT, 1, 0).build();
+    private static final Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
 
     public void testDanglingIndicesAreDiscovered() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {

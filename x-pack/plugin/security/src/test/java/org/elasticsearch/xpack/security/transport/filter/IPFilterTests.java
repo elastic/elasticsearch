@@ -23,7 +23,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.Security;
@@ -42,9 +41,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.Set;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
@@ -76,19 +73,19 @@ public class IPFilterTests extends ESTestCase {
         auditTrailService = new AuditTrailService(auditTrail, licenseState);
         clusterSettings = new ClusterSettings(
             Settings.EMPTY,
-            Stream.of(
+            Set.of(
                 IPFilter.HTTP_FILTER_ALLOW_SETTING,
                 IPFilter.HTTP_FILTER_DENY_SETTING,
                 IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
                 IPFilter.IP_FILTER_ENABLED_SETTING,
                 IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
                 IPFilter.TRANSPORT_FILTER_DENY_SETTING,
-                TcpTransport.isUntrustedRemoteClusterEnabled() ? IPFilter.REMOTE_CLUSTER_FILTER_ALLOW_SETTING : null,
-                TcpTransport.isUntrustedRemoteClusterEnabled() ? IPFilter.REMOTE_CLUSTER_FILTER_DENY_SETTING : null,
+                IPFilter.REMOTE_CLUSTER_FILTER_ALLOW_SETTING,
+                IPFilter.REMOTE_CLUSTER_FILTER_DENY_SETTING,
                 IPFilter.PROFILE_FILTER_ALLOW_SETTING,
                 IPFilter.PROFILE_FILTER_DENY_SETTING,
-                TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED : null
-            ).filter(Objects::nonNull).collect(Collectors.toSet())
+                RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED
+            )
         );
 
         httpTransport = mock(HttpServerTransport.class);
@@ -107,12 +104,10 @@ public class IPFilterTests extends ESTestCase {
             new BoundTransportAddress(new TransportAddress[] { new TransportAddress(InetAddress.getLoopbackAddress(), 9500) }, address)
         );
 
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            profileBoundAddresses.put(
-                REMOTE_CLUSTER_PROFILE,
-                new BoundTransportAddress(new TransportAddress[] { new TransportAddress(InetAddress.getLoopbackAddress(), 9600) }, address)
-            );
-        }
+        profileBoundAddresses.put(
+            REMOTE_CLUSTER_PROFILE,
+            new BoundTransportAddress(new TransportAddress[] { new TransportAddress(InetAddress.getLoopbackAddress(), 9600) }, address)
+        );
         when(transport.profileBoundAddresses()).thenReturn(profileBoundAddresses);
     }
 
@@ -306,7 +301,6 @@ public class IPFilterTests extends ESTestCase {
     }
 
     public void testRemoteAccessCanBeFilteredSeparately() throws Exception {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         Settings settings = Settings.builder()
             .put("xpack.security.transport.filter.allow", "192.168.0.2")
             .put("xpack.security.transport.filter.deny", "192.168.0.1")
@@ -327,7 +321,6 @@ public class IPFilterTests extends ESTestCase {
      * remote_cluster filters are not set.
      */
     public void testThatRemoteAccessFallsBackToDefault() throws Exception {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         Settings settings = Settings.builder()
             .put("xpack.security.transport.filter.allow", "192.168.0.1")
             .put("xpack.security.transport.filter.deny", "_all")
@@ -344,7 +337,6 @@ public class IPFilterTests extends ESTestCase {
      * This test is very similar to {@link #testThatProfilesAreUpdateable()}, but specifically checks the remote cluster port settings.
      */
     public void testThatRemoteAccessIsUpdateable() throws Exception {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         Settings settings = Settings.builder()
             .put("xpack.security.transport.filter.allow", "localhost")
             .put("xpack.security.transport.filter.deny", "_all")

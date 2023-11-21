@@ -15,10 +15,13 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,18 +40,30 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 
 /**
  * A parser for documents
  */
 public final class DocumentParser {
 
+    public static final IndexVersion DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
+
     private final XContentParserConfiguration parserConfiguration;
+    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final MappingParserContext mappingParserContext;
 
-    DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext) {
+    DocumentParser(
+        XContentParserConfiguration parserConfiguration,
+        MappingParserContext mappingParserContext,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
+    ) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
+        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
     }
 
     /**
@@ -65,7 +80,16 @@ public final class DocumentParser {
         }
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
-        try (XContentParser parser = XContentHelper.createParser(parserConfiguration, source.source(), xContentType)) {
+
+        // only observe a document if it was not already reported (done in IngestService)
+        DocumentParsingObserver documentParsingObserver = source.toBeReported()
+            ? documentParsingObserverSupplier.get()
+            : DocumentParsingObserver.EMPTY_INSTANCE;
+        try (
+            XContentParser parser = documentParsingObserver.wrapParser(
+                XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
+            )
+        ) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
@@ -79,6 +103,13 @@ public final class DocumentParser {
         }
         assert context.path.pathAsText("").isEmpty() : "found leftover path elements: " + context.path.pathAsText("");
 
+        Mapping dynamicUpdate = createDynamicUpdate(context);
+
+        // if a mappingUpdate is required, the parsing will be triggered again
+        if (dynamicUpdate == null) {
+            documentParsingObserver.setIndexName(mappingParserContext.getIndexSettings().getIndex().getName());
+            documentParsingObserver.close();
+        }
         return new ParsedDocument(
             context.version(),
             context.seqID(),
@@ -87,7 +118,7 @@ public final class DocumentParser {
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
-            createDynamicUpdate(context)
+            dynamicUpdate
         ) {
             @Override
             public String documentDescription() {
@@ -220,13 +251,12 @@ public final class DocumentParser {
             return null;
         }
         RootObjectMapper.Builder rootBuilder = context.updateRoot();
-        for (Mapper mapper : context.getDynamicMappers()) {
-            rootBuilder.addDynamic(mapper.name(), null, mapper, context);
-        }
+        context.getDynamicMappers()
+            .forEach((name, builders) -> builders.forEach(builder -> rootBuilder.addDynamic(name, null, builder, context)));
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
-        RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic()));
+        RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic(), false));
         return context.mappingLookup().getMapping().mappingUpdate(root);
     }
 
@@ -284,7 +314,6 @@ public final class DocumentParser {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;
-
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == null) {
                 throwEOF(context.parent(), context);
@@ -370,10 +399,17 @@ public final class DocumentParser {
 
     static void parseObjectOrField(DocumentParserContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper objectMapper) {
-            context = context.createChildContext(objectMapper);
-            parseObjectOrNested(context);
+            parseObjectOrNested(context.createChildContext(objectMapper));
         } else if (mapper instanceof FieldMapper fieldMapper) {
-            fieldMapper.parse(context);
+            if (shouldFlattenObject(context, fieldMapper)) {
+                // we pass the mapper's simpleName as parentName to the new DocumentParserContext
+                String currentFieldName = fieldMapper.simpleName();
+                context.path().remove();
+                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                context.path().add(currentFieldName);
+            } else {
+                fieldMapper.parse(context);
+            }
             if (context.isWithinCopyTo() == false) {
                 List<String> copyToFields = fieldMapper.copyTo().copyToFields();
                 if (copyToFields.isEmpty() == false) {
@@ -390,6 +426,12 @@ public final class DocumentParser {
         } else {
             throwOnUnrecognizedMapperType(mapper);
         }
+    }
+
+    private static boolean shouldFlattenObject(DocumentParserContext context, FieldMapper fieldMapper) {
+        return context.parser().currentToken() == XContentParser.Token.START_OBJECT
+            && context.parent().subobjects() == false
+            && fieldMapper.supportsParsingObject() == false;
     }
 
     private static void throwOnUnrecognizedMapperType(Mapper mapper) {
@@ -420,36 +462,43 @@ public final class DocumentParser {
         assert currentFieldName != null;
         Mapper objectMapper = context.getMapper(currentFieldName);
         if (objectMapper != null) {
-            context.path().add(currentFieldName);
-            if (objectMapper instanceof ObjectMapper objMapper) {
-                if (objMapper.subobjects() == false) {
-                    context.path().setWithinLeafObject(true);
-                }
-            }
-            parseObjectOrField(context, objectMapper);
-            context.path().setWithinLeafObject(false);
-            context.path().remove();
+            doParseObject(context, currentFieldName, objectMapper);
         } else {
             parseObjectDynamic(context, currentFieldName);
         }
     }
 
+    private static void doParseObject(DocumentParserContext context, String currentFieldName, Mapper objectMapper) throws IOException {
+        context.path().add(currentFieldName);
+        if (objectMapper instanceof ObjectMapper objMapper && objMapper.subobjects() == false) {
+            context.path().setWithinLeafObject(true);
+        }
+        parseObjectOrField(context, objectMapper);
+        context.path().setWithinLeafObject(false);
+        context.path().remove();
+    }
+
     private static void parseObjectDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
-        if (context.dynamic() == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), context.parent().fullPath(), currentFieldName);
-        } else if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
+        ensureNotStrict(context, currentFieldName);
+        if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
             // not dynamic, read everything up to end object
             context.parser().skipChildren();
         } else {
+            Mapper.Builder dynamicObjectBuilder = null;
             Mapper dynamicObjectMapper;
             if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME) {
                 // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             } else {
-                dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
-                context.addDynamicMapper(dynamicObjectMapper);
+                dynamicObjectBuilder = DynamicFieldsBuilder.findTemplateBuilderForObject(context, currentFieldName);
+                if (dynamicObjectBuilder == null) {
+                    dynamicObjectBuilder = new ObjectMapper.Builder(currentFieldName, ObjectMapper.Defaults.SUBOBJECTS).enabled(
+                        ObjectMapper.Defaults.ENABLED
+                    );
+                }
+                dynamicObjectMapper = dynamicObjectBuilder.build(context.createDynamicMapperBuilderContext());
             }
             if (context.parent().subobjects() == false) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
@@ -463,28 +512,21 @@ public final class DocumentParser {
                     );
                 }
                 if (dynamicObjectMapper instanceof ObjectMapper) {
-                    throw new DocumentParsingException(
-                        context.parser().getTokenLocation(),
-                        "Tried to add subobject ["
-                            + dynamicObjectMapper.simpleName()
-                            + "] to object ["
-                            + context.parent().name()
-                            + "] which does not support subobjects"
-                    );
+                    // We have an ObjectMapper but subobjects are disallowed
+                    // therefore we create a new DocumentParserContext that
+                    // prepends currentFieldName to any immediate children.
+                    parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                    return;
                 }
+
+            }
+            if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME && dynamicObjectBuilder != null) {
+                context.addDynamicMapper(dynamicObjectMapper.name(), dynamicObjectBuilder);
             }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
             }
-            context.path().add(currentFieldName);
-            if (dynamicObjectMapper instanceof ObjectMapper objectMapper) {
-                if (objectMapper.subobjects() == false) {
-                    context.path().setWithinLeafObject(true);
-                }
-            }
-            parseObjectOrField(context, dynamicObjectMapper);
-            context.path().setWithinLeafObject(false);
-            context.path().remove();
+            doParseObject(context, currentFieldName, dynamicObjectMapper);
         }
     }
 
@@ -507,23 +549,27 @@ public final class DocumentParser {
                 parseNonDynamicArray(context, lastFieldName, lastFieldName);
             }
         } else {
-            if (context.dynamic() == ObjectMapper.Dynamic.STRICT) {
-                throw new StrictDynamicMappingException(context.parser().getTokenLocation(), context.parent().fullPath(), lastFieldName);
-            } else if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
-                context.parser().skipChildren();
+            parseArrayDynamic(context, lastFieldName);
+        }
+    }
+
+    private static void parseArrayDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
+        ensureNotStrict(context, currentFieldName);
+        if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
+            context.parser().skipChildren();
+        } else {
+            Mapper.Builder objectBuilderFromTemplate = DynamicFieldsBuilder.findTemplateBuilderForObject(context, currentFieldName);
+            if (objectBuilderFromTemplate == null) {
+                parseNonDynamicArray(context, currentFieldName, currentFieldName);
             } else {
-                Mapper objectMapperFromTemplate = DynamicFieldsBuilder.createObjectMapperFromTemplate(context, lastFieldName);
-                if (objectMapperFromTemplate == null) {
-                    parseNonDynamicArray(context, lastFieldName, lastFieldName);
+                Mapper objectMapperFromTemplate = objectBuilderFromTemplate.build(context.createDynamicMapperBuilderContext());
+                if (parsesArrayValue(objectMapperFromTemplate)) {
+                    context.addDynamicMapper(objectMapperFromTemplate.name(), objectBuilderFromTemplate);
+                    context.path().add(currentFieldName);
+                    parseObjectOrField(context, objectMapperFromTemplate);
+                    context.path().remove();
                 } else {
-                    if (parsesArrayValue(objectMapperFromTemplate)) {
-                        context.addDynamicMapper(objectMapperFromTemplate);
-                        context.path().add(lastFieldName);
-                        parseObjectOrField(context, objectMapperFromTemplate);
-                        context.path().remove();
-                    } else {
-                        parseNonDynamicArray(context, lastFieldName, lastFieldName);
-                    }
+                    parseNonDynamicArray(context, currentFieldName, currentFieldName);
                 }
             }
         }
@@ -550,6 +596,37 @@ public final class DocumentParser {
                 assert token.isValue();
                 parseValue(context, lastFieldName);
             }
+        }
+        postProcessDynamicArrayMapping(context, lastFieldName);
+    }
+
+    /**
+     * Arrays that have been classified as floats and meet specific criteria are re-mapped to dense_vector.
+     */
+    private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName) {
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
+            final MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
+            final String fullFieldName = builderContext.buildFullName(fieldName);
+            final List<Mapper.Builder> mappers = context.getDynamicMappers(fullFieldName);
+            if (mappers == null
+                || context.isFieldAppliedFromTemplate(fullFieldName)
+                || context.isCopyToField(fullFieldName)
+                || mappers.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
+                || mappers.size() > MAX_DIMS_COUNT
+                // Anything that is NOT a number or anything that IS a number but not mapped to `float` should NOT be mapped to dense_vector
+                || mappers.stream()
+                    .anyMatch(
+                        m -> m instanceof NumberFieldMapper.Builder == false
+                            || ((NumberFieldMapper.Builder) m).type != NumberFieldMapper.NumberType.FLOAT
+                    )) {
+                return;
+            }
+
+            DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
+                fieldName,
+                context.indexSettings().getIndexVersionCreated()
+            );
+            context.updateDynamicMappers(fullFieldName, builder);
         }
     }
 
@@ -594,20 +671,24 @@ public final class DocumentParser {
         if (mapper != null) {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
-        } else if (context.dynamic() == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), context.parent().fullPath(), lastFieldName);
+        } else {
+            ensureNotStrict(context, lastFieldName);
         }
     }
 
     private static void parseDynamicValue(final DocumentParserContext context, String currentFieldName) throws IOException {
-        if (context.dynamic() == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), context.parent().fullPath(), currentFieldName);
-        }
+        ensureNotStrict(context, currentFieldName);
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
             return;
         }
         context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName);
+    }
+
+    private static void ensureNotStrict(DocumentParserContext context, String currentFieldName) {
+        if (context.dynamic() == ObjectMapper.Dynamic.STRICT) {
+            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), context.parent().fullPath(), currentFieldName);
+        }
     }
 
     private static void failIfMatchesRoutingPath(DocumentParserContext context, String currentFieldName) {
@@ -640,6 +721,7 @@ public final class DocumentParser {
             assert targetDoc != null;
             final DocumentParserContext copyToContext = context.createCopyToContext(field, targetDoc);
             innerParseObject(copyToContext);
+            context.markFieldAsCopyTo(field);
         }
     }
 
@@ -745,6 +827,11 @@ public final class DocumentParser {
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
             super(name, fullPath, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_TRUE, Dynamic.RUNTIME, Collections.emptyMap());
+        }
+
+        @Override
+        public ObjectMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
+            return this;
         }
     }
 

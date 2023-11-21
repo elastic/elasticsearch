@@ -39,7 +39,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.ToLongBiFunction;
 
-public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable {
+public final class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable {
 
     private static final Logger logger = LogManager.getLogger(IndicesFieldDataCache.class);
 
@@ -67,7 +67,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     }
 
     public IndexFieldDataCache buildIndexFieldDataCache(IndexFieldDataCache.Listener listener, Index index, String fieldName) {
-        return new IndexFieldCache(logger, cache, index, fieldName, indicesFieldDataCacheListener, listener);
+        return new IndexFieldCache(cache, index, fieldName, indicesFieldDataCacheListener, listener);
     }
 
     public Cache<Key, Accountable> getCache() {
@@ -107,14 +107,12 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
      * A specific cache instance for the relevant parameters of it (index, fieldNames, fieldType).
      */
     static class IndexFieldCache implements IndexFieldDataCache, IndexReader.ClosedListener {
-        private final Logger logger;
         final Index index;
         final String fieldName;
         private final Cache<Key, Accountable> cache;
         private final Listener[] listeners;
 
-        IndexFieldCache(Logger logger, final Cache<Key, Accountable> cache, Index index, String fieldName, Listener... listeners) {
-            this.logger = logger;
+        IndexFieldCache(final Cache<Key, Accountable> cache, Index index, String fieldName, Listener... listeners) {
             this.listeners = listeners;
             this.index = index;
             this.fieldName = fieldName;

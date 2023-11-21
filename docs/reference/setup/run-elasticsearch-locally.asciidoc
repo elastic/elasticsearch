@@ -34,10 +34,9 @@ Desktop]. Go to **Preferences > Resources > Advanced** and set Memory to at leas
 . Start an Elasticsearch container:
 ifeval::["{release-state}"=="unreleased"]
 +
-NOTE: Version {version} of {es} has not yet been released, so no
+WARNING: Version {version} of {es} has not yet been released, so no
 Docker image is currently available for this version.
 endif::[]
-ifeval::["{release-state}"!="unreleased"]
 +
 [source,sh,subs="attributes"]
 ----
@@ -45,7 +44,6 @@ docker network create elastic
 docker pull docker.elastic.co/elasticsearch/elasticsearch:{version}
 docker run --name elasticsearch --net elastic -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -t docker.elastic.co/elasticsearch/elasticsearch:{version}
 ----
-endif::[]
 +
 When you start Elasticsearch for the first time, the generated `elastic` user password and
 Kibana enrollment token are output to the terminal.
@@ -65,17 +63,15 @@ Kibana enables you to easily send requests to Elasticsearch and analyze, visuali
 . In a new terminal session, start Kibana and connect it to your Elasticsearch container:
 ifeval::["{release-state}"=="unreleased"]
 +
-NOTE: Version {version} of {kib} has not yet been released, so no
+WARNING: Version {version} of {kib} has not yet been released, so no
 Docker image is currently available for this version.
 endif::[]
-ifeval::["{release-state}"!="unreleased"]
 +
 [source,sh,subs="attributes"]
 ----
 docker pull docker.elastic.co/kibana/kibana:{version}
 docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
 ----
-endif::[]
 +
 When you start Kibana, a unique URL is output to your terminal.
 

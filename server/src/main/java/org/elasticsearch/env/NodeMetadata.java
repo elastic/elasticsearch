@@ -8,9 +8,12 @@
 
 package org.elasticsearch.env;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -117,17 +120,17 @@ public final class NodeMetadata {
                 "cannot upgrade a node from version ["
                     + nodeVersion
                     + "] directly to version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "], "
                     + "upgrade to version ["
-                    + Version.CURRENT.minimumCompatibilityVersion()
+                    + Build.current().minWireCompatVersion()
                     + "] first."
             );
         }
 
         if (nodeVersion.after(Version.CURRENT)) {
             throw new IllegalStateException(
-                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Version.CURRENT + "]"
+                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Build.current().version() + "]"
             );
         }
     }
@@ -160,20 +163,20 @@ public final class NodeMetadata {
             this.oldestIndexVersion = IndexVersion.fromId(oldestIndexVersion);
         }
 
+        private Version getVersionOrFallbackToEmpty() {
+            return Objects.requireNonNullElse(this.nodeVersion, Version.V_EMPTY);
+        }
+
         public NodeMetadata build() {
-            final Version nodeVersion;
+            @UpdateForV9 // version is required in the node metadata from v9 onwards
+            final Version nodeVersion = getVersionOrFallbackToEmpty();
             final IndexVersion oldestIndexVersion;
-            if (this.nodeVersion == null) {
-                assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "version is required in the node metadata from v9 onwards";
-                nodeVersion = Version.V_EMPTY;
-            } else {
-                nodeVersion = this.nodeVersion;
-            }
+
             if (this.previousNodeVersion == null) {
                 previousNodeVersion = nodeVersion;
             }
             if (this.oldestIndexVersion == null) {
-                oldestIndexVersion = IndexVersion.ZERO;
+                oldestIndexVersion = IndexVersions.ZERO;
             } else {
                 oldestIndexVersion = this.oldestIndexVersion;
             }
@@ -219,4 +222,5 @@ public final class NodeMetadata {
     }
 
     public static final MetadataStateFormat<NodeMetadata> FORMAT = new NodeMetadataStateFormat(false);
+
 }

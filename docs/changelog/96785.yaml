@@ -1,6 +1,0 @@
-pr: 96785
-summary: Adding null check to fix potential NPE
-area: Transform
-type: enhancement
-issues:
-  - 96781

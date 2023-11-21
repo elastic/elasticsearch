@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -122,6 +121,7 @@ import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVE
 import static org.elasticsearch.snapshots.RestoreService.restoreInProgress;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -706,9 +706,10 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             refresh(client, index);
             SearchRequest request = new SearchRequest(index);
             request.source(new SearchSourceBuilder().size(0));
-            SearchResponse response = client.search(request).actionGet();
-            assertNotNull(response.getHits().getTotalHits());
-            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(numDocsReplicated));
+            assertResponse(client.search(request), response -> {
+                assertNotNull(response.getHits().getTotalHits());
+                assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(numDocsReplicated));
+            });
         }, 60, TimeUnit.SECONDS);
     }
 
@@ -831,10 +832,10 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     ) {
         final var future = new PlainActionFuture<RestoreInfo>();
         restoreService.restoreSnapshot(restoreSnapshotRequest, future.delegateFailure((delegate, restoreCompletionResponse) -> {
-            assertNull(restoreCompletionResponse.getRestoreInfo());
+            assertNull(restoreCompletionResponse.restoreInfo());
             // this would only be non-null if the restore was a no-op, but that would be a test bug
-            final Snapshot snapshot = restoreCompletionResponse.getSnapshot();
-            final String uuid = restoreCompletionResponse.getUuid();
+            final Snapshot snapshot = restoreCompletionResponse.snapshot();
+            final String uuid = restoreCompletionResponse.uuid();
             final ClusterStateListener clusterStateListener = new ClusterStateListener() {
                 @Override
                 public void clusterChanged(ClusterChangedEvent changedEvent) {

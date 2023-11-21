@@ -23,6 +23,12 @@ setup:
         body:
           indices: [ "test-index1" ]
           analytics_collection_name: "test-analytics1"
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
   - do:
       search_application.put:
@@ -30,6 +36,12 @@ setup:
         body:
           indices: [ "test-index2" ]
           analytics_collection_name: "test-analytics2"
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
   - do:
       search_application.put:
@@ -37,6 +49,12 @@ setup:
         body:
           indices: [ "test-index1", "test-index2" ]
           analytics_collection_name: "test-another-analytics"
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
 ---
 teardown:
@@ -67,19 +85,16 @@ teardown:
 
   # Alphabetical order for results
   - match: { results.0.name: "another-test-search-application" }
-  - match: { results.0.indices: [ "test-index1", "test-index2" ] }
   - match: { results.0.analytics_collection_name: "test-another-analytics" }
   - match: { results.0.updated_at_millis: $updatedAtMillis0 }
   - gte: { results.0.updated_at_millis: 0 }
 
   - match: { results.1.name: "test-search-application-1" }
-  - match: { results.1.indices: [ "test-index1" ] }
   - match: { results.1.analytics_collection_name: "test-analytics1" }
   - match: { results.1.updated_at_millis: $updatedAtMillis1 }
   - gte: { results.1.updated_at_millis: 0 }
 
   - match: { results.2.name: "test-search-application-2" }
-  - match: { results.2.indices: [ "test-index2" ] }
   - match: { results.2.analytics_collection_name: "test-analytics2" }
   - match: { results.2.updated_at_millis: $updatedAtMillis2 }
   - gte: { results.2.updated_at_millis: 0 }
@@ -95,13 +110,11 @@ teardown:
   - match: { count: 3 }
 
   - match: { results.0.name: "test-search-application-1" }
-  - match: { results.0.indices: [ "test-index1" ] }
   - match: { results.0.analytics_collection_name: "test-analytics1" }
   - match: { results.0.updated_at_millis: $updatedAtMillis0 }
   - gte: { results.0.updated_at_millis: 0 }
 
   - match: { results.1.name: "test-search-application-2" }
-  - match: { results.1.indices: [ "test-index2" ] }
   - match: { results.1.analytics_collection_name: "test-analytics2" }
   - match: { results.1.updated_at_millis: $updatedAtMillis1 }
   - gte: { results.1.updated_at_millis: 0 }
@@ -117,13 +130,11 @@ teardown:
   - match: { count: 3 }
 
   - match: { results.0.name: "another-test-search-application" }
-  - match: { results.0.indices: [ "test-index1", "test-index2" ] }
   - match: { results.0.analytics_collection_name: "test-another-analytics" }
   - match: { results.0.updated_at_millis: $updatedAtMillis0 }
   - gte: { results.0.updated_at_millis: 0 }
 
   - match: { results.1.name: "test-search-application-1" }
-  - match: { results.1.indices: [ "test-index1" ] }
   - match: { results.1.analytics_collection_name: "test-analytics1" }
   - match: { results.1.updated_at_millis: $updatedAtMillis1 }
   - gte: { results.1.updated_at_millis: 0 }
@@ -140,13 +151,11 @@ teardown:
   - match: { count: 2 }
 
   - match: { results.0.name: "test-search-application-1" }
-  - match: { results.0.indices: [ "test-index1" ] }
   - match: { results.0.analytics_collection_name: "test-analytics1" }
   - match: { results.0.updated_at_millis: $updatedAtMillis0 }
   - gte: { results.0.updated_at_millis: 0 }
 
   - match: { results.1.name: "test-search-application-2" }
-  - match: { results.1.indices: [ "test-index2" ] }
   - match: { results.1.analytics_collection_name: "test-analytics2" }
   - match: { results.1.updated_at_millis: $updatedAtMillis1 }
   - gte: { results.1.updated_at_millis: 0 }
@@ -159,3 +168,15 @@ teardown:
 
   - match: { count: 0 }
   - match: { results: [] }
+
+---
+"List search applications fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: unauthorized
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXVzZXI=" }  # unprivileged
+      search_application.list:
+        from: 0
+        size: 10

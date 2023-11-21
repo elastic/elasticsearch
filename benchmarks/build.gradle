@@ -8,14 +8,21 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.java'
+apply plugin: org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin
+apply plugin: 'java-library'
 apply plugin: 'application'
-mainClassName = 'org.openjdk.jmh.Main'
+
+application {
+  mainClass = 'org.openjdk.jmh.Main'
+}
 
 tasks.named("assemble").configure { enabled = false }
-archivesBaseName = 'elasticsearch-benchmarks'
+base {
+  archivesName = 'elasticsearch-benchmarks'
+}
 
 tasks.named("test").configure { enabled = false }
+tasks.named("javadoc").configure { enabled = false }
 
 configurations {
   expression
@@ -29,6 +36,9 @@ dependencies {
     exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
   }
   api(project(':modules:aggregations'))
+  api(project(':x-pack:plugin:ql'))
+  api(project(':x-pack:plugin:esql'))
+  api(project(':x-pack:plugin:esql:compute'))
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
@@ -42,6 +52,9 @@ dependencies {
 // needs to be added separately otherwise Gradle will quote it and javac will fail
 tasks.named("compileJava").configure {
   options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])
+  // org.elasticsearch.plugins.internal is used in signatures classes used in benchmarks but we don't want to expose it publicly
+  // adding an export to allow compilation with gradle. This does not solve a problem in intellij as it does not use compileJava task
+  options.compilerArgs.addAll(["--add-exports", "org.elasticsearch.server/org.elasticsearch.plugins.internal=ALL-UNNAMED"])
 }
 
 tasks.register('copyExpression', Copy) {

@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponse;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -192,7 +191,7 @@ public abstract class Publication {
     protected abstract void sendApplyCommit(
         DiscoveryNode destination,
         ApplyCommitRequest applyCommit,
-        ActionListener<TransportResponse.Empty> responseActionListener
+        ActionListener<Void> responseActionListener
     );
 
     protected abstract <T> ActionListener<T> wrapListener(ActionListener<T> listener);
@@ -367,8 +366,8 @@ public abstract class Publication {
 
                 if (response.getJoin().isPresent()) {
                     final Join join = response.getJoin().get();
-                    assert discoveryNode.equals(join.getSourceNode());
-                    assert join.getTerm() == response.getPublishResponse().getTerm() : response;
+                    assert discoveryNode.equals(join.votingNode());
+                    assert join.term() == response.getPublishResponse().getTerm() : response;
                     logger.trace("handling join within publish response: {}", join);
                     onJoin(join);
                 } else {
@@ -405,10 +404,10 @@ public abstract class Publication {
             return e;
         }
 
-        private class ApplyCommitResponseHandler implements ActionListener<TransportResponse.Empty> {
+        private class ApplyCommitResponseHandler implements ActionListener<Void> {
 
             @Override
-            public void onResponse(TransportResponse.Empty ignored) {
+            public void onResponse(Void ignored) {
                 if (isFailed()) {
                     logger.debug("ApplyCommitResponseHandler.handleResponse: already failed, ignoring response from [{}]", discoveryNode);
                     return;

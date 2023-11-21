@@ -30,9 +30,9 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("mapper-extras")
         .module("rest-root")
         .module("reindex")
+        .module("analysis-common")
+        .module("health-shards-availability")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.DLM_ENABLED)
-        .feature(FeatureFlag.SYNONYMS_ENABLED)
         .build();
 
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

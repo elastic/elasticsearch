@@ -61,7 +61,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -326,7 +325,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         filesSet.add(file);
-        List<String> fileNames = filesSet.stream().map(p -> p.getFileName().toString()).collect(Collectors.toList());
+        List<String> fileNames = filesSet.stream().map(p -> p.getFileName().toString()).toList();
         if (Collections.frequency(fileNames, file.getFileName().toString()) > 1) {
             Logger logger = LogManager.getLogger(ESClientYamlSuiteTestCase.class);
             logger.warn(
@@ -485,11 +484,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         );
 
         final Settings globalTemplateSettings = getGlobalTemplateSettings(testCandidate.getTestSection().getSkipSection().getFeatures());
-        if (globalTemplateSettings.isEmpty() == false) {
+        if (globalTemplateSettings.isEmpty() == false && ESRestTestCase.has(ProductFeature.LEGACY_TEMPLATES)) {
+
             final XContentBuilder template = jsonBuilder();
             template.startObject();
             {
-                template.startArray("index_patterns").value("*").endArray();
+                template.array("index_patterns", "*");
                 template.startObject("settings");
                 globalTemplateSettings.toXContent(template, ToXContent.EMPTY_PARAMS);
                 template.endObject();
@@ -498,7 +498,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
             final Request request = new Request("PUT", "/_template/global");
             request.setJsonEntity(Strings.toString(template));
-            // Because this has not yet transitioned to a composable template, it's possible that
+            // Because not all case have transitioned to a composable template, it's possible that
             // this can overlap an installed composable template since this is a global (*)
             // template. In order to avoid this failing the test, we override the warnings handler
             // to be permissive in this case. This can be removed once all tests use composable

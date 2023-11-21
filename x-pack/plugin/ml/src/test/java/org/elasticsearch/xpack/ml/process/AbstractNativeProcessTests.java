@@ -79,7 +79,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             new ThreadContext(Settings.EMPTY),
-            false
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
     }
 

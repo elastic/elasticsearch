@@ -37,8 +37,7 @@ public class DuelScrollIT extends ESIntegTestCase {
     public void testDuelQueryThenFetch() throws Exception {
         TestContext context = create(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH);
 
-        SearchResponse control = client().prepareSearch("index")
-            .setSearchType(context.searchType)
+        SearchResponse control = prepareSearch("index").setSearchType(context.searchType)
             .addSort(context.sort)
             .setSize(context.numDocs)
             .get();
@@ -47,8 +46,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         assertThat(sh.getTotalHits().value, equalTo((long) context.numDocs));
         assertThat(sh.getHits().length, equalTo(context.numDocs));
 
-        SearchResponse searchScrollResponse = client().prepareSearch("index")
-            .setSearchType(context.searchType)
+        SearchResponse searchScrollResponse = prepareSearch("index").setSearchType(context.searchType)
             .addSort(context.sort)
             .setSize(context.scrollRequestSize)
             .setScroll("10m")
@@ -215,8 +213,7 @@ public class DuelScrollIT extends ESIntegTestCase {
 
     private void testDuelIndexOrder(SearchType searchType, boolean trackScores, int numDocs) throws Exception {
         final int size = scaledRandomIntBetween(5, numDocs + 5);
-        final SearchResponse control = client().prepareSearch("test")
-            .setSearchType(searchType)
+        final SearchResponse control = prepareSearch("test").setSearchType(searchType)
             .setSize(numDocs)
             .setQuery(QueryBuilders.matchQuery("foo", "true"))
             .addSort(SortBuilders.fieldSort("_doc"))
@@ -224,8 +221,7 @@ public class DuelScrollIT extends ESIntegTestCase {
             .get();
         assertNoFailures(control);
 
-        SearchResponse scroll = client().prepareSearch("test")
-            .setSearchType(searchType)
+        SearchResponse scroll = prepareSearch("test").setSearchType(searchType)
             .setSize(size)
             .setQuery(QueryBuilders.matchQuery("foo", "true"))
             .addSort(SortBuilders.fieldSort("_doc"))

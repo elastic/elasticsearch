@@ -9,6 +9,7 @@
 package org.elasticsearch.search.msearch;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
@@ -41,9 +43,9 @@ public class MultiSearchIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
         MultiSearchResponse response = client().prepareMultiSearch()
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
+            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
+            .add(prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
             .get();
 
         for (MultiSearchResponse.Item item : response) {
@@ -71,7 +73,7 @@ public class MultiSearchIT extends ESIntegTestCase {
             request.maxConcurrentSearchRequests(randomIntBetween(1, numSearchRequests));
         }
         for (int i = 0; i < numSearchRequests; i++) {
-            request.add(client().prepareSearch("test"));
+            request.add(prepareSearch("test"));
         }
 
         MultiSearchResponse response = client().multiSearch(request).actionGet();
@@ -83,21 +85,23 @@ public class MultiSearchIT extends ESIntegTestCase {
     }
 
     /**
-     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before
+     * TransportVersions.MINIMUM_CCS_VERSION works
      */
     public void testCCSCheckCompatibility() throws Exception {
+        TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
         createIndex("test");
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field", "xxx").get();
         client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
         MultiSearchResponse response = client().prepareMultiSearch()
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
-            .add(client().prepareSearch("test").setQuery(new DummyQueryBuilder() {
+            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
+            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
+            .add(prepareSearch("test").setQuery(new DummyQueryBuilder() {
                 @Override
                 public TransportVersion getMinimalSupportedVersion() {
-                    return TransportVersion.current();
+                    return transportVersion;
                 }
             }))
             .get();

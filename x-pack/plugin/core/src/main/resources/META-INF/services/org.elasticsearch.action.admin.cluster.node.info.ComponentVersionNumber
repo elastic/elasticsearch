@@ -1,0 +1,2 @@
+org.elasticsearch.xpack.core.ml.MlConfigVersionComponent
+org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -22,6 +21,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
@@ -412,7 +412,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID).setSnapshotId("a_snapshot_id")
             .setLatestResultTimeStamp(Date.from(Instant.ofEpochMilli(1000_000_000)))
             .setTimestamp(Date.from(Instant.ofEpochMilli(2000_000_000)))
-            .setMinVersion(Version.CURRENT)
+            .setMinVersion(MlConfigVersion.CURRENT)
             .build();
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
         IndexResponse indexResponse = new IndexResponse(new ShardId("ml", "uid", 0), "1", 0L, 0L, 0L, true);

@@ -70,6 +70,7 @@ search results are returned as part of the
 // TESTRESPONSE[s/"is_running" : true/"is_running": $body.is_running/]
 // TESTRESPONSE[s/1583945890986/$body.start_time_in_millis/]
 // TESTRESPONSE[s/1584377890986/$body.expiration_time_in_millis/]
+// TESTRESPONSE[s/"response"/"completion_time_in_millis": $body.completion_time_in_millis,\n  "response"/]
 // TESTRESPONSE[s/"took" : 1122/"took": $body.response.took/]
 // TESTRESPONSE[s/"num_reduce_phases" : 0,//]
 // TESTRESPONSE[s/"total" : 562/"total": $body.response._shards.total/]
@@ -156,17 +157,18 @@ GET /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsd
 --------------------------------------------------
 {
   "id" : "FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=",
-  "is_partial" : true, <1>
-  "is_running" : true, <2>
+  "is_partial" : false, <1>
+  "is_running" : false, <2>
   "start_time_in_millis" : 1583945890986,
   "expiration_time_in_millis" : 1584377890986, <3>
+  "completion_time_in_millis" : 1583945903130, <4>
   "response" : {
     "took" : 12144,
     "timed_out" : false,
-    "num_reduce_phases" : 46, <4>
+    "num_reduce_phases" : 46, <5>
     "_shards" : {
       "total" : 562,
-      "successful" : 188, <5>
+      "successful" : 188, <6>
       "skipped" : 0,
       "failed" : 0
     },
@@ -178,7 +180,7 @@ GET /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsd
       "max_score" : null,
       "hits" : [ ]
     },
-    "aggregations" : { <6>
+    "aggregations" : { <7>
       "sale_date" :  {
         "buckets" : []
       }
@@ -191,6 +193,7 @@ GET /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsd
 // TESTRESPONSE[s/"is_running" : true/"is_running" : false/]
 // TESTRESPONSE[s/1583945890986/$body.start_time_in_millis/]
 // TESTRESPONSE[s/1584377890986/$body.expiration_time_in_millis/]
+// TESTRESPONSE[s/1583945903130/$body.completion_time_in_millis/]
 // TESTRESPONSE[s/"took" : 12144/"took": $body.response.took/]
 // TESTRESPONSE[s/"total" : 562/"total": $body.response._shards.total/]
 // TESTRESPONSE[s/"successful" : 188/"successful": $body.response._shards.successful/]
@@ -203,13 +206,14 @@ or was successfully completed on all shards. While the query is being
 executed, `is_partial` is always set to `true`
 <2> Whether the search is still being executed or it has completed
 <3> When the async search will expire
-<4> Indicates how many reductions of the results have been performed. If this
+<4> When the async search has finished, the completion_time is indicated (start_time + took)
+<5> Indicates how many reductions of the results have been performed. If this
 number increases compared to the last retrieved results, you can expect
 additional results included in the search response
-<5> Indicates how many shards have executed the query. Note that in order for
+<6> Indicates how many shards have executed the query. Note that in order for
 shard results to be included in the search response, they need to be reduced
 first.
-<6> Partial aggregations results, coming from the shards that have already
+<7> Partial aggregations results, coming from the shards that have already
 completed the execution of the query.
 
 The `wait_for_completion_timeout` parameter can also be provided when calling

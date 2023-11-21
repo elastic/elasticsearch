@@ -274,7 +274,7 @@ public class AggregatorFactories {
      * A mutable collection of {@link AggregationBuilder}s and
      * {@link PipelineAggregationBuilder}s.
      */
-    public static class Builder implements Writeable, ToXContentObject {
+    public static final class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
 
         // Using LinkedHashSets to preserve the order of insertion, that makes the results
@@ -303,8 +303,8 @@ public class AggregatorFactories {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(this.aggregationBuilders, StreamOutput::writeNamedWriteable);
-            out.writeCollection(this.pipelineAggregatorBuilders, StreamOutput::writeNamedWriteable);
+            out.writeNamedWriteableCollection(this.aggregationBuilders);
+            out.writeNamedWriteableCollection(this.pipelineAggregatorBuilders);
         }
 
         public boolean mustVisitAllDocs() {
@@ -333,6 +333,20 @@ public class AggregatorFactories {
             return false;
         }
 
+        /**
+         * Return false if this aggregation or any of the child aggregations does not support parallel collection.
+         * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query
+         * phase.
+         */
+        public boolean supportsParallelCollection() {
+            for (AggregationBuilder builder : aggregationBuilders) {
+                if (builder.supportsParallelCollection() == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         public Builder addAggregator(AggregationBuilder factory) {
             if (names.add(factory.name) == false) {
                 throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
@@ -352,7 +366,6 @@ public class AggregatorFactories {
         public ActionRequestValidationException validate(ActionRequestValidationException e) {
             PipelineAggregationBuilder.ValidationContext context = PipelineAggregationBuilder.ValidationContext.forTreeRoot(
                 aggregationBuilders,
-                pipelineAggregatorBuilders,
                 e
             );
             validatePipelines(context);

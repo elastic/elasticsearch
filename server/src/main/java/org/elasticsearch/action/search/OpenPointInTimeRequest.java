@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -51,7 +51,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         this.keepAlive = in.readTimeValue();
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             this.maxConcurrentShardRequests = in.readVInt();
         }
     }
@@ -64,7 +64,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         out.writeTimeValue(keepAlive);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_017)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeVInt(maxConcurrentShardRequests);
         }
     }

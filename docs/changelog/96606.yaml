@@ -1,6 +1,0 @@
-pr: 96606
-summary: The get data stream api incorrectly prints warning log for upgraded tsdb
-  data streams
-area: TSDB
-type: bug
-issues: []

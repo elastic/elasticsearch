@@ -36,7 +36,9 @@ public interface ExecutableSection {
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("lte"), LessThanOrEqualToAssertion::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("contains"), ContainsAssertion::parse),
         new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("length"), LengthAssertion::parse),
-        new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("close_to"), CloseToAssertion::parse)
+        new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("close_to"), CloseToAssertion::parse),
+        new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("exists"), ExistsAssertion::parse),
+        new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("not_exists"), NotExistsAssertion::parse)
     );
 
     /**

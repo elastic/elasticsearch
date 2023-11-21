@@ -11,10 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
@@ -24,6 +23,7 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 
 /**
  * {@code CleanerService} takes care of deleting old monitoring indices.
@@ -31,23 +31,18 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class CleanerService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(CleanerService.class);
 
-    private final XPackLicenseState licenseState;
     private final ThreadPool threadPool;
+    private final Executor genericExecutor;
     private final ExecutionScheduler executionScheduler;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
     private final IndicesCleaner runnable;
 
     private volatile TimeValue globalRetention;
 
-    CleanerService(
-        Settings settings,
-        ClusterSettings clusterSettings,
-        XPackLicenseState licenseState,
-        ThreadPool threadPool,
-        ExecutionScheduler executionScheduler
-    ) {
-        this.licenseState = licenseState;
+    @SuppressWarnings("this-escape")
+    CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, ExecutionScheduler executionScheduler) {
         this.threadPool = threadPool;
+        this.genericExecutor = threadPool.generic();
         this.executionScheduler = executionScheduler;
         this.globalRetention = MonitoringField.HISTORY_DURATION.get(settings);
         this.runnable = new IndicesCleaner();
@@ -56,14 +51,14 @@ public class CleanerService extends AbstractLifecycleComponent {
         clusterSettings.addSettingsUpdateConsumer(MonitoringField.HISTORY_DURATION, this::setGlobalRetention);
     }
 
-    public CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, XPackLicenseState licenseState) {
-        this(settings, clusterSettings, licenseState, threadPool, new DefaultExecutionScheduler());
+    public CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(settings, clusterSettings, threadPool, new DefaultExecutionScheduler());
     }
 
     @Override
     protected void doStart() {
         logger.debug("starting cleaning service");
-        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(ZonedDateTime.now(Clock.systemDefaultZone())), executorName());
+        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(ZonedDateTime.now(Clock.systemDefaultZone())), genericExecutor);
         logger.debug("cleaning service started");
     }
 
@@ -81,7 +76,7 @@ public class CleanerService extends AbstractLifecycleComponent {
         logger.debug("cleaning service closed");
     }
 
-    private String executorName() {
+    private static String executorName() {
         return ThreadPool.Names.GENERIC;
     }
 
@@ -140,19 +135,16 @@ public class CleanerService extends AbstractLifecycleComponent {
      * {@code IndicesCleaner} runs and reschedules itself in order to automatically clean (delete) indices that are outside of the
      * {@link #getRetention() retention} period.
      */
-    class IndicesCleaner extends AbstractLifecycleRunnable {
+    class IndicesCleaner extends AbstractRunnable {
 
         private volatile Scheduler.Cancellable cancellable;
 
-        /**
-         * Enable automatic logging and stopping of the runnable based on the {@link #lifecycle}.
-         */
-        IndicesCleaner() {
-            super(lifecycle, logger);
-        }
-
         @Override
-        protected void doRunInLifecycle() throws Exception {
+        protected void doRun() {
+            if (lifecycle.stoppedOrClosed()) {
+                return;
+            }
+
             // fetch the retention, which is depends on a bunch of rules
             TimeValue retention = getRetention();
 
@@ -174,14 +166,18 @@ public class CleanerService extends AbstractLifecycleComponent {
          * Reschedule the cleaner if the service is not stopped.
          */
         @Override
-        protected void onAfterInLifecycle() {
+        public void onAfter() {
+            if (lifecycle.stoppedOrClosed()) {
+                return;
+            }
+
             ZonedDateTime start = ZonedDateTime.now(Clock.systemUTC());
             TimeValue delay = executionScheduler.nextExecutionDelay(start);
 
             logger.debug("scheduling next execution in [{}] seconds", delay.seconds());
 
             try {
-                cancellable = threadPool.schedule(this, delay, executorName());
+                cancellable = threadPool.schedule(this, delay, genericExecutor);
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug("couldn't schedule new execution of the cleaner, executor is shutting down", e);

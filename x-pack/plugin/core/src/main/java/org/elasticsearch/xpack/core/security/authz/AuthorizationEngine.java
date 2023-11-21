@@ -632,8 +632,7 @@ public interface AuthorizationEngine {
                     || Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
                     return null;
                 }
-                Set<String> deniedIndices = Arrays.asList(indices)
-                    .stream()
+                Set<String> deniedIndices = Arrays.stream(indices)
                     .filter(index -> false == indicesAccessControl.hasIndexPermissions(index))
                     .collect(Collectors.toSet());
                 return getFailureDescription(deniedIndices, restrictedIndices);

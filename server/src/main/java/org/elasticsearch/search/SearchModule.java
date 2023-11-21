@@ -10,6 +10,8 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -217,11 +219,11 @@ import org.elasticsearch.search.fetch.subphase.MatchedQueriesPhase;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsPhase;
 import org.elasticsearch.search.fetch.subphase.SeqNoPrimaryTermPhase;
 import org.elasticsearch.search.fetch.subphase.StoredFieldsPhase;
+import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
-import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -315,6 +317,7 @@ public class SearchModule {
         registerIntervalsSourceProviders();
         requestCacheKeyDifferentiator = registerRequestCacheKeyDifferentiator(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
+        registerGenericNamedWriteable(new SearchPlugin.GenericNamedWriteableSpec("GeoBoundingBox", GeoBoundingBox::new));
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -652,6 +655,9 @@ public class SearchModule {
             }
         });
 
+        // Register GenericNamedWriteable classes for use in StreamOutput/StreamInput as generic types in query hits
+        registerFromPlugin(plugins, SearchPlugin::getGenericNamedWriteables, this::registerGenericNamedWriteable);
+
         return builder.build();
     }
 
@@ -676,6 +682,10 @@ public class SearchModule {
             // have to register usage explicitly here.
             builder.registerUsage(spec.getName().getPreferredName());
         }
+    }
+
+    private void registerGenericNamedWriteable(SearchPlugin.GenericNamedWriteableSpec spec) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(GenericNamedWriteable.class, spec.name(), spec.reader()));
     }
 
     private void registerPipelineAggregations(List<SearchPlugin> plugins) {
@@ -865,7 +875,7 @@ public class SearchModule {
         NamedRegistry<Highlighter> highlighters = new NamedRegistry<>("highlighter");
         highlighters.register("fvh", new FastVectorHighlighter(settings));
         highlighters.register("plain", new PlainHighlighter());
-        highlighters.register("unified", new UnifiedHighlighter());
+        highlighters.register("unified", new DefaultHighlighter());
         highlighters.extractAndRegister(plugins, SearchPlugin::getHighlighters);
 
         return unmodifiableMap(highlighters.getRegistry());
@@ -1115,9 +1125,7 @@ public class SearchModule {
         );
         registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
 
-        registerQuery(new QuerySpec<>(KnnVectorQueryBuilder.NAME, KnnVectorQueryBuilder::new, parser -> {
-            throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [knn] body parameter instead");
-        }));
+        registerQuery(new QuerySpec<>(KnnVectorQueryBuilder.NAME, KnnVectorQueryBuilder::new, KnnVectorQueryBuilder::fromXContent));
 
         registerQuery(new QuerySpec<>(KnnScoreDocQueryBuilder.NAME, KnnScoreDocQueryBuilder::new, parser -> {
             throw new IllegalArgumentException("[score_doc] queries cannot be provided directly");

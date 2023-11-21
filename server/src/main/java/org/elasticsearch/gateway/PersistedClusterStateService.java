@@ -71,6 +71,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -344,7 +345,7 @@ public class PersistedClusterStateService {
     public static NodeMetadata nodeMetadata(Path... dataPaths) throws IOException {
         String nodeId = null;
         Version version = null;
-        IndexVersion oldestIndexVersion = IndexVersion.ZERO;
+        IndexVersion oldestIndexVersion = IndexVersions.ZERO;
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
@@ -364,7 +365,7 @@ public class PersistedClusterStateService {
                         if (userData.containsKey(OLDEST_INDEX_VERSION_KEY)) {
                             oldestIndexVersion = IndexVersion.fromId(Integer.parseInt(userData.get(OLDEST_INDEX_VERSION_KEY)));
                         } else {
-                            oldestIndexVersion = IndexVersion.ZERO;
+                            oldestIndexVersion = IndexVersions.ZERO;
                         }
                     }
                 } catch (IndexNotFoundException e) {
@@ -703,7 +704,7 @@ public class PersistedClusterStateService {
 
                         if (document.getField(PAGE_FIELD_NAME) == null) {
                             // legacy format: not paginated or compressed
-                            assert Version.CURRENT.minimumIndexCompatibilityVersion().before(Version.V_7_16_0);
+                            assert IndexVersions.MINIMUM_COMPATIBLE.before(IndexVersions.V_7_16_0);
                             bytesReferenceConsumer.accept(documentData);
                             continue;
                         }

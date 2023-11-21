@@ -21,6 +21,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DO_NOT_TRACK;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -51,7 +53,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -120,7 +122,7 @@ public class EsExecutorsTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         final CountDownLatch wait = new CountDownLatch(1);
 
@@ -174,7 +176,7 @@ public class EsExecutorsTests extends ESTestCase {
         terminate(executor);
     }
 
-    public void testScaleUp() throws Exception {
+    public void testScaleUp() {
         final int min = between(1, 3);
         final int max = between(min + 1, 6);
         final CyclicBarrier barrier = new CyclicBarrier(max + 1);
@@ -196,23 +198,19 @@ public class EsExecutorsTests extends ESTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             pool.execute(() -> {
                 latch.countDown();
-                try {
-                    barrier.await();
-                    barrier.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(barrier);
             });
 
             // wait until thread executes this task
             // otherwise, a task might be queued
-            latch.await();
+            safeAwait(latch);
         }
 
-        barrier.await();
+        safeAwait(barrier);
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
-        barrier.await();
+        safeAwait(barrier);
         terminate(pool);
     }
 
@@ -238,23 +236,19 @@ public class EsExecutorsTests extends ESTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             pool.execute(() -> {
                 latch.countDown();
-                try {
-                    barrier.await();
-                    barrier.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(barrier);
             });
 
             // wait until thread executes this task
             // otherwise, a task might be queued
-            latch.await();
+            safeAwait(latch);
         }
 
-        barrier.await();
+        safeAwait(barrier);
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
-        barrier.await();
+        safeAwait(barrier);
         assertBusy(() -> {
             assertThat("wrong active count", pool.getActiveCount(), equalTo(0));
             assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
@@ -273,7 +267,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             for (int i = 0; i < actions; i++) {
@@ -379,7 +373,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             executor.execute(() -> {
@@ -416,7 +410,7 @@ public class EsExecutorsTests extends ESTestCase {
             queue,
             EsExecutors.daemonThreadFactory("dummy"),
             threadContext,
-            randomBoolean()
+            randomFrom(DEFAULT, DO_NOT_TRACK)
         );
         try {
             Runnable r = () -> {

@@ -1,0 +1,26 @@
+setup:
+    - skip:
+          version: " - 8.9.99"
+          reason: Introduced in 8.10.0
+
+---
+"Get query ruleset returns a 404 when no query rulesets exist":
+  - do:
+      catch: /resource_not_found_exception/
+      query_ruleset.get:
+        ruleset_id: test-i-dont-exist
+
+---
+"Delete query ruleset returns a 404 when no query rulesets exist":
+  - do:
+      catch: /resource_not_found_exception/
+      query_ruleset.delete:
+          ruleset_id: test-i-dont-exist
+
+---
+"List query rulesets returns an empty list when no query rulesets exist":
+  - do:
+        query_ruleset.list: { }
+
+  - match: { count: 0 }
+

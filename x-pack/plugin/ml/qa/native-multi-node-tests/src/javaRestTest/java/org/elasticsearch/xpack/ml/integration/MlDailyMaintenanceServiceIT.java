@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -51,7 +51,7 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
 
     public void testTriggerDeleteJobsInStateDeletingWithoutDeletionTask() throws InterruptedException {
         MlDailyMaintenanceService maintenanceService = new MlDailyMaintenanceService(
-            settings(Version.CURRENT).build(),
+            settings(IndexVersion.current()).build(),
             ClusterName.DEFAULT,
             threadPool,
             client(),

@@ -11,7 +11,6 @@ Permanently remove the index.
 
 <<ilm-forcemerge,Force merge>>::
 Reduce the number of index segments and purge deleted documents.
-Makes the index read-only.
 
 <<ilm-migrate,Migrate>>::
 Move the index shards to the <<data-tiers, data tier>> that corresponds

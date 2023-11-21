@@ -8,10 +8,10 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.snapshots.Snapshot;
@@ -67,7 +67,7 @@ public interface RepositoryPlugin {
      *
      * returns null if no check is provided
      */
-    default BiConsumer<Snapshot, Version> addPreRestoreVersionCheck() {
+    default BiConsumer<Snapshot, IndexVersion> addPreRestoreVersionCheck() {
         return null;
     }
 

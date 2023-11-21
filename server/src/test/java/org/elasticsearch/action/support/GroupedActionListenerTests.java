@@ -30,17 +30,7 @@ public class GroupedActionListenerTests extends ESTestCase {
 
     public void testNotifications() throws InterruptedException {
         AtomicReference<Collection<Integer>> resRef = new AtomicReference<>();
-        ActionListener<Collection<Integer>> result = new ActionListener<Collection<Integer>>() {
-            @Override
-            public void onResponse(Collection<Integer> integers) {
-                resRef.set(integers);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        ActionListener<Collection<Integer>> result = ActionTestUtils.assertNoFailureListener(resRef::set);
         final int groupSize = randomIntBetween(10, 1000);
         AtomicInteger count = new AtomicInteger();
         GroupedActionListener<Integer> listener = new GroupedActionListener<>(groupSize, result);
@@ -49,11 +39,7 @@ public class GroupedActionListenerTests extends ESTestCase {
         CyclicBarrier barrier = new CyclicBarrier(numThreads);
         for (int i = 0; i < numThreads; i++) {
             threads[i] = new Thread(() -> {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
                 int c;
                 while ((c = count.incrementAndGet()) <= groupSize) {
                     listener.onResponse(c - 1);

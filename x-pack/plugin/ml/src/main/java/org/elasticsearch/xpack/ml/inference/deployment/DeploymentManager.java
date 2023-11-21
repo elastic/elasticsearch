@@ -16,10 +16,12 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,7 +33,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocati
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
@@ -57,6 +60,8 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -151,7 +156,7 @@ public class DeploymentManager {
         ActionListener<TrainedModelDeploymentTask> failedDeploymentListener = ActionListener.wrap(finalListener::onResponse, failure -> {
             ProcessContext failedContext = processContextByAllocation.remove(task.getId());
             if (failedContext != null) {
-                failedContext.stopProcess();
+                failedContext.forcefullyStopProcess();
             }
             finalListener.onFailure(failure);
         });
@@ -161,10 +166,9 @@ public class DeploymentManager {
             finalListener.onResponse(task);
         }, failedDeploymentListener::onFailure);
 
-        ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
-            assert getModelResponse.getResources().results().size() == 1;
-            TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
+        ActionListener<TrainedModelConfig> getVerifiedModel = ActionListener.wrap((modelConfig) -> {
             processContext.modelInput.set(modelConfig.getInput());
+            processContext.prefixes.set(modelConfig.getPrefixStrings());
 
             if (modelConfig.getInferenceConfig() instanceof NlpConfig nlpConfig) {
                 task.init(nlpConfig);
@@ -206,12 +210,59 @@ public class DeploymentManager {
             }
         }, failedDeploymentListener::onFailure);
 
+        ActionListener<GetTrainedModelsAction.Response> verifyModelAndClusterArchitecturesListener = ActionListener.wrap(
+            getModelResponse -> {
+                assert getModelResponse.getResources().results().size() == 1;
+                TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
+
+                verifyMlNodesAndModelArchitectures(modelConfig, client, threadPool, getVerifiedModel);
+
+            },
+            failedDeploymentListener::onFailure
+        );
+
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
             GetTrainedModelsAction.INSTANCE,
             new GetTrainedModelsAction.Request(task.getParams().getModelId()),
-            getModelListener
+            verifyModelAndClusterArchitecturesListener
+        );
+    }
+
+    void verifyMlNodesAndModelArchitectures(
+        TrainedModelConfig configToReturn,
+        Client client,
+        ThreadPool threadPool,
+        ActionListener<TrainedModelConfig> configToReturnListener
+    ) {
+        ActionListener<TrainedModelConfig> verifyConfigListener = new ActionListener<TrainedModelConfig>() {
+            @Override
+            public void onResponse(TrainedModelConfig config) {
+                assert Objects.equals(config, configToReturn);
+                configToReturnListener.onResponse(configToReturn);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                configToReturnListener.onFailure(e);
+            }
+        };
+
+        callVerifyMlNodesAndModelArchitectures(configToReturn, verifyConfigListener, client, threadPool);
+    }
+
+    void callVerifyMlNodesAndModelArchitectures(
+        TrainedModelConfig configToReturn,
+        ActionListener<TrainedModelConfig> configToReturnListener,
+        Client client,
+        ThreadPool threadPool
+    ) {
+        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
+            configToReturnListener,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            configToReturn
         );
     }
 
@@ -244,9 +295,23 @@ public class DeploymentManager {
         ProcessContext processContext = processContextByAllocation.remove(task.getId());
         if (processContext != null) {
             logger.info("[{}] Stopping deployment, reason [{}]", task.getDeploymentId(), task.stoppedReason().orElse("unknown"));
-            processContext.stopProcess();
+            processContext.forcefullyStopProcess();
         } else {
             logger.warn("[{}] No process context to stop", task.getDeploymentId());
+        }
+    }
+
+    public void stopAfterCompletingPendingWork(TrainedModelDeploymentTask task) {
+        ProcessContext processContext = processContextByAllocation.remove(task.getId());
+        if (processContext != null) {
+            logger.info(
+                "[{}] Stopping deployment after completing pending tasks, reason [{}]",
+                task.getDeploymentId(),
+                task.stoppedReason().orElse("unknown")
+            );
+            processContext.stopProcessAfterCompletingPendingWork();
+        } else {
+            logger.warn("[{}] No process context to stop gracefully", task.getDeploymentId());
         }
     }
 
@@ -256,6 +321,7 @@ public class DeploymentManager {
         NlpInferenceInput input,
         boolean skipQueue,
         TimeValue timeout,
+        TrainedModelPrefixStrings.PrefixType prefixType,
         CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
@@ -273,6 +339,7 @@ public class DeploymentManager {
             processContext,
             config,
             input,
+            prefixType,
             threadPool,
             parentActionTask,
             listener
@@ -369,19 +436,23 @@ public class DeploymentManager {
 
     class ProcessContext {
 
+        private static final String PROCESS_NAME = "inference process";
         private final TrainedModelDeploymentTask task;
         private final SetOnce<PyTorchProcess> process = new SetOnce<>();
         private final SetOnce<NlpTask.Processor> nlpTaskProcessor = new SetOnce<>();
         private final SetOnce<TrainedModelInput> modelInput = new SetOnce<>();
+        private final SetOnce<TrainedModelPrefixStrings> prefixes = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
         private final PriorityProcessWorkerExecutorService priorityProcessWorker;
+        private final AtomicInteger rejectedExecutionCount = new AtomicInteger();
+        private final AtomicInteger timeoutCount = new AtomicInteger();
         private volatile Instant startTime;
         private volatile Integer numThreadsPerAllocation;
         private volatile Integer numAllocations;
-        private final AtomicInteger rejectedExecutionCount = new AtomicInteger();
-        private final AtomicInteger timeoutCount = new AtomicInteger();
         private volatile boolean isStopped;
+
+        private static final TimeValue COMPLETION_TIMEOUT = TimeValue.timeValueMinutes(3);
 
         ProcessContext(TrainedModelDeploymentTask task) {
             this.task = Objects.requireNonNull(task);
@@ -397,7 +468,7 @@ public class DeploymentManager {
             this.stateStreamer = new PyTorchStateStreamer(client, executorServiceForProcess, xContentRegistry);
             this.priorityProcessWorker = new PriorityProcessWorkerExecutorService(
                 threadPool.getThreadContext(),
-                "inference process",
+                PROCESS_NAME,
                 task.getParams().getQueueCapacity()
             );
         }
@@ -442,22 +513,32 @@ public class DeploymentManager {
             executorServiceForProcess.submit(priorityProcessWorker::start);
         }
 
-        synchronized void stopProcess() {
-            isStopped = true;
-            resultProcessor.stop();
-            stateStreamer.cancel();
+        synchronized void forcefullyStopProcess() {
+            logger.debug(() -> format("[%s] Forcefully stopping process", task.getDeploymentId()));
+            prepareInternalStateForShutdown();
 
             if (priorityProcessWorker.isShutdown()) {
                 // most likely there was a crash or exception that caused the
                 // thread to stop. Notify any waiting requests in the work queue
-                priorityProcessWorker.notifyQueueRunnables();
+                handleAlreadyShuttingDownWorker();
             } else {
                 priorityProcessWorker.shutdown();
             }
+
             killProcessIfPresent();
-            if (nlpTaskProcessor.get() != null) {
-                nlpTaskProcessor.get().close();
-            }
+            closeNlpTaskProcessor();
+        }
+
+        private void prepareInternalStateForShutdown() {
+            isStopped = true;
+            resultProcessor.stop();
+            stateStreamer.cancel();
+        }
+
+        private void handleAlreadyShuttingDownWorker() {
+            logger.debug(() -> format("[%s] Process worker was already marked for shutdown", task.getDeploymentId()));
+
+            priorityProcessWorker.notifyQueueRunnables();
         }
 
         private void killProcessIfPresent() {
@@ -471,13 +552,83 @@ public class DeploymentManager {
             }
         }
 
+        private void closeNlpTaskProcessor() {
+            if (nlpTaskProcessor.get() != null) {
+                nlpTaskProcessor.get().close();
+            }
+        }
+
+        private synchronized void stopProcessAfterCompletingPendingWork() {
+            logger.debug(() -> format("[%s] Stopping process after completing its pending work", task.getDeploymentId()));
+            prepareInternalStateForShutdown();
+
+            if (priorityProcessWorker.isShutdown()) {
+                // most likely there was a crash or exception that caused the
+                // thread to stop. Notify any waiting requests in the work queue
+                handleAlreadyShuttingDownWorker();
+            } else {
+                signalAndWaitForWorkerTermination();
+            }
+
+            stopProcessGracefully();
+            closeNlpTaskProcessor();
+        }
+
+        private void signalAndWaitForWorkerTermination() {
+            try {
+                awaitTerminationAfterCompletingWork();
+            } catch (TimeoutException e) {
+                logger.warn(format("[%s] Timed out waiting for process worker to complete, forcing a shutdown", task.getDeploymentId()), e);
+                // The process failed to stop in the time period allotted, so we'll mark it for shut down
+                priorityProcessWorker.shutdown();
+                priorityProcessWorker.notifyQueueRunnables();
+            }
+        }
+
+        private void awaitTerminationAfterCompletingWork() throws TimeoutException {
+            try {
+                priorityProcessWorker.shutdown();
+
+                if (priorityProcessWorker.awaitTermination(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES) == false) {
+                    throw new TimeoutException(
+                        Strings.format("Timed out waiting for process worker to complete for process %s", PROCESS_NAME)
+                    );
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.info(Strings.format("[%s] Interrupted waiting for process worker to complete", PROCESS_NAME));
+            }
+        }
+
+        private void stopProcessGracefully() {
+            try {
+                closeProcessIfPresent();
+                resultProcessor.awaitCompletion(COMPLETION_TIMEOUT.getMinutes(), TimeUnit.MINUTES);
+            } catch (TimeoutException e) {
+                logger.warn(format("[%s] Timed out waiting for results processor to stop", task.getDeploymentId()), e);
+            }
+        }
+
+        private void closeProcessIfPresent() {
+            try {
+                if (process.get() == null) {
+                    return;
+                }
+
+                process.get().close();
+            } catch (IOException e) {
+                logger.error(format("[%s] Failed to stop process gracefully, attempting to kill it", task.getDeploymentId()), e);
+                killProcessIfPresent();
+            }
+        }
+
         private void onProcessCrash(String reason) {
             logger.error("[{}] inference process crashed due to reason [{}]", task.getDeploymentId(), reason);
             processContextByAllocation.remove(task.getId());
             isStopped = true;
             resultProcessor.stop();
             stateStreamer.cancel();
-            priorityProcessWorker.shutdownWithError(new IllegalStateException(reason));
+            priorityProcessWorker.shutdownNowWithError(new IllegalStateException(reason));
             if (nlpTaskProcessor.get() != null) {
                 nlpTaskProcessor.get().close();
             }
@@ -534,6 +685,10 @@ public class DeploymentManager {
 
         SetOnce<NlpTask.Processor> getNlpTaskProcessor() {
             return nlpTaskProcessor;
+        }
+
+        SetOnce<TrainedModelPrefixStrings> getPrefixStrings() {
+            return prefixes;
         }
     }
 }

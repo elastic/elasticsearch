@@ -31,6 +31,7 @@ import java.util.Map;
  */
 public abstract class ConstantFieldType extends MappedFieldType {
 
+    @SuppressWarnings("this-escape")
     public ConstantFieldType(String name, Map<String, String> meta) {
         super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         assert isSearchable();
@@ -81,6 +82,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
 
     @Override
     public final Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+        return innerTermsQuery(values, context);
+    }
+
+    public final Query innerTermsQuery(Collection<?> values, QueryRewriteContext context) {
         for (Object value : values) {
             String pattern = valueToString(value);
             if (matches(pattern, false, context)) {
@@ -98,6 +103,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
         boolean caseInsensitive,
         SearchExecutionContext context
     ) {
+        return prefixQuery(prefix, caseInsensitive, context);
+    }
+
+    public final Query prefixQuery(String prefix, boolean caseInsensitive, QueryRewriteContext context) {
         String pattern = prefix + "*";
         if (matches(pattern, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
@@ -113,6 +122,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
         boolean caseInsensitive,
         SearchExecutionContext context
     ) {
+        return wildcardQuery(value, caseInsensitive, context);
+    }
+
+    public final Query wildcardQuery(String value, boolean caseInsensitive, QueryRewriteContext context) {
         if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {

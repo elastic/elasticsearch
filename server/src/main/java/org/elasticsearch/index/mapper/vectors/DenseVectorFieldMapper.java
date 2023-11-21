@@ -9,6 +9,8 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
@@ -19,15 +21,22 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
+import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -36,7 +45,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -59,6 +67,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -67,11 +76,15 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
 public class DenseVectorFieldMapper extends FieldMapper {
-    public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersion.V_7_5_0;
-    public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersion.V_8_9_0;
+
+    public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
+    public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
+    public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersions.V_8_9_0;
 
     public static final String CONTENT_TYPE = "dense_vector";
-    public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
+    public static short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
+
+    public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to vector
     public static final int MAGNITUDE_BYTES = 4;
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
@@ -86,23 +99,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new MapperParsingException("invalid element_type [" + o + "]; available types are " + namesToElementType.keySet());
             }
             return elementType;
-        }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);
-        private final Parameter<Integer> dims = new Parameter<>(
-            "dims",
-            false,
-            () -> null,
-            (n, c, o) -> XContentMapValues.nodeIntegerValue(o),
-            m -> toType(m).dims,
-            XContentBuilder::field,
-            Objects::toString
-        ).addValidator(dims -> {
-            if (dims == null) {
-                throw new MapperParsingException("Missing required parameter [dims] for field [" + name + "]");
+        }, m -> toType(m).fieldType().elementType, XContentBuilder::field, Objects::toString);
+
+        // This is defined as updatable because it can be updated once, from [null] to a valid dim size,
+        // by a dynamic mapping update. Once it has been set, however, the value cannot be changed.
+        private final Parameter<Integer> dims = new Parameter<>("dims", true, () -> null, (n, c, o) -> {
+            if (o instanceof Integer == false) {
+                throw new MapperParsingException("Property [dims] on field [" + n + "] must be an integer but got [" + o + "]");
             }
-            if ((dims > MAX_DIMS_COUNT) || (dims < 1)) {
+            int dims = XContentMapValues.nodeIntegerValue(o);
+            if (dims < 1 || dims > MAX_DIMS_COUNT) {
                 throw new MapperParsingException(
                     "The number of dimensions for field ["
-                        + name
+                        + n
                         + "] should be in the range [1, "
                         + MAX_DIMS_COUNT
                         + "] but was ["
@@ -110,15 +119,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         + "]"
                 );
             }
-        });
-        private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, false);
-        private final Parameter<VectorSimilarity> similarity = Parameter.enumParam(
-            "similarity",
-            false,
-            m -> toType(m).similarity,
-            null,
-            VectorSimilarity.class
-        );
+            return dims;
+        }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString).setSerializerCheck((id, ic, v) -> v != null)
+            .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
+        private final Parameter<VectorSimilarity> similarity;
         private final Parameter<IndexOptions> indexOptions = new Parameter<>(
             "index_options",
             false,
@@ -127,7 +131,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             m -> toType(m).indexOptions,
             XContentBuilder::field,
             Objects::toString
-        );
+        ).setSerializerCheck((id, ic, v) -> v != null);
+        private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final IndexVersion indexVersionCreated;
@@ -135,12 +140,37 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
-
-            this.indexed.requiresParameter(similarity);
-            this.similarity.setSerializerCheck((id, ic, v) -> v != null);
-            this.similarity.requiresParameter(indexed);
-            this.indexOptions.requiresParameter(indexed);
-            this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
+            final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
+            this.indexed = Parameter.indexParam(m -> toType(m).fieldType().indexed, indexedByDefault);
+            if (indexedByDefault) {
+                // Only serialize on newer index versions to prevent breaking existing indices when upgrading
+                this.indexed.alwaysSerialize();
+            }
+            this.similarity = Parameter.enumParam(
+                "similarity",
+                false,
+                m -> toType(m).fieldType().similarity,
+                (Supplier<VectorSimilarity>) () -> indexedByDefault && indexed.getValue() ? VectorSimilarity.COSINE : null,
+                VectorSimilarity.class
+            ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
+            this.indexed.addValidator(v -> {
+                if (v) {
+                    if (similarity.getValue() == null) {
+                        throw new IllegalArgumentException("Field [index] requires field [similarity] to be configured and not null");
+                    }
+                } else {
+                    if (similarity.isConfigured() && similarity.getValue() != null) {
+                        throw new IllegalArgumentException(
+                            "Field [similarity] can only be specified for a field of type [dense_vector] when it is indexed"
+                        );
+                    }
+                    if (indexOptions.isConfigured() && indexOptions.getValue() != null) {
+                        throw new IllegalArgumentException(
+                            "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed"
+                        );
+                    }
+                }
+            });
         }
 
         @Override
@@ -161,50 +191,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.getValue(),
                     meta.getValue()
                 ),
-                elementType.getValue(),
-                dims.getValue(),
-                indexed.getValue(),
-                similarity.getValue(),
                 indexOptions.getValue(),
                 indexVersionCreated,
                 multiFieldsBuilder.build(this, context),
-                copyTo.build()
+                copyTo
             );
         }
-    }
-
-    private static FieldType getDenseVectorFieldType(
-        int dimension,
-        VectorEncoding vectorEncoding,
-        VectorSimilarityFunction similarityFunction
-    ) {
-        if (dimension == 0) {
-            throw new IllegalArgumentException("cannot index an empty vector");
-        }
-        if (dimension > DenseVectorFieldMapper.MAX_DIMS_COUNT) {
-            throw new IllegalArgumentException("cannot index vectors with dimension greater than " + DenseVectorFieldMapper.MAX_DIMS_COUNT);
-        }
-        if (similarityFunction == null) {
-            throw new IllegalArgumentException("similarity function must not be null");
-        }
-        FieldType fieldType = new FieldType() {
-            @Override
-            public int vectorDimension() {
-                return dimension;
-            }
-
-            @Override
-            public VectorEncoding vectorEncoding() {
-                return vectorEncoding;
-            }
-
-            @Override
-            public VectorSimilarityFunction vectorSimilarityFunction() {
-                return similarityFunction;
-            }
-        };
-        fieldType.freeze();
-        return fieldType;
     }
 
     public enum ElementType {
@@ -231,7 +223,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (vector == null) {
                     throw new IllegalArgumentException("vector value must not be null");
                 }
-                FieldType denseVectorFieldType = getDenseVectorFieldType(vector.length, VectorEncoding.BYTE, function);
+                FieldType denseVectorFieldType = new FieldType();
+                denseVectorFieldType.setVectorAttributes(vector.length, VectorEncoding.BYTE, function);
+                denseVectorFieldType.freeze();
                 return new KnnByteVectorField(name, vector, denseVectorFieldType);
             }
 
@@ -319,7 +313,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             public Field parseKnnVector(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException {
                 int index = 0;
-                byte[] vector = new byte[fieldMapper.dims];
+                byte[] vector = new byte[fieldMapper.fieldType().dims];
                 float squaredMagnitude = 0;
                 for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
                     fieldMapper.checkDimensionExceeded(index, context);
@@ -361,8 +355,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     squaredMagnitude += value * value;
                 }
                 fieldMapper.checkDimensionMatches(index, context);
-                checkVectorMagnitude(fieldMapper.similarity, errorByteElementsAppender(vector), squaredMagnitude);
-                return createKnnVectorField(fieldMapper.fieldType().name(), vector, fieldMapper.similarity.function);
+                checkVectorMagnitude(fieldMapper.fieldType().similarity, errorByteElementsAppender(vector), squaredMagnitude);
+                return createKnnVectorField(fieldMapper.fieldType().name(), vector, fieldMapper.fieldType().similarity.function);
             }
 
             @Override
@@ -425,7 +419,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (vector == null) {
                     throw new IllegalArgumentException("vector value must not be null");
                 }
-                FieldType denseVectorFieldType = getDenseVectorFieldType(vector.length, VectorEncoding.FLOAT32, function);
+                FieldType denseVectorFieldType = new FieldType();
+                denseVectorFieldType.setVectorAttributes(vector.length, VectorEncoding.FLOAT32, function);
+                denseVectorFieldType.freeze();
                 return new KnnFloatVectorField(name, vector, denseVectorFieldType);
             }
 
@@ -459,6 +455,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ) {
                 StringBuilder errorBuilder = null;
 
+                if (Float.isNaN(squaredMagnitude) || Float.isInfinite(squaredMagnitude)) {
+                    errorBuilder = new StringBuilder(
+                        "NaN or Infinite magnitude detected, this usually means the vector values are too extreme to fit within a float."
+                    );
+                }
+                if (errorBuilder != null) {
+                    throw new IllegalArgumentException(appender.apply(errorBuilder).toString());
+                }
+
                 if (similarity == VectorSimilarity.DOT_PRODUCT && Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
                     errorBuilder = new StringBuilder(
                         "The [" + VectorSimilarity.DOT_PRODUCT + "] similarity can only be used with unit-length vectors."
@@ -477,7 +482,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             public Field parseKnnVector(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException {
                 int index = 0;
-                float[] vector = new float[fieldMapper.dims];
+                float[] vector = new float[fieldMapper.fieldType().dims];
                 float squaredMagnitude = 0;
                 for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
                     fieldMapper.checkDimensionExceeded(index, context);
@@ -489,8 +494,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 fieldMapper.checkDimensionMatches(index, context);
                 checkVectorBounds(vector);
-                checkVectorMagnitude(fieldMapper.similarity, errorFloatElementsAppender(vector), squaredMagnitude);
-                return createKnnVectorField(fieldMapper.fieldType().name(), vector, fieldMapper.similarity.function);
+                checkVectorMagnitude(fieldMapper.fieldType().similarity, errorFloatElementsAppender(vector), squaredMagnitude);
+                return createKnnVectorField(fieldMapper.fieldType().name(), vector, fieldMapper.fieldType().similarity.function);
             }
 
             @Override
@@ -498,7 +503,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throws IOException {
                 double dotProduct = 0f;
                 int index = 0;
-                float[] vector = new float[fieldMapper.dims];
+                float[] vector = new float[fieldMapper.fieldType().dims];
                 for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
                     fieldMapper.checkDimensionExceeded(index, context);
                     ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser());
@@ -552,6 +557,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float squaredMagnitude
         );
 
+        int parseDimensionCount(DocumentParserContext context) throws IOException {
+            int index = 0;
+            for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
+                index++;
+            }
+            return index;
+        }
+
         void checkNanAndInfinite(float[] vector) {
             StringBuilder errorBuilder = null;
 
@@ -584,7 +597,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
         }
 
-        StringBuilder appendErrorElements(StringBuilder errorBuilder, float[] vector) {
+        static StringBuilder appendErrorElements(StringBuilder errorBuilder, float[] vector) {
             // Include the first five elements of the invalid vector in the error message
             errorBuilder.append(" Preview of invalid vector: [");
             for (int i = 0; i < Math.min(5, vector.length); i++) {
@@ -600,7 +613,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return errorBuilder;
         }
 
-        StringBuilder appendErrorElements(StringBuilder errorBuilder, byte[] vector) {
+        static StringBuilder appendErrorElements(StringBuilder errorBuilder, byte[] vector) {
             // Include the first five elements of the invalid vector in the error message
             errorBuilder.append(" Preview of invalid vector: [");
             for (int i = 0; i < Math.min(5, vector.length); i++) {
@@ -616,11 +629,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return errorBuilder;
         }
 
-        Function<StringBuilder, StringBuilder> errorFloatElementsAppender(float[] vector) {
+        static Function<StringBuilder, StringBuilder> errorFloatElementsAppender(float[] vector) {
             return sb -> appendErrorElements(sb, vector);
         }
 
-        Function<StringBuilder, StringBuilder> errorByteElementsAppender(byte[] vector) {
+        static Function<StringBuilder, StringBuilder> errorByteElementsAppender(byte[] vector) {
             return sb -> appendErrorElements(sb, vector);
         }
     }
@@ -655,6 +668,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return switch (elementType) {
                     case BYTE -> 0.5f + similarity / (float) (dim * (1 << 15));
                     case FLOAT -> (1 + similarity) / 2f;
+                };
+            }
+        },
+        MAX_INNER_PRODUCT(VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT) {
+            @Override
+            float score(float similarity, ElementType elementType, int dim) {
+                return switch (elementType) {
+                    case BYTE, FLOAT -> similarity < 0 ? 1 / (1 + -1 * similarity) : similarity + 1;
                 };
             }
         };
@@ -742,7 +763,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final class DenseVectorFieldType extends SimpleMappedFieldType {
         private final ElementType elementType;
-        private final int dims;
+        private final Integer dims;
         private final boolean indexed;
         private final VectorSimilarity similarity;
         private final IndexVersion indexVersionCreated;
@@ -751,7 +772,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             String name,
             IndexVersion indexVersionCreated,
             ElementType elementType,
-            int dims,
+            Integer dims,
             boolean indexed,
             VectorSimilarity similarity,
             Map<String, String> meta
@@ -809,7 +830,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
-        public Query createKnnQuery(byte[] queryVector, int numCands, Query filter, Float similarityThreshold) {
+        public Query createKnnQuery(
+            byte[] queryVector,
+            int numCands,
+            Query filter,
+            Float similarityThreshold,
+            BitSetProducer parentFilter
+        ) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
@@ -829,13 +856,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = 0.0f;
-                for (byte b : queryVector) {
-                    squaredMagnitude += b * b;
-                }
-                elementType.checkVectorMagnitude(similarity, elementType.errorByteElementsAppender(queryVector), squaredMagnitude);
+                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
+                elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
-            Query knnQuery = new KnnByteVectorQuery(name(), queryVector, numCands, filter);
+            Query knnQuery = parentFilter != null
+                ? new DiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
+                : new KnnByteVectorQuery(name(), queryVector, numCands, filter);
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -846,7 +872,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
-        public Query createKnnQuery(float[] queryVector, int numCands, Query filter, Float similarityThreshold) {
+        public Query createKnnQuery(
+            float[] queryVector,
+            int numCands,
+            Query filter,
+            Float similarityThreshold,
+            BitSetProducer parentFilter
+        ) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
@@ -860,12 +892,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             elementType.checkVectorBounds(queryVector);
 
-            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = 0.0f;
-                for (float e : queryVector) {
-                    squaredMagnitude += e * e;
-                }
-                elementType.checkVectorMagnitude(similarity, elementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
+            if (similarity == VectorSimilarity.DOT_PRODUCT
+                || similarity == VectorSimilarity.COSINE
+                || similarity == VectorSimilarity.MAX_INNER_PRODUCT) {
+                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
+                elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
             }
             Query knnQuery = switch (elementType) {
                 case BYTE -> {
@@ -873,10 +904,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     for (int i = 0; i < queryVector.length; i++) {
                         bytes[i] = (byte) queryVector[i];
                     }
-                    yield new KnnByteVectorQuery(name(), bytes, numCands, filter);
+                    yield parentFilter != null
+                        ? new DiversifyingChildrenByteKnnVectorQuery(name(), bytes, filter, numCands, parentFilter)
+                        : new KnnByteVectorQuery(name(), bytes, numCands, filter);
                 }
-                case FLOAT -> new KnnFloatVectorQuery(name(), queryVector, numCands, filter);
+                case FLOAT -> parentFilter != null
+                    ? new DiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
+                    : new KnnFloatVectorQuery(name(), queryVector, numCands, filter);
             };
+
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,
@@ -900,30 +936,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private final ElementType elementType;
-    private final int dims;
-    private final boolean indexed;
-    private final VectorSimilarity similarity;
     private final IndexOptions indexOptions;
     private final IndexVersion indexCreatedVersion;
 
     private DenseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        ElementType elementType,
-        int dims,
-        boolean indexed,
-        VectorSimilarity similarity,
         IndexOptions indexOptions,
         IndexVersion indexCreatedVersion,
         MultiFields multiFields,
         CopyTo copyTo
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
-        this.elementType = elementType;
-        this.dims = dims;
-        this.indexed = indexed;
-        this.similarity = similarity;
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
     }
@@ -952,15 +976,24 @@ public class DenseVectorFieldMapper extends FieldMapper {
         if (Token.VALUE_NULL == context.parser().currentToken()) {
             return;
         }
+        if (fieldType().dims == null) {
+            int dims = fieldType().elementType.parseDimensionCount(context);
+            DenseVectorFieldMapper.Builder update = (DenseVectorFieldMapper.Builder) getMergeBuilder();
+            update.dims.setValue(dims);
+            context.addDynamicMapper(name(), update);
+            return;
+        }
         Field field = fieldType().indexed ? parseKnnVector(context) : parseBinaryDocValuesVector(context);
         context.doc().addWithKey(fieldType().name(), field);
     }
 
     private Field parseKnnVector(DocumentParserContext context) throws IOException {
-        return elementType.parseKnnVector(context, this);
+        return fieldType().elementType.parseKnnVector(context, this);
     }
 
     private Field parseBinaryDocValuesVector(DocumentParserContext context) throws IOException {
+        int dims = fieldType().dims;
+        ElementType elementType = fieldType().elementType;
         // encode array of floats as array of integers and store into buf
         // this code is here and not in the VectorEncoderDecoder so not to create extra arrays
         int numBytes = indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)
@@ -978,7 +1011,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     private void checkDimensionExceeded(int index, DocumentParserContext context) {
-        if (index >= dims) {
+        if (index >= fieldType().dims) {
             throw new IllegalArgumentException(
                 "The ["
                     + typeName()
@@ -988,14 +1021,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     + context.documentDescription()
                     + "] has more dimensions "
                     + "than defined in the mapping ["
-                    + dims
+                    + fieldType().dims
                     + "]"
             );
         }
     }
 
     private void checkDimensionMatches(int index, DocumentParserContext context) {
-        if (index != dims) {
+        if (index != fieldType().dims) {
             throw new IllegalArgumentException(
                 "The ["
                     + typeName()
@@ -1007,7 +1040,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     + "["
                     + index
                     + "] than defined in the mapping ["
-                    + dims
+                    + fieldType().dims
                     + "]"
             );
         }
@@ -1026,13 +1059,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexCreatedVersion).init(this);
-    }
-
-    @Override
-    public void doValidate(MappingLookup mappers) {
-        if (indexed && mappers.nestedLookup().getNestedParent(name()) != null) {
-            throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields cannot be indexed if they're" + " within [nested] mappings");
-        }
     }
 
     private static IndexOptions parseIndexOptions(String fieldName, Object propNode) {
@@ -1054,13 +1080,36 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * @return the custom kNN vectors format that is configured for this field or
      * {@code null} if the default format should be used.
      */
-    public KnnVectorsFormat getKnnVectorsFormatForField() {
+    public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat) {
+        KnnVectorsFormat format;
         if (indexOptions == null) {
-            return null; // use default format
+            format = defaultFormat;
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            return new Lucene95HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            format = new Lucene95HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
         }
+        // It's legal to reuse the same format name as this is the same on-disk format.
+        return new KnnVectorsFormat(format.getName()) {
+            @Override
+            public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+                return format.fieldsWriter(state);
+            }
+
+            @Override
+            public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+                return format.fieldsReader(state);
+            }
+
+            @Override
+            public int getMaxDimensions(String fieldName) {
+                return MAX_DIMS_COUNT;
+            }
+
+            @Override
+            public String toString() {
+                return format.toString();
+            }
+        };
     }
 
     @Override
@@ -1070,7 +1119,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        if (indexed) {
+        if (fieldType().indexed) {
             return new IndexedSyntheticFieldLoader();
         }
         return new DocValuesSyntheticFieldLoader(indexCreatedVersion);
@@ -1172,8 +1221,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
                 byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
             }
+            int dims = fieldType().dims;
             for (int dim = 0; dim < dims; dim++) {
-                elementType.readAndWriteValue(byteBuffer, b);
+                fieldType().elementType.readAndWriteValue(byteBuffer, b);
             }
             b.endArray();
         }

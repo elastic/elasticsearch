@@ -11,7 +11,9 @@ For detailed information about this release, see the <<es-release-notes>> and
 // Add previous release to the list
 Other versions:
 
-{ref-bare}/8.9/release-highlights.html[8.9]
+{ref-bare}/8.11/release-highlights.html[8.11]
+| {ref-bare}/8.10/release-highlights.html[8.10]
+| {ref-bare}/8.9/release-highlights.html[8.9]
 | {ref-bare}/8.8/release-highlights.html[8.8]
 | {ref-bare}/8.7/release-highlights.html[8.7]
 | {ref-bare}/8.6/release-highlights.html[8.6]

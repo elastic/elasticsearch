@@ -65,7 +65,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -346,7 +345,7 @@ public class DataFrameAnalyticsConfigProvider {
                     }
 
                     Set<String> tasksWithoutConfigs = new HashSet<>(jobsWithTask);
-                    tasksWithoutConfigs.removeAll(configs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toList()));
+                    configs.stream().map(DataFrameAnalyticsConfig::getId).toList().forEach(tasksWithoutConfigs::remove);
                     if (tasksWithoutConfigs.isEmpty() == false) {
                         logger.warn("Data frame analytics tasks {} have no configs", tasksWithoutConfigs);
                     }

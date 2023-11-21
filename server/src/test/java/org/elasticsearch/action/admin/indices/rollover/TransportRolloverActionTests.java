@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -48,6 +48,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
@@ -216,7 +217,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             minPrimaryShardDocsCondition
         );
 
-        final Settings settings = indexSettings(Version.CURRENT, randomIntBetween(1, 1000), 10).put(
+        final Settings settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 1000), 10).put(
             IndexMetadata.SETTING_INDEX_UUID,
             UUIDs.randomBase64UUID()
         ).build();
@@ -283,7 +284,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             minPrimaryShardDocsCondition
         );
 
-        final Settings settings = indexSettings(Version.CURRENT, randomIntBetween(1, 1000), 10).put(
+        final Settings settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 1000), 10).put(
             IndexMetadata.SETTING_INDEX_UUID,
             UUIDs.randomBase64UUID()
         ).build();
@@ -299,7 +300,6 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() throws Exception {
-        final TransportService mockTransportService = mock(TransportService.class);
         final ClusterService mockClusterService = mock(ClusterService.class);
         final DiscoveryNode mockNode = mock(DiscoveryNode.class);
         when(mockNode.getId()).thenReturn("mocknode");
@@ -332,12 +332,12 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("logs-index-000001")
             .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build())
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         final IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("logs-index-000002")
             .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build())
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
@@ -353,8 +353,9 @@ public class TransportRolloverActionTests extends ESTestCase {
             EmptySystemIndices.INSTANCE,
             WriteLoadForecaster.DEFAULT
         );
+
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
-            mockTransportService,
+            mock(TransportService.class),
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
@@ -443,8 +444,10 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     private static IndexMetadata createMetadata(String indexName) {
-        final Settings settings = indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
+        final Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(
+            IndexMetadata.SETTING_INDEX_UUID,
+            UUIDs.randomBase64UUID()
+        ).build();
         return IndexMetadata.builder(indexName)
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
@@ -490,6 +493,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 stats.get = new GetStats();
                 stats.flush = new FlushStats();
                 stats.warmer = new WarmerStats();
+                stats.denseVectorStats = new DenseVectorStats();
                 shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0));
             }
         }

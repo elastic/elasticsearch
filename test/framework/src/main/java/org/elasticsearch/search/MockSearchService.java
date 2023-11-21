@@ -22,8 +22,8 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -132,7 +132,12 @@ public class MockSearchService extends SearchService {
         boolean includeAggregations
     ) throws IOException {
         SearchContext searchContext = super.createContext(readerContext, request, task, resultsType, includeAggregations);
-        onCreateSearchContext.accept(searchContext);
+        try {
+            onCreateSearchContext.accept(searchContext);
+        } catch (Exception e) {
+            searchContext.close();
+            throw e;
+        }
         return searchContext;
     }
 

@@ -129,7 +129,6 @@ public final class DissectParser {
         Set<String> appendKeyNames = dissectPairs.stream()
             .filter(dissectPair -> APPEND_MODIFIERS.contains(dissectPair.key().getModifier()))
             .map(KEY_NAME)
-            .distinct()
             .collect(Collectors.toSet());
         if (appendKeyNames.size() > 0) {
             List<DissectPair> modifiedMatchPairs = new ArrayList<>(dissectPairs.size());

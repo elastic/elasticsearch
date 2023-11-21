@@ -59,7 +59,7 @@ final class ShardSplittingQuery extends Query {
         this.indexMetadata = indexMetadata;
         this.indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         this.shardId = shardId;
-        this.nestedParentBitSetProducer = hasNested ? newParentDocBitSetProducer(indexMetadata.getCreationVersion().indexVersion) : null;
+        this.nestedParentBitSetProducer = hasNested ? newParentDocBitSetProducer(indexMetadata.getCreationVersion()) : null;
     }
 
     @Override

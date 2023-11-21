@@ -10,7 +10,7 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +31,7 @@ import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,7 +87,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      */
     public QuerySearchResult(StreamInput in, boolean delayedAggregations) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
             isNull = in.readBoolean();
         } else {
             isNull = false;
@@ -104,8 +105,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
         setSearchShardTarget(shardTarget);
         isNull = false;
         setShardSearchRequest(shardSearchRequest);
-        this.refCounted = AbstractRefCounted.of(this::close);
         this.toRelease = new ArrayList<>();
+        this.refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> Releasables.close(toRelease)));
     }
 
     private QuerySearchResult(boolean isNull) {
@@ -243,10 +244,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
             aggregations.close();
             aggregations = null;
         }
-    }
-
-    private void close() {
-        Releasables.close(toRelease);
     }
 
     public void addReleasable(Releasable releasable) {
@@ -402,11 +399,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
             hasProfileResults = profileShardResults != null;
             serviceTimeEWMA = in.readZLong();
             nodeQueueSize = in.readInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
                 setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
                 setRescoreDocIds(new RescoreDocIds(in));
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
             }
             success = true;
@@ -424,7 +421,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (aggregations != null && aggregations.isSerialized()) {
             throw new IllegalStateException("cannot send serialized version since it will leak");
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
             out.writeBoolean(isNull);
         }
         if (isNull == false) {
@@ -457,11 +454,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(profileShardResults);
         out.writeZLong(serviceTimeEWMA);
         out.writeInt(nodeQueueSize);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeOptionalWriteable(getShardSearchRequest());
             getRescoreDocIds().writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalNamedWriteable(rankShardResult);
         } else if (rankShardResult != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");

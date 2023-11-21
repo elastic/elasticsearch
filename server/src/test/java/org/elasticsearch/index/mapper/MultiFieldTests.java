@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
@@ -208,6 +209,21 @@ public class MultiFieldTests extends MapperServiceTestCase {
             exception.getMessage(),
             equalTo("Failed to parse mapping: Field name [raw.foo] which is a multi field of [field] cannot contain '.'")
         );
+    }
+
+    public void testSourcePathFields() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("subfield1").field("type", "text").endObject();
+            b.startObject("subfield2").field("type", "text").endObject();
+            b.endObject();
+        }));
+        Mapper mapper = mapperService.mappingLookup().getMapper("field");
+        assertThat(mapper, instanceOf(FieldMapper.class));
+        final Set<String> fieldsUsingSourcePath = new HashSet<>();
+        ((FieldMapper) mapper).sourcePathUsedBy().forEachRemaining(mapper1 -> fieldsUsingSourcePath.add(mapper1.name()));
+        assertThat(fieldsUsingSourcePath, equalTo(Set.of("field.subfield1", "field.subfield2")));
     }
 
     public void testUnknownLegacyFieldsUnderKnownRootField() throws Exception {

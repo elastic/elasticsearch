@@ -79,7 +79,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         ParsedPercentilesBucket parsedPercentiles = (ParsedPercentilesBucket) parsedAggregation;
 
         for (Percentile percentile : aggregation) {
-            Double percent = percentile.getPercent();
+            Double percent = percentile.percent();
             assertEquals(aggregation.percentile(percent), parsedPercentiles.percentile(percent), 0);
             // we cannot ensure we get the same as_string output for Double.NaN values since they are rendered as
             // null and we don't have a formatted string representation in the rest output
@@ -104,10 +104,10 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
             Percentile percentile = iterator.next();
             String percentileName = nameIterator.next();
 
-            assertEquals(percent, percentile.getPercent(), 0.0d);
+            assertEquals(percent, percentile.percent(), 0.0d);
             assertEquals(percent, Double.valueOf(percentileName), 0.0d);
 
-            assertEquals(aggregation.percentile(percent), percentile.getValue(), 0.0d);
+            assertEquals(aggregation.percentile(percent), percentile.value(), 0.0d);
         }
         assertFalse(iterator.hasNext());
         assertFalse(nameIterator.hasNext());
@@ -220,7 +220,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
 
     private double[] extractPercentiles(InternalPercentilesBucket instance) {
         List<Double> values = new ArrayList<>();
-        instance.iterator().forEachRemaining(percentile -> values.add(percentile.getValue()));
+        instance.iterator().forEachRemaining(percentile -> values.add(percentile.value()));
         double[] valuesArray = new double[values.size()];
         for (int i = 0; i < values.size(); i++) {
             valuesArray[i] = values.get(i);
@@ -230,7 +230,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
 
     private double[] extractPercents(InternalPercentilesBucket instance) {
         List<Double> percents = new ArrayList<>();
-        instance.iterator().forEachRemaining(percentile -> percents.add(percentile.getPercent()));
+        instance.iterator().forEachRemaining(percentile -> percents.add(percentile.percent()));
         double[] percentArray = new double[percents.size()];
         for (int i = 0; i < percents.size(); i++) {
             percentArray[i] = percents.get(i);

@@ -23,6 +23,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 
@@ -38,6 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * in a string format, designed to be used at the command line. An Index can
  * be specified to limit output to a particular index or indices.
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestCatRecoveryAction extends AbstractCatAction {
 
     @Override

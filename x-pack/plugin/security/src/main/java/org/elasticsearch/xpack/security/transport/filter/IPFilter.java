@@ -20,7 +20,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -253,10 +252,8 @@ public class IPFilter {
         clusterSettings.addSettingsUpdateConsumer(IP_FILTER_ENABLED_SETTING, this::setTransportFiltering);
         clusterSettings.addSettingsUpdateConsumer(TRANSPORT_FILTER_ALLOW_SETTING, this::setTransportAllowFilter);
         clusterSettings.addSettingsUpdateConsumer(TRANSPORT_FILTER_DENY_SETTING, this::setTransportDenyFilter);
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_FILTER_ALLOW_SETTING, this::setRemoteAccessAllowFilter);
-            clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_FILTER_DENY_SETTING, this::setRemoteAccessDenyFilter);
-        }
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_FILTER_ALLOW_SETTING, this::setRemoteAccessAllowFilter);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_FILTER_DENY_SETTING, this::setRemoteAccessDenyFilter);
         clusterSettings.addSettingsUpdateConsumer(HTTP_FILTER_ALLOW_SETTING, this::setHttpAllowFilter);
         clusterSettings.addSettingsUpdateConsumer(HTTP_FILTER_DENY_SETTING, this::setHttpDenyFilter);
         clusterSettings.addAffixUpdateConsumer(PROFILE_FILTER_ALLOW_SETTING, this::setProfileAllowRules, (a, b) -> {});
@@ -428,10 +425,8 @@ public class IPFilter {
         settings.add(HTTP_FILTER_DENY_SETTING);
         settings.add(TRANSPORT_FILTER_ALLOW_SETTING);
         settings.add(TRANSPORT_FILTER_DENY_SETTING);
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            settings.add(REMOTE_CLUSTER_FILTER_ALLOW_SETTING);
-            settings.add(REMOTE_CLUSTER_FILTER_DENY_SETTING);
-        }
+        settings.add(REMOTE_CLUSTER_FILTER_ALLOW_SETTING);
+        settings.add(REMOTE_CLUSTER_FILTER_DENY_SETTING);
         settings.add(PROFILE_FILTER_ALLOW_SETTING);
         settings.add(PROFILE_FILTER_DENY_SETTING);
     }

@@ -31,7 +31,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class RunTask extends DefaultTestClustersTask {
+public abstract class RunTask extends DefaultTestClustersTask {
 
     public static final String CUSTOM_SETTINGS_PREFIX = "tests.es.";
     private static final Logger logger = Logging.getLogger(RunTask.class);
@@ -40,6 +40,7 @@ public class RunTask extends DefaultTestClustersTask {
     private static final String transportCertificate = "private-cert2.p12";
 
     private Boolean debug = false;
+    private Boolean apmServerEnabled = false;
 
     private Boolean preserveData = false;
 
@@ -54,6 +55,7 @@ public class RunTask extends DefaultTestClustersTask {
     private final Path tlsBasePath = Path.of(
         new File(getProject().getRootDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
     );
+    private MockApmServer mockServer;
 
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
@@ -63,6 +65,16 @@ public class RunTask extends DefaultTestClustersTask {
     @Input
     public Boolean getDebug() {
         return debug;
+    }
+
+    @Input
+    public Boolean getApmServerEnabled() {
+        return apmServerEnabled;
+    }
+
+    @Option(option = "with-apm-server", description = "Run simple logging http server to accept apm requests")
+    public void setApmServerEnabled(Boolean apmServerEnabled) {
+        this.apmServerEnabled = apmServerEnabled;
     }
 
     @Option(option = "data-dir", description = "Override the base data directory used by the testcluster")
@@ -136,7 +148,7 @@ public class RunTask extends DefaultTestClustersTask {
                     entry -> entry.getValue().toString()
                 )
             );
-        boolean singleNode = getClusters().stream().flatMap(c -> c.getNodes().stream()).count() == 1;
+        boolean singleNode = getClusters().stream().mapToLong(c -> c.getNodes().size()).sum() == 1;
         final Function<ElasticsearchNode, Path> getDataPath;
         if (singleNode) {
             getDataPath = n -> dataDir;
@@ -172,6 +184,21 @@ public class RunTask extends DefaultTestClustersTask {
                     node.setting("xpack.security.transport.ssl.keystore.path", "transport.keystore");
                     node.setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca");
                 }
+
+                if (apmServerEnabled) {
+                    mockServer = new MockApmServer(9999);
+                    try {
+                        mockServer.start();
+                        node.setting("telemetry.metrics.enabled", "true");
+                        node.setting("tracing.apm.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
+                    } catch (IOException e) {
+                        logger.warn("Unable to start APM server", e);
+                    }
+                } else {
+                    // metrics are enabled by default, if the --with-apm-server was not used we should disable it
+                    node.setting("telemetry.metrics.enabled", "false");
+                }
+
             }
         }
         if (debug) {
@@ -241,6 +268,10 @@ public class RunTask extends DefaultTestClustersTask {
 
             if (thrown != null) {
                 logger.debug("exception occurred during close of stdout file readers", thrown);
+            }
+
+            if (apmServerEnabled && mockServer != null) {
+                mockServer.stop();
             }
         }
     }

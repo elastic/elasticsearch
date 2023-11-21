@@ -22,6 +22,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockKeywordPlugin;
@@ -415,19 +416,24 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         // we generate as many docs as many shards we have
         TestDoc[] testDocs = generateTestDocs("test", testFieldSettings);
 
-        DirectoryReader directoryReader = indexDocsWithLucene(testDocs);
-        TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
+        DirectoryReader directoryReader = null;
+        try {
+            directoryReader = indexDocsWithLucene(testDocs);
+            TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
 
-        for (TestConfig test : testConfigs) {
-            TermVectorsRequestBuilder request = getRequestForConfig(test);
-            if (test.expectedException != null) {
-                assertRequestBuilderThrows(request, test.expectedException);
-                continue;
+            for (TestConfig test : testConfigs) {
+                TermVectorsRequestBuilder request = getRequestForConfig(test);
+                if (test.expectedException != null) {
+                    assertRequestBuilderThrows(request, test.expectedException);
+                    continue;
+                }
+
+                TermVectorsResponse response = request.get();
+                Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
+                validateResponse(response, luceneTermVectors, test);
             }
-
-            TermVectorsResponse response = request.get();
-            Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
-            validateResponse(response, luceneTermVectors, test);
+        } finally {
+            IOUtils.close(directoryReader);
         }
     }
 

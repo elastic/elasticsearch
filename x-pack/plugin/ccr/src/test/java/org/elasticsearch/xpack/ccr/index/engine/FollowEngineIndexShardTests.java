@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ccr.index.engine;
 
 import org.apache.lucene.store.IOContext;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -34,7 +34,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
@@ -103,7 +102,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             releasable.close();
             latch.countDown();
         });
-        indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC);
+        indexShard.acquirePrimaryOperationPermit(actionListener, threadPool.generic());
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(seqNoBeforeGap));
         indexShard.refresh("test");
@@ -134,7 +133,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 snapshot,
-                Version.CURRENT,
+                IndexVersion.current(),
                 new IndexId("test", UUIDs.randomBase64UUID(random()))
             )
         );
@@ -144,7 +143,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
 
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
             public void restoreShard(

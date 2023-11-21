@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -33,12 +34,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -65,13 +66,13 @@ public abstract class TransportInstanceSingleOperationAction<
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request
     ) {
-        super(actionName, transportService, actionFilters, request);
+        super(actionName, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.shardActionName = actionName + "[s]";
-        transportService.registerRequestHandler(shardActionName, Names.SAME, request, new ShardTransportHandler());
+        transportService.registerRequestHandler(shardActionName, EsExecutors.DIRECT_EXECUTOR_SERVICE, request, new ShardTransportHandler());
     }
 
     @Override
@@ -189,7 +190,11 @@ public abstract class TransportInstanceSingleOperationAction<
                 shardActionName,
                 request,
                 transportOptions(),
-                new ActionListenerResponseHandler<>(listener, TransportInstanceSingleOperationAction.this::newResponse) {
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    TransportInstanceSingleOperationAction.this::newResponse,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                ) {
                     @Override
                     public void handleException(TransportException exp) {
                         final Throwable cause = exp.unwrapCause();

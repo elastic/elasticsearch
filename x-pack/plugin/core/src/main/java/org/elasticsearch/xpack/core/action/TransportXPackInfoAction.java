@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
@@ -32,6 +33,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     private final NodeClient client;
     private final List<XPackInfoFeatureAction> infoActions;
 
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportXPackInfoAction(
         TransportService transportService,
@@ -39,7 +41,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
         LicenseService licenseService,
         NodeClient client
     ) {
-        super(XPackInfoAction.NAME, transportService, actionFilters, XPackInfoRequest::new);
+        super(XPackInfoAction.NAME, transportService, actionFilters, XPackInfoRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.licenseService = licenseService;
         this.client = client;
         this.infoActions = infoActions();

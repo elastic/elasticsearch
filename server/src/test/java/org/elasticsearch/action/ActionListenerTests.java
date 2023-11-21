@@ -23,13 +23,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -353,11 +353,7 @@ public class ActionListenerTests extends ESTestCase {
         final var startBarrier = new CyclicBarrier(threads.length);
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
-                try {
-                    startBarrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startBarrier);
                 if (randomBoolean()) {
                     listener.onResponse(null);
                 } else {
@@ -412,8 +408,7 @@ public class ActionListenerTests extends ESTestCase {
         assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener, () -> {
             throw new IllegalArgumentException();
         }));
-        assertThat(assertionError.getCause(), instanceOf(AssertionError.class));
-        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
     }
 
@@ -452,7 +447,7 @@ public class ActionListenerTests extends ESTestCase {
         });
 
         AssertionError assertionError = expectThrows(AssertionError.class, () -> mapped.onResponse(null));
-        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertNull(exReference.get());
         mapped.onResponse(false);
         assertNull(exReference.get());
@@ -460,7 +455,7 @@ public class ActionListenerTests extends ESTestCase {
         assertThat(exReference.get(), instanceOf(IllegalStateException.class));
 
         assertionError = expectThrows(AssertionError.class, () -> mapped.onFailure(new IllegalArgumentException()));
-        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
         mapped.onFailure(new IllegalStateException());
         assertThat(exReference.get(), instanceOf(IllegalStateException.class));
@@ -585,6 +580,9 @@ public class ActionListenerTests extends ESTestCase {
                 l.onResponse(null);
             } catch (Exception e) {
                 // ok
+            } catch (AssertionError e) {
+                // ensure this was only thrown by ActionListener#assertOnce
+                assertThat(e.getMessage(), endsWith("must handle its own exceptions"));
             }
         } else {
             l.onFailure(new RuntimeException("supplied"));

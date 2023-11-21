@@ -55,13 +55,11 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     ) {
         super(
             NodesReloadSecureSettingsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesReloadSecureSettingsRequest::new,
             NodesReloadSecureSettingsRequest.NodeRequest::new,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.environment = environment;
         this.pluginsService = pluginService;
@@ -126,7 +124,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             final Settings settingsWithKeystore = Settings.builder().put(environment.settings(), false).setSecureSettings(keystore).build();
             final List<Exception> exceptions = new ArrayList<>();
             // broadcast the new settings object (with the open embedded keystore) to all reloadable plugins
-            pluginsService.filterPlugins(ReloadablePlugin.class).stream().forEach(p -> {
+            pluginsService.filterPlugins(ReloadablePlugin.class).forEach(p -> {
                 try {
                     p.reload(settingsWithKeystore);
                 } catch (final Exception e) {

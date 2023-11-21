@@ -64,7 +64,6 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -174,7 +173,7 @@ import static org.junit.Assert.fail;
  */
 public final class InternalTestCluster extends TestCluster {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(InternalTestCluster.class);
 
     private static final Predicate<NodeAndClient> DATA_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.canContainData(
         nodeAndClient.node.settings()
@@ -244,6 +243,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private ServiceDisruptionScheme activeDisruptionScheme;
     private final Function<Client, Client> clientWrapper;
+    private final boolean autoManageVotingExclusions;
 
     /**
      * Default value of bootstrapMasterNodeIndex, indicating that bootstrapping should happen automatically.
@@ -286,7 +286,8 @@ public final class InternalTestCluster extends TestCluster {
             mockPlugins,
             clientWrapper,
             true,
-            false
+            false,
+            true
         );
     }
 
@@ -304,7 +305,8 @@ public final class InternalTestCluster extends TestCluster {
         final Collection<Class<? extends Plugin>> mockPlugins,
         final Function<Client, Client> clientWrapper,
         final boolean forbidPrivateIndexSettings,
-        final boolean forceSingleDataPath
+        final boolean forceSingleDataPath,
+        final boolean autoManageVotingExclusions
     ) {
         super(clusterSeed);
         this.autoManageMasterNodes = autoManageMasterNodes;
@@ -312,6 +314,7 @@ public final class InternalTestCluster extends TestCluster {
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.baseDir = baseDir;
         this.clusterName = clusterName;
+        this.autoManageVotingExclusions = autoManageVotingExclusions;
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
             throw new IllegalArgumentException("minimum and maximum number of data nodes must be >= 0");
         }
@@ -973,7 +976,6 @@ public final class InternalTestCluster extends TestCluster {
 
         void resetClient() {
             if (closed.get() == false) {
-                Releasables.close(nodeClient);
                 nodeClient = null;
             }
         }
@@ -1220,7 +1222,7 @@ public final class InternalTestCluster extends TestCluster {
                 .prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes(Integer.toString(expectedNodes.size()))
-                .get()
+                .get(TimeValue.timeValueSeconds(40))
                 .isTimedOut()
         );
         try {
@@ -1887,7 +1889,7 @@ public final class InternalTestCluster extends TestCluster {
     private Set<String> excludeMasters(Collection<NodeAndClient> nodeAndClients) {
         assert Thread.holdsLock(this);
         final Set<String> excludedNodeNames = new HashSet<>();
-        if (autoManageMasterNodes && nodeAndClients.size() > 0) {
+        if (autoManageVotingExclusions && autoManageMasterNodes && nodeAndClients.size() > 0) {
 
             final long currentMasters = nodes.values().stream().filter(NodeAndClient::isMasterEligible).count();
             final long stoppingMasters = nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
@@ -1908,7 +1910,7 @@ public final class InternalTestCluster extends TestCluster {
                         new AddVotingConfigExclusionsRequest(excludedNodeNames.toArray(Strings.EMPTY_ARRAY))
                     ).get();
                 } catch (InterruptedException | ExecutionException e) {
-                    throw new AssertionError("unexpected", e);
+                    ESTestCase.fail(e);
                 }
             }
         }
@@ -1917,13 +1919,13 @@ public final class InternalTestCluster extends TestCluster {
 
     private void removeExclusions(Set<String> excludedNodeIds) {
         assert Thread.holdsLock(this);
-        if (excludedNodeIds.isEmpty() == false) {
+        if (autoManageVotingExclusions && excludedNodeIds.isEmpty() == false) {
             logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
             try {
                 Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client();
                 client.execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
             } catch (InterruptedException | ExecutionException e) {
-                throw new AssertionError("unexpected", e);
+                ESTestCase.fail(e);
             }
         }
     }
@@ -2442,6 +2444,7 @@ public final class InternalTestCluster extends TestCluster {
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(
                     flags,
+                    false,
                     false,
                     false,
                     false,

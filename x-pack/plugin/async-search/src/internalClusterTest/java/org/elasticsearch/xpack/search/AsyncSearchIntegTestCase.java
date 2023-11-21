@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -30,6 +29,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.query.ThrowingQueryBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -99,11 +99,10 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     @Before
-    public void startMaintenanceService() {
+    public void unpauseMaintenanceService() {
         for (AsyncTaskMaintenanceService service : internalCluster().getDataNodeInstances(AsyncTaskMaintenanceService.class)) {
-            if (service.lifecycleState() == Lifecycle.State.STOPPED) {
+            if (service.unpause()) {
                 // force the service to start again
-                service.start();
                 ClusterState state = internalCluster().clusterService().state();
                 service.clusterChanged(new ClusterChangedEvent("noop", state, state));
             }
@@ -111,9 +110,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     @After
-    public void stopMaintenanceService() {
+    public void pauseMaintenanceService() {
         for (AsyncTaskMaintenanceService service : internalCluster().getDataNodeInstances(AsyncTaskMaintenanceService.class)) {
-            service.stop();
+            service.pause();
         }
     }
 
@@ -150,12 +149,12 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         DiscoveryNode node = clusterState.getState().nodes().get(searchId.getTaskId().getNodeId());
 
         // Temporarily stop garbage collection, making sure to wait for any in-flight tasks to complete
-        stopMaintenanceService();
+        pauseMaintenanceService();
         ensureAllSearchContextsReleased();
 
         internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
         });
-        startMaintenanceService();
+        unpauseMaintenanceService();
         ensureYellow(ASYNC_RESULTS_INDEX, indexName);
     }
 

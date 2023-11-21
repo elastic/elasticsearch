@@ -11,7 +11,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 
 import java.io.IOException;
@@ -24,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
-public class DataStreamsRestIT extends ESRestTestCase {
+public class DataStreamsRestIT extends DisabledSecurityDataStreamTestCase {
 
     @After
     public void cleanUp() throws IOException {
@@ -48,7 +47,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         assertOK(client().performRequest(createDocRequest));
 
-        Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=hidden");
+        Request getDataStreamsRequest = new Request("GET", "/_data_stream/*?expand_wildcards=hidden");
         Response response = client().performRequest(getDataStreamsRequest);
         Map<String, Object> dataStreams = entityAsMap(response);
         assertEquals(Collections.singletonList("hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));
@@ -78,7 +77,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         assertOK(client().performRequest(createDocRequest));
 
-        Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=hidden");
+        Request getDataStreamsRequest = new Request("GET", "/_data_stream/*?expand_wildcards=hidden");
         Response response = client().performRequest(getDataStreamsRequest);
         Map<String, Object> dataStreams = entityAsMap(response);
         assertEquals(Collections.singletonList(".hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));

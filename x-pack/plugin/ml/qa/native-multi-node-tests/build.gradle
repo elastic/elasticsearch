@@ -11,6 +11,7 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('autoscaling'))
   javaRestTestImplementation project(':modules:data-streams')
   javaRestTestImplementation project(path: xpackModule('ilm'))
+  javaRestTestImplementation project(path: xpackModule('slm'))
   javaRestTestImplementation project(path: xpackModule('monitoring'))
   javaRestTestImplementation project(path: xpackModule('transform'))
   javaRestTestImplementation project(":client:rest-high-level")

@@ -11,7 +11,9 @@ apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
-archivesBaseName = 'x-pack-core'
+base {
+  archivesName = 'x-pack-core'
+}
 
 esplugin {
   name 'x-pack-core'
@@ -39,13 +41,15 @@ dependencies {
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
+  testImplementation project(path: ':modules:data-streams')
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+
+  implementation project(":x-pack:plugin:core:template-resources")
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}" // this might suffer from https://github.com/elastic/elasticsearch/issues/93714
@@ -55,6 +59,7 @@ dependencies {
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:rest-root')
+  testImplementation project(path: ':modules:health-shards-availability')
   testImplementation project(":client:rest-high-level")
   // Needed for Fips140ProviderVerificationTests
   testCompileOnly('org.bouncycastle:bc-fips:1.0.2')
@@ -149,10 +154,4 @@ testClusters.configureEach {
 if (BuildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure{enabled = false }
-}
-
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.untrusted_remote_cluster_feature_flag_registered', 'true'
-  }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
@@ -25,7 +26,7 @@ public class TransportDeleteRoleAction extends HandledTransportAction<DeleteRole
 
     @Inject
     public TransportDeleteRoleAction(ActionFilters actionFilters, NativeRolesStore rolesStore, TransportService transportService) {
-        super(DeleteRoleAction.NAME, transportService, actionFilters, DeleteRoleRequest::new);
+        super(DeleteRoleAction.NAME, transportService, actionFilters, DeleteRoleRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.rolesStore = rolesStore;
     }
 
@@ -37,7 +38,7 @@ public class TransportDeleteRoleAction extends HandledTransportAction<DeleteRole
         }
 
         try {
-            rolesStore.deleteRole(request, listener.delegateFailure((l, found) -> l.onResponse(new DeleteRoleResponse(found))));
+            rolesStore.deleteRole(request, listener.safeMap(DeleteRoleResponse::new));
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> "failed to delete role [" + request.name() + "]", e);
             listener.onFailure(e);

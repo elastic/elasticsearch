@@ -15,12 +15,15 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 /** Rest handler for feature state reset requests */
+@ServerlessScope(Scope.INTERNAL)
 public class RestResetFeatureStateAction extends BaseRestHandler {
 
     @Override
@@ -42,20 +45,17 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final ResetFeatureStateRequest req = new ResetFeatureStateRequest();
 
-        return restChannel -> client.execute(ResetFeatureStateAction.INSTANCE, req, new RestToXContentListener<>(restChannel) {
-            @Override
-            protected RestStatus getStatus(ResetFeatureStateResponse response) {
-                long failures = response.getFeatureStateResetStatuses()
-                    .stream()
-                    .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
-                    .count();
-                if (failures == 0) {
-                    return RestStatus.OK;
-                } else if (failures == response.getFeatureStateResetStatuses().size()) {
-                    return RestStatus.INTERNAL_SERVER_ERROR;
-                }
-                return RestStatus.MULTI_STATUS;
+        return restChannel -> client.execute(ResetFeatureStateAction.INSTANCE, req, new RestToXContentListener<>(restChannel, r -> {
+            long failures = r.getFeatureStateResetStatuses()
+                .stream()
+                .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
+                .count();
+            if (failures == 0) {
+                return RestStatus.OK;
+            } else if (failures == r.getFeatureStateResetStatuses().size()) {
+                return RestStatus.INTERNAL_SERVER_ERROR;
             }
-        });
+            return RestStatus.MULTI_STATUS;
+        }));
     }
 }

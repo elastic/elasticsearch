@@ -10,7 +10,6 @@ package org.elasticsearch.legacygeo;
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
@@ -19,6 +18,7 @@ import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.legacygeo.builders.CoordinatesBuilder;
 import org.elasticsearch.legacygeo.builders.EnvelopeBuilder;
@@ -34,7 +34,7 @@ import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.parsers.GeoWKTParser;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
 import org.elasticsearch.legacygeo.test.RandomShapeGenerator;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -294,7 +294,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         parser.nextToken();
 
         final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", IndexVersion.current(), false, true)
-            .build(MapperBuilderContext.root(false));
+            .build(MapperBuilderContext.root(false, false));
 
         // test store z disabled
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> ShapeParser.parse(parser, mapperBuilder));
@@ -324,9 +324,9 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
-        final IndexVersion version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
+        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).build(
-            MapperBuilderContext.root(false)
+            MapperBuilderContext.root(false, false)
         );
 
         // test store z disabled
@@ -348,9 +348,9 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
-        final IndexVersion version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
+        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).build(
-            MapperBuilderContext.root(false)
+            MapperBuilderContext.root(false, false)
         );
 
         ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, mapperBuilder);
@@ -364,10 +364,10 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
 
-        final IndexVersion version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0).indexVersion;
+        final IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
         final LegacyGeoShapeFieldMapper defaultMapperBuilder = new LegacyGeoShapeFieldMapper.Builder("test", version, false, true).coerce(
             false
-        ).build(MapperBuilderContext.root(false));
+        ).build(MapperBuilderContext.root(false, false));
         ElasticsearchParseException exception = expectThrows(
             ElasticsearchParseException.class,
             () -> ShapeParser.parse(parser, defaultMapperBuilder)
@@ -379,7 +379,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             IndexVersion.current(),
             false,
             true
-        ).coerce(true).build(MapperBuilderContext.root(false));
+        ).coerce(true).build(MapperBuilderContext.root(false, false));
         ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, coercingMapperBuilder);
         assertNotNull(shapeBuilder);
         assertEquals("polygon ((100.0 5.0, 100.0 10.0, 90.0 10.0, 90.0 5.0, 100.0 5.0))", shapeBuilder.toWKT());

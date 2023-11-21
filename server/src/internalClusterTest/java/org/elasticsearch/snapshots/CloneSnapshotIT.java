@@ -642,8 +642,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for clone to start fully with shards assigned in the cluster state");
         try {
             awaitClusterState(clusterState -> {
-                final List<SnapshotsInProgress.Entry> entries = clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                    .forRepo(repoName);
+                final List<SnapshotsInProgress.Entry> entries = SnapshotsInProgress.get(clusterState).forRepo(repoName);
                 return entries.size() == 2 && entries.get(1).shardsByRepoShardId().isEmpty() == false;
             });
             assertFalse(blockedSnapshot.isDone());
@@ -680,7 +679,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, "target-snapshot", indexName);
         logger.info("--> waiting for snapshot clone to be fully initialized");
         awaitClusterState(state -> {
-            for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).forRepo(repoName)) {
+            for (SnapshotsInProgress.Entry entry : SnapshotsInProgress.get(state).forRepo(repoName)) {
                 if (entry.shardsByRepoShardId().isEmpty() == false) {
                     assertEquals(sourceSnapshot, entry.source().getName());
                     for (SnapshotsInProgress.ShardSnapshotStatus value : entry.shardsByRepoShardId().values()) {
@@ -721,12 +720,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<AcknowledgedResponse> clone2 = startClone(repoName, sourceSnapshot, "target-snapshot-2", testIndex);
 
         awaitNumberOfSnapshotsInProgress(2);
-        awaitClusterState(
-            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .forRepo(repoName)
-                .stream()
-                .anyMatch(entry -> entry.state().completed())
-        );
+        awaitClusterState(state -> SnapshotsInProgress.get(state).forRepo(repoName).stream().anyMatch(entry -> entry.state().completed()));
         repo.unblock();
 
         assertAcked(clone1.get());

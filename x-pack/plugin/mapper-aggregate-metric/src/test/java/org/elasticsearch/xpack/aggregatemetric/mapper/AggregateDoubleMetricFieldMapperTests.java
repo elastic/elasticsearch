@@ -80,6 +80,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Object getSampleObjectForDocument() {
+        return getSampleValueForDocument();
+    }
+
+    @Override
     protected Object getSampleValueForQuery() {
         return 50.0;
     }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.windows.service;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.core.Strings;
@@ -154,13 +154,15 @@ public class WindowsServiceInstallCommandTests extends WindowsServiceCliTestCase
     }
 
     public void testDisplayName() throws Exception {
-        assertServiceArgs(Map.of("DisplayName", Strings.format("\"Elasticsearch %s (elasticsearch-service-x64)\"", Version.CURRENT)));
+        assertServiceArgs(
+            Map.of("DisplayName", Strings.format("\"Elasticsearch %s (elasticsearch-service-x64)\"", Build.current().version()))
+        );
         envVars.put("SERVICE_DISPLAY_NAME", "my service name");
         assertServiceArgs(Map.of("DisplayName", "\"my service name\""));
     }
 
     public void testDescription() throws Exception {
-        String defaultDescription = Strings.format("\"Elasticsearch %s Windows Service - https://elastic.co\"", Version.CURRENT);
+        String defaultDescription = Strings.format("\"Elasticsearch %s Windows Service - https://elastic.co\"", Build.current().version());
         assertServiceArgs(Map.of("Description", defaultDescription));
         envVars.put("SERVICE_DESCRIPTION", "my description");
         assertServiceArgs(Map.of("Description", "\"my description\""));

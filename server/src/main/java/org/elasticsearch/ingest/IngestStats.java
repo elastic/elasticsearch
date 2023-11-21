@@ -128,9 +128,9 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                         return builder;
                     }),
 
-                    Iterators.flatMap(
+                    Iterators.map(
                         processorStats.getOrDefault(pipelineStat.pipelineId(), List.of()).iterator(),
-                        processorStat -> Iterators.<ToXContent>single((builder, params) -> {
+                        processorStat -> (builder, params) -> {
                             builder.startObject();
                             builder.startObject(processorStat.name());
                             builder.field("type", processorStat.type());
@@ -140,7 +140,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                             builder.endObject();
                             builder.endObject();
                             return builder;
-                        })
+                        }
                     ),
 
                     Iterators.<ToXContent>single((builder, params) -> builder.endArray().endObject())

@@ -9,20 +9,19 @@
 package org.elasticsearch.rest.root;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportMainAction extends HandledTransportAction<MainRequest, MainResponse> {
+public class TransportMainAction extends TransportAction<MainRequest, MainResponse> {
 
     private final String nodeName;
     private final ClusterService clusterService;
@@ -34,7 +33,7 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
         ActionFilters actionFilters,
         ClusterService clusterService
     ) {
-        super(MainAction.NAME, transportService, actionFilters, MainRequest::new);
+        super(MainRestPlugin.MAIN_ACTION.name(), actionFilters, transportService.getTaskManager());
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterService = clusterService;
     }
@@ -45,11 +44,10 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
         listener.onResponse(
             new MainResponse(
                 nodeName,
-                Version.CURRENT,
-                TransportVersion.current(),
+                IndexVersion.current().luceneVersion().toString(),
                 clusterState.getClusterName(),
                 clusterState.metadata().clusterUUID(),
-                Build.CURRENT
+                Build.current()
             )
         );
     }

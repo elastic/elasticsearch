@@ -16,19 +16,20 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.dfs.DfsProfiler;
 import org.elasticsearch.search.profile.dfs.DfsTimingType;
 import org.elasticsearch.search.profile.query.CollectorResult;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
-import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
+import org.elasticsearch.search.profile.query.ProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
-import org.elasticsearch.search.query.SingleThreadCollectorManager;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -43,7 +44,6 @@ import java.util.Map;
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
  * The additional information is used to better compare the scores coming from all the shards, which depend on local factors (e.g. idf).
- *
  * When a kNN search is provided alongside the query, the DFS phase is also used to gather the top k candidates from each shard. Then the
  * global top k hits are passed on to the query phase.
  */
@@ -171,7 +171,7 @@ public class DfsPhase {
         return null;
     };
 
-    private void executeKnnVectorQuery(SearchContext context) throws IOException {
+    private static void executeKnnVectorQuery(SearchContext context) throws IOException {
         SearchSourceBuilder source = context.request().source();
         if (source == null || source.knnSearch().isEmpty()) {
             return;
@@ -188,25 +188,39 @@ public class DfsPhase {
         }
         List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
         for (int i = 0; i < knnSearch.size(); i++) {
+            String knnField = knnVectorQueryBuilders.get(i).getFieldName();
+            String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-            TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(knnSearch.get(i).k(), Integer.MAX_VALUE);
-            CollectorManager<Collector, Void> collectorManager = new SingleThreadCollectorManager(topScoreDocCollector);
-            if (context.getProfilers() != null) {
-                InternalProfileCollectorManager ipcm = new InternalProfileCollectorManager(
-                    new InternalProfileCollector(collectorManager.newCollector(), CollectorResult.REASON_SEARCH_TOP_HITS)
-                );
-                QueryProfiler knnProfiler = context.getProfilers().getDfsProfiler().addQueryProfiler(ipcm);
-                collectorManager = ipcm;
-                // Set the current searcher profiler to gather query profiling information for gathering top K docs
-                context.searcher().setProfiler(knnProfiler);
-            }
-            context.searcher().search(knnQuery, collectorManager);
-            knnResults.add(new DfsKnnResults(topScoreDocCollector.topDocs().scoreDocs));
-        }
-        // Set profiler back after running KNN searches
-        if (context.getProfilers() != null) {
-            context.searcher().setProfiler(context.getProfilers().getCurrentQueryProfiler());
+            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
         }
         context.dfsResult().knnResults(knnResults);
+    }
+
+    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)
+        throws IOException {
+        CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = TopScoreDocCollector.createSharedManager(
+            k,
+            null,
+            Integer.MAX_VALUE
+        );
+        final TopDocs topDocs;
+        if (profilers == null) {
+            topDocs = searcher.search(knnQuery, topDocsCollectorManager);
+        } else {
+            QueryProfiler knnProfiler = profilers.getDfsProfiler().addQueryProfiler();
+            // Set the current searcher profiler to gather query profiling information for gathering top K docs
+            searcher.setProfiler(knnProfiler);
+            ProfileCollectorManager<TopDocs> ipcm = new ProfileCollectorManager<>(
+                topDocsCollectorManager,
+                CollectorResult.REASON_SEARCH_TOP_HITS
+            );
+            topDocs = searcher.search(knnQuery, ipcm);
+            knnProfiler.setCollectorResult(ipcm.getCollectorTree());
+        }
+        // Set profiler back after running KNN searches
+        if (profilers != null) {
+            searcher.setProfiler(profilers.getCurrentQueryProfiler());
+        }
+        return new DfsKnnResults(nestedPath, topDocs.scoreDocs);
     }
 }

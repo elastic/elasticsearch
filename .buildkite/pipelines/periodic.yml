@@ -1,0 +1,1274 @@
+# This file is auto-generated. See .buildkite/pipelines/periodic.template.yml
+steps:
+  - group: bwc
+    steps:
+      - label: 7.0.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.0.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.0.0
+      - label: 7.0.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.0.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.0.1
+      - label: 7.1.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.1.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.1.0
+      - label: 7.1.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.1.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.1.1
+      - label: 7.2.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.2.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.2.0
+      - label: 7.2.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.2.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.2.1
+      - label: 7.3.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.3.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.3.0
+      - label: 7.3.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.3.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.3.1
+      - label: 7.3.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.3.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.3.2
+      - label: 7.4.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.4.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.4.0
+      - label: 7.4.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.4.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.4.1
+      - label: 7.4.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.4.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.4.2
+      - label: 7.5.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.5.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.5.0
+      - label: 7.5.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.5.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.5.1
+      - label: 7.5.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.5.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.5.2
+      - label: 7.6.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.6.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.6.0
+      - label: 7.6.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.6.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.6.1
+      - label: 7.6.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.6.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.6.2
+      - label: 7.7.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.7.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.7.0
+      - label: 7.7.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.7.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.7.1
+      - label: 7.8.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.8.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.8.0
+      - label: 7.8.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.8.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.8.1
+      - label: 7.9.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.9.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.9.0
+      - label: 7.9.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.9.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.9.1
+      - label: 7.9.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.9.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.9.2
+      - label: 7.9.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.9.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.9.3
+      - label: 7.10.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.10.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.10.0
+      - label: 7.10.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.10.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.10.1
+      - label: 7.10.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.10.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.10.2
+      - label: 7.11.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.11.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.11.0
+      - label: 7.11.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.11.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.11.1
+      - label: 7.11.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.11.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.11.2
+      - label: 7.12.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.12.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.12.0
+      - label: 7.12.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.12.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.12.1
+      - label: 7.13.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.13.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.0
+      - label: 7.13.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.13.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.1
+      - label: 7.13.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.13.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.2
+      - label: 7.13.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.13.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.3
+      - label: 7.13.4 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.13.4#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.13.4
+      - label: 7.14.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.14.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.14.0
+      - label: 7.14.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.14.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.14.1
+      - label: 7.14.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.14.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.14.2
+      - label: 7.15.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.15.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.15.0
+      - label: 7.15.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.15.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.15.1
+      - label: 7.15.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.15.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.15.2
+      - label: 7.16.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.16.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.16.0
+      - label: 7.16.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.16.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.16.1
+      - label: 7.16.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.16.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.16.2
+      - label: 7.16.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.16.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.16.3
+      - label: 7.17.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.0
+      - label: 7.17.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.1
+      - label: 7.17.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.2
+      - label: 7.17.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.3
+      - label: 7.17.4 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.4#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.4
+      - label: 7.17.5 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.5#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.5
+      - label: 7.17.6 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.6#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.6
+      - label: 7.17.7 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.7#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.7
+      - label: 7.17.8 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.8#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.8
+      - label: 7.17.9 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.9#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.9
+      - label: 7.17.10 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.10#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.10
+      - label: 7.17.11 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.11#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.11
+      - label: 7.17.12 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.12#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.12
+      - label: 7.17.13 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.13#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.13
+      - label: 7.17.14 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.14#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.14
+      - label: 7.17.15 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.15#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.15
+      - label: 7.17.16 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.16#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.16
+      - label: 8.0.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.0.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.0.0
+      - label: 8.0.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.0.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.0.1
+      - label: 8.1.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.1.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.1.0
+      - label: 8.1.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.1.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.1.1
+      - label: 8.1.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.1.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.1.2
+      - label: 8.1.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.1.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.1.3
+      - label: 8.2.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.2.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.2.0
+      - label: 8.2.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.2.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.2.1
+      - label: 8.2.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.2.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.2.2
+      - label: 8.2.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.2.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.2.3
+      - label: 8.3.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.3.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.3.0
+      - label: 8.3.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.3.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.3.1
+      - label: 8.3.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.3.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.3.2
+      - label: 8.3.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.3.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.3.3
+      - label: 8.4.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.4.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.4.0
+      - label: 8.4.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.4.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.4.1
+      - label: 8.4.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.4.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.4.2
+      - label: 8.4.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.4.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.4.3
+      - label: 8.5.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.5.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.5.0
+      - label: 8.5.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.5.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.5.1
+      - label: 8.5.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.5.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.5.2
+      - label: 8.5.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.5.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.5.3
+      - label: 8.6.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.6.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.6.0
+      - label: 8.6.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.6.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.6.1
+      - label: 8.6.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.6.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.6.2
+      - label: 8.7.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.7.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.7.0
+      - label: 8.7.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.7.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.7.1
+      - label: 8.8.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.8.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.8.0
+      - label: 8.8.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.8.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.8.1
+      - label: 8.8.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.8.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.8.2
+      - label: 8.9.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.9.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.9.0
+      - label: 8.9.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.9.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.9.1
+      - label: 8.9.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.9.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.9.2
+      - label: 8.10.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.10.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.0
+      - label: 8.10.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.10.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.1
+      - label: 8.10.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.10.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.2
+      - label: 8.10.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.10.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.3
+      - label: 8.10.4 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.10.4#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.4
+      - label: 8.11.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.11.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.11.0
+      - label: 8.11.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.11.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.11.1
+      - label: 8.11.2 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.11.2#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.11.2
+      - label: 8.12.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.12.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.12.0
+  - label: concurrent-search-tests
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true check
+    timeout_in_minutes: 420
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304
+  - label: encryption-at-rest
+    command: .buildkite/scripts/encryption-at-rest.sh
+    timeout_in_minutes: 420
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304
+  - label: eql-correctness
+    command: .buildkite/scripts/eql-correctness.sh
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
+  - label: example-plugins
+    command: |-
+      cd $$WORKSPACE/plugins/examples
+
+      $$WORKSPACE/.ci/scripts/run-gradle.sh build
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
+  - group: java-fips-matrix
+    steps:
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-fips-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.fips.enabled=true $$GRADLE_TASK
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - openjdk17
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - bwcTestSnapshots
+              - checkRestCompat
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+  - group: java-matrix
+    steps:
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - graalvm-ce17
+              - openjdk17
+              - openjdk18
+              - openjdk19
+              - openjdk20
+              - openjdk21
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - bwcTestSnapshots
+              - checkRestCompat
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+  - label: release-tests
+    command: .buildkite/scripts/release-tests.sh
+    timeout_in_minutes: 360
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304
+  - label: single-processor-node-tests
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true check
+    timeout_in_minutes: 420
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304
+  - group: third-party tests
+    steps:
+      - label: third-party / azure-sas
+        command: |
+          export azure_storage_container=elasticsearch-ci-thirdparty-sas
+          export azure_storage_base_path=$BUILDKITE_BRANCH
+
+          .ci/scripts/run-gradle.sh azureThirdPartyTest
+        env:
+          USE_3RD_PARTY_AZURE_SAS_CREDENTIALS: "true"
+        timeout_in_minutes: 30
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
+      - label: third-party / azure
+        command: |
+          export azure_storage_container=elasticsearch-ci-thirdparty
+          export azure_storage_base_path=$BUILDKITE_BRANCH
+
+          .ci/scripts/run-gradle.sh azureThirdPartyTest
+        env:
+          USE_3RD_PARTY_AZURE_CREDENTIALS: "true"
+        timeout_in_minutes: 30
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
+      - label: third-party / gcs
+        command: |
+          export google_storage_bucket=elasticsearch-ci-thirdparty
+          export google_storage_base_path=$BUILDKITE_BRANCH
+
+          .ci/scripts/run-gradle.sh gcsThirdPartyTest
+        env:
+          USE_3RD_PARTY_GCS_CREDENTIALS: "true"
+        timeout_in_minutes: 30
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
+      - label: third-party / geoip
+        command: |
+          .ci/scripts/run-gradle.sh :modules:ingest-geoip:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
+        timeout_in_minutes: 30
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
+      - label: third-party / s3
+        command: |
+          export amazon_s3_bucket=elasticsearch-ci.us-west-2
+          export amazon_s3_base_path=$BUILDKITE_BRANCH
+
+          .ci/scripts/run-gradle.sh s3ThirdPartyTest
+        env:
+          USE_3RD_PARTY_S3_CREDENTIALS: "true"
+        timeout_in_minutes: 30
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
+  - label: Upload Snyk Dependency Graph
+    command: .ci/scripts/run-gradle.sh uploadSnykDependencyGraph -PsnykTargetReference=$BUILDKITE_BRANCH
+    env:
+      USE_SNYK_CREDENTIALS: "true"
+    timeout_in_minutes: 20
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: n2-standard-8
+      buildDirectory: /dev/shm/bk
+    if: build.branch == "main" || build.branch =~ /^[0-9]+\.[0-9]+\$/
+  - label: Check branch consistency
+    command: .ci/scripts/run-gradle.sh branchConsistency
+    timeout_in_minutes: 15
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: n2-standard-2
+  - label: Check branch protection rules
+    command: .buildkite/scripts/branch-protection.sh
+    timeout_in_minutes: 5

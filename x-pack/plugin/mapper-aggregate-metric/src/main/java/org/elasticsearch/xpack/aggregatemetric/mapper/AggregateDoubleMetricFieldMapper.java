@@ -115,7 +115,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         public static final EnumSet<Metric> METRICS = EnumSet.noneOf(Metric.class);
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -563,6 +563,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     @Override
     public Iterator<Mapper> iterator() {
         return Collections.emptyIterator();
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
+        return true;
     }
 
     @Override

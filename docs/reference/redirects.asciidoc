@@ -111,12 +111,12 @@ Refer to <<security-clients-integrations,Securing clients and integrations>>.
 [role="exclude",id="cross-cluster-configuring"]
 === {ccs-cap} and security
 
-Refer to <<remote-clusters-security,configure remote clusters with security>>.
+Refer to <<remote-clusters>>.
 
 [role="exclude",id="cross-cluster-kibana"]
 ==== {ccs-cap} and {kib}
 
-Refer to <<clusters-privileges-ccs-kibana,Configure privileges for {ccs} and {kib}>>.
+Refer to <<remote-clusters>>.
 
 [role="exclude",id="ccr-getting-started"]
 === Configure {ccr}
@@ -1882,32 +1882,53 @@ Refer to <<example-watches>> for other Watcher examples.
 
 Refer to <<fix-watermark-errors>>.
 
-[role="exclude",id="get-synonym-rule"]
-=== Get synonym rule API
+[role="exclude",id="dlm-delete-lifecycle"]
+=== Delete the lifecycle of a data stream
 
-coming::[8.10.0]
+Refer to <<data-streams-delete-lifecycle,Delete data stream lifecycle API>>.
+
+[role="exclude",id="dlm-explain-lifecycle"]
+=== Explain the lifecycle of a data stream
+
+Refer to <<data-streams-explain-lifecycle,Explain data stream lifecycle API>>.
+
+[role="exclude",id="dlm-get-lifecycle"]
+=== Get the lifecycle of a data stream
+
+Refer to <<data-streams-get-lifecycle,Get data stream lifecycle API>>.
+
+[role="exclude",id="dlm-put-lifecycle"]
+=== Update the lifecycle of a data stream
+
+Refer to <<data-streams-delete-lifecycle,Update data stream lifecycle API>>.
 
 [role="exclude",id="get-synonyms"]
-=== Get synonym set API
+=== Get synonyms set API
 
-coming::[8.10.0]
-
-[role="exclude",id="list-synonyms"]
-=== List synonym sets API
-
-coming::[8.10.0]
-
-[role="exclude",id="put-synonym-rule"]
-=== Create or update synonym rule API
-
-coming::[8.10.0]
+See <<get-synonyms-set>>
 
 [role="exclude",id="delete-synonyms"]
-=== Delete synonym sets API
+=== Delete synonyms sets API
 
-coming::[8.10.0]
+See <<delete-synonyms-set>>
 
 [role="exclude",id="put-synonyms"]
-=== Create or update synonym sets API
+=== Create or delete synonyms sets API
 
-coming::[8.10.0]
+See <<put-synonyms-set>>
+
+[role="exclude",id="remote-clusters-connect"]
+=== Remote clusters
+
+Refer to <<remote-clusters>>
+
+[float]
+[[configure-remote-clusters-dynamic]]
+==== Dynamically configure remote clusters
+
+Refer to <<remote-clusters>>.
+
+[role="exclude",id="remote-clusters-privileges"]
+=== Configure roles and users for remote clusters
+
+Refer to <<remote-clusters>>.

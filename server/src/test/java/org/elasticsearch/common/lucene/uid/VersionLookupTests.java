@@ -124,14 +124,14 @@ public class VersionLookupTests extends ESTestCase {
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setMergePolicy(NoMergePolicy.INSTANCE));
         Document doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "6", Field.Store.YES));
-        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1_000));
+        doc.add(new LongPoint(DataStream.TIMESTAMP_FIELD_NAME, 1_000));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.addDocument(doc);
         doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "8", Field.Store.YES));
-        doc.add(new LongPoint(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1_000_000));
+        doc.add(new LongPoint(DataStream.TIMESTAMP_FIELD_NAME, 1_000_000));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));

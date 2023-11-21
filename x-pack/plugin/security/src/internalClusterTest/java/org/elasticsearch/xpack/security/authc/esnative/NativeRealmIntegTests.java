@@ -27,7 +27,6 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -859,34 +858,32 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(usage.get("fls"), is(fls));
         assertThat(usage.get("dls"), is(dls));
 
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            final PutRoleResponse roleResponse = new PutRoleRequestBuilder(client()).source("role_remote_indices", new BytesArray("""
+        final PutRoleResponse roleResponse = new PutRoleRequestBuilder(client()).source("role_remote_indices", new BytesArray("""
+            {
+              "remote_indices": [
                 {
-                  "remote_indices": [
-                    {
-                      "names": [
-                        "shared-*"
-                      ],
-                      "privileges": [
-                        "read"
-                      ],
-                      "clusters": [
-                        "remote-*"
-                      ]
-                    }
+                  "names": [
+                    "shared-*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "clusters": [
+                    "remote-*"
                   ]
-                }"""), XContentType.JSON).get();
-            assertThat(roleResponse.isCreated(), is(true));
-            roles++;
+                }
+              ]
+            }"""), XContentType.JSON).get();
+        assertThat(roleResponse.isCreated(), is(true));
+        roles++;
 
-            future = new PlainActionFuture<>();
-            rolesStore.usageStats(future);
-            usage = future.get();
-            assertThat(usage.get("size"), is(roles));
-            assertThat(usage.get("fls"), is(fls));
-            assertThat(usage.get("dls"), is(dls));
-            assertThat(usage.get("remote_indices"), equalTo(1L));
-        }
+        future = new PlainActionFuture<>();
+        rolesStore.usageStats(future);
+        usage = future.get();
+        assertThat(usage.get("size"), is(roles));
+        assertThat(usage.get("fls"), is(fls));
+        assertThat(usage.get("dls"), is(dls));
+        assertThat(usage.get("remote_indices"), equalTo(1L));
     }
 
     @SuppressWarnings("unchecked")

@@ -70,7 +70,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             actionFilters,
             indexNameExpressionResolver,
             DataStreamsStatsAction.Request::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -148,8 +148,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             long maxTimestamp = 0L;
             try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
                 IndexReader indexReader = searcher.getIndexReader();
-                String fieldName = dataStream.getTimeStampField().getName();
-                byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, fieldName);
+                byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, DataStream.TIMESTAMP_FIELD_NAME);
                 if (maxPackedValue != null) {
                     maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
                 }

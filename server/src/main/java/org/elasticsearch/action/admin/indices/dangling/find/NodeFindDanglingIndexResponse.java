@@ -40,12 +40,12 @@ public class NodeFindDanglingIndexResponse extends BaseNodeResponse {
 
     protected NodeFindDanglingIndexResponse(StreamInput in) throws IOException {
         super(in);
-        this.danglingIndexInfo = in.readList(IndexMetadata::readFrom);
+        this.danglingIndexInfo = in.readCollectionAsList(IndexMetadata::readFrom);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(this.danglingIndexInfo);
+        out.writeCollection(this.danglingIndexInfo);
     }
 }

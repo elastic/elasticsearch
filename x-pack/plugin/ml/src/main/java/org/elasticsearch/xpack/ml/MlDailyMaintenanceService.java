@@ -10,15 +10,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
@@ -166,7 +167,7 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private synchronized void scheduleNext() {
         try {
-            cancellable = threadPool.schedule(this::triggerTasks, schedulerProvider.get(), ThreadPool.Names.GENERIC);
+            cancellable = threadPool.schedule(this::triggerTasks, schedulerProvider.get(), threadPool.generic());
         } catch (EsRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
                 logger.debug("failed to schedule next maintenance task; shutting down", e);
@@ -289,7 +290,7 @@ public class MlDailyMaintenanceService implements Releasable {
                 return;
             }
             TypedChainTaskExecutor<Tuple<DeleteJobAction.Request, AcknowledgedResponse>> chainTaskExecutor = new TypedChainTaskExecutor<>(
-                threadPool.executor(ThreadPool.Names.SAME),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 unused -> true,
                 unused -> true
             );
@@ -323,7 +324,7 @@ public class MlDailyMaintenanceService implements Releasable {
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                ListTasksAction.INSTANCE,
+                TransportListTasksAction.TYPE,
                 new ListTasksRequest().setActions(DeleteJobAction.NAME),
                 listTasksActionListener
             );

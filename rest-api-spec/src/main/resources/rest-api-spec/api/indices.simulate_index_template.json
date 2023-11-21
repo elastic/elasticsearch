@@ -1,7 +1,7 @@
 {
   "indices.simulate_index_template":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-simulate-index.html",
       "description": "Simulate matching the given index name against the index templates in the system"
     },
     "stability":"stable",

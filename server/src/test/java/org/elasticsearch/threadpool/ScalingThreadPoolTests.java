@@ -338,7 +338,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                 if (t == 0) {
                     threads[t] = new Thread(() -> {
                         try {
-                            barrier.await();
+                            safeAwait(barrier);
                             scalingExecutor.shutdown();
                         } catch (Exception e) {
                             throw new AssertionError(e);
@@ -347,7 +347,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                 } else {
                     threads[t] = new Thread(() -> {
                         try {
-                            barrier.await();
+                            safeAwait(barrier);
                             execute(scalingExecutor, () -> {}, executed, rejected, failed);
                         } catch (Exception e) {
                             throw new AssertionError(e);

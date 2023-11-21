@@ -2,10 +2,6 @@
 [[breaking_80_cluster_node_setting_changes]]
 ==== Cluster and node setting changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 TIP: {ess-setting-change}
 
 .`action.destructive_requires_name` now defaults to `true`. {ess-icon}
@@ -234,7 +230,7 @@ Remove the `http.content_type.required` setting from `elasticsearch.yml`. Specif
 [%collapsible]
 ====
 *Details* +
-The `http.tcp_no_delay` setting was deprecated in 7.x and has been removed in 8.0. Use`http.tcp.no_delay` instead.
+The `http.tcp_no_delay` setting was deprecated in 7.x and has been removed in 8.0. Use `http.tcp.no_delay` instead.
 
 *Impact* +
 Replace the `http.tcp_no_delay` setting with `http.tcp.no_delay`.
@@ -250,7 +246,7 @@ The `network.tcp.connect_timeout` setting was deprecated in 7.x and has been rem
 was a fallback setting for `transport.connect_timeout`.
 
 *Impact* +
-Remove the`network.tcp.connect_timeout` setting.
+Remove the `network.tcp.connect_timeout` setting.
 Use the `transport.connect_timeout` setting to change the default connection
 timeout for client connections. Specifying
 `network.tcp.connect_timeout` in `elasticsearch.yml` will result in an
@@ -884,7 +880,6 @@ repository-specific `compress` setting to enable compression instead. Refer to
 {ref}/snapshots-filesystem-repository.html#filesystem-repository-settings[Shared
 file system repository settings].
 ====
-//end::notable-breaking-changes[]
 
 // This change is not notable because it should not have any impact on upgrades
 // However we document it here out of an abundance of caution
@@ -911,7 +906,6 @@ Any node that did not have an explicitly configured password hashing algorithm i
 {es} 6.x or {es} 7.x would have failed to start.
 ====
 
-//tag::notable-breaking-changes[]
 .The `xpack.monitoring.history.duration` will not delete indices created by metricbeat or elastic agent
 [%collapsible]
 ====
@@ -935,4 +929,3 @@ metricbeat or agent to collect monitoring data, you can also remove any custom `
 settings.
 
 ====
-// end::notable-breaking-changes[]

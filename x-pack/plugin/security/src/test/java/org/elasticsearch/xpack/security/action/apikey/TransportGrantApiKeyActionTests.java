@@ -61,6 +61,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class TransportGrantApiKeyActionTests extends ESTestCase {
 
@@ -69,6 +70,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
     private ApiKeyUserRoleDescriptorResolver resolver;
     private AuthenticationService authenticationService;
     private ThreadPool threadPool;
+    private TransportService transportService;
     private AuthorizationService authorizationService;
 
     @Before
@@ -80,9 +82,11 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
 
         threadPool = new TestThreadPool("TP-" + getTestName());
         final ThreadContext threadContext = threadPool.getThreadContext();
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
 
         action = new TransportGrantApiKeyAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             threadContext,
             authenticationService,

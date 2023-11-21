@@ -47,6 +47,7 @@ import org.mockito.ArgumentCaptor;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Date;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -167,7 +168,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         datafeedRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
-        verify(threadPool, never()).schedule(any(), any(), any());
+        verify(threadPool, never()).schedule(any(), any(), any(Executor.class));
         verify(auditor).warning(JOB_ID, "Datafeed lookback retrieved no data");
     }
 
@@ -178,7 +179,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         datafeedRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
-        verify(threadPool, never()).schedule(any(), any(), any());
+        verify(threadPool, never()).schedule(any(), any(), any(Executor.class));
     }
 
     public void testStart_extractionProblem() throws Exception {
@@ -188,7 +189,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         datafeedRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
-        verify(threadPool, never()).schedule(any(), any(), any());
+        verify(threadPool, never()).schedule(any(), any(), any(Executor.class));
         verify(auditor, times(1)).error(eq(JOB_ID), anyString());
     }
 
@@ -202,7 +203,7 @@ public class DatafeedRunnerTests extends ESTestCase {
                 r.run();
             }
             return mock(Scheduler.ScheduledCancellable.class);
-        }).when(threadPool).schedule(any(), any(), any());
+        }).when(threadPool).schedule(any(), any(), any(Executor.class));
 
         when(datafeedJob.runLookBack(anyLong(), anyLong())).thenThrow(new DatafeedJob.EmptyDataCountException(0L, false));
         when(datafeedJob.runRealtime()).thenThrow(new DatafeedJob.EmptyDataCountException(0L, false));
@@ -211,7 +212,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         DatafeedTask task = createDatafeedTask(DATAFEED_ID, 0L, null);
         datafeedRunner.run(task, handler);
 
-        verify(threadPool, times(11)).schedule(any(), any(), eq(MachineLearning.DATAFEED_THREAD_POOL_NAME));
+        verify(threadPool, times(11)).schedule(any(), any(), any(Executor.class));
         verify(auditor, times(1)).warning(eq(JOB_ID), anyString());
     }
 
@@ -261,13 +262,13 @@ public class DatafeedRunnerTests extends ESTestCase {
         task = spyDatafeedTask(task);
         datafeedRunner.run(task, handler);
 
-        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
+        verify(threadPool, times(2)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
         if (cancelled) {
             task.stop("test", StopDatafeedAction.DEFAULT_TIMEOUT);
             verify(handler).accept(null);
             assertThat(datafeedRunner.isRunning(task), is(false));
         } else {
-            verify(threadPool, times(1)).schedule(any(), eq(new TimeValue(1)), eq(MachineLearning.DATAFEED_THREAD_POOL_NAME));
+            verify(threadPool, times(1)).schedule(any(), eq(new TimeValue(1)), any(Executor.class));
             assertThat(datafeedRunner.isRunning(task), is(true));
         }
     }
@@ -307,7 +308,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         capturedClusterStateListener.getValue().clusterChanged(new ClusterChangedEvent("_source", jobOpenedCs.build(), anotherJobCs));
 
         // Now it should run as the job state changed to OPENED
-        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
+        verify(threadPool, times(2)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
     }
 
     public void testDatafeedTaskWaitsUntilAutodetectCommunicatorIsOpen() {
@@ -345,7 +346,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         capturedClusterStateListener.getValue().clusterChanged(new ClusterChangedEvent("_source", cs, anotherJobCs));
 
         // Now it should run as the autodetect communicator is open
-        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
+        verify(threadPool, times(2)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
     }
 
     public void testDatafeedTaskWaitsUntilJobIsNotStale() {
@@ -383,7 +384,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         capturedClusterStateListener.getValue().clusterChanged(new ClusterChangedEvent("_source", jobOpenedCs.build(), anotherJobCs));
 
         // Now it should run as the job state chanded to OPENED
-        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
+        verify(threadPool, times(2)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
     }
 
     public void testDatafeedTaskStopsBecauseJobFailedWhileOpening() {

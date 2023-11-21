@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -122,10 +123,6 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         return new SignificantTextAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
-    protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
-        return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
-    }
-
     public TermsAggregator.BucketCountThresholds bucketCountThresholds() {
         return bucketCountThresholds;
     }
@@ -142,14 +139,6 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         throw new AggregationInitializationException(
             "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
         );
-    }
-
-    public SignificantTextAggregationBuilder bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
-        if (bucketCountThresholds == null) {
-            throw new IllegalArgumentException("[bucketCountThresholds] must not be null: [" + name + "]");
-        }
-        this.bucketCountThresholds = bucketCountThresholds;
-        return this;
     }
 
     /**
@@ -243,10 +232,6 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         return this;
     }
 
-    public QueryBuilder backgroundFilter() {
-        return filterBuilder;
-    }
-
     /**
      * Set terms to include and exclude from the aggregation results
      */
@@ -268,10 +253,6 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
         }
         this.significanceHeuristic = significanceHeuristic;
         return this;
-    }
-
-    public SignificanceHeuristic significanceHeuristic() {
-        return significanceHeuristic;
     }
 
     /**
@@ -400,6 +381,6 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_3_0;
+        return TransportVersions.V_7_3_0;
     }
 }

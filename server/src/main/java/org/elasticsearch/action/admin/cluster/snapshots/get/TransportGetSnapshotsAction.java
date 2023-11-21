@@ -85,11 +85,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             GetSnapshotsRequest::new,
             indexNameExpressionResolver,
             GetSnapshotsResponse::new,
-            ThreadPool.Names.MANAGEMENT // Execute this on the management pool because creating the response can become fairly expensive
-                                        // for large repositories in the verbose=false case when there are a lot of indices per snapshot.
-                                        // This is intentionally not using the snapshot_meta pool because that pool is sized rather large
-                                        // to accommodate concurrent IO and could consume excessive CPU resources through concurrent
-                                        // verbose=false requests that are CPU bound only.
+            // Execute this on the management pool because creating the response can become fairly expensive
+            // for large repositories in the verbose=false case when there are a lot of indices per snapshot.
+            // This is intentionally not using the snapshot_meta pool because that pool is sized rather large
+            // to accommodate concurrent IO and could consume excessive CPU resources through concurrent
+            // verbose=false requests that are CPU bound only.
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.repositoriesService = repositoriesService;
     }
@@ -110,7 +111,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         getMultipleReposSnapshotInfo(
             request.isSingleRepositoryRequest() == false,
-            state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY),
+            SnapshotsInProgress.get(state),
             TransportGetRepositoriesAction.getRepositories(state, request.repositories()),
             request.snapshots(),
             request.ignoreUnavailable(),
@@ -465,10 +466,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         } else {
             snapshotInfos = Collections.synchronizedList(new ArrayList<>());
         }
-        final ActionListener<Void> allDoneListener = listener.delegateFailure((l, v) -> {
+        final ActionListener<Void> allDoneListener = listener.safeMap(v -> {
             final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
             snapshotList.addAll(snapshotSet);
-            listener.onResponse(sortSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order));
+            return sortSnapshots(snapshotList, sortBy, after, 0, GetSnapshotsRequest.NO_LIMIT, order);
         });
         if (snapshotIdsToIterate.isEmpty()) {
             allDoneListener.onResponse(null);

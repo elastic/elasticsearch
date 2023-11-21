@@ -10,6 +10,8 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -17,6 +19,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -41,7 +44,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
@@ -119,6 +126,13 @@ public class SearchResponseTests extends ESTestCase {
             internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         }
 
+        SearchResponse.Clusters clusters;
+        if (minimal) {
+            clusters = randomSimpleClusters();
+        } else {
+            clusters = randomClusters();
+        }
+
         return new SearchResponse(
             internalSearchResponse,
             null,
@@ -127,26 +141,129 @@ public class SearchResponseTests extends ESTestCase {
             skippedShards,
             tookInMillis,
             shardSearchFailures,
-            randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY
+            clusters
         );
     }
 
+    /**
+     * This test method is typically called when needing "final" Cluster objects, not intermediate CCS state.
+     * So all clusters returned (whether for local only or remote cluster searches are in a final state
+     * where all clusters are either successful or skipped.
+     * @return Randomly chooses between a simple non-CCS Clusters object (1 cluster total with no details)
+     * and a "CCS" Cluster that has multiple clusters with details (underlying Cluster objects)
+     */
     static SearchResponse.Clusters randomClusters() {
-        int totalClusters = randomIntBetween(0, 10);
-        int successfulClusters = randomIntBetween(0, totalClusters);
-        int skippedClusters = totalClusters - successfulClusters;
         if (randomBoolean()) {
-            return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
+            return randomSimpleClusters();
         } else {
-            int remoteClusters = totalClusters;
-            if (totalClusters > 0 && randomBoolean()) {
-                // remoteClusters can be same as total cluster count or one less (when doing local search)
-                remoteClusters--;
-            }
-            // Clusters has an assert that if ccsMinimizeRoundtrips = true, then remoteClusters must be > 0
-            boolean ccsMinimizeRoundtrips = (remoteClusters > 0 ? randomBoolean() : false);
-            return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, remoteClusters, ccsMinimizeRoundtrips);
+            return createCCSClusterObject(3, 2, true, 2, 1, 0, 0, new ShardSearchFailure[0]);
         }
+    }
+
+    /**
+     * @return non-CCS Clusters - either SearchResponse.Clusters.EMPTY or a Clusters object
+     * with total=1, and it is marked as either successful or skipped.
+     */
+    static SearchResponse.Clusters randomSimpleClusters() {
+        if (randomBoolean()) {
+            return SearchResponse.Clusters.EMPTY;
+        } else {
+            int totalClusters = 1;
+            int successfulClusters = randomIntBetween(0, totalClusters);
+            int skippedClusters = totalClusters - successfulClusters;
+            return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
+        }
+    }
+
+    static SearchResponse.Clusters createCCSClusterObject(
+        int totalClusters,
+        int remoteClusters,
+        boolean ccsMinimizeRoundtrips,
+        int successfulClusters,
+        int skippedClusters,
+        int partialClusters,
+        int failedClusters,
+        ShardSearchFailure[] failures
+    ) {
+        assert successfulClusters + skippedClusters <= totalClusters : "successful + skipped > totalClusters";
+        assert totalClusters == remoteClusters || totalClusters - remoteClusters == 1
+            : "totalClusters and remoteClusters must be same or total = remote + 1";
+
+        OriginalIndices localIndices = null;
+        if (totalClusters > remoteClusters) {
+            localIndices = new OriginalIndices(new String[] { "foo", "bar*" }, IndicesOptions.lenientExpand());
+        }
+        assert remoteClusters > 0 : "CCS Cluster must have at least one remote cluster";
+        Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
+        for (int i = 0; i < remoteClusters; i++) {
+            remoteClusterIndices.put("cluster_" + i, new OriginalIndices(new String[] { "foo", "bar*" }, IndicesOptions.lenientExpand()));
+        }
+
+        var clusters = new SearchResponse.Clusters(localIndices, remoteClusterIndices, ccsMinimizeRoundtrips, alias -> false);
+
+        int successful = successfulClusters;
+        int skipped = skippedClusters;
+        int partial = partialClusters;
+        int failed = failedClusters;
+
+        int i = totalClusters > remoteClusters ? -1 : 0;
+        for (; i < remoteClusters; i++) {
+            SearchResponse.Cluster.Status status;
+            int totalShards = 5;
+            int successfulShards;
+            int skippedShards;
+            int failedShards;
+            List<ShardSearchFailure> failureList = Arrays.asList(failures);
+            TimeValue took = new TimeValue(1000L);
+            if (successful > 0) {
+                failedShards = 0;
+                status = SearchResponse.Cluster.Status.SUCCESSFUL;
+                successfulShards = 5;
+                skippedShards = 1;
+                failureList = Collections.emptyList();
+                successful--;
+            } else if (partial > 0) {
+                status = SearchResponse.Cluster.Status.PARTIAL;
+                successfulShards = 4;
+                skippedShards = 1;
+                failedShards = 1;
+                partial--;
+            } else if (skipped > 0) {
+                status = SearchResponse.Cluster.Status.SKIPPED;
+                successfulShards = 0;
+                skippedShards = 0;
+                failedShards = 5;
+                skipped--;
+            } else if (failed > 0) {
+                status = SearchResponse.Cluster.Status.FAILED;
+                successfulShards = 0;
+                skippedShards = 0;
+                failedShards = 5;
+                failed--;
+            } else {
+                failedShards = 0;
+                throw new IllegalStateException("Test setup coding error - should not get here");
+            }
+            String clusterAlias = "";
+            if (i >= 0) {
+                clusterAlias = "cluster_" + i;
+            }
+            SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+            List<ShardSearchFailure> finalFailureList = failureList;
+            clusters.swapCluster(
+                cluster.getClusterAlias(),
+                (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(status)
+                    .setTotalShards(totalShards)
+                    .setSuccessfulShards(successfulShards)
+                    .setSkippedShards(skippedShards)
+                    .setFailedShards(failedShards)
+                    .setFailures(finalFailureList)
+                    .setTook(took)
+                    .setTimedOut(false)
+                    .build()
+            );
+        }
+        return clusters;
     }
 
     /**
@@ -185,7 +302,15 @@ public class SearchResponseTests extends ESTestCase {
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), mutated)) {
             SearchResponse parsed = SearchResponse.fromXContent(parser);
-            assertToXContentEquivalent(originalBytes, XContentHelper.toXContent(parsed, xcontentType, params, humanReadable), xcontentType);
+            try {
+                assertToXContentEquivalent(
+                    originalBytes,
+                    XContentHelper.toXContent(parsed, xcontentType, params, humanReadable),
+                    xcontentType
+                );
+            } finally {
+                parsed.decRef();
+            }
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -214,25 +339,29 @@ public class SearchResponseTests extends ESTestCase {
         );
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponse.fromXContent(parser);
-            for (int i = 0; i < parsed.getShardFailures().length; i++) {
-                ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
-                ShardSearchFailure originalFailure = failures[i];
-                assertEquals(originalFailure.index(), parsedFailure.index());
-                assertEquals(originalFailure.shard(), parsedFailure.shard());
-                assertEquals(originalFailure.shardId(), parsedFailure.shardId());
-                String originalMsg = originalFailure.getCause().getMessage();
-                assertEquals(
-                    parsedFailure.getCause().getMessage(),
-                    "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]"
-                );
-                String nestedMsg = originalFailure.getCause().getCause().getMessage();
-                assertEquals(
-                    parsedFailure.getCause().getCause().getMessage(),
-                    "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
-                );
+            try {
+                for (int i = 0; i < parsed.getShardFailures().length; i++) {
+                    ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
+                    ShardSearchFailure originalFailure = failures[i];
+                    assertEquals(originalFailure.index(), parsedFailure.index());
+                    assertEquals(originalFailure.shard(), parsedFailure.shard());
+                    assertEquals(originalFailure.shardId(), parsedFailure.shardId());
+                    String originalMsg = originalFailure.getCause().getMessage();
+                    assertEquals(
+                        parsedFailure.getCause().getMessage(),
+                        "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]"
+                    );
+                    String nestedMsg = originalFailure.getCause().getCause().getMessage();
+                    assertEquals(
+                        parsedFailure.getCause().getCause().getMessage(),
+                        "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
+                    );
+                }
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            } finally {
+                parsed.decRef();
             }
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertNull(parser.nextToken());
         }
     }
 
@@ -312,7 +441,10 @@ public class SearchResponseTests extends ESTestCase {
                   "_clusters": {
                     "total": 5,
                     "successful": 3,
-                    "skipped": 2
+                    "skipped": 2,
+                    "running":0,
+                    "partial": 0,
+                    "failed": 0
                   },
                   "hits": {
                     "total": {
@@ -321,6 +453,148 @@ public class SearchResponseTests extends ESTestCase {
                     },
                     "max_score": 1.5,
                     "hits": [ { "_id": "id1", "_score": 2.0 } ]
+                  }
+                }""");
+            assertEquals(expectedString, Strings.toString(response));
+        }
+        {
+            SearchResponse response = new SearchResponse(
+                new InternalSearchResponse(
+                    new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                    null,
+                    null,
+                    null,
+                    false,
+                    null,
+                    1
+                ),
+                null,
+                20,
+                9,
+                2,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                createCCSClusterObject(
+                    4,
+                    3,
+                    true,
+                    1,
+                    1,
+                    1,
+                    1,
+                    new ShardSearchFailure[] { new ShardSearchFailure(new IllegalStateException("corrupt index")) }
+                )
+            );
+            String expectedString = XContentHelper.stripWhitespace("""
+                {
+                  "took": 0,
+                  "timed_out": false,
+                  "_shards": {
+                    "total": 20,
+                    "successful": 9,
+                    "skipped": 2,
+                    "failed": 0
+                  },
+                  "_clusters": {
+                    "total": 4,
+                    "successful": 1,
+                    "skipped": 1,
+                    "running":0,
+                    "partial": 1,
+                    "failed": 1,
+                    "details": {
+                      "(local)": {
+                        "status": "successful",
+                        "indices": "foo,bar*",
+                        "took": 1000,
+                        "timed_out": false,
+                        "_shards": {
+                          "total": 5,
+                          "successful": 5,
+                          "skipped": 1,
+                          "failed": 0
+                        }
+                      },
+                      "cluster_1": {
+                        "status": "skipped",
+                        "indices": "foo,bar*",
+                        "took": 1000,
+                        "timed_out": false,
+                        "_shards": {
+                          "total": 5,
+                          "successful": 0,
+                          "skipped": 0,
+                          "failed": 5
+                        },
+                        "failures": [
+                          {
+                            "shard": -1,
+                            "index": null,
+                            "reason": {
+                              "type": "illegal_state_exception",
+                              "reason": "corrupt index"
+                            }
+                          }
+                        ]
+                      },
+                      "cluster_2": {
+                        "status": "failed",
+                        "indices": "foo,bar*",
+                        "took": 1000,
+                        "timed_out": false,
+                        "_shards": {
+                          "total": 5,
+                          "successful": 0,
+                          "skipped": 0,
+                          "failed": 5
+                        },
+                        "failures": [
+                          {
+                            "shard": -1,
+                            "index": null,
+                            "reason": {
+                              "type": "illegal_state_exception",
+                              "reason": "corrupt index"
+                            }
+                          }
+                        ]
+                      },
+                      "cluster_0": {
+                        "status": "partial",
+                        "indices": "foo,bar*",
+                        "took": 1000,
+                        "timed_out": false,
+                        "_shards": {
+                          "total": 5,
+                          "successful": 4,
+                          "skipped": 1,
+                          "failed": 1
+                        },
+                        "failures": [
+                          {
+                            "shard": -1,
+                            "index": null,
+                            "reason": {
+                              "type": "illegal_state_exception",
+                              "reason": "corrupt index"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "hits": {
+                    "total": {
+                      "value": 100,
+                      "relation": "eq"
+                    },
+                    "max_score": 1.5,
+                    "hits": [
+                      {
+                        "_id": "id1",
+                        "_score": 2.0
+                      }
+                    ]
                   }
                 }""");
             assertEquals(expectedString, Strings.toString(response));
@@ -369,5 +643,45 @@ public class SearchResponseTests extends ESTestCase {
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(0, Strings.toString(builder).length());
+    }
+
+    public void testClustersHasRemoteCluster() {
+        // local cluster search Clusters objects
+        assertFalse(SearchResponse.Clusters.EMPTY.hasRemoteClusters());
+        assertFalse(new SearchResponse.Clusters(1, 1, 0).hasRemoteClusters());
+
+        // CCS search Cluster objects
+
+        // TODO: this variant of Clusters should not be allowed in a future ticket, but adding to test for now
+        assertTrue(new SearchResponse.Clusters(3, 2, 1).hasRemoteClusters());
+        {
+            Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
+            remoteClusterIndices.put("remote1", new OriginalIndices(new String[] { "*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+
+            var c = new SearchResponse.Clusters(null, remoteClusterIndices, randomBoolean(), alias -> randomBoolean());
+            assertTrue(c.hasRemoteClusters());
+        }
+
+        {
+            OriginalIndices localIndices = new OriginalIndices(new String[] { "foo*" }, IndicesOptions.LENIENT_EXPAND_OPEN);
+
+            Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
+            remoteClusterIndices.put("remote1", new OriginalIndices(new String[] { "*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+
+            var c = new SearchResponse.Clusters(localIndices, remoteClusterIndices, randomBoolean(), alias -> randomBoolean());
+            assertTrue(c.hasRemoteClusters());
+        }
+
+        {
+            OriginalIndices localIndices = new OriginalIndices(new String[] { "foo*" }, IndicesOptions.LENIENT_EXPAND_OPEN);
+
+            Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
+            remoteClusterIndices.put("remote1", new OriginalIndices(new String[] { "*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+            remoteClusterIndices.put("remote2", new OriginalIndices(new String[] { "a*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+            remoteClusterIndices.put("remote3", new OriginalIndices(new String[] { "b*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+
+            var c = new SearchResponse.Clusters(localIndices, remoteClusterIndices, randomBoolean(), alias -> randomBoolean());
+            assertTrue(c.hasRemoteClusters());
+        }
     }
 }

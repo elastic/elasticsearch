@@ -9,10 +9,14 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -44,6 +48,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -55,6 +61,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -94,7 +101,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public abstract class Engine implements Closeable {
 
-    public static final String SYNC_COMMIT_ID = "sync_id"; // TODO: Remove sync_id in 9.0
+    @UpdateForV9 // TODO: Remove sync_id in 9.0
+    public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String FORCE_MERGE_UUID_KEY = "force_merge_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
@@ -105,6 +113,7 @@ public abstract class Engine implements Closeable {
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
+    public static final long UNKNOWN_PRIMARY_TERM = -1L;
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -142,11 +151,25 @@ public abstract class Engine implements Closeable {
         this.eventListener = engineConfig.getEventListener();
     }
 
+    /**
+     * Reads an {@code IndexVersion} from an {@code es_version} metadata string
+     */
+    public static IndexVersion readIndexVersion(String esVersion) {
+        if (esVersion.contains(".")) {
+            // backwards-compatible Version-style
+            org.elasticsearch.Version v = org.elasticsearch.Version.fromString(esVersion);
+            assert v.onOrBefore(org.elasticsearch.Version.V_8_11_0);
+            return IndexVersion.fromId(v.id);
+        } else {
+            return IndexVersion.fromId(Integer.parseInt(esVersion));
+        }
+    }
+
     public final EngineConfig config() {
         return engineConfig;
     }
 
-    protected abstract SegmentInfos getLastCommittedSegmentInfos();
+    public abstract SegmentInfos getLastCommittedSegmentInfos();
 
     public MergeStats getMergeStats() {
         return new MergeStats();
@@ -199,6 +222,48 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * Returns the {@link DenseVectorStats} for this engine
+     */
+    public DenseVectorStats denseVectorStats() {
+        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
+            return denseVectorStats(searcher.getIndexReader());
+        }
+    }
+
+    protected final DenseVectorStats denseVectorStats(IndexReader indexReader) {
+        long valueCount = 0;
+        // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
+        // the next scheduled refresh to go through and refresh the stats as well
+        for (LeafReaderContext readerContext : indexReader.leaves()) {
+            try {
+                valueCount += getDenseVectorValueCount(readerContext.reader());
+            } catch (IOException e) {
+                logger.trace(() -> "failed to get dense vector stats for [" + readerContext + "]", e);
+            }
+        }
+        return new DenseVectorStats(valueCount);
+    }
+
+    private long getDenseVectorValueCount(final LeafReader atomicReader) throws IOException {
+        long count = 0;
+        for (FieldInfo info : atomicReader.getFieldInfos()) {
+            if (info.getVectorDimension() > 0) {
+                switch (info.getVectorEncoding()) {
+                    case FLOAT32 -> {
+                        FloatVectorValues values = atomicReader.getFloatVectorValues(info.name);
+                        count += values != null ? values.size() : 0;
+                    }
+                    case BYTE -> {
+                        ByteVectorValues values = atomicReader.getByteVectorValues(info.name);
+                        count += values != null ? values.size() : 0;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
      * Performs the pre-closing checks on the {@link Engine}.
      *
      * @throws IllegalStateException if the sanity checks failed
@@ -221,10 +286,9 @@ public abstract class Engine implements Closeable {
     public interface IndexCommitListener {
 
         /**
-         * This method is invoked each time a new Lucene commit is created through this engine. There is no guarantee that a listener will
-         * be notified of the commits in order, ie newer commits may appear before older ones. The {@link IndexCommitRef} prevents the
-         * {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such, the listener must close the
-         * reference as soon as it is done with it.
+         * This method is invoked each time a new Lucene commit is created through this engine. Note that commits are notified in order. The
+         * {@link IndexCommitRef} prevents the {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such,
+         * the listener must close the reference as soon as it is done with it.
          *
          * @param shardId         the {@link ShardId} of shard
          * @param store           the index shard store
@@ -1065,7 +1129,7 @@ public abstract class Engine implements Closeable {
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
      */
     // NOTE: do NOT rename this to something containing flush or refresh!
-    public abstract void writeIndexingBuffer() throws EngineException;
+    public abstract void writeIndexingBuffer() throws IOException;
 
     /**
      * Checks if this engine should be flushed periodically.
@@ -1078,7 +1142,7 @@ public abstract class Engine implements Closeable {
      */
     // TODO: Remove or rename for increased clarity
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
         flush(force, waitIfOngoing, future);
         future.actionGet();
     }
@@ -1105,7 +1169,7 @@ public abstract class Engine implements Closeable {
      * a lucene commit if nothing needs to be committed.
      */
     public final void flush() throws EngineException {
-        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
         flush(false, false, future);
         future.actionGet();
     }
@@ -2053,8 +2117,19 @@ public abstract class Engine implements Closeable {
 
     /**
      * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
+     *
+     * @deprecated use {@link #addPrimaryTermAndGenerationListener(long, long, ActionListener)} instead.
      */
+    @Deprecated
     public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+        addPrimaryTermAndGenerationListener(UNKNOWN_PRIMARY_TERM, minGeneration, listener);
+    }
+
+    /**
+     * Allows registering a listener for when the index shard is on a primary term >= minPrimaryTerm
+     * and a segment generation >= minGeneration.
+     */
+    public void addPrimaryTermAndGenerationListener(long minPrimaryTerm, long minGeneration, ActionListener<Long> listener) {
         throw new UnsupportedOperationException();
     }
 
@@ -2068,13 +2143,13 @@ public abstract class Engine implements Closeable {
      * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>
      * contains the generation of the index commit that the reader has opened upon refresh.
      */
-    public record RefreshResult(boolean refreshed, long generation) {
+    public record RefreshResult(boolean refreshed, long primaryTerm, long generation) {
 
         public static final long UNKNOWN_GENERATION = -1L;
         public static final RefreshResult NO_REFRESH = new RefreshResult(false);
 
         public RefreshResult(boolean refreshed) {
-            this(refreshed, UNKNOWN_GENERATION);
+            this(refreshed, UNKNOWN_PRIMARY_TERM, UNKNOWN_GENERATION);
         }
     }
 

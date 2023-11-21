@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TransportException;
 
 import java.net.InetSocketAddress;
 
@@ -161,7 +162,13 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        channel.writeAndFlush(Netty4Utils.toByteBuf(reference), addPromise(listener, channel));
+        // We need to both guard against double resolving the listener and not resolving it in case of event loop shutdown so we need to
+        // use #notifyOnce here until https://github.com/netty/netty/issues/8007 is resolved.
+        var wrapped = ActionListener.notifyOnce(listener);
+        channel.writeAndFlush(Netty4Utils.toByteBuf(reference), addPromise(wrapped, channel));
+        if (channel.eventLoop().isShutdown()) {
+            wrapped.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
+        }
     }
 
     public Channel getNettyChannel() {

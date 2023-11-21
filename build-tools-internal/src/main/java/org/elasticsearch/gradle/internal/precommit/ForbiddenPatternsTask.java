@@ -114,24 +114,19 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
             } catch (UncheckedIOException e) {
                 throw new IllegalArgumentException("Failed to read " + f + " as UTF_8", e);
             }
-            List<Integer> invalidLines = IntStream.range(0, lines.size())
-                .filter(i -> allPatterns.matcher(lines.get(i)).find())
-                .boxed()
-                .collect(Collectors.toList());
 
             URI baseUri = getRootDir().orElse(projectLayout.getProjectDirectory().getAsFile()).get().toURI();
             String path = baseUri.relativize(f.toURI()).toString();
-            failures.addAll(
-                invalidLines.stream()
-                    .map(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
-                    .flatMap(
-                        kv -> patterns.entrySet()
-                            .stream()
-                            .filter(p -> Pattern.compile(p.getValue()).matcher(kv.getValue()).find())
-                            .map(p -> "- " + p.getKey() + " on line " + kv.getKey() + " of " + path)
-                    )
-                    .collect(Collectors.toList())
-            );
+            IntStream.range(0, lines.size())
+                .filter(i -> allPatterns.matcher(lines.get(i)).find())
+                .mapToObj(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
+                .flatMap(
+                    kv -> patterns.entrySet()
+                        .stream()
+                        .filter(p -> Pattern.compile(p.getValue()).matcher(kv.getValue()).find())
+                        .map(p -> "- " + p.getKey() + " on line " + kv.getKey() + " of " + path)
+                )
+                .forEach(failures::add);
         }
         if (failures.isEmpty() == false) {
             throw new GradleException("Found invalid patterns:\n" + String.join("\n", failures));

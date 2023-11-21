@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.idp.saml.support;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -89,7 +90,7 @@ public class SamlAuthenticationStateTests extends IdpSamlTestCase {
     private SamlAuthenticationState assertSerializationRoundTrip(SamlAuthenticationState state) throws IOException {
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_7_0,
+            TransportVersions.V_7_7_0,
             TransportVersion.current()
         );
         final SamlAuthenticationState read = copyWriteable(

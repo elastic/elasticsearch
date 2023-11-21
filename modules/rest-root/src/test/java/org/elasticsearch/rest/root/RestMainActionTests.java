@@ -9,10 +9,9 @@
 package org.elasticsearch.rest.root;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -34,11 +33,16 @@ public class RestMainActionTests extends ESTestCase {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
         final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
-        final Version version = Version.CURRENT;
-        final TransportVersion transportVersion = TransportVersion.current();
-        final Build build = Build.CURRENT;
+        final IndexVersion indexVersion = IndexVersion.current();
+        final Build build = Build.current();
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, transportVersion, clusterName, clusterUUID, build);
+        final MainResponse mainResponse = new MainResponse(
+            nodeName,
+            indexVersion.luceneVersion().toString(),
+            clusterName,
+            clusterUUID,
+            build
+        );
         XContentBuilder builder = JsonXContent.contentBuilder();
         RestRequest restRequest = new FakeRestRequest() {
             @Override
@@ -59,12 +63,17 @@ public class RestMainActionTests extends ESTestCase {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
         final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
-        final Version version = Version.CURRENT;
-        final TransportVersion transportVersion = TransportVersion.current();
-        final Build build = Build.CURRENT;
+        final IndexVersion indexVersion = IndexVersion.current();
+        final Build build = Build.current();
         final boolean prettyPrint = randomBoolean();
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, transportVersion, clusterName, clusterUUID, build);
+        final MainResponse mainResponse = new MainResponse(
+            nodeName,
+            indexVersion.luceneVersion().toString(),
+            clusterName,
+            clusterUUID,
+            build
+        );
         XContentBuilder builder = JsonXContent.contentBuilder();
 
         Map<String, String> params = new HashMap<>();

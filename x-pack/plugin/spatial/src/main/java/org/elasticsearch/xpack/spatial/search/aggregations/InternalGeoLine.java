@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -88,7 +88,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         this.includeSorts = in.readBoolean();
         this.sortOrder = SortOrder.readFromStream(in);
         this.size = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             nonOverlapping = in.readBoolean();
             simplified = in.readBoolean();
         } else {
@@ -105,7 +105,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         out.writeBoolean(includeSorts);
         sortOrder.writeTo(out);
         out.writeVInt(size);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeBoolean(nonOverlapping);
             out.writeBoolean(simplified);
         }
@@ -116,6 +116,8 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         int mergedSize = 0;
         boolean reducedComplete = true;
         boolean reducedIncludeSorts = true;
+        boolean reducedNonOverlapping = this.nonOverlapping;
+        boolean reducedSimplified = this.simplified;
         List<InternalGeoLine> internalGeoLines = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoLine geoLine = (InternalGeoLine) aggregation;
@@ -123,13 +125,16 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
             mergedSize += geoLine.line.length;
             reducedComplete &= geoLine.complete;
             reducedIncludeSorts &= geoLine.includeSorts;
+            reducedNonOverlapping &= geoLine.nonOverlapping;
+            reducedSimplified |= geoLine.simplified;
         }
         reducedComplete &= mergedSize <= size;
         int finalSize = Math.min(mergedSize, size);
 
-        MergedGeoLines mergedGeoLines = nonOverlapping
-            ? new MergedGeoLines.NonOverlapping(internalGeoLines, finalSize, sortOrder, simplified)
-            : new MergedGeoLines.Overlapping(internalGeoLines, finalSize, sortOrder, simplified);
+        // If all geo_lines are marked as non-overlapping, then we can optimize the merge-sort
+        MergedGeoLines mergedGeoLines = reducedNonOverlapping
+            ? new MergedGeoLines.NonOverlapping(internalGeoLines, finalSize, sortOrder, reducedSimplified)
+            : new MergedGeoLines.Overlapping(internalGeoLines, finalSize, sortOrder, reducedSimplified);
         mergedGeoLines.merge();
         return new InternalGeoLine(
             name,

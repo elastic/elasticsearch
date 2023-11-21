@@ -28,8 +28,12 @@ import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
+import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
+import org.elasticsearch.search.TooManyScrollContextsException;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.transport.TcpTransport;
@@ -71,7 +75,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldN
  */
 public class ElasticsearchException extends RuntimeException implements ToXContentFragment, Writeable {
 
-    private static final TransportVersion UNKNOWN_VERSION_ADDED = TransportVersion.ZERO;
+    private static final TransportVersion UNKNOWN_VERSION_ADDED = TransportVersions.ZERO;
 
     /**
      * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
@@ -142,6 +146,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         super(LoggerMessageFormat.format(msg, args), cause);
     }
 
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
@@ -297,14 +302,14 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         out.writeOptionalString(this.getMessage());
         nestedExceptionsWriter.write(out, this);
-        out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeMapOfLists(metadata, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeStringCollection);
+        out.writeMap(metadata, StreamOutput::writeStringCollection);
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
         CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> elasticsearchException = ID_TO_SUPPLIER.get(id);
         if (elasticsearchException == null) {
-            if (id == 127 && input.getTransportVersion().before(TransportVersion.V_7_5_0)) {
+            if (id == 127 && input.getTransportVersion().before(TransportVersions.V_7_5_0)) {
                 // was SearchContextException
                 return new SearchException(input);
             }
@@ -1126,12 +1131,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         // 26 was BatchOperationException
-        SNAPSHOT_CREATION_EXCEPTION(
-            org.elasticsearch.snapshots.SnapshotCreationException.class,
-            org.elasticsearch.snapshots.SnapshotCreationException::new,
-            27,
-            UNKNOWN_VERSION_ADDED
-        ),
+        // 27 was SnapshotCreationException
         // 28 was DeleteFailedEngineException, deprecated in 6.0, removed in 7.0
         DOCUMENT_MISSING_EXCEPTION(
             org.elasticsearch.index.engine.DocumentMissingException.class,
@@ -1728,7 +1728,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException.class,
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException::new,
             150,
-            TransportVersion.V_7_0_0
+            TransportVersions.V_7_0_0
         ),
         SNAPSHOT_IN_PROGRESS_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotInProgressException.class,
@@ -1764,86 +1764,105 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
             org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
             156,
-            TransportVersion.V_7_5_0
+            TransportVersions.V_7_5_0
         ),
         INGEST_PROCESSOR_EXCEPTION(
             org.elasticsearch.ingest.IngestProcessorException.class,
             org.elasticsearch.ingest.IngestProcessorException::new,
             157,
-            TransportVersion.V_7_5_0
+            TransportVersions.V_7_5_0
         ),
         PEER_RECOVERY_NOT_FOUND_EXCEPTION(
             org.elasticsearch.indices.recovery.PeerRecoveryNotFound.class,
             org.elasticsearch.indices.recovery.PeerRecoveryNotFound::new,
             158,
-            TransportVersion.V_7_9_0
+            TransportVersions.V_7_9_0
         ),
         NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
             org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException.class,
             org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException::new,
             159,
-            TransportVersion.V_8_0_0
+            TransportVersions.V_8_0_0
         ),
         NO_SEED_NODE_LEFT_EXCEPTION(
             org.elasticsearch.transport.NoSeedNodeLeftException.class,
             org.elasticsearch.transport.NoSeedNodeLeftException::new,
             160,
-            TransportVersion.V_7_10_0
+            TransportVersions.V_7_10_0
         ),
         VERSION_MISMATCH_EXCEPTION(
             org.elasticsearch.action.search.VersionMismatchException.class,
             org.elasticsearch.action.search.VersionMismatchException::new,
             161,
-            TransportVersion.V_7_12_0
+            TransportVersions.V_7_12_0
         ),
         AUTHENTICATION_PROCESSING_ERROR(
             org.elasticsearch.ElasticsearchAuthenticationProcessingError.class,
             org.elasticsearch.ElasticsearchAuthenticationProcessingError::new,
             162,
-            TransportVersion.V_7_16_0
+            TransportVersions.V_7_16_0
         ),
         REPOSITORY_CONFLICT_EXCEPTION(
             org.elasticsearch.repositories.RepositoryConflictException.class,
             org.elasticsearch.repositories.RepositoryConflictException::new,
             163,
-            TransportVersion.V_8_0_0
+            TransportVersions.V_8_0_0
         ),
         DESIRED_NODES_VERSION_CONFLICT_EXCEPTION(
             org.elasticsearch.cluster.desirednodes.VersionConflictException.class,
             org.elasticsearch.cluster.desirednodes.VersionConflictException::new,
             164,
-            TransportVersion.V_8_1_0
+            TransportVersions.V_8_1_0
         ),
         SNAPSHOT_NAME_ALREADY_IN_USE_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException.class,
             org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException::new,
             165,
-            TransportVersion.V_8_2_0
+            TransportVersions.V_8_2_0
         ),
         HEALTH_NODE_NOT_DISCOVERED_EXCEPTION(
             HealthNodeNotDiscoveredException.class,
             HealthNodeNotDiscoveredException::new,
             166,
-            TransportVersion.V_8_5_0
+            TransportVersions.V_8_5_0
         ),
         UNSUPPORTED_AGGREGATION_ON_DOWNSAMPLED_INDEX_EXCEPTION(
             UnsupportedAggregationOnDownsampledIndex.class,
             UnsupportedAggregationOnDownsampledIndex::new,
             167,
-            TransportVersion.V_8_5_0
+            TransportVersions.V_8_5_0
         ),
-        DOCUMENT_PARSING_EXCEPTION(DocumentParsingException.class, DocumentParsingException::new, 168, TransportVersion.V_8_8_0),
+        DOCUMENT_PARSING_EXCEPTION(DocumentParsingException.class, DocumentParsingException::new, 168, TransportVersions.V_8_8_0),
         HTTP_HEADERS_VALIDATION_EXCEPTION(
             org.elasticsearch.http.HttpHeadersValidationException.class,
             org.elasticsearch.http.HttpHeadersValidationException::new,
             169,
-            TransportVersion.V_8_9_0
+            TransportVersions.V_8_500_020
         ),
         ROLE_RESTRICTION_EXCEPTION(
             ElasticsearchRoleRestrictionException.class,
             ElasticsearchRoleRestrictionException::new,
             170,
-            TransportVersion.V_8_500_016
+            TransportVersions.V_8_500_020
+        ),
+        API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersions.V_8_500_065),
+        RECOVERY_COMMIT_TOO_NEW_EXCEPTION(
+            RecoveryCommitTooNewException.class,
+            RecoveryCommitTooNewException::new,
+            172,
+            TransportVersions.RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED
+        ),
+        TOO_MANY_SCROLL_CONTEXTS_NEW_EXCEPTION(
+            TooManyScrollContextsException.class,
+            TooManyScrollContextsException::new,
+            173,
+            TransportVersions.TOO_MANY_SCROLL_CONTEXTS_EXCEPTION_ADDED
+        ),
+        INVALID_BUCKET_PATH_EXCEPTION(
+            AggregationExecutionException.InvalidPath.class,
+            AggregationExecutionException.InvalidPath::new,
+            174,
+            TransportVersions.INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

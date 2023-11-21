@@ -66,12 +66,24 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
             this.taskId = taskId;
         }
 
+        public String getTaskId() {
+            return taskId;
+        }
+
         public void setAllocationId(long allocationId) {
             this.allocationId = allocationId;
         }
 
+        public long getAllocationId() {
+            return allocationId;
+        }
+
         public void setState(PersistentTaskState state) {
             this.state = state;
+        }
+
+        public PersistentTaskState getState() {
+            return state;
         }
 
         @Override
@@ -152,7 +164,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
                 Request::new,
                 indexNameExpressionResolver,
                 PersistentTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }

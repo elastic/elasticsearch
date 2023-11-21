@@ -32,7 +32,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -43,7 +42,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HID
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class MlInitializationService implements ClusterStateListener {
+public final class MlInitializationService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(MlInitializationService.class);
 
@@ -230,7 +229,7 @@ public class MlInitializationService implements ClusterStateListener {
                 updateSettingsListener.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
-            String nonHiddenIndicesString = Arrays.stream(nonHiddenIndices).collect(Collectors.joining(", "));
+            String nonHiddenIndicesString = String.join(", ", nonHiddenIndices);
             logger.debug("The following ML internal indices will now be made hidden: [{}]", nonHiddenIndicesString);
             UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest().indices(nonHiddenIndices)
                 .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)

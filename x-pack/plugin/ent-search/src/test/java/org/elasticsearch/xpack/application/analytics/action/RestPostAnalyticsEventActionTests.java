@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.AbstractRestEnterpriseSearchActionTests;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.net.InetSocketAddress;
 import java.util.Map;
@@ -26,7 +27,8 @@ public class RestPostAnalyticsEventActionTests extends AbstractRestEnterpriseSea
                 .withParams(Map.of("collection_name", "my-collection"))
                 .withContent(new BytesArray("{}"), XContentType.JSON)
                 .withRemoteAddress(new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535)))
-                .build()
+                .build(),
+            LicenseUtils.Product.BEHAVIORAL_ANALYTICS
         );
     }
 

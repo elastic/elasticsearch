@@ -10,7 +10,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
@@ -75,44 +75,38 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
     }
 
     /**
-     * Create a pre-configured token filter that may vary based on the Elasticsearch version.
+     * Create a pre-configured token filter that may vary based on the index version.
      */
-    public static PreConfiguredTokenFilter elasticsearchVersion(
+    public static PreConfiguredTokenFilter indexVersion(
         String name,
         boolean useFilterForMultitermQueries,
-        BiFunction<TokenStream, org.elasticsearch.Version, TokenStream> create
+        BiFunction<TokenStream, IndexVersion, TokenStream> create
     ) {
-        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, true, CachingStrategy.ELASTICSEARCH, create);
+        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, true, CachingStrategy.INDEX, create);
     }
 
     /**
-     * Create a pre-configured token filter that may vary based on the Elasticsearch version.
+     * Create a pre-configured token filter that may vary based on the index version.
      */
-    public static PreConfiguredTokenFilter elasticsearchVersion(
+    public static PreConfiguredTokenFilter indexVersion(
         String name,
         boolean useFilterForMultitermQueries,
         boolean useFilterForParsingSynonyms,
-        BiFunction<TokenStream, Version, TokenStream> create
+        BiFunction<TokenStream, IndexVersion, TokenStream> create
     ) {
-        return new PreConfiguredTokenFilter(
-            name,
-            useFilterForMultitermQueries,
-            useFilterForParsingSynonyms,
-            CachingStrategy.ELASTICSEARCH,
-            create
-        );
+        return new PreConfiguredTokenFilter(name, useFilterForMultitermQueries, useFilterForParsingSynonyms, CachingStrategy.INDEX, create);
     }
 
     private final boolean useFilterForMultitermQueries;
     private final boolean allowForSynonymParsing;
-    private final BiFunction<TokenStream, Version, TokenStream> create;
+    private final BiFunction<TokenStream, IndexVersion, TokenStream> create;
 
     private PreConfiguredTokenFilter(
         String name,
         boolean useFilterForMultitermQueries,
         boolean allowForSynonymParsing,
         PreBuiltCacheFactory.CachingStrategy cache,
-        BiFunction<TokenStream, Version, TokenStream> create
+        BiFunction<TokenStream, IndexVersion, TokenStream> create
     ) {
         super(name, cache);
         this.useFilterForMultitermQueries = useFilterForMultitermQueries;
@@ -121,7 +115,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
     }
 
     @Override
-    protected TokenFilterFactory create(Version version) {
+    protected TokenFilterFactory create(IndexVersion version) {
         if (useFilterForMultitermQueries) {
             return new NormalizingTokenFilterFactory() {
 

@@ -40,6 +40,7 @@ import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
+import org.apache.lucene.analysis.sr.SerbianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
@@ -52,7 +53,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -130,6 +130,7 @@ public class Analysis {
         entry("_portuguese_", PortugueseAnalyzer.getDefaultStopSet()),
         entry("_romanian_", RomanianAnalyzer.getDefaultStopSet()),
         entry("_russian_", RussianAnalyzer.getDefaultStopSet()),
+        entry("_serbian_", SerbianAnalyzer.getDefaultStopSet()),
         entry("_sorani_", SoraniAnalyzer.getDefaultStopSet()),
         entry("_spanish_", SpanishAnalyzer.getDefaultStopSet()),
         entry("_swedish_", SwedishAnalyzer.getDefaultStopSet()),
@@ -298,22 +299,9 @@ public class Analysis {
         }
     }
 
-    public static Reader getReaderFromIndex(
-        String synonymsSet,
-        ThreadPool threadPool,
-        SynonymsManagementAPIService synonymsManagementAPIService
-    ) {
-        // TODO: this is a temporary solution for loading synonyms under feature flag, to be redesigned for GA
-        final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>() {
-            @Override
-            protected boolean blockingAllowed() {
-                // allow blocking while loading synonyms under feature flag
-                return true;
-            }
-        };
-        threadPool.executor(ThreadPool.Names.SYSTEM_READ).execute(() -> {
-            synonymsManagementAPIService.getSynonymSetRules(synonymsSet, 0, 10_000, synonymsLoadingFuture);
-        });
+    public static Reader getReaderFromIndex(String synonymsSet, SynonymsManagementAPIService synonymsManagementAPIService) {
+        final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>();
+        synonymsManagementAPIService.getSynonymSetRules(synonymsSet, 0, 10_000, synonymsLoadingFuture);
         PagedResult<SynonymRule> results = synonymsLoadingFuture.actionGet();
 
         SynonymRule[] synonymRules = results.pageResults();

@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -311,7 +312,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(origin.lat());
         out.writeDouble(origin.lon());
-        out.writeList(ranges);
+        out.writeCollection(ranges);
         out.writeBoolean(keyed);
         distanceType.writeTo(out);
         unit.writeTo(out);
@@ -400,21 +401,12 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         return NAME;
     }
 
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
     public GeoDistanceAggregationBuilder unit(DistanceUnit unit) {
         if (unit == null) {
             throw new IllegalArgumentException("[unit] must not be null: [" + name + "]");
         }
         this.unit = unit;
         return this;
-    }
-
-    public DistanceUnit unit() {
-        return unit;
     }
 
     public GeoDistanceAggregationBuilder distanceType(GeoDistance distanceType) {
@@ -425,17 +417,9 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         return this;
     }
 
-    public GeoDistance distanceType() {
-        return distanceType;
-    }
-
     public GeoDistanceAggregationBuilder keyed(boolean keyed) {
         this.keyed = keyed;
         return this;
-    }
-
-    public boolean keyed() {
-        return keyed;
     }
 
     @Override
@@ -503,7 +487,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 
 }

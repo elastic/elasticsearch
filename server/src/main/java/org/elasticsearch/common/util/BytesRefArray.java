@@ -22,7 +22,7 @@ import java.io.IOException;
 /**
  * Compact serializable container for ByteRefs
  */
-public class BytesRefArray implements Accountable, Releasable, Writeable {
+public final class BytesRefArray implements Accountable, Releasable, Writeable {
 
     // base size of the bytes ref array
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArray.class);
@@ -158,7 +158,14 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + startOffsets.ramBytesUsed() + bytes.ramBytesUsed();
+        return BASE_RAM_BYTES_USED + bigArraysRamBytesUsed();
+    }
+
+    /**
+     * Memory used by the {@link BigArrays} portion of this {@link BytesRefArray}.
+     */
+    public long bigArraysRamBytesUsed() {
+        return startOffsets.ramBytesUsed() + bytes.ramBytesUsed();
     }
 
 }

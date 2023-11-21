@@ -1,0 +1,511 @@
+// Integral types-specific tests
+
+inLongAndInt
+from employees | where avg_worked_seconds in (372957040, salary_change.long, 236703986) | where emp_no in (10017, emp_no - 1) | keep emp_no, avg_worked_seconds;
+
+emp_no:integer |avg_worked_seconds:long
+10017          |236703986
+;
+
+inShortAndByte
+from employees | keep emp_no, languages.short, languages.byte | where languages.short in (2, 4, 5) and languages.byte in (4, -1) and emp_no < 10010;
+ignoreOrder:true
+
+emp_no:integer |languages.short:short|languages.byte:byte
+10003          |4                    |4
+10007          |4                    |4
+;
+
+inCast
+from employees | keep emp_no, languages.byte, avg_worked_seconds, height | where languages.byte in (4, -1, avg_worked_seconds, 1000000000000, null, height) and emp_no < 10010;
+ignoreOrder:true
+
+emp_no:integer |languages.byte:byte |avg_worked_seconds:long |height:double
+10003          |4                   |200296405               |1.83
+10007          |4                   |393084805               |1.7
+;
+
+// `<= 10030` insures going over records where is_null(languages)==true; `in (.., emp_no)` prevents pushing the IN to Lucene
+inOverNulls
+from employees | keep emp_no, languages | where languages is null or emp_no <= 10030 | where languages in (2, 3, emp_no);
+ignoreOrder:true
+
+emp_no:integer |languages:integer
+10001          |2
+10006          |3
+10008          |2
+10016          |2
+10017          |2
+10018          |2
+10030          |3
+;
+
+// conversions to UNSIGNED_LONG
+
+convertULtoUL
+row ul = [9223372036854775808, 18446744073709551615] | eval ulul = to_unsigned_long(ul);
+
+                    ul:ul                  |                   ulul:ul
+[9223372036854775808, 18446744073709551615]|[9223372036854775808, 18446744073709551615]
+;
+
+convertIntToUL
+row int = [5013792, 520128] | eval ul = to_ulong(int);
+
+int:integer       |ul:ul
+[5013792, 520128] |[5013792, 520128]
+;
+
+convertLongToUL
+row long = [501379200000, 520128000000] | eval ul = to_ul(long);
+
+long:long                    |ul:ul
+[501379200000, 520128000000] |[501379200000, 520128000000]
+;
+
+convertDoubleToUL#[skip:-8.11.99, reason:ql exceptions updated in 8.12]
+row d = 123.4 | eval ul = to_ul(d), overflow = to_ul(1e20);
+warning:Line 1:48: evaluation of [to_ul(1e20)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:48: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E20] out of [unsigned_long] range
+
+d:double       |ul:ul      |overflow:ul
+123.4          |123        |null
+;
+
+convertBooleanToUL
+row tf = [true, false] | eval t2ul = to_ul(true), f2ul = to_ul(false), tf2ul = to_ul(tf);
+
+tf:boolean     |t2ul:ul      |f2ul:ul      |tf2ul:ul
+[true, false]  |1            |0            |[1, 0]
+;
+
+convertDatetimeToUL
+from employees | sort emp_no | eval hired_ul = to_ul(hire_date) | keep emp_no, hire_date, hired_ul  | limit 3;
+
+emp_no:integer |hire_date:date          |hired_ul:ul
+10001          |1986-06-26T00:00:00.000Z|520128000000
+10002          |1985-11-21T00:00:00.000Z|501379200000
+10003          |1986-08-28T00:00:00.000Z|525571200000
+;
+
+convertStringToUL
+// tag::to_unsigned_long-str[]
+ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
+| EVAL long1 = TO_UNSIGNED_LONG(str1), long2 = TO_ULONG(str2), long3 = TO_UL(str3)
+// end::to_unsigned_long-str[]
+;
+warning:Line 2:72: evaluation of [TO_UL(str3)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:72: java.lang.NumberFormatException: Character f is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.
+
+
+// tag::to_unsigned_long-str-result[]
+str1:keyword |str2:keyword |str3:keyword |long1:unsigned_long  |long2:unsigned_long |long3:unsigned_long
+2147483648   |2147483648.2 |foo          |2147483648           |2147483648          |null
+// end::to_unsigned_long-str-result[]
+;
+
+// conversions to LONG
+
+convertLongToLong
+row long = [501379200000, 520128000000] | eval ll = to_long(long);
+
+long:long                    |ll:long
+[501379200000, 520128000000] |[501379200000, 520128000000]
+;
+
+convertIntToLong
+row int = [5013792, 520128] | eval long = to_long(int);
+
+int:integer       |long:long
+[5013792, 520128] |[5013792, 520128]
+;
+
+convertULToLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
+row ul = [9223372036854775807, 9223372036854775808] | eval long = to_long(ul);
+warning:Line 1:67: evaluation of [to_long(ul)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:67: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
+
+                    ul:ul                 |       long:long
+[9223372036854775807, 9223372036854775808]|9223372036854775807
+;
+
+convertDatetimeToLong
+from employees | sort emp_no | eval hired_long = to_long(hire_date) | keep emp_no, hire_date, hired_long  | limit 3;
+
+emp_no:integer |hire_date:date          |hired_long:long
+10001          |1986-06-26T00:00:00.000Z|520128000000
+10002          |1985-11-21T00:00:00.000Z|501379200000
+10003          |1986-08-28T00:00:00.000Z|525571200000
+;
+
+convertBooleanToLong
+row tf = [true, false] | eval t2l = to_long(true), f2l = to_long(false), tf2l = to_long(tf);
+
+tf:boolean     |t2l:long       |f2l:long       |tf2l:long
+[true, false]  |1              |0              |[1, 0]
+;
+
+convertStringToLong
+// tag::to_long-str[]
+ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
+| EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)
+// end::to_long-str[]
+;
+warning:Line 2:62: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:62: java.lang.NumberFormatException: For input string: \"foo\"
+
+
+// tag::to_long-str-result[]
+str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
+2147483648   |2147483648.2 |foo          |2147483648  |2147483648 |null
+// end::to_long-str-result[]
+;
+
+convertDoubleToLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
+row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
+warning:Line 1:51: evaluation of [to_long(1e19)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:51: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E19] out of [long] range
+
+d:double       |d2l:long      |overflow:long     
+123.4          |123           |null    
+;
+
+// conversions to INTEGER
+
+convertIntToInt
+row int = [5013792, 520128] | eval ii = to_integer(int);
+
+int:integer       |ii:integer
+[5013792, 520128] |[5013792, 520128]
+;
+
+convertLongToInt#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
+// tag::to_int-long[]
+ROW long = [5013792, 2147483647, 501379200000]
+| EVAL int = TO_INTEGER(long)
+// end::to_int-long[]
+;
+warning:Line 2:14: evaluation of [TO_INTEGER(long)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:14: org.elasticsearch.xpack.ql.InvalidArgumentException: [501379200000] out of [integer] range
+
+// tag::to_int-long-result[]
+long:long                           |int:integer
+[5013792, 2147483647, 501379200000] |[5013792, 2147483647]
+// end::to_int-long-result[]
+;
+
+convertULToInt#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
+row ul = [2147483647, 9223372036854775808] | eval int = to_int(ul);
+warning:Line 1:57: evaluation of [to_int(ul)] failed, treating result as null. Only first 20 failures recorded.
+// UL conversion to int dips into long; not the most efficient, but it's how SQL does it too.
+warning:Line 1:57: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
+
+                    ul:ul        |int:integer
+[2147483647, 9223372036854775808]|2147483647
+;
+
+convertDatetimeToInt
+row int = [5013792, 520128] | eval dt = to_datetime(int) | eval ii = to_integer(dt);
+
+int:integer      |dt:date                                             |ii:integer
+[5013792, 520128]|[1970-01-01T01:23:33.792Z, 1970-01-01T00:08:40.128Z]|[5013792, 520128]
+;
+
+convertBooleanToInt
+row tf = [true, false] | eval t2i = to_integer(true), f2i = to_integer(false), tf2i = to_integer(tf);
+
+tf:boolean     |t2i:integer    |f2i:integer    |tf2i:integer
+[true, false]  |1              |0              |[1, 0]
+;
+
+convertStringToInt
+row int_str = "2147483647", int_dbl_str = "2147483647.2" | eval is2i = to_integer(int_str), ids2i = to_integer(int_dbl_str), overflow = to_integer("2147483648"), no_number = to_integer("foo");
+warning:Line 1:137: evaluation of [to_integer(\"2147483648\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:137: java.lang.NumberFormatException: For input string: \"2147483648\"
+warning:Line 1:175: evaluation of [to_integer(\"foo\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:175: java.lang.NumberFormatException: For input string: \"foo\"
+
+int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer   |overflow:integer |no_number:integer
+2147483647       |2147483647.2        |2147483647  |2147483647      |null             |null
+;
+
+convertDoubleToInt#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
+row d = 123.4 | eval d2i = to_integer(d), overflow = to_integer(1e19);
+warning:Line 1:54: evaluation of [to_integer(1e19)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:54: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E19] out of [long] range
+
+d:double       |d2i:integer   |overflow:integer
+123.4          |123           |null    
+;
+
+lessThanMultivalue
+from employees | where salary_change.int < 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10006          |-3
+10012          | 0
+10017          |-6
+10020          |-5
+10030          | 0
+;
+
+greaterThanMultivalue
+from employees | where salary_change.int > 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10044          | 8
+10046          | 2
+10066          | 5
+10079          | 7
+10086          |13
+;
+
+equalToMultivalue
+from employees | where salary_change.int == 0 | keep emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10012          | 0
+10030          | 0
+10077          | 0
+10093          | 0
+;
+
+equalToOrEqualToMultivalue
+from employees | where salary_change.int == 1 or salary_change.int == 8 | keep emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries are filtered out
+emp_no:integer |salary_change.int:integer
+10001          |1
+10044          |8
+;
+
+inMultivalue
+from employees | where salary_change.int in (1, 7) | keep emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries are filtered out
+emp_no:integer |salary_change.int:integer
+10001          |1
+10079          |7
+;
+
+notLessThanMultivalue
+from employees | where not(salary_change.int < 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10001          | 1
+10044          | 8
+10046          | 2
+10066          | 5
+10079          | 7
+;
+
+notGreaterThanMultivalue
+from employees | where not(salary_change.int > 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10001          |  1
+10006          | -3
+10012          |  0
+10017          | -6
+10020          | -5
+;
+
+notEqualToMultivalue
+from employees | where not(salary_change.int == 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10006          | -3
+10012          |  0
+10017          | -6
+10020          | -5
+10030          |  0
+;
+
+notEqualToAndEqualToMultivalue-Ignore
+from employees | where not(salary_change.int == 1 or salary_change.int == -4) | keep emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10012          |  0
+10017          | -6
+10020          | -5
+10030          |  0
+10030          |  0
+;
+
+notInMultivalue-Ignore
+from employees | where not(salary_change.int in (1, -4)) | keep emp_no, salary_change.int | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change.int:integer
+10012          |  0
+10017          | -6
+10020          | -6
+10030          | -0
+10030          | -0
+;
+
+mvDedupe
+row a = [1, 2, 2, 3] | eval da = mv_dedupe(a);
+
+   a:integer | da:integer
+[1, 2, 2, 3] | [1, 2, 3]
+;
+
+autoBucket
+// tag::auto_bucket[]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| EVAL bs = AUTO_BUCKET(salary, 20, 25324, 74999)
+| SORT hire_date, salary
+| KEEP hire_date, salary, bs
+// end::auto_bucket[]
+;
+
+// tag::auto_bucket-result[]
+hire_date:date           | salary:integer | bs:double
+1985-02-18T00:00:00.000Z | 66174          | 65000.0
+1985-02-24T00:00:00.000Z | 26436          | 25000.0
+1985-05-13T00:00:00.000Z | 44817          | 40000.0
+1985-07-09T00:00:00.000Z | 62405          | 60000.0
+1985-09-17T00:00:00.000Z | 49095          | 45000.0
+1985-10-14T00:00:00.000Z | 54329          | 50000.0
+1985-10-20T00:00:00.000Z | 48735          | 45000.0
+1985-11-19T00:00:00.000Z | 52833          | 50000.0
+1985-11-20T00:00:00.000Z | 33956          | 30000.0
+1985-11-20T00:00:00.000Z | 74999          | 70000.0
+1985-11-21T00:00:00.000Z | 56371          | 55000.0
+// end::auto_bucket-result[]
+;
+
+cos
+ROW a=2 | EVAL cos=COS(a);
+
+a:integer | cos:double
+        2 | -0.4161468365471424
+;
+
+acos
+ROW a=1 | EVAL acos=ACOS(a);
+
+a:integer | acos:double
+        1 | 0.0
+;
+
+cosh
+ROW a=2 | EVAL cosh=COSH(a);
+
+a:integer | cosh:double
+        2 | 3.7621956910836314
+;
+
+sin
+ROW a=2 | EVAL sin=SIN(a);
+
+a:integer | sin:double
+        2 | 0.9092974268256817
+;
+
+sinh
+ROW a=2 | EVAL sinh=SINH(a);
+
+a:integer | sinh:double
+        2 | 3.626860407847019
+;
+
+asin
+ROW a=1 | EVAL asin=ASIN(a);
+
+a:integer | asin:double
+        1 | 1.5707963267948966
+;
+
+
+tan
+ROW a=2 | EVAL tan=TAN(a);
+
+a:integer | tan:double
+        2 | -2.185039863261519
+;
+
+tanh
+ROW a=2 | EVAL tanh=TANH(a);
+
+a:integer | tanh:double
+        2 | 0.9640275800758169
+;
+
+atan
+ROW a=2 | EVAL atan=ATAN(a);
+
+a:integer | atan:double
+        2 | 1.1071487177940904
+;
+
+atan2
+ROW y=2, x=12 | EVAL atan2=ATAN2(y, x);
+
+y:integer | x:integer | atan2:double
+        2 |        12 | 0.16514867741462683
+;
+
+toDegrees
+ROW rad = [1, 2, 3, 4]
+| EVAL deg = TO_DEGREES(rad)
+;
+
+   rad:integer | deg:double
+  [1, 2, 3, 4] | [57.29577951308232, 114.59155902616465, 171.88733853924697, 229.1831180523293]
+;
+
+toRadians
+ROW deg = [90, 180, 270]
+| EVAL rad = TO_RADIANS(deg)
+;
+
+   deg:integer | rad:double
+[90, 180, 270] | [1.5707963267948966, 3.141592653589793, 4.71238898038469]
+;
+
+warningWithFromSource-Ignore
+from employees | sort emp_no | limit 1 | eval x = to_long(emp_no) * 10000000 | eval y = to_int(x) > 1 | keep y;
+warning:Line 1:89: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:89: org.elasticsearch.xpack.ql.InvalidArgumentException: [100010000000] out of [integer] range
+
+y:boolean
+null
+;
+
+// the test is also notable through having the "failing" operation in the filter, which will be part of the fragment sent to a data node
+multipleWarnings-Ignore
+from employees | sort emp_no | eval x = to_long(emp_no) * 10000000 | where to_int(x) > 1 | keep x | limit 1;
+warning:Line 1:76: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100010000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100020000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100030000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100040000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100050000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100060000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100070000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100080000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100090000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100100000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100110000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100120000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100130000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100140000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100150000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100160000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100170000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100180000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100190000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100200000000] out of [integer] range
+
+x:long
+;

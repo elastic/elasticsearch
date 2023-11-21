@@ -9,16 +9,23 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.Nested;
 
 import java.util.Collection;
 import java.util.concurrent.Callable;
 
+import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.REGISTRY_SERVICE_NAME;
+
 public interface TestClustersAware extends Task {
 
     @Nested
     Collection<ElasticsearchCluster> getClusters();
+
+    @ServiceReference(REGISTRY_SERVICE_NAME)
+    Property<TestClustersRegistry> getRegistery();
 
     default void useCluster(ElasticsearchCluster cluster) {
         if (cluster.getPath().equals(getProject().getPath()) == false) {
@@ -26,7 +33,7 @@ public interface TestClustersAware extends Task {
         }
 
         cluster.getNodes()
-            .all(node -> node.getDistributions().stream().forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
+            .all(node -> node.getDistributions().forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
         cluster.getNodes().all(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
         getClusters().add(cluster);
     }

@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -72,8 +72,8 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
             // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
             // while it is optional for all subsequent versions.
-            String key = in.getTransportVersion().equals(TransportVersion.V_8_0_0) ? in.readString()
-                : in.getTransportVersion().onOrAfter(TransportVersion.V_7_17_1) ? in.readOptionalString()
+            String key = in.getTransportVersion().equals(TransportVersions.V_8_0_0) ? in.readString()
+                : in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_1) ? in.readOptionalString()
                 : in.readString();
             BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
             BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
@@ -85,9 +85,9 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().equals(TransportVersion.V_8_0_0)) {
+            if (out.getTransportVersion().equals(TransportVersions.V_8_0_0)) {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
-            } else if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_1)) {
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_1)) {
                 out.writeOptionalString(key);
             } else {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
@@ -216,14 +216,14 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
-        buckets = in.readList(stream -> Bucket.createFromStream(stream, format, keyed));
+        buckets = in.readCollectionAsList(stream -> Bucket.createFromStream(stream, format, keyed));
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override

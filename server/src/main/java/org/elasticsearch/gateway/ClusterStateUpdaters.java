@@ -10,7 +10,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.ClusterSettings;
 
 import java.util.Map;
@@ -29,10 +29,14 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 public class ClusterStateUpdaters {
     private static final Logger logger = LogManager.getLogger(ClusterStateUpdaters.class);
 
-    public static ClusterState setLocalNode(ClusterState clusterState, DiscoveryNode localNode, TransportVersion transportVersion) {
+    public static ClusterState setLocalNode(
+        ClusterState clusterState,
+        DiscoveryNode localNode,
+        CompatibilityVersions compatibilityVersions
+    ) {
         return ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
-            .putTransportVersion(localNode.getId(), transportVersion)
+            .putCompatibilityVersions(localNode.getId(), compatibilityVersions)
             .build();
     }
 
@@ -44,14 +48,14 @@ public class ClusterStateUpdaters {
 
         metadataBuilder.persistentSettings(
             clusterSettings.archiveUnknownOrInvalidSettings(
-                clusterSettings.upgradeSettings(metadataBuilder.persistentSettings()),
+                metadataBuilder.persistentSettings(),
                 e -> logUnknownSetting("persistent", e),
                 (e, ex) -> logInvalidSetting("persistent", e, ex)
             )
         );
         metadataBuilder.transientSettings(
             clusterSettings.archiveUnknownOrInvalidSettings(
-                clusterSettings.upgradeSettings(metadataBuilder.transientSettings()),
+                metadataBuilder.transientSettings(),
                 e -> logUnknownSetting("transient", e),
                 (e, ex) -> logInvalidSetting("transient", e, ex)
             )

@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -26,7 +25,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
@@ -39,9 +37,11 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomCrossClusterAccessRoleDescriptor;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
@@ -70,12 +70,12 @@ public class RestGetApiKeyActionTests extends ESTestCase {
     }
 
     public void testGetApiKey() throws Exception {
-        final Map<String, String> param1 = mapBuilder().put("realm_name", "realm-1").put("username", "user-x").map();
-        final Map<String, String> param2 = mapBuilder().put("realm_name", "realm-1").map();
-        final Map<String, String> param3 = mapBuilder().put("username", "user-x").map();
-        final Map<String, String> param4 = mapBuilder().put("id", "api-key-id-1").map();
-        final Map<String, String> param5 = mapBuilder().put("name", "api-key-name-1").map();
-        final Map<String, String> params = randomFrom(param1, param2, param3, param4, param5);
+        final Map<String, String> param1 = Map.of("realm_name", "realm-1", "username", "user-x");
+        final Map<String, String> param2 = Map.of("realm_name", "realm-1");
+        final Map<String, String> param3 = Map.of("username", "user-x");
+        final Map<String, String> param4 = Map.of("id", "api-key-id-1");
+        final Map<String, String> param5 = Map.of("name", "api-key-name-1");
+        final Map<String, String> params = new HashMap<>(randomFrom(param1, param2, param3, param4, param5));
         final boolean withLimitedBy = randomBoolean();
         if (withLimitedBy) {
             params.put("with_limited_by", "true");
@@ -94,11 +94,13 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 responseSetOnce.set(restResponse);
             }
         };
-        final ApiKey.Type type = TcpTransport.isUntrustedRemoteClusterEnabled() ? randomFrom(ApiKey.Type.values()) : ApiKey.Type.REST;
+        final ApiKey.Type type = randomFrom(ApiKey.Type.values());
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        final List<RoleDescriptor> roleDescriptors = randomUniquelyNamedRoleDescriptors(0, 3);
+        final List<RoleDescriptor> roleDescriptors = type == ApiKey.Type.CROSS_CLUSTER
+            ? List.of(randomCrossClusterAccessRoleDescriptor())
+            : randomUniquelyNamedRoleDescriptors(0, 3);
         final List<RoleDescriptor> limitedByRoleDescriptors = withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER
             ? randomUniquelyNamedRoleDescriptors(1, 3)
             : null;
@@ -120,7 +122,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             )
         );
 
-        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -147,53 +149,47 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     listener.onFailure(new ElasticsearchSecurityException("encountered an error while creating API key"));
                 }
             }
-        }) {
-            final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
+        };
+        final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
 
-            restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
+        restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
 
-            final RestResponse restResponse = responseSetOnce.get();
-            assertNotNull(restResponse);
+        final RestResponse restResponse = responseSetOnce.get();
+        assertNotNull(restResponse);
+        assertThat(restResponse.status(), (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK));
+        final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
+        if (replyEmptyResponse) {
+            assertThat(actual.getApiKeyInfos().length, is(0));
+        } else {
             assertThat(
-                restResponse.status(),
-                (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK)
-            );
-            final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(
-                createParser(XContentType.JSON.xContent(), restResponse.content())
-            );
-            if (replyEmptyResponse) {
-                assertThat(actual.getApiKeyInfos().length, is(0));
-            } else {
-                assertThat(
-                    actual.getApiKeyInfos(),
-                    arrayContaining(
-                        new ApiKey(
-                            "api-key-name-1",
-                            "api-key-id-1",
-                            type,
-                            creation,
-                            expiration,
-                            false,
-                            "user-x",
-                            "realm-1",
-                            metadata,
-                            roleDescriptors,
-                            limitedByRoleDescriptors
-                        )
+                actual.getApiKeyInfos(),
+                arrayContaining(
+                    new ApiKey(
+                        "api-key-name-1",
+                        "api-key-id-1",
+                        type,
+                        creation,
+                        expiration,
+                        false,
+                        "user-x",
+                        "realm-1",
+                        metadata,
+                        roleDescriptors,
+                        limitedByRoleDescriptors
                     )
-                );
-            }
+                )
+            );
         }
-
     }
 
     public void testGetApiKeyOwnedByCurrentAuthenticatedUser() throws Exception {
         final boolean isGetRequestForOwnedKeysOnly = randomBoolean();
-        final Map<String, String> param;
+        final Map<String, String> param = new HashMap<>();
         if (isGetRequestForOwnedKeysOnly) {
-            param = mapBuilder().put("owner", Boolean.TRUE.toString()).map();
+            param.put("owner", Boolean.TRUE.toString());
         } else {
-            param = mapBuilder().put("owner", Boolean.FALSE.toString()).put("realm_name", "realm-1").map();
+            param.put("owner", Boolean.FALSE.toString());
+            param.put("realm_name", "realm-1");
         }
         final boolean withLimitedBy = randomBoolean();
         if (withLimitedBy) {
@@ -214,7 +210,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             }
         };
 
-        final ApiKey.Type type = TcpTransport.isUntrustedRemoteClusterEnabled() ? randomFrom(ApiKey.Type.values()) : ApiKey.Type.REST;
+        final ApiKey.Type type = randomFrom(ApiKey.Type.values());
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         final ApiKey apiKey1 = new ApiKey(
@@ -227,7 +223,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             "user-x",
             "realm-1",
             ApiKeyTests.randomMetadata(),
-            randomUniquelyNamedRoleDescriptors(0, 3),
+            type == ApiKey.Type.CROSS_CLUSTER
+                ? List.of(randomCrossClusterAccessRoleDescriptor())
+                : randomUniquelyNamedRoleDescriptors(0, 3),
             withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER ? randomUniquelyNamedRoleDescriptors(1, 3) : null
         );
         final ApiKey apiKey2 = new ApiKey(
@@ -240,13 +238,15 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             "user-y",
             "realm-1",
             ApiKeyTests.randomMetadata(),
-            randomUniquelyNamedRoleDescriptors(0, 3),
+            type == ApiKey.Type.CROSS_CLUSTER
+                ? List.of(randomCrossClusterAccessRoleDescriptor())
+                : randomUniquelyNamedRoleDescriptors(0, 3),
             withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER ? randomUniquelyNamedRoleDescriptors(1, 3) : null
         );
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2));
 
-        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -267,29 +267,21 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     listener.onResponse((Response) getApiKeyResponseExpectedWhenOwnerFlagIsFalse);
                 }
             }
-        }) {
-            final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
+        };
+        final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
 
-            restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
+        restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
 
-            final RestResponse restResponse = responseSetOnce.get();
-            assertNotNull(restResponse);
-            assertThat(restResponse.status(), is(RestStatus.OK));
-            final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(
-                createParser(XContentType.JSON.xContent(), restResponse.content())
-            );
-            if (isGetRequestForOwnedKeysOnly) {
-                assertThat(actual.getApiKeyInfos().length, is(1));
-                assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1));
-            } else {
-                assertThat(actual.getApiKeyInfos().length, is(2));
-                assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1, apiKey2));
-            }
+        final RestResponse restResponse = responseSetOnce.get();
+        assertNotNull(restResponse);
+        assertThat(restResponse.status(), is(RestStatus.OK));
+        final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
+        if (isGetRequestForOwnedKeysOnly) {
+            assertThat(actual.getApiKeyInfos().length, is(1));
+            assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1));
+        } else {
+            assertThat(actual.getApiKeyInfos().length, is(2));
+            assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1, apiKey2));
         }
-
-    }
-
-    private static MapBuilder<String, String> mapBuilder() {
-        return MapBuilder.newMapBuilder();
     }
 }

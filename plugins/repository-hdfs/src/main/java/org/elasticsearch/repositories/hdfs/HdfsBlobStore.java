@@ -15,8 +15,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 final class HdfsBlobStore implements BlobStore {
 
@@ -25,18 +27,21 @@ final class HdfsBlobStore implements BlobStore {
     private final HdfsSecurityContext securityContext;
     private final int bufferSize;
     private final boolean readOnly;
+    private final Short replicationFactor;
     private volatile boolean closed;
 
     HdfsBlobStore(FileContext fileContext, String path, int bufferSize, boolean readOnly) throws IOException {
-        this(fileContext, path, bufferSize, readOnly, false);
+        this(fileContext, path, bufferSize, readOnly, false, null);
     }
 
-    HdfsBlobStore(FileContext fileContext, String path, int bufferSize, boolean readOnly, boolean haEnabled) throws IOException {
+    HdfsBlobStore(FileContext fileContext, String path, int bufferSize, boolean readOnly, boolean haEnabled, Short replicationFactor)
+        throws IOException {
         this.fileContext = fileContext;
         // Only restrict permissions if not running with HA
         boolean restrictPermissions = (haEnabled == false);
         this.securityContext = new HdfsSecurityContext(fileContext.getUgi(), restrictPermissions);
         this.bufferSize = bufferSize;
+        this.replicationFactor = replicationFactor;
         this.root = execute(fileContext1 -> fileContext1.makeQualified(new Path(path)));
         this.readOnly = readOnly;
         if (readOnly == false) {
@@ -63,7 +68,12 @@ final class HdfsBlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        return new HdfsBlobContainer(path, this, buildHdfsPath(path), bufferSize, securityContext);
+        return new HdfsBlobContainer(path, this, buildHdfsPath(path), bufferSize, securityContext, replicationFactor);
+    }
+
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+        throw new UnsupportedOperationException("Bulk deletes are not supported in Hdfs repositories");
     }
 
     private Path buildHdfsPath(BlobPath blobPath) {

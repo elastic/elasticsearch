@@ -34,12 +34,12 @@ public class NodeListDanglingIndicesResponse extends BaseNodeResponse {
 
     protected NodeListDanglingIndicesResponse(StreamInput in) throws IOException {
         super(in);
-        this.indexMetaData = in.readList(DanglingIndexInfo::new);
+        this.indexMetaData = in.readCollectionAsList(DanglingIndexInfo::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(this.indexMetaData);
+        out.writeCollection(this.indexMetaData);
     }
 }

@@ -9,7 +9,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -461,7 +461,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(shardId.getIndexName())
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putInSyncAllocationIds(0, Sets.newHashSet(allocIds))
@@ -475,7 +475,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 new SnapshotRecoverySource(
                     UUIDs.randomBase64UUID(),
                     snapshot,
-                    Version.CURRENT,
+                    IndexVersion.current(),
                     new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random()))
                 )
             )
@@ -501,7 +501,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(shardId.getIndexName())
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putInSyncAllocationIds(shardId.id(), Sets.newHashSet(activeAllocationIds))

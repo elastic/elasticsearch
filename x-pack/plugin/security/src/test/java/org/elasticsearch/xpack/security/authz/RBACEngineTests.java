@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -29,13 +28,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -674,13 +672,9 @@ public class RBACEngineTests extends ESTestCase {
                 ResourcePrivileges.builder("log*").addPrivileges(Collections.singletonMap("manage", false)).build(),
                 ResourcePrivileges.builder("foo?").addPrivileges(Collections.singletonMap("read", true)).build(),
                 ResourcePrivileges.builder("foo*").addPrivileges(Collections.singletonMap("read", false)).build(),
-                ResourcePrivileges.builder("abcd*").addPrivileges(mapBuilder().put("read", true).put("write", false).map()).build(),
-                ResourcePrivileges.builder("abc*xyz")
-                    .addPrivileges(mapBuilder().put("read", true).put("write", true).put("manage", false).map())
-                    .build(),
-                ResourcePrivileges.builder("a*xyz")
-                    .addPrivileges(mapBuilder().put("read", false).put("write", true).put("manage", false).map())
-                    .build()
+                ResourcePrivileges.builder("abcd*").addPrivileges(Map.of("read", true, "write", false)).build(),
+                ResourcePrivileges.builder("abc*xyz").addPrivileges(Map.of("read", true, "write", true, "manage", false)).build(),
+                ResourcePrivileges.builder("a*xyz").addPrivileges(Map.of("read", false, "write", true, "manage", false)).build()
             )
         );
         assertThat(response.getDetails().application().entrySet(), Matchers.iterableWithSize(1));
@@ -690,7 +684,7 @@ public class RBACEngineTests extends ESTestCase {
             Strings.collectionToCommaDelimitedString(kibanaPrivileges),
             kibanaPrivileges,
             containsInAnyOrder(
-                ResourcePrivileges.builder("*").addPrivileges(mapBuilder().put("read", true).put("write", false).map()).build(),
+                ResourcePrivileges.builder("*").addPrivileges(Map.of("read", true, "write", false)).build(),
                 ResourcePrivileges.builder("space/engineering/project-*")
                     .addPrivileges(Collections.singletonMap("space:view/dashboard", true))
                     .build(),
@@ -1484,8 +1478,6 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() throws ExecutionException, InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final int numGroups = randomIntBetween(1, 3);
@@ -1566,8 +1558,6 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterHasDeterministicOrderForIndicesPrivileges() throws ExecutionException,
         InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final int numGroups = randomIntBetween(2, 5);
@@ -1623,8 +1613,6 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutMatchingGroups() throws ExecutionException, InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final Role role = createSimpleRoleWithRemoteIndices(
             RemoteIndicesPermission.builder()
@@ -1653,8 +1641,6 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutRemoteIndicesPermissions() throws ExecutionException,
         InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final Role role = createSimpleRoleWithRemoteIndices(RemoteIndicesPermission.NONE);
         final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
@@ -1671,15 +1657,13 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsForRemoteClusterForReservedRoles() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
         // superuser
         {
             final SimpleRole role = Role.buildFromRoleDescriptor(
-                reservedRolesStore.roleDescriptor("superuser"),
+                ReservedRolesStore.roleDescriptor("superuser"),
                 fieldPermissionsCache,
                 RESTRICTED_INDICES
             );
@@ -1715,7 +1699,7 @@ public class RBACEngineTests extends ESTestCase {
         // kibana_system
         {
             final SimpleRole role = Role.buildFromRoleDescriptor(
-                reservedRolesStore.roleDescriptor("kibana_system"),
+                ReservedRolesStore.roleDescriptor("kibana_system"),
                 fieldPermissionsCache,
                 RESTRICTED_INDICES
             );
@@ -1751,7 +1735,7 @@ public class RBACEngineTests extends ESTestCase {
         // monitoring_user
         {
             final SimpleRole role = Role.buildFromRoleDescriptor(
-                reservedRolesStore.roleDescriptor("monitoring_user"),
+                ReservedRolesStore.roleDescriptor("monitoring_user"),
                 fieldPermissionsCache,
                 RESTRICTED_INDICES
             );
@@ -1903,7 +1887,9 @@ public class RBACEngineTests extends ESTestCase {
             .collect(
                 Collectors.toMap(
                     i -> i,
-                    v -> new IndexAbstraction.ConcreteIndex(IndexMetadata.builder(v).settings(indexSettings(Version.CURRENT, 1, 0)).build())
+                    v -> new IndexAbstraction.ConcreteIndex(
+                        IndexMetadata.builder(v).settings(indexSettings(IndexVersion.current(), 1, 0)).build()
+                    )
                 )
             );
 
@@ -2011,10 +1997,6 @@ public class RBACEngineTests extends ESTestCase {
             assertThat(privilegesCheckResult2.getDetails(), notNullValue());
             return privilegesCheckResult2;
         }
-    }
-
-    private static MapBuilder<String, Boolean> mapBuilder() {
-        return MapBuilder.newMapBuilder();
     }
 
     private BytesArray randomDlsQuery() {

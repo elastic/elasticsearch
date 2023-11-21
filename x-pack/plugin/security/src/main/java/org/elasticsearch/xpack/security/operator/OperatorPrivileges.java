@@ -34,6 +34,12 @@ public class OperatorPrivileges {
         Setting.Property.NodeScope
     );
 
+    public static boolean isOperator(ThreadContext threadContext) {
+        return AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
+            threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
+        );
+    }
+
     public interface OperatorPrivilegesService {
         /**
          * Set a ThreadContext Header {@link AuthenticationField#PRIVILEGE_CATEGORY_KEY} if authentication
@@ -94,9 +100,16 @@ public class OperatorPrivileges {
         public void maybeMarkOperatorUser(Authentication authentication, ThreadContext threadContext) {
             // Always mark the thread context for operator users regardless of license state which is enforced at check time
             final User user = authentication.getEffectiveSubject().getUser();
-            // Let internal users pass, they are exempt from marking and checking
+            // Let internal users pass, and mark him as an operator
             // Also check run_as, it is impossible to run_as internal users, but just to be extra safe
+            // mark internalUser with operator privileges
             if (user instanceof InternalUser && false == authentication.isRunAs()) {
+                if (threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY) == null) {
+                    threadContext.putHeader(
+                        AuthenticationField.PRIVILEGE_CATEGORY_KEY,
+                        AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR
+                    );
+                }
                 return;
             }
             // The header is already set by previous authentication either on this node or a remote node
@@ -122,13 +135,9 @@ public class OperatorPrivileges {
                 return null;
             }
             final User user = authentication.getEffectiveSubject().getUser();
-            // Let internal users pass (also check run_as, it is impossible to run_as internal users, but just to be extra safe)
-            if (user instanceof InternalUser && false == authentication.isRunAs()) {
-                return null;
-            }
-            if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
-            )) {
+
+            // internal user is also an operator
+            if (false == isOperator(threadContext)) {
                 // Only check whether request is operator-only when user is NOT an operator
                 logger.trace("Checking operator-only violation for user [{}] and action [{}]", user, action);
                 final OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(action, request);
@@ -144,9 +153,7 @@ public class OperatorPrivileges {
             if (false == shouldProcess()) {
                 return true;
             }
-            if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
-            )) {
+            if (false == isOperator(threadContext)) {
                 // Only check whether request is operator-only when user is NOT an operator
                 if (logger.isTraceEnabled()) {
                     Authentication authentication = threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY);

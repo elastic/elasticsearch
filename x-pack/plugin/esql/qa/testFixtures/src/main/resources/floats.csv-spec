@@ -1,0 +1,409 @@
+// Floating point types-specific tests
+
+inDouble
+from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002) | sort emp_no;
+
+emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
+10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+10090          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+;
+
+inFloat
+from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height.float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002) | sort emp_no;
+
+emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
+10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+10090          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+;
+
+inHalfFloat
+from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height.half_float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002) | sort emp_no;
+
+emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
+10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+10090          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+;
+
+inScaledFloat
+from employees | keep emp_no, height, height.float, height.half_float, height.scaled_float | where height.scaled_float in (2.03, 2.0299999713897705, 2.029296875, 2.0300000000000002) | sort emp_no;
+
+emp_no:integer |height:double  |height.float:double |height.half_float:double |height.scaled_float:double
+10001          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+10090          |2.03           |2.0299999713897705  |2.029296875              |2.0300000000000002
+;
+
+convertFromDouble
+row d = [123.4, 567.8] | eval dd = to_double(d);
+
+d:double       |dd:double
+[123.4, 567.8] |[123.4, 567.8]
+;
+
+convertFromBoolean
+row ft = [false, true] | eval fd = to_double(false), td = to_double(true), ftd = to_double(ft);
+
+ft:boolean    |fd:double |td:double |ftd:double
+[false, true] |0         |1         |[0, 1]
+;
+
+convertFromDatetime
+from employees | sort emp_no | eval hire_double = to_double(hire_date) | keep emp_no, hire_date, hire_double | limit 3;
+
+emp_no:integer |hire_date:date          |hire_double:double
+10001          |1986-06-26T00:00:00.000Z|5.20128E11
+10002          |1985-11-21T00:00:00.000Z|5.013792E11
+10003          |1986-08-28T00:00:00.000Z|5.255712E11
+;
+
+convertFromString
+// tag::to_double-str[]
+ROW str1 = "5.20128E11", str2 = "foo"
+| EVAL dbl = TO_DOUBLE("520128000000"), dbl1 = TO_DOUBLE(str1), dbl2 = TO_DOUBLE(str2)
+// end::to_double-str[]
+;
+warning:Line 2:72: evaluation of [TO_DOUBLE(str2)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:72: java.lang.NumberFormatException: For input string: \"foo\"
+
+// tag::to_double-str-result[]
+str1:keyword |str2:keyword |dbl:double |dbl1:double |dbl2:double
+5.20128E11   |foo          |5.20128E11 |5.20128E11  |null
+// end::to_double-str-result[]
+;
+
+convertFromUnsignedLong
+row ul = 9223372036854775808 | eval dbl = to_double(ul);
+
+        ul:ul      |        dbl:double
+9223372036854775808|9.223372036854776E18
+;
+
+convertFromLong
+row long = 520128000000 | eval dbl = to_double(long);
+
+long:long    |dbl:double
+520128000000 |520128000000
+;
+
+convertFromInt
+row int = 520128 | eval dbl = to_double(int);
+
+int:integer |dbl:double
+520128      |520128
+;
+
+lessThanMultivalue
+from employees | where salary_change < 1 | keep emp_no, salary_change | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10006          |-3.9
+10012          | 0.04
+10017          |-6.33
+10020          |-5.81
+10030          |-0.4
+;
+
+greaterThanMultivalue
+from employees | where salary_change > 1 | keep emp_no, salary_change | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10001          |1.19
+10044          |8.09
+10046          |2.39
+10066          |5.94
+10079          |7.58
+;
+
+equalToMultivalue
+from employees | where salary_change == 1.19 | keep emp_no, salary_change | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10001          |1.19
+;
+
+equalToOrEqualToMultivalue
+from employees | where salary_change == 1.19 or salary_change == 7.58 | keep emp_no, salary_change | sort emp_no;
+
+// Note that multivalued salaries are filtered out
+emp_no:integer |salary_change:double
+10001          |1.19
+10079          |7.58
+;
+
+inMultivalue
+from employees | where salary_change in (1.19, 7.58) | keep emp_no, salary_change | sort emp_no;
+
+// Note that multivalued salaries are filtered out
+emp_no:integer |salary_change:double
+10001          |1.19
+10079          |7.58
+;
+
+notLessThanMultivalue
+from employees | where not(salary_change < 1) | keep emp_no, salary_change | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10001          | 1.19
+10044          | 8.09
+10046          | 2.39
+10066          | 5.94
+10079          | 7.58
+;
+
+notGreaterThanMultivalue
+from employees | where not(salary_change > 1) | keep emp_no, salary_change | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10006          | -3.9
+10012          |  0.04
+10017          | -6.33
+10020          | -5.81
+10030          | -0.4
+;
+
+notEqualToMultivalue
+from employees | where not(salary_change == 1.19) | keep emp_no, salary_change | sort emp_no | limit 5;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10006          | -3.9
+10012          |  0.04
+10017          | -6.33
+10020          | -5.81
+10030          | -0.4
+;
+
+notEqualToAndEqualToMultivalue-Ignore
+from employees | where not(salary_change == 1.19 or salary_change == -3.9) | keep emp_no, salary_change | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10012          |  0.04
+10017          | -6.33
+10020          | -5.81
+10030          | -0.4
+10030          | -0.4
+;
+
+notInMultivalue-Ignore
+from employees | where not(salary_change in (1.19, -3.9)) | keep emp_no, salary_change | sort emp_no;
+
+// Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
+emp_no:integer |salary_change:double
+10012          |  0.04
+10017          | -6.33
+10020          | -5.81
+10030          | -0.4
+10030          | -0.4
+;
+
+mvDedupe
+row a = [1.1, 2.1, 2.1] | eval da = mv_dedupe(a);
+
+       a:double | da:double
+[1.1, 2.1, 2.1] | [1.1, 2.1]
+;
+
+autoBucket
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| EVAL bh = auto_bucket(height, 20, 1.41, 2.10)
+| SORT hire_date, height
+| KEEP hire_date, height, bh
+;
+
+hire_date:date           | height:double | bh:double
+1985-02-18T00:00:00.000Z | 1.85          | 1.85
+1985-02-24T00:00:00.000Z | 2.0           | 2.0
+1985-05-13T00:00:00.000Z | 2.0           | 2.0
+1985-07-09T00:00:00.000Z | 1.83          | 1.8
+1985-09-17T00:00:00.000Z | 1.45          | 1.4000000000000001
+1985-10-14T00:00:00.000Z | 1.77          | 1.75
+1985-10-20T00:00:00.000Z | 1.94          | 1.9000000000000001
+1985-11-19T00:00:00.000Z | 1.8           | 1.8
+1985-11-20T00:00:00.000Z | 1.93          | 1.9000000000000001
+1985-11-20T00:00:00.000Z | 1.99          | 1.9500000000000002
+1985-11-21T00:00:00.000Z | 2.08          | 2.0500000000000003
+;
+
+cos
+// tag::cos[]
+ROW a=1.8 
+| EVAL cos=COS(a)
+// end::cos[]
+;
+
+// tag::cos-result[]
+a:double | cos:double
+     1.8 | -0.2272020946930871
+// end::cos-result[]
+;
+
+cosh
+// tag::cosh[]
+ROW a=1.8 
+| EVAL cosh=COSH(a)
+// end::cosh[]
+;
+
+// tag::cosh-result[]
+a:double | cosh:double
+     1.8 | 3.1074731763172667
+// end::cosh-result[]
+;
+
+acos
+// tag::acos[]
+ROW a=.9
+| EVAL acos=ACOS(a)
+// end::acos[]
+;
+
+// tag::acos-result[]
+a:double | acos:double
+      .9 | 0.45102681179626236
+// end::acos-result[]
+;
+
+acosNull
+ROW a=12.0
+| EVAL acos=ACOS(a)
+;
+warning:Line 2:13: evaluation of [ACOS(a)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:13: java.lang.ArithmeticException: Acos input out of range
+
+a:double | acos:double
+      12 | null
+;
+
+sin
+// tag::sin[]
+ROW a=1.8 
+| EVAL sin=SIN(a)
+// end::sin[]
+;
+
+// tag::sin-result[]
+a:double | sin:double
+     1.8 | 0.9738476308781951
+// end::sin-result[]
+;
+
+sinh
+// tag::sinh[]
+ROW a=1.8 
+| EVAL sinh=SINH(a)
+// end::sinh[]
+;
+
+// tag::sinh-result[]
+a:double | sinh:double
+     1.8 | 2.94217428809568
+// end::sinh-result[]
+;
+
+asin
+// tag::asin[]
+ROW a=.9
+| EVAL asin=ASIN(a)
+// end::asin[]
+;
+
+// tag::asin-result[]
+a:double | asin:double
+      .9 | 1.1197695149986342
+// end::asin-result[]
+;
+
+asinNull
+ROW a=12.0
+| EVAL asin=ASIN(a)
+;
+warning:Line 2:13: evaluation of [ASIN(a)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:13: java.lang.ArithmeticException: Asin input out of range
+
+a:double | asin:double
+      12 | null
+;
+
+tan
+// tag::tan[]
+ROW a=1.8 
+| EVAL tan=TAN(a)
+// end::tan[]
+;
+
+// tag::tan-result[]
+a:double | tan:double
+     1.8 | -4.286261674628062
+// end::tan-result[]
+;
+
+tanh
+// tag::tanh[]
+ROW a=1.8 
+| EVAL tanh=TANH(a)
+// end::tanh[]
+;
+
+// tag::tanh-result[]
+a:double | tanh:double
+     1.8 | 0.9468060128462683
+// end::tanh-result[]
+;
+
+atan
+// tag::atan[]
+ROW a=12.9
+| EVAL atan=ATAN(a)
+// end::atan[]
+;
+
+// tag::atan-result[]
+a:double | atan:double
+    12.9 | 1.4934316673669235
+// end::atan-result[]
+;
+
+atan2
+// tag::atan2[]
+ROW y=12.9, x=.6
+| EVAL atan2=ATAN2(y, x)
+// end::atan2[]
+;
+
+// tag::atan2-result[]
+y:double | x:double | atan2:double
+    12.9 |      0.6 | 1.5243181954438936
+// end::atan2-result[]
+;
+
+toDegrees
+// tag::to_degrees[]
+ROW rad = [1.57, 3.14, 4.71]
+| EVAL deg = TO_DEGREES(rad)
+// end::to_degrees[]
+;
+
+// tag::to_degrees-result[]
+        rad:double | deg:double
+[1.57, 3.14, 4.71] | [89.95437383553924, 179.9087476710785, 269.86312150661774]
+// end::to_degrees-result[]
+;
+
+toRadians
+// tag::to_radians[]
+ROW deg = [90.0, 180.0, 270.0]
+| EVAL rad = TO_RADIANS(deg)
+// end::to_radians[]
+;
+
+// tag::to_radians-result[]
+          deg:double | rad:double
+[90.0, 180.0, 270.0] | [1.5707963267948966, 3.141592653589793, 4.71238898038469]
+// end::to_radians-result[]
+;

@@ -214,6 +214,9 @@ Norwegian (Nynorsk)::
 {lucene-analysis-docs}/no/NorwegianLightStemmer.html[*`light_nynorsk`*],
 {lucene-analysis-docs}/no/NorwegianMinimalStemmer.html[`minimal_nynorsk`]
 
+Persian::
+{lucene-analysis-docs}/fa/PersianStemmer.html[*`persian`*]
+
 Portuguese::
 https://dl.acm.org/citation.cfm?id=1141523&dl=ACM&coll=DL&CFID=179095584&CFTOKEN=80067181[*`light_portuguese`*],
 pass:macros[http://www.inf.ufrgs.br/~buriol/papers/Orengo_CLEF07.pdf[`minimal_portuguese`\]],
@@ -226,6 +229,9 @@ https://snowballstem.org/algorithms/romanian/stemmer.html[*`romanian`*]
 Russian::
 https://snowballstem.org/algorithms/russian/stemmer.html[*`russian`*],
 https://doc.rero.ch/lm.php?url=1000%2C43%2C4%2C20091209094227-CA%2FDolamic_Ljiljana_-_Indexing_and_Searching_Strategies_for_the_Russian_20091209.pdf[`light_russian`]
+
+Serbian::
+https://snowballstem.org/algorithms/serbian/stemmer.html[*`serbian`*]
 
 Spanish::
 https://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[*`light_spanish`*],

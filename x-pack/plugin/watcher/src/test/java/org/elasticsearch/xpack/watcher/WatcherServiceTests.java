@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -113,7 +113,7 @@ public class WatcherServiceTests extends ESTestCase {
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         Metadata.Builder metadataBuilder = Metadata.builder();
-        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).state(IndexMetadata.State.CLOSE).settings(indexSettings));
         csBuilder.metadata(metadataBuilder);
 
@@ -142,7 +142,7 @@ public class WatcherServiceTests extends ESTestCase {
         // cluster state setup, with one node, one shard
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         Metadata.Builder metadataBuilder = Metadata.builder();
-        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings));
         csBuilder.metadata(metadataBuilder);
 
@@ -280,7 +280,7 @@ public class WatcherServiceTests extends ESTestCase {
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         Metadata.Builder metadataBuilder = Metadata.builder();
-        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings));
         csBuilder.metadata(metadataBuilder);
         ClusterState clusterState = csBuilder.build();

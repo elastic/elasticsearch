@@ -1,0 +1,197 @@
+setup:
+  - skip:
+      version: " - 8.9.99"
+      reason: Introduced in 8.10.0
+
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-index1
+        body:
+          - index:
+              _id: doc1
+          - { "text": "elastic" }
+          - index:
+              _id: doc2
+          - { "text": "kibana" }
+          - index:
+              _id: doc3
+          - { "text": "logstash" }
+          - index:
+              _id: doc4
+          - { "text": "you know, for search" }
+          - index:
+              _id: doc5
+          - { "text": "beats" }
+
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-ruleset
+        body:
+          rules:
+            - rule_id: rule1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [search]
+              actions:
+                ids:
+                  - 'doc1'
+            - rule_id: rule2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ui]
+              actions:
+                docs:
+                  - '_index': 'test-index1'
+                    '_id': 'doc2'
+            - rule_id: rule3
+              type: pinned
+              criteria:
+                - type: contains
+                  metadata: query_string
+                  values: [ kibana, logstash ]
+              actions:
+                ids:
+                  - 'doc2'
+                  - 'doc3'
+
+
+---
+"Perform a rule query with an ID match":
+
+  - do:
+      search:
+        body:
+          query:
+            rule_query:
+              organic:
+                query_string:
+                  default_field: text
+                  query: search
+              match_criteria:
+                query_string: search
+              ruleset_id: test-ruleset
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: 'doc1' }
+  - match: { hits.hits.1._id: 'doc4' }
+
+---
+"As a user, perform a rule query with an ID match":
+  - skip:
+      features: headers
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      search:
+        body:
+          query:
+            rule_query:
+              organic:
+                query_string:
+                  default_field: text
+                  query: search
+              match_criteria:
+                query_string: search
+              ruleset_id: test-ruleset
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: 'doc1' }
+  - match: { hits.hits.1._id: 'doc4' }
+
+---
+"As a user, perform a rule query with a doc match":
+  - skip:
+      features: headers
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      search:
+        body:
+          query:
+            rule_query:
+              organic:
+                query_string:
+                  default_field: text
+                  query: ui
+              match_criteria:
+                query_string: ui
+              ruleset_id: test-ruleset
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: 'doc2' }
+
+---
+"Perform a rule query with no matching rules":
+
+  - do:
+      search:
+        body:
+          query:
+            rule_query:
+              organic:
+                query_string:
+                  default_field: text
+                  query: beats
+              match_criteria:
+                query_string: beats
+              ruleset_id: test-ruleset
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: 'doc5' }
+
+---
+"Perform a rule query with multiple matching rules":
+
+  - do:
+      search:
+        body:
+          query:
+            rule_query:
+              organic:
+                query_string:
+                  default_field: text
+                  query: logstash
+              match_criteria:
+                query_string: logstash
+              ruleset_id: test-ruleset
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: 'doc2' }
+  - match: { hits.hits.1._id: 'doc3'}
+
+
+---
+"Perform a rule query that matches complex rules":
+
+  - do:
+      search:
+        body:
+          query:
+            rule_query:
+              organic:
+                query_string:
+                  default_field: text
+                  query: elastic and kibana are good for search
+              match_criteria:
+                query_string: elastic and kibana are good for search
+              ruleset_id: test-ruleset
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._id: 'doc2' }
+  - match: { hits.hits.1._id: 'doc3' }
+
+

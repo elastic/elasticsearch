@@ -15,13 +15,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,9 +38,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -52,10 +55,10 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -72,6 +75,7 @@ import static org.mockito.Mockito.when;
 
 public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
 
+    private TestThreadPool threadPool;
     private NodeStatsClient client;
     private AutoscalingNodeInfoService service;
     private TimeValue fetchTimeout;
@@ -82,7 +86,8 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        client = new NodeStatsClient();
+        threadPool = createThreadPool();
+        client = new NodeStatsClient(threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
         Settings settings;
         if (randomBoolean()) {
@@ -104,8 +109,8 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     @After
     @Override
     public void tearDown() throws Exception {
+        threadPool.close();
         super.tearDown();
-        client.close();
     }
 
     public void testAddRemoveNode() {
@@ -334,11 +339,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         client.respondStats((request, listener) -> {
             CountDownLatch latch = new CountDownLatch(1);
             threads.add(startThread(() -> {
-                try {
-                    assertThat(latch.await(10, TimeUnit.SECONDS), is(true));
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(latch);
                 listener.onResponse(response);
             }));
             threads.add(startThread(() -> {
@@ -450,7 +451,9 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
             Version.CURRENT,
             TransportVersion.current(),
-            Build.CURRENT,
+            IndexVersion.current(),
+            Map.of(),
+            Build.current(),
             node,
             null,
             osInfo,
@@ -471,8 +474,8 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         private BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responderStats;
         private BiConsumer<NodesInfoRequest, ActionListener<NodesInfoResponse>> responderInfo;
 
-        private NodeStatsClient() {
-            super(getTestName());
+        private NodeStatsClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         public void respondInfo(NodesInfoResponse response, Runnable whileFetching) {
@@ -523,8 +526,11 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            assertThat(action, anyOf(Matchers.sameInstance(NodesStatsAction.INSTANCE), Matchers.sameInstance(NodesInfoAction.INSTANCE)));
-            if (action == NodesStatsAction.INSTANCE) {
+            assertThat(
+                action,
+                anyOf(Matchers.sameInstance(TransportNodesStatsAction.TYPE), Matchers.sameInstance(TransportNodesInfoAction.TYPE))
+            );
+            if (action == TransportNodesStatsAction.TYPE) {
                 NodesStatsRequest nodesStatsRequest = (NodesStatsRequest) request;
                 assertThat(nodesStatsRequest.timeout(), equalTo(fetchTimeout));
                 assertThat(responderStats, notNullValue());
@@ -567,13 +573,12 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     private DiscoveryNode restartNode(DiscoveryNode node) {
-        return new DiscoveryNode(
-            node.getName(),
-            node.getId(),
-            node.getAddress(),
-            node.getAttributes(),
-            node.getRoles(),
-            node.getVersionInformation()
-        );
+        return DiscoveryNodeUtils.builder(node.getId())
+            .name(node.getName())
+            .address(node.getAddress())
+            .attributes(node.getAttributes())
+            .roles(node.getRoles())
+            .version(node.getVersionInformation())
+            .build();
     }
 }

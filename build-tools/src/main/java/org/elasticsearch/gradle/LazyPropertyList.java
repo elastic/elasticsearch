@@ -56,7 +56,7 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
 
     @Override
     public <T1> T1[] toArray(T1[] a) {
-        return delegate.stream().peek(this::validate).map(PropertyListEntry::getValue).collect(Collectors.toList()).toArray(a);
+        return delegate.stream().peek(this::validate).map(PropertyListEntry::getValue).toList().toArray(a);
     }
 
     @Override
@@ -79,7 +79,7 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
 
     @Override
     public boolean containsAll(Collection<?> c) {
-        return delegate.stream().map(PropertyListEntry::getValue).collect(Collectors.toList()).containsAll(c);
+        return delegate.stream().map(PropertyListEntry::getValue).collect(Collectors.toSet()).containsAll(c);
     }
 
     @Override

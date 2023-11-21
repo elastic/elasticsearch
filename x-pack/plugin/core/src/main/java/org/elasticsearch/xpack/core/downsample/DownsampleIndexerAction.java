@@ -6,8 +6,12 @@
  */
 package org.elasticsearch.xpack.core.downsample;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.downsample.DownsampleAction;
+import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.action.downsample.DownsampleTask;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -21,7 +25,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.rollup.action.RollupShardTask;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,17 +42,23 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
 
     public static class Request extends BroadcastRequest<Request> implements IndicesRequest, ToXContentObject {
         private DownsampleAction.Request downsampleRequest;
+        private long indexStartTimeMillis;
+        private long indexEndTimeMillis;
         private String[] dimensionFields;
         private String[] metricFields;
         private String[] labelFields;
 
         public Request(
             DownsampleAction.Request downsampleRequest,
+            final long indexStartTimeMillis,
+            final long indexEndTimeMillis,
             final String[] dimensionFields,
             final String[] metricFields,
             final String[] labelFields
         ) {
             super(downsampleRequest.indices());
+            this.indexStartTimeMillis = indexStartTimeMillis;
+            this.indexEndTimeMillis = indexEndTimeMillis;
             this.downsampleRequest = downsampleRequest;
             this.dimensionFields = dimensionFields;
             this.metricFields = metricFields;
@@ -60,6 +69,13 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040) && in.readBoolean()) {
+                this.indexStartTimeMillis = in.readVLong();
+                this.indexEndTimeMillis = in.readVLong();
+            } else {
+                this.indexStartTimeMillis = 0;
+                this.indexEndTimeMillis = 0;
+            }
             this.downsampleRequest = new DownsampleAction.Request(in);
             this.dimensionFields = in.readStringArray();
             this.metricFields = in.readStringArray();
@@ -78,6 +94,14 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
 
         public DownsampleAction.Request getDownsampleRequest() {
             return downsampleRequest;
+        }
+
+        public long getIndexStartTimeMillis() {
+            return indexStartTimeMillis;
+        }
+
+        public long getIndexEndTimeMillis() {
+            return indexEndTimeMillis;
         }
 
         public String[] getDimensionFields() {
@@ -108,6 +132,13 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
+                out.writeBoolean(true);
+                out.writeVLong(indexStartTimeMillis);
+                out.writeVLong(indexEndTimeMillis);
+            } else {
+                out.writeBoolean(false);
+            }
             downsampleRequest.writeTo(out);
             out.writeStringArray(dimensionFields);
             out.writeStringArray(metricFields);
@@ -214,12 +245,12 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
             this.request = new Request(in);
         }
 
-        public ShardDownsampleRequest(ShardId shardId, Request request) {
+        public ShardDownsampleRequest(final ShardId shardId, final Request request) {
             super(shardId, request);
             this.request = request;
         }
 
-        public String getRollupIndex() {
+        public String getDownsampleIndex() {
             return request.getDownsampleRequest().getTargetIndex();
         }
 
@@ -247,12 +278,14 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new RollupShardTask(
+            return new DownsampleShardTask(
                 id,
                 type,
                 action,
                 parentTaskId,
                 request.downsampleRequest.getSourceIndex(),
+                request.getIndexStartTimeMillis(),
+                request.getIndexEndTimeMillis(),
                 request.downsampleRequest.getDownsampleConfig(),
                 headers,
                 shardId()

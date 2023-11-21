@@ -65,7 +65,7 @@ GET my-index/_search/template
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or alias. For cross-cluster search, see <<remote-clusters-security>>.
+or alias. For cross-cluster search, see <<remote-clusters>>.
 
 [[search-template-api-path-params]]
 ==== {api-path-parms-title}
@@ -92,9 +92,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 (Optional, Boolean) If `true`, the response includes additional details about
 score computation as part of a hit. Defaults to `false`.
 
-`ignore_throttled`::
-(Optional, Boolean) If `true`, specified concrete, expanded, or aliased indices
-are not included in the response when throttled. Defaults to `true`.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

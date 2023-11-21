@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.index.IndexCompatibility;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -80,15 +81,22 @@ public class ShowColumns extends Command {
         idx = hasText(cat) && cat.equals(cluster) == false ? buildRemoteIndexName(cat, idx) : idx;
 
         boolean withFrozen = includeFrozen || session.configuration().includeFrozen();
-        session.indexResolver().resolveAsMergedMapping(idx, withFrozen, emptyMap(), ActionListener.wrap(indexResult -> {
-            List<List<?>> rows = emptyList();
-            if (indexResult.isValid()) {
-                rows = new ArrayList<>();
-                Version version = Version.fromId(session.configuration().version().id);
-                fillInRows(IndexCompatibility.compatible(indexResult, version).get().mapping(), null, rows);
-            }
-            listener.onResponse(of(session, rows));
-        }, listener::onFailure));
+        session.indexResolver()
+            .resolveAsMergedMapping(
+                idx,
+                IndexResolver.ALL_FIELDS,
+                withFrozen,
+                emptyMap(),
+                listener.delegateFailureAndWrap((l, indexResult) -> {
+                    List<List<?>> rows = emptyList();
+                    if (indexResult.isValid()) {
+                        rows = new ArrayList<>();
+                        Version version = Version.fromId(session.configuration().version().id);
+                        fillInRows(IndexCompatibility.compatible(indexResult, version).get().mapping(), null, rows);
+                    }
+                    l.onResponse(of(session, rows));
+                })
+            );
     }
 
     static void fillInRows(Map<String, EsField> mapping, String prefix, List<List<?>> rows) {

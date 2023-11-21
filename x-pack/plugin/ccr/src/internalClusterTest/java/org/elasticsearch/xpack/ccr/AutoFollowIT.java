@@ -638,23 +638,20 @@ public class AutoFollowIT extends CcrIntegTestCase {
         final String datastream = "logs-1";
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("template-id");
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("logs-*"),
-                new Template(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .build(),
-                    null,
-                    null
-                ),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("logs-*"))
+                .template(
+                    new Template(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .build(),
+                        null,
+                        null
+                    )
+                )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
         assertAcked(leaderClient().execute(PutComposableIndexTemplateAction.INSTANCE, request).get());
 
@@ -662,7 +659,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertAcked(leaderClient().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get());
         leaderClient().prepareIndex(datastream)
             .setCreate(true)
-            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD.getName(), randomNonNegativeLong())
+            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD_NAME, randomNonNegativeLong())
             .get();
 
         PutAutoFollowPatternAction.Request followRequest = new PutAutoFollowPatternAction.Request();
@@ -693,12 +690,11 @@ public class AutoFollowIT extends CcrIntegTestCase {
             leaderClient().admin()
                 .indices()
                 .prepareCreate(indexInDatastream)
-                .setMapping(MetadataIndexTemplateService.DEFAULT_TIMESTAMP_MAPPING.toString())
-                .get()
+                .setMapping(MetadataIndexTemplateService.DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING.toString())
         );
         leaderClient().prepareIndex(indexInDatastream)
             .setCreate(true)
-            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD.getName(), randomNonNegativeLong())
+            .setSource("foo", "bar", DataStream.TIMESTAMP_FIELD_NAME, randomNonNegativeLong())
             .get();
         leaderClient().execute(
             ModifyDataStreamsAction.INSTANCE,

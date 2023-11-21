@@ -60,7 +60,13 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         SearchTransportService searchTransportService,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(SearchShardsAction.NAME, transportService, actionFilters, SearchShardsRequest::new);
+        super(
+            SearchShardsAction.NAME,
+            transportService,
+            actionFilters,
+            SearchShardsRequest::new,
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
+        );
         this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;

@@ -109,9 +109,7 @@ By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the
 <<search-after,`search_after`>> parameter.
 
-`ignore_throttled`::
-(Optional, Boolean) If `true`, concrete, expanded or aliased indices will be
-ignored when frozen. Defaults to `true`.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
@@ -515,7 +513,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
 (Optional, object)
 A configuration object indicating how to build a query_vector before executing
 the request. You must provide a `query_vector_builder` or `query_vector`, but
-not both. Refer to <<semantic-search>> to learn more.
+not both. Refer to <<knn-semantic-search>> to learn more.
 
 `similarity`::
 (Optional, float)
@@ -555,11 +553,16 @@ Period of time used to extend the life of the PIT.
 
 [[request-body-rank]]
 `rank`::
-(Optional, object) Defines a method for combining and ranking result sets from
-either:
+preview:[]
+This param is in technical preview and may change in the future. The syntax will
+likely change before GA.
 +
-* 1 query and 1 or more kNN searches
-* 2 or more kNN searches
+(Optional, object)
+Defines a method for combining and ranking result sets from
+a combination of <<request-body-search-query, query>>,
+<<request-body-sub-searches, sub searches>>, and/or
+<<search-api-knn, knn searches>>. Requires a minimum of 2 results sets for
+ranking from the specified sources.
 +
 .Ranking methods
 [%collapsible%open]
@@ -714,6 +717,33 @@ exclude fields from this subset using the `excludes` property.
 Stats groups to associate with the search. Each group maintains a statistics
 aggregation for its associated searches. You can retrieve these stats using the
 <<indices-stats,indices stats API>>.
+
+[[request-body-sub-searches]]
+`sub_searches`::
+preview:[]
+This param is in technical preview and may change in the future. The syntax will
+likely change before GA.
++
+(Optional, array of objects)
+An array of `sub_search` objects where each `sub_search` is evaluated
+independently, and their result sets are later combined as part of
+<<request-body-rank, ranking>>. Each `sub_search` object is required to
+contain a single `query`. `sub_searches` is only allowed with the
+<<request-body-rank,`rank`>> element, and is not allowed in conjunction
+with a top-level <<request-body-search-query, `query`>> element.
++
+`sub_searches` as part of a search:
+[source,js]
+----
+{
+  "sub_searches": [
+    { "query": {...} },
+    { "query": {...} }
+  ]
+  ...
+}
+----
+// NOTCONSOLE
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +

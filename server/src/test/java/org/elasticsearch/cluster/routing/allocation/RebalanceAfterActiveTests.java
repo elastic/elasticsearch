@@ -8,9 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -26,6 +23,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -37,7 +35,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RebalanceAfterActiveTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(RebalanceAfterActiveTests.class);
 
     public void testRebalanceOnlyAfterAllShardsAreActive() {
         final long[] sizes = new long[5];
@@ -63,7 +60,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         );
         logger.info("Building initial routing table");
 
-        var indexMetadata = IndexMetadata.builder("test").settings(indexSettings(Version.CURRENT, 5, 1)).build();
+        var indexMetadata = IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), 5, 1)).build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata, false))

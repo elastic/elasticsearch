@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.core.Strings.format;
@@ -42,8 +42,8 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
     }
 
     @Override
-    public boolean isMinNodeVersionSupported(Version minNodeVersion) {
-        return minNodeVersion.onOrAfter(Version.V_8_0_0);
+    public boolean isMinTransportVersionSupported(TransportVersion minNodeVersion) {
+        return minNodeVersion.onOrAfter(TransportVersions.V_8_0_0);
     }
 
     @Override
@@ -58,7 +58,9 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
                 continue;
             }
             IndexRoutingTable routingTable = latestState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null
+                || routingTable.allPrimaryShardsActive() == false
+                || routingTable.readyForSearch(latestState) == false) {
                 return false;
             }
         }
@@ -72,7 +74,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
 
     @Override
     public void runUpdate() {
-        PlainActionFuture<List<DatafeedConfig.Builder>> getdatafeeds = PlainActionFuture.newFuture();
+        PlainActionFuture<List<DatafeedConfig.Builder>> getdatafeeds = new PlainActionFuture<>();
         provider.expandDatafeedConfigs("_all", true, null, getdatafeeds);
         List<DatafeedConfig.Builder> datafeedConfigBuilders = getdatafeeds.actionGet();
         List<DatafeedUpdate> updates = datafeedConfigBuilders.stream()
@@ -83,7 +85,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
                     .setId(datafeedConfig.getId())
                     .build()
             )
-            .collect(Collectors.toList());
+            .toList();
         if (updates.isEmpty()) {
             return;
         }
@@ -94,7 +96,7 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
 
         List<Exception> failures = new ArrayList<>();
         for (DatafeedUpdate update : updates) {
-            PlainActionFuture<DatafeedConfig> updateDatafeeds = PlainActionFuture.newFuture();
+            PlainActionFuture<DatafeedConfig> updateDatafeeds = new PlainActionFuture<>();
             provider.updateDatefeedConfig(
                 update.getId(),
                 update,

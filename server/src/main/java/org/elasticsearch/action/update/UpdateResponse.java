@@ -49,6 +49,7 @@ public class UpdateResponse extends DocWriteResponse {
         this(new ShardInfo(0, 0), shardId, id, seqNo, primaryTerm, version, result);
     }
 
+    @SuppressWarnings("this-escape")
     public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
         super(shardId, id, seqNo, primaryTerm, version, result);
         setShardInfo(shardInfo);

@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.ql.querydsl.query;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.equalTo;
 
 public class LeafQueryTests extends ESTestCase {
     private static class DummyLeafQuery extends LeafQuery {
@@ -63,6 +65,16 @@ public class LeafQueryTests extends ESTestCase {
         NestedSortBuilder sort = new NestedSortBuilder(randomAlphaOfLength(5));
         query.enrichNestedSort(sort);
         assertNull(sort.getFilter());
+    }
+
+    public void testNot() {
+        var q = new LeafQueryTests.DummyLeafQuery(new Source(Location.EMPTY, "test"));
+        assertThat(q.negate(new Source(Location.EMPTY, "not")), equalTo(new NotQuery(new Source(Location.EMPTY, "not"), q)));
+    }
+
+    public void testNotNot() {
+        var q = new LeafQueryTests.DummyLeafQuery(new Source(Location.EMPTY, "test"));
+        assertThat(q.negate(Source.EMPTY).negate(Source.EMPTY), equalTo(q));
     }
 
     public void testToString() {

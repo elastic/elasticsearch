@@ -19,6 +19,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -33,6 +34,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
@@ -309,6 +311,11 @@ public class StatefulPreVoteCollectorTests extends ESTestCase {
                 @Override
                 public PreVoteResponse read(StreamInput in) throws IOException {
                     return new PreVoteResponse(in);
+                }
+
+                @Override
+                public Executor executor(ThreadPool threadPool) {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
                 @Override

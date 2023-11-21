@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.TcpTransport;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
@@ -107,20 +106,12 @@ public class XPackSettingsTests extends ESTestCase {
     }
 
     public void testRemoteClusterSslSettings() {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         final List<Setting<?>> allSettings = XPackSettings.getAllSettings();
 
         final List<String> remoteClusterSslSettingKeys = allSettings.stream()
             .map(Setting::getKey)
             .filter(key -> key.startsWith("xpack.security.remote_cluster_"))
             .toList();
-
-        // Ensure client_authentication is only available for server and verification_mode is only available for client
-        assertThat(remoteClusterSslSettingKeys, not(hasItem("xpack.security.remote_cluster_server.ssl.verification_mode")));
-        assertThat(remoteClusterSslSettingKeys, hasItem("xpack.security.remote_cluster_client.ssl.verification_mode"));
-
-        assertThat(remoteClusterSslSettingKeys, hasItem("xpack.security.remote_cluster_server.ssl.client_authentication"));
-        assertThat(remoteClusterSslSettingKeys, not(hasItem("xpack.security.remote_cluster_client.ssl.client_authentication")));
 
         // None of them allow insecure password
         List.of(

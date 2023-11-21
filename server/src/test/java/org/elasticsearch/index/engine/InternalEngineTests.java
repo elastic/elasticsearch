@@ -64,7 +64,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -100,6 +99,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
@@ -131,7 +131,7 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogOperationsUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.MatcherAssert;
@@ -140,6 +140,7 @@ import org.hamcrest.Matchers;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -2429,11 +2430,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
-                try {
-                    startGun.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startGun);
                 for (int op = 0; op < opsPerThread; op++) {
                     Engine.Get engineGet = new Engine.Get(true, false, doc.id());
                     try (Engine.GetResult get = engine.get(engineGet, mappingLookup, documentParser, randomSearcherWrapper())) {
@@ -4375,11 +4372,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
-                try {
-                    startGun.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startGun);
                 int docOffset;
                 while ((docOffset = offset.incrementAndGet()) < docs.size()) {
                     try {
@@ -4492,11 +4485,7 @@ public class InternalEngineTests extends EngineTestCase {
                 @Override
                 public void run() {
                     startGun.countDown();
-                    try {
-                        startGun.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(startGun);
                     assertThat(engine.getVersionMap().values(), empty());
                     int docOffset;
                     while ((docOffset = offset.incrementAndGet()) < docs.size()) {
@@ -4556,11 +4545,7 @@ public class InternalEngineTests extends EngineTestCase {
                     if (i == 1) {
                         throw new MockDirectoryWrapper.FakeIOException();
                     } else if (i == 2) {
-                        try {
-                            start.await();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(start);
                         throw new ElasticsearchException("something completely different");
                     }
                 }
@@ -4578,11 +4563,7 @@ public class InternalEngineTests extends EngineTestCase {
             Engine.Index index = randomBoolean() ? indexForDoc(doc) : randomAppendOnly(doc, false, docId);
             internalEngine.index(index);
             Runnable r = () -> {
-                try {
-                    join.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(join);
                 try {
                     internalEngine.refresh("test");
                     fail();
@@ -6695,7 +6676,10 @@ public class InternalEngineTests extends EngineTestCase {
             .settings(
                 Settings.builder()
                     .put(defaultSettings.getSettings())
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
+                    .put(
+                        IndexMetadata.SETTING_VERSION_CREATED,
+                        IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0)
+                    )
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
             )
             .build();
@@ -6778,10 +6762,13 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testStoreHonorsLuceneVersion() throws IOException {
-        for (Version createdVersion : Arrays.asList(
-            Version.CURRENT,
-            VersionUtils.getPreviousMinorVersion(),
-            VersionUtils.getFirstVersion()
+        // this expects a big IndexVersion bump when the lucene major version is bumped
+        IndexVersion lowestCompatiblePreviousVersion = IndexVersion.fromId((IndexVersion.current().id() / 1_000_000) * 1_000_000);
+
+        for (IndexVersion createdVersion : List.of(
+            IndexVersion.current(),
+            lowestCompatiblePreviousVersion,
+            IndexVersionUtils.getFirstVersion()
         )) {
             Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
@@ -6789,7 +6776,13 @@ public class InternalEngineTests extends EngineTestCase {
                 Store store = createStore(indexSettings, newDirectory());
                 InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))
             ) {
-                ParsedDocument doc = testParsedDocument("1", null, new LuceneDocument(), new BytesArray("{}".getBytes("UTF-8")), null);
+                ParsedDocument doc = testParsedDocument(
+                    "1",
+                    null,
+                    new LuceneDocument(),
+                    new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+                    null
+                );
                 engine.index(appendOnlyPrimary(doc, false, 1));
                 engine.refresh("test");
                 try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
@@ -7214,11 +7207,7 @@ public class InternalEngineTests extends EngineTestCase {
             @Override
             public void beforeRefresh() {
                 refreshStarted.countDown();
-                try {
-                    engineClosed.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(engineClosed);
             }
 
             @Override
@@ -7442,7 +7431,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.flush(true, true);
                 Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                 assertThat(userData, hasKey(ES_VERSION));
-                assertThat(userData.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
+                assertThat(userData.get(ES_VERSION), is(equalTo(IndexVersion.current().toString())));
             }
         }
     }
@@ -7452,7 +7441,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine = new InternalEngine(engine.config()) {
             @Override
             protected Map<String, String> getCommitExtraUserData() {
-                return Map.of("userkey", "userdata", ES_VERSION, Version.V_EMPTY.toString());
+                return Map.of("userkey", "userdata", ES_VERSION, IndexVersions.ZERO.toString());
             }
         };
         engine.skipTranslogRecovery();
@@ -7463,7 +7452,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
         assertThat(userData, hasEntry("userkey", "userdata"));
-        assertThat(userData, hasEntry(ES_VERSION, Version.CURRENT.toString()));
+        assertThat(userData, hasEntry(ES_VERSION, IndexVersion.current().toString()));
     }
 
     public void testTrimUnsafeCommitHasESVersionInUserData() throws IOException {
@@ -7514,20 +7503,20 @@ public class InternalEngineTests extends EngineTestCase {
                 .setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
             try (IndexWriter indexWriter = new IndexWriter(store.directory(), indexWriterConfig)) {
                 Map<String, String> commitUserDataWithOlderVersion = new HashMap<>(committedSegmentsInfo.userData);
-                commitUserDataWithOlderVersion.put(ES_VERSION, Version.V_7_0_0.toString());
+                commitUserDataWithOlderVersion.put(ES_VERSION, IndexVersions.V_7_0_0.toString());
                 indexWriter.setLiveCommitData(commitUserDataWithOlderVersion.entrySet());
                 indexWriter.commit();
             }
 
             Map<String, String> userDataBeforeTrimUnsafeCommits = store.readLastCommittedSegmentsInfo().getUserData();
             assertThat(userDataBeforeTrimUnsafeCommits, hasKey(ES_VERSION));
-            assertThat(userDataBeforeTrimUnsafeCommits.get(ES_VERSION), is(equalTo(Version.V_7_0_0.toString())));
+            assertThat(userDataBeforeTrimUnsafeCommits.get(ES_VERSION), is(equalTo(IndexVersions.V_7_0_0.toString())));
 
             store.trimUnsafeCommits(config.getTranslogConfig().getTranslogPath());
 
             Map<String, String> userDataAfterTrimUnsafeCommits = store.readLastCommittedSegmentsInfo().getUserData();
             assertThat(userDataAfterTrimUnsafeCommits, hasKey(ES_VERSION));
-            assertThat(userDataAfterTrimUnsafeCommits.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
+            assertThat(userDataAfterTrimUnsafeCommits.get(ES_VERSION), is(equalTo(IndexVersion.current().toString())));
         }
     }
 
@@ -7698,7 +7687,7 @@ public class InternalEngineTests extends EngineTestCase {
             InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)
         ) {
             Engine.IndexResult result1 = engine.index(indexForDoc(createParsedDoc("a", null)));
-            PlainActionFuture<Long> future1 = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future1 = new PlainActionFuture<>();
             engine.addFlushListener(result1.getTranslogLocation(), future1);
             assertFalse(future1.isDone());
             engine.flush();
@@ -7706,7 +7695,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             Engine.IndexResult result2 = engine.index(indexForDoc(createParsedDoc("a", null)));
             engine.flush();
-            PlainActionFuture<Long> future2 = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future2 = new PlainActionFuture<>();
             engine.addFlushListener(result2.getTranslogLocation(), future2);
             assertTrue(future2.isDone());
             assertThat(future2.actionGet(), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));

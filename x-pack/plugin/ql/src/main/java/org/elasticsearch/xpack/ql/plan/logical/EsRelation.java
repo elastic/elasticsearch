@@ -27,15 +27,23 @@ public class EsRelation extends LeafPlan {
     private final boolean frozen;
 
     public EsRelation(Source source, EsIndex index, boolean frozen) {
+        this(source, index, flatten(source, index.mapping()), frozen);
+    }
+
+    public EsRelation(Source source, EsIndex index, List<Attribute> attributes) {
+        this(source, index, attributes, false);
+    }
+
+    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, boolean frozen) {
         super(source);
         this.index = index;
-        this.attrs = flatten(source, index.mapping());
+        this.attrs = attributes;
         this.frozen = frozen;
     }
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, index, frozen);
+        return NodeInfo.create(this, EsRelation::new, index, attrs, frozen);
     }
 
     private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {

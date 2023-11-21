@@ -36,9 +36,6 @@ public class RejectionActionIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("thread_pool.search.size", 1)
             .put("thread_pool.search.queue_size", 1)
-            .put("thread_pool.write.size", 1)
-            // Needs to be 2 since we have concurrent indexing and global checkpoint syncs
-            .put("thread_pool.write.queue_size", 2)
             .put("thread_pool.get.size", 1)
             .put("thread_pool.get.queue_size", 1)
             .build();
@@ -53,8 +50,7 @@ public class RejectionActionIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
         final CopyOnWriteArrayList<Object> responses = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numberOfAsyncOps; i++) {
-            client().prepareSearch("test")
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
+            prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(QueryBuilders.matchQuery("field", "1"))
                 .execute(new LatchedActionListener<>(new ActionListener<SearchResponse>() {
                     @Override

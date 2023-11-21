@@ -66,7 +66,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             GetDeploymentStatsAction.Request::new,
             GetDeploymentStatsAction.Response::new,
             AssignmentStats::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
@@ -137,7 +137,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
         request.setNodes(taskNodes.toArray(String[]::new));
         request.setExpandedIds(matchedIds);
 
-        ActionListener<GetDeploymentStatsAction.Response> addFailedListener = listener.delegateFailure((l, response) -> {
+        ActionListener<GetDeploymentStatsAction.Response> addFailedListener = listener.safeMap(response -> {
             var updatedResponse = addFailedRoutes(response, assignmentNonStartedRoutes, clusterState.nodes());
             // Set the allocation state and reason if we have it
             for (AssignmentStats stats : updatedResponse.getStats().results()) {
@@ -159,7 +159,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     }
                 }
             }
-            l.onResponse(updatedResponse);
+            return updatedResponse;
         });
 
         super.doExecute(task, request, addFailedListener);

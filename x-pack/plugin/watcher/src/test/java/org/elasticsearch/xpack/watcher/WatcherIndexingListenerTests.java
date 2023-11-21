@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -396,7 +396,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         );
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = listener.getLocalShardAllocationIds(
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
             asList(shardRouting),
             indexRoutingTable
         );
@@ -412,7 +412,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "other", true, STARTED);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = listener.getLocalShardAllocationIds(
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
             Collections.emptyList(),
             indexRoutingTable
         );
@@ -436,7 +436,10 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             .addShard(TestShardRouting.newShardRouting(secondShardId, "node2", false, STARTED))
             .build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = listener.getLocalShardAllocationIds(localShards, indexRoutingTable);
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
+            localShards,
+            indexRoutingTable
+        );
         assertThat(allocationIds.size(), is(2));
     }
 
@@ -727,7 +730,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     private IndexMetadata.Builder createIndexBuilder(String name, int numberOfShards, int numberOfReplicas) {
-        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas));
+        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), numberOfShards, numberOfReplicas));
     }
 
     private static DiscoveryNode newNode(String nodeId) {

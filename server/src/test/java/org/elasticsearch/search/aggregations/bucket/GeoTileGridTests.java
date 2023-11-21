@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoBoundingBoxTests;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -51,12 +52,12 @@ public class GeoTileGridTests extends BaseAggregationTestCase<GeoGridAggregation
     public void testSerializationPreBounds() throws Exception {
         TransportVersion noBoundsSupportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_0_0,
-            TransportVersion.V_7_5_0
+            TransportVersions.V_7_0_0,
+            TransportVersions.V_7_5_0
         );
         GeoTileGridAggregationBuilder builder = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersion.V_7_6_0);
+            output.setTransportVersion(TransportVersions.V_7_6_0);
             builder.writeTo(output);
             try (
                 StreamInput in = new NamedWriteableAwareStreamInput(

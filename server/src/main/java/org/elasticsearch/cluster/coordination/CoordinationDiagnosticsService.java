@@ -54,6 +54,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -76,6 +77,7 @@ import java.util.stream.Collectors;
 public class CoordinationDiagnosticsService implements ClusterStateListener {
     private final ClusterService clusterService;
     private final TransportService transportService;
+    private final Executor clusterCoordinationExecutor;
     private final Coordinator coordinator;
     private final MasterHistoryService masterHistoryService;
     /**
@@ -171,6 +173,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     ) {
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.clusterCoordinationExecutor = transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION);
         this.coordinator = coordinator;
         this.masterHistoryService = masterHistoryService;
         this.nodeHasMasterLookupTimeframe = NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.get(clusterService.getSettings());
@@ -246,7 +249,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * @param verbose Whether to calculate and include the details in the result
      * @return The CoordinationDiagnosticsResult for the given localMasterHistory
      */
-    private CoordinationDiagnosticsResult diagnoseOnMasterHasChangedIdentity(
+    private static CoordinationDiagnosticsResult diagnoseOnMasterHasChangedIdentity(
         MasterHistory localMasterHistory,
         int masterChanges,
         boolean verbose
@@ -349,7 +352,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * Returns a CoordinationDiagnosticsResult for the case when the master is seen as stable
      * @return A CoordinationDiagnosticsResult for the case when the master is seen as stable (GREEN status, no impacts or details)
      */
-    private CoordinationDiagnosticsResult getMasterIsStableResult(boolean verbose, MasterHistory localMasterHistory) {
+    private static CoordinationDiagnosticsResult getMasterIsStableResult(boolean verbose, MasterHistory localMasterHistory) {
         String summary = "The cluster has a stable master node";
         logger.trace("The cluster has a stable master node");
         CoordinationDiagnosticsDetails details = getDetails(verbose, localMasterHistory, null, null);
@@ -1112,7 +1115,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     new ActionListenerResponseHandler<>(
                         ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
                         transportActionType.getResponseReader(),
-                        ThreadPool.Names.CLUSTER_COORDINATION
+                        clusterCoordinationExecutor
                     )
                 );
             }
@@ -1166,7 +1169,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             public String toString() {
                 return "delayed retrieval of coordination diagnostics info from " + masterEligibleNode;
             }
-        }, remoteRequestInitialDelay, ThreadPool.Names.CLUSTER_COORDINATION);
+        }, remoteRequestInitialDelay, clusterCoordinationExecutor);
     }
 
     void cancelPollingRemoteMasterStabilityDiagnostic() {
@@ -1282,7 +1285,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             boolean hasRecentMasters = in.readBoolean();
             List<DiscoveryNode> recentMasters;
             if (hasRecentMasters) {
-                recentMasters = in.readImmutableList(DiscoveryNode::new);
+                recentMasters = in.readCollectionAsImmutableList(DiscoveryNode::new);
             } else {
                 recentMasters = null;
             }
@@ -1320,7 +1323,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeList(recentMasters);
+                out.writeCollection(recentMasters);
             }
             out.writeOptionalString(remoteExceptionMessage);
             out.writeOptionalString(remoteExceptionStackTrace);
@@ -1328,7 +1331,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeMap(nodeToClusterFormationDescriptionMap, StreamOutput::writeString, StreamOutput::writeString);
+                out.writeMap(nodeToClusterFormationDescriptionMap, StreamOutput::writeString);
             }
         }
 

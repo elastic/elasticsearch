@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -57,6 +58,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -374,7 +376,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         doAnswer(withResponse(indexResponse)).when(client).execute(eq(IndexAction.INSTANCE), any(), any());
 
         Quantiles quantiles = new Quantiles("foo", new Date(), "bar");
-        ActionListener<IndexResponse> indexResponseListener = mock(ActionListener.class);
+        ActionListener<DocWriteResponse> indexResponseListener = mock(ActionListener.class);
         persister.persistQuantiles(quantiles, WriteRequest.RefreshPolicy.IMMEDIATE, indexResponseListener);
 
         InOrder inOrder = inOrder(client, indexResponseListener);
@@ -435,7 +437,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
 
         return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
     }

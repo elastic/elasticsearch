@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -82,7 +84,7 @@ public class IndexMetadataVerifier {
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
      * cannot be updated the method throws an exception.
      */
-    public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+    public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
         checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion);
 
         // First convert any shared_cache searchable snapshot indices to only use _tier_preference: data_frozen
@@ -102,7 +104,7 @@ public class IndexMetadataVerifier {
      * Check that the index version is compatible. Elasticsearch does not support indices created before the
      * previous major version.
      */
-    private static void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+    private static void checkSupportedVersion(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
         boolean isSupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
         if (isSupportedVersion == false) {
             throw new IllegalStateException(
@@ -113,9 +115,9 @@ public class IndexMetadataVerifier {
                     + "] but the minimum compatible version is ["
                     + minimumIndexCompatibilityVersion
                     + "]. It should be re-indexed in Elasticsearch "
-                    + minimumIndexCompatibilityVersion.major
+                    + (Version.CURRENT.major - 1)
                     + ".x before upgrading to "
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "."
             );
         }
@@ -181,7 +183,8 @@ public class IndexMetadataVerifier {
                     mapperRegistry,
                     () -> null,
                     indexSettings.getMode().idFieldMapperWithoutFieldData(),
-                    scriptService
+                    scriptService,
+                    () -> DocumentParsingObserver.EMPTY_INSTANCE
                 )
             ) {
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);

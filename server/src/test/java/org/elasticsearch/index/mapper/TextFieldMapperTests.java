@@ -57,12 +57,18 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.QueryStringQueryParser;
+import org.elasticsearch.script.field.TextDocValuesField;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -75,6 +81,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -807,7 +815,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            IndexSearcher searcher = new IndexSearcher(ir);
+            IndexSearcher searcher = newSearcher(ir);
             MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "Prio 1");
             TopDocs td = searcher.search(queryBuilder.toQuery(searchExecutionContext), 1);
             assertEquals(1, td.totalHits.value);
@@ -1125,10 +1133,11 @@ public class TextFieldMapperTests extends MapperTestCase {
                     return new SyntheticSourceExample(
                         delegate.inputValue(),
                         delegate.result(),
+                        delegate.result(),
                         b -> b.field("type", "text").field("store", true)
                     );
                 }
-                return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
+                return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), delegate.blockLoaderResult(), b -> {
                     b.field("type", "text");
                     b.startObject("fields");
                     {
@@ -1172,6 +1181,11 @@ public class TextFieldMapperTests extends MapperTestCase {
                 );
             }
         };
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> ((BytesRef) v).utf8ToString();
     }
 
     @Override
@@ -1279,5 +1293,41 @@ public class TextFieldMapperTests extends MapperTestCase {
         }) {
             assertScriptDocValues(mapper, input, equalTo(List.of(input)));
         }
+    }
+
+    public void testEmpty() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
+        var d0 = source(b -> b.field("field", new String[0]));
+        var d1 = source(b -> b.field("field", ""));
+        var d2 = source(b -> b.field("field", "hello"));
+        var d3 = source(b -> b.nullField("field"));
+        withLuceneIndex(mapperService, iw -> {
+            for (SourceToParse src : List.of(d0, d1, d2, d3)) {
+                iw.addDocument(mapperService.documentMapper().parse(src).rootDoc());
+            }
+        }, reader -> {
+            IndexSearcher searcher = newSearcher(reader);
+            MappedFieldType ft = mapperService.fieldType("field");
+            SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic() ? (ctx, doc) -> {
+                throw new IllegalArgumentException("Can't load source in scripts in synthetic mode");
+            } : SourceProvider.fromStoredFields();
+            SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
+            IndexFieldData<?> sfd = ft.fielddataBuilder(
+                new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+            ).build(null, null);
+            LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
+            TextDocValuesField scriptDV = (TextDocValuesField) lfd.getScriptFieldFactory("field");
+            SortedBinaryDocValues dv = scriptDV.getInput();
+            assertFalse(dv.advanceExact(0));
+            assertTrue(dv.advanceExact(1));
+            assertTrue(dv.advanceExact(2));
+            assertFalse(dv.advanceExact(3));
+        });
+    }
+
+    @Override
+    protected boolean supportsColumnAtATimeReader(MappedFieldType ft) {
+        TextFieldMapper.TextFieldType text = (TextFieldType) ft;
+        return text.syntheticSourceDelegate() != null && text.syntheticSourceDelegate().hasDocValues();
     }
 }

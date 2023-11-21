@@ -117,7 +117,7 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
 
             iterator = values.iterator();
 
-            return true;
+            return values.isEmpty() == false;
         }
 
         @Override

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.profile;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -46,8 +45,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -63,7 +64,6 @@ import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.profile.ProfileDocument.ProfileDocumentUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -176,7 +177,7 @@ public class ProfileServiceTests extends ESTestCase {
     private Client client;
     private SecurityIndexManager profileIndex;
     private ProfileService profileService;
-    private Version minNodeVersion;
+    private boolean useProfileOrigin;
 
     @Before
     public void prepare() {
@@ -189,7 +190,7 @@ public class ProfileServiceTests extends ESTestCase {
                     1,
                     1000,
                     "xpack.security.crypto.thread_pool",
-                    false
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
                 )
             )
         );
@@ -204,16 +205,19 @@ public class ProfileServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
-        minNodeVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_17_0, Version.CURRENT);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(minNodeVersion);
+        useProfileOrigin = randomBoolean();
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE))).thenReturn(
+            useProfileOrigin
+        );
         this.profileService = new ProfileService(
             Settings.EMPTY,
             Clock.systemUTC(),
             client,
             profileIndex,
             clusterService,
-            name -> new DomainConfig(name, Set.of(), false, null),
-            threadPool
+            featureService,
+            name -> new DomainConfig(name, Set.of(), false, null)
         );
     }
 
@@ -296,8 +300,8 @@ public class ProfileServiceTests extends ESTestCase {
         assertThat(resultsAndErrors.errors().size(), is(0));
         when(profileIndex.indexExists()).thenReturn(true);
         ElasticsearchException unavailableException = new ElasticsearchException("mock profile index unavailable");
-        when(profileIndex.isAvailable()).thenReturn(false);
-        when(profileIndex.getUnavailableReason()).thenReturn(unavailableException);
+        when(profileIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+        when(profileIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(unavailableException);
         PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future2 = new PlainActionFuture<>();
         profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future2);
         ExecutionException e = expectThrows(ExecutionException.class, () -> future2.get());
@@ -317,7 +321,7 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final MultiGetRequest multiGetRequest = (MultiGetRequest) invocation.getArguments()[1];
             List<MultiGetItemResponse> responses = new ArrayList<>();
@@ -383,7 +387,7 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocation.getArguments()[2];
             listener.onFailure(mGetException);
@@ -399,7 +403,7 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final MultiGetRequest multiGetRequest = (MultiGetRequest) invocation.getArguments()[1];
             List<MultiGetItemResponse> responses = new ArrayList<>();
@@ -492,8 +496,8 @@ public class ProfileServiceTests extends ESTestCase {
             client,
             profileIndex,
             mock(ClusterService.class),
-            domainName -> new DomainConfig(domainName, Set.of(), true, "suffix"),
-            threadPool
+            mock(FeatureService.class),
+            domainName -> new DomainConfig(domainName, Set.of(), true, "suffix")
         );
         final PlainActionFuture<Profile> future = new PlainActionFuture<>();
         service.maybeIncrementDifferentiatorAndCreateNewProfile(
@@ -577,7 +581,7 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             @SuppressWarnings("unchecked")
             final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
@@ -599,7 +603,7 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(expectedException);
@@ -615,7 +619,7 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(expectedException);
@@ -630,7 +634,7 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(expectedException);
@@ -648,13 +652,21 @@ public class ProfileServiceTests extends ESTestCase {
 
     public void testActivateProfileWithDifferentUidFormats() throws IOException {
         final ProfileService service = spy(
-            new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, mock(ClusterService.class), domainName -> {
-                if (domainName.startsWith("hash")) {
-                    return new DomainConfig(domainName, Set.of(), false, null);
-                } else {
-                    return new DomainConfig(domainName, Set.of(), true, "suffix");
+            new ProfileService(
+                Settings.EMPTY,
+                Clock.systemUTC(),
+                client,
+                profileIndex,
+                mock(ClusterService.class),
+                mock(FeatureService.class),
+                domainName -> {
+                    if (domainName.startsWith("hash")) {
+                        return new DomainConfig(domainName, Set.of(), false, null);
+                    } else {
+                        return new DomainConfig(domainName, Set.of(), true, "suffix");
+                    }
                 }
-            }, threadPool)
+            )
         );
 
         doAnswer(invocation -> {
@@ -1077,7 +1089,7 @@ public class ProfileServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             final MultiGetRequest multiGetRequest = (MultiGetRequest) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")

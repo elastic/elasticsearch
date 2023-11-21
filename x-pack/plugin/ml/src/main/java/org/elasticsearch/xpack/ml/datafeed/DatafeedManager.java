@@ -239,7 +239,8 @@ public final class DatafeedManager {
             client,
             state,
             request.masterNodeTimeout(),
-            ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure)
+            ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure),
+            MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
     }
 
@@ -271,7 +272,7 @@ public final class DatafeedManager {
 
     }
 
-    private PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
+    private static PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.getDatafeedTask(datafeedId, tasks);
     }
@@ -332,7 +333,8 @@ public final class DatafeedManager {
                 client,
                 clusterState,
                 request.masterNodeTimeout(),
-                ActionListener.wrap(mappingsUpdated, listener::onFailure)
+                ActionListener.wrap(mappingsUpdated, listener::onFailure),
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
             );
         };
 

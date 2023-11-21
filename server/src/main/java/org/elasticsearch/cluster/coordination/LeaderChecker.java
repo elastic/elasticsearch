@@ -19,12 +19,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -35,13 +37,13 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -111,7 +113,7 @@ public class LeaderChecker {
 
         transportService.registerRequestHandler(
             LEADER_CHECK_ACTION_NAME,
-            Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
             LeaderCheckRequest::new,
@@ -236,9 +238,13 @@ public class LeaderChecker {
                 new LeaderCheckRequest(transportService.getLocalNode()),
                 TransportRequestOptions.of(leaderCheckTimeout, Type.PING),
                 new TransportResponseHandler.Empty() {
+                    @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
 
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public void handleResponse() {
                         if (isClosed.get()) {
                             logger.debug("closed check scheduler received a response, doing nothing");
                             return;
@@ -387,7 +393,7 @@ public class LeaderChecker {
                 public String toString() {
                     return "scheduled check of leader " + leader;
                 }
-            }, leaderCheckInterval, Names.SAME);
+            }, leaderCheckInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
     }
 

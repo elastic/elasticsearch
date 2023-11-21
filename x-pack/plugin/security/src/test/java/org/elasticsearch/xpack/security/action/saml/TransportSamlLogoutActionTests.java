@@ -31,10 +31,10 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -79,7 +79,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
-import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
+import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromAccessTokenBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -204,8 +204,9 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
-        when(securityIndex.isAvailable()).thenReturn(true);
-        when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
@@ -264,11 +265,10 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final Authentication authentication = Authentication.newRealmAuthentication(user, realmRef);
 
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
-        final String userTokenId = UUIDs.randomBase64UUID();
-        final String refreshToken = UUIDs.randomBase64UUID();
-        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetadata, future);
+        Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(randomBoolean());
+        tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), authentication, authentication, tokenMetadata, future);
         final String accessToken = future.actionGet().getAccessToken();
-        mockGetTokenFromId(tokenService, userTokenId, authentication, tokenMetadata, false, client);
+        mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), authentication, tokenMetadata, false, null, client);
 
         final SamlLogoutRequest request = new SamlLogoutRequest();
         request.setToken(accessToken);

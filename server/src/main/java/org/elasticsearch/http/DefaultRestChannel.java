@@ -27,8 +27,8 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tracing.SpanId;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.SpanId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +56,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
     private final Tracer tracer;
-    private final boolean closeConnection;
 
     @Nullable
     private final HttpTracer httpLogger;
@@ -70,8 +69,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         ThreadContext threadContext,
         CorsHandler corsHandler,
         @Nullable HttpTracer httpLogger,
-        Tracer tracer,
-        boolean closeConnection
+        Tracer tracer
     ) {
         super(request, settings.detailedErrorsEnabled());
         this.httpChannel = httpChannel;
@@ -82,7 +80,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         this.corsHandler = corsHandler;
         this.httpLogger = httpLogger;
         this.tracer = tracer;
-        this.closeConnection = closeConnection;
     }
 
     @Override
@@ -98,7 +95,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         final SpanId spanId = SpanId.forRestRequest(request);
 
         final ArrayList<Releasable> toClose = new ArrayList<>(4);
-        if (HttpUtils.shouldCloseConnection(httpRequest) || closeConnection) {
+        if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
         toClose.add(() -> tracer.stopTrace(request));
@@ -120,6 +117,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             final HttpResponse httpResponse;
             if (isHeadRequest == false && restResponse.isChunked()) {
                 ChunkedRestResponseBody chunkedContent = restResponse.chunkedContent();
+                toClose.add(chunkedContent);
                 if (httpLogger != null && httpLogger.isBodyTracerEnabled()) {
                     final var loggerStream = httpLogger.openResponseBodyLoggingStream(request.getRequestId());
                     toClose.add(() -> {
@@ -135,8 +133,10 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 httpResponse = httpRequest.createResponse(restResponse.status(), chunkedContent);
             } else {
                 final BytesReference content = restResponse.content();
-                if (content instanceof Releasable) {
-                    toClose.add((Releasable) content);
+                if (content instanceof Releasable releasable) {
+                    toClose.add(releasable);
+                } else if (restResponse.isChunked()) {
+                    toClose.add(restResponse.chunkedContent());
                 }
                 toClose.add(this::releaseOutputBuffer);
 
@@ -162,9 +162,6 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             // Add all custom headers
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, restResponse.filterHeaders(threadContext.getResponseHeaders()));
-            if (closeConnection) {
-                setHeaderField(httpResponse, CONNECTION, CLOSE);
-            }
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);

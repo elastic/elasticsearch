@@ -8,16 +8,19 @@ package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -145,6 +148,27 @@ public class MergedGeoLinesTests extends ESTestCase {
         }
     }
 
+    public void testEmptyAndNonOverlappingGeoLines() throws IOException {
+        int docsPerLine = 10;
+        int numLines = 10;
+        int finalLength = 25;  // should get entire 100 points simplified down to 25
+        boolean simplify = true;
+        for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
+            InternalAggregation empty = makeEmptyGeoLine(sortOrder, finalLength);
+            List<InternalGeoLine> sorted = makeGeoLines(docsPerLine, numLines, simplify, sortOrder);
+            // Shuffle to ensure the tests cover geo_lines coming from data nodes in random order
+            List<InternalGeoLine> shuffled = shuffleGeoLines(sorted);
+            ArrayList<InternalAggregation> aggregations = new ArrayList<>(shuffled);
+            InternalGeoLine reduced = (InternalGeoLine) empty.reduce(aggregations, null);
+            assertLinesSimplified(sorted, sortOrder, finalLength, reduced.sortVals(), reduced.line());
+        }
+    }
+
+    private InternalGeoLine makeEmptyGeoLine(SortOrder sortOrder, int size) throws IOException {
+        // Make sure this matches the contents of 'GeoLineAggregator.buildEmptyAggregation'
+        return new InternalGeoLine("test", new long[0], new double[0], Map.of(), true, randomBoolean(), sortOrder, size, true, false);
+    }
+
     private void assertLinesTruncated(List<InternalGeoLine> lines, int docsPerLine, int finalLength, MergedGeoLines mergedGeoLines) {
         double[] values = mergedGeoLines.getFinalSortValues();
         long[] points = mergedGeoLines.getFinalPoints();
@@ -162,8 +186,10 @@ public class MergedGeoLinesTests extends ESTestCase {
     }
 
     private void assertLinesSimplified(List<InternalGeoLine> lines, SortOrder sortOrder, int finalLength, MergedGeoLines mergedGeoLines) {
-        double[] values = mergedGeoLines.getFinalSortValues();
-        long[] points = mergedGeoLines.getFinalPoints();
+        assertLinesSimplified(lines, sortOrder, finalLength, mergedGeoLines.getFinalSortValues(), mergedGeoLines.getFinalPoints());
+    }
+
+    private void assertLinesSimplified(List<InternalGeoLine> lines, SortOrder sortOrder, int finalLength, double[] values, long[] points) {
         assertThat("Same length arrays", values.length, equalTo(points.length));
         assertThat("Geo-line is simplified", values.length, equalTo(finalLength));
         GeoLineAggregatorTests.TestLine simplified = makeSimplifiedLine(lines, sortOrder, finalLength);

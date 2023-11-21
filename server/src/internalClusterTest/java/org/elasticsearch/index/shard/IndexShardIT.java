@@ -13,7 +13,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
@@ -222,8 +221,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         createIndex("test", idxSettings);
         ensureGreen("test");
         client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
-        SearchResponse response = client().prepareSearch("test").get();
-        assertHitCount(response, 1L);
+        assertHitCount(client().prepareSearch("test"), 1L);
         indicesAdmin().prepareDelete("test").get();
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
         assertPathHasBeenCleared(idxPath);
@@ -258,7 +256,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareIndex(index).setId("1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen(index);
 
-        assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
+        assertHitCount(client().prepareSearch(index).setSize(0), 1L);
 
         logger.info("--> closing the index [{}]", index);
         assertAcked(indicesAdmin().prepareClose(index));
@@ -267,7 +265,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         logger.info("--> index re-opened");
         ensureGreen(index);
 
-        assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
+        assertHitCount(client().prepareSearch(index).setSize(0), 1L);
 
         // Now, try closing and changing the settings
         logger.info("--> closing the index [{}] before updating data_path", index);
@@ -303,7 +301,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         logger.info("--> index re-opened");
         ensureGreen(index);
 
-        assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
+        assertHitCount(client().prepareSearch(index).setSize(0), 1L);
 
         assertAcked(indicesAdmin().prepareDelete(index));
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
@@ -674,7 +672,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             }
         }
         shard.refresh("test");
-        assertThat(client().search(countRequest).actionGet().getHits().getTotalHits().value, equalTo(numDocs));
+        assertHitCount(client().search(countRequest), numDocs);
         assertThat(shard.getLocalCheckpoint(), equalTo(shard.seqNoStats().getMaxSeqNo()));
 
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
@@ -703,11 +701,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 equalTo(numDocs + moreDocs)
             );
         }
-        assertThat(
-            "numDocs=" + numDocs + " moreDocs=" + moreDocs,
-            client().search(countRequest).actionGet().getHits().getTotalHits().value,
-            equalTo(numDocs + moreDocs)
-        );
+        assertHitCount(client().search(countRequest), numDocs + moreDocs);
     }
 
     public void testShardChangesWithDefaultDocType() throws Exception {

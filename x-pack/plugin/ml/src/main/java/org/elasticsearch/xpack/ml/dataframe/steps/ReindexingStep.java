@@ -60,6 +60,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
     private static final Logger LOGGER = LogManager.getLogger(ReindexingStep.class);
 
     private final ClusterService clusterService;
+    private final String[] destIndexAllowedSettings;
     @Nullable
     private volatile Long reindexingTaskId;
     private volatile boolean isReindexingFinished;
@@ -69,10 +70,12 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         NodeClient client,
         DataFrameAnalyticsTask task,
         DataFrameAnalyticsAuditor auditor,
-        DataFrameAnalyticsConfig config
+        DataFrameAnalyticsConfig config,
+        String[] destIndexAllowedSettings
     ) {
         super(client, task, auditor, config);
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.destIndexAllowedSettings = Objects.requireNonNull(destIndexAllowedSettings);
     }
 
     @Override
@@ -208,7 +211,13 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX, config.getDest().getIndex())
                 );
                 LOGGER.info("[{}] Creating destination index [{}]", config.getId(), config.getDest().getIndex());
-                DestinationIndex.createDestinationIndex(parentTaskClient, Clock.systemUTC(), config, copyIndexCreatedListener);
+                DestinationIndex.createDestinationIndex(
+                    parentTaskClient,
+                    Clock.systemUTC(),
+                    config,
+                    destIndexAllowedSettings,
+                    copyIndexCreatedListener
+                );
             } else {
                 copyIndexCreatedListener.onFailure(e);
             }

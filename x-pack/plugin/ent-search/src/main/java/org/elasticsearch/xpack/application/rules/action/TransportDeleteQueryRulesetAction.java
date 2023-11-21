@@ -12,7 +12,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
@@ -21,9 +23,20 @@ public class TransportDeleteQueryRulesetAction extends HandledTransportAction<De
     protected final QueryRulesIndexService systemIndexService;
 
     @Inject
-    public TransportDeleteQueryRulesetAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(DeleteQueryRulesetAction.NAME, transportService, actionFilters, DeleteQueryRulesetAction.Request::new);
-        this.systemIndexService = new QueryRulesIndexService(client);
+    public TransportDeleteQueryRulesetAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        Client client
+    ) {
+        super(
+            DeleteQueryRulesetAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteQueryRulesetAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+        this.systemIndexService = new QueryRulesIndexService(client, clusterService.getClusterSettings());
     }
 
     @Override

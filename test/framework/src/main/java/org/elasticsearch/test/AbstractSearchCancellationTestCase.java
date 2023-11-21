@@ -19,23 +19,26 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.tasks.TaskInfo;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -54,7 +57,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ScriptedBlockPlugin.class);
+        return List.of(ScriptedBlockPlugin.class, SearchShardBlockingPlugin.class);
     }
 
     @Override
@@ -80,7 +83,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
     protected List<ScriptedBlockPlugin> initBlockFactory() {
         List<ScriptedBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(ScriptedBlockPlugin.class));
+            pluginsService.filterPlugins(ScriptedBlockPlugin.class).forEach(plugins::add);
         }
         for (ScriptedBlockPlugin plugin : plugins) {
             plugin.reset();
@@ -254,6 +257,35 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
 
         private Object termScript(Map<String, Object> params) {
             return 1;
+        }
+    }
+
+    protected List<SearchShardBlockingPlugin> initSearchShardBlockingPlugin() {
+        List<SearchShardBlockingPlugin> plugins = new ArrayList<>();
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
+            pluginsService.filterPlugins(SearchShardBlockingPlugin.class).forEach(plugins::add);
+        }
+        return plugins;
+    }
+
+    public static class SearchShardBlockingPlugin extends Plugin {
+        private final AtomicReference<Consumer<ReaderContext>> runOnNewReaderContext = new AtomicReference<>();
+
+        public void setRunOnNewReaderContext(Consumer<ReaderContext> consumer) {
+            runOnNewReaderContext.set(consumer);
+        }
+
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            super.onIndexModule(indexModule);
+            indexModule.addSearchOperationListener(new SearchOperationListener() {
+                @Override
+                public void onNewReaderContext(ReaderContext c) {
+                    if (runOnNewReaderContext.get() != null) {
+                        runOnNewReaderContext.get().accept(c);
+                    }
+                }
+            });
         }
     }
 }

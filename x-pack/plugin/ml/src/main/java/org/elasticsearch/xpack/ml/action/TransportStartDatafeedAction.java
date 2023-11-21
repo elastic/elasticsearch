@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -79,7 +80,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_TOO_OLD;
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_TRANSPORT_TOO_OLD;
 
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
  The stop datafeed api also redirect the elected master node.
@@ -91,7 +92,6 @@ import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator
  */
 public class TransportStartDatafeedAction extends TransportMasterNodeAction<StartDatafeedAction.Request, NodeAcknowledgedResponse> {
 
-    private static final Version COMPOSITE_AGG_SUPPORT = Version.V_7_13_0;
     private static final Logger logger = LogManager.getLogger(TransportStartDatafeedAction.class);
 
     private final Client client;
@@ -128,7 +128,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             StartDatafeedAction.Request::new,
             indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
@@ -246,10 +246,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                 remoteClusterService.getRegisteredRemoteClusterNames(),
                                 remoteIndices
                             );
-                            checkRemoteClusterVersions(
+                            checkRemoteConfigVersions(
                                 datafeedConfigHolder.get(),
                                 remoteAliases,
-                                (cn) -> remoteClusterService.getConnection(cn).getVersion()
+                                (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
                             );
                             createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
                         }
@@ -286,23 +286,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 params.setJobId(datafeedConfig.getJobId());
                 params.setIndicesOptions(datafeedConfig.getIndicesOptions());
                 datafeedConfigHolder.set(datafeedConfig);
-                if (datafeedConfig.hasCompositeAgg(xContentRegistry)) {
-                    if (state.nodes()
-                        .mastersFirstStream()
-                        .filter(MachineLearning::isMlNode)
-                        .map(DiscoveryNode::getVersion)
-                        .anyMatch(COMPOSITE_AGG_SUPPORT::after)) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "cannot start datafeed [{}] as [{}] requires all machine learning nodes to be at least version [{}]",
-                                datafeedConfig.getId(),
-                                "composite aggs",
-                                COMPOSITE_AGG_SUPPORT
-                            )
-                        );
-                        return;
-                    }
-                }
+
                 jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -312,20 +296,20 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);
     }
 
-    static void checkRemoteClusterVersions(
+    static void checkRemoteConfigVersions(
         DatafeedConfig config,
         List<String> remoteClusters,
-        Function<String, Version> clusterVersionSupplier
+        Function<String, TransportVersion> transportVersionSupplier
     ) {
-        Optional<Tuple<Version, String>> minVersionAndReason = config.minRequiredClusterVersion();
+        Optional<Tuple<TransportVersion, String>> minVersionAndReason = config.minRequiredTransportVersion();
         if (minVersionAndReason.isPresent() == false) {
             return;
         }
         final String reason = minVersionAndReason.get().v2();
-        final Version minVersion = minVersionAndReason.get().v1();
+        final TransportVersion minVersion = minVersionAndReason.get().v1();
 
         List<String> clustersTooOld = remoteClusters.stream()
-            .filter(cn -> clusterVersionSupplier.apply(cn).before(minVersion))
+            .filter(cn -> transportVersionSupplier.apply(cn).before(minVersion))
             .collect(Collectors.toList());
         if (clustersTooOld.isEmpty()) {
             return;
@@ -333,7 +317,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         throw ExceptionsHelper.badRequestException(
             Messages.getMessage(
-                REMOTE_CLUSTERS_TOO_OLD,
+                REMOTE_CLUSTERS_TRANSPORT_TOO_OLD,
                 minVersion.toString(),
                 reason,
                 Strings.collectionToCommaDelimitedString(clustersTooOld)
@@ -447,7 +431,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         });
     }
 
-    private ElasticsearchStatusException createUnlicensedError(
+    private static ElasticsearchStatusException createUnlicensedError(
         final String datafeedId,
         final RemoteClusterLicenseChecker.LicenseCheck licenseCheck
     ) {

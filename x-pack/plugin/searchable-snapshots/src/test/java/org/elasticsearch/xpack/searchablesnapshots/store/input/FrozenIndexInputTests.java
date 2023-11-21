@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.settings.Settings;
@@ -39,8 +40,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.elasticsearch.core.IOUtils.WINDOWS;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService.resolveSnapshotCache;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
@@ -86,6 +90,9 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            // don't test mmap on Windows since we don't have code to unmap the shared cache file which trips assertions after tests
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), WINDOWS == false && randomBoolean())
+            .put(SharedBlobCacheService.SHARED_CACHE_COUNT_READS.getKey(), randomBoolean())
             .put("path.home", createTempDir())
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
@@ -102,7 +109,8 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+                SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+                BlobCacheMetrics.NOOP
             );
             CacheService cacheService = randomCacheService();
             TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(
@@ -126,6 +134,13 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
             final byte[] result = randomReadAndSlice(indexInput, fileData.length);
             assertArrayEquals(fileData, result);
+
+            // validate clone copies cache file object
+            indexInput.seek(randomLongBetween(0, fileData.length - 1));
+            FrozenIndexInput clone = (FrozenIndexInput) indexInput.clone();
+            assertThat(clone.cacheFile(), not(equalTo(((FrozenIndexInput) indexInput).cacheFile())));
+            assertThat(clone.getFilePointer(), equalTo(indexInput.getFilePointer()));
+
             indexInput.close();
         }
     }

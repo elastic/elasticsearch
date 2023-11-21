@@ -65,7 +65,7 @@ import java.util.stream.Stream;
  */
 public class SamlServiceProviderIndex implements Closeable {
 
-    private final Logger logger = LogManager.getLogger(SamlServiceProviderIndex.class);
+    private static final Logger logger = LogManager.getLogger(SamlServiceProviderIndex.class);
 
     private final Client client;
     private final ClusterService clusterService;
@@ -77,7 +77,7 @@ public class SamlServiceProviderIndex implements Closeable {
     public static final String INDEX_NAME = "saml-service-provider-v1";
     static final String TEMPLATE_NAME = ALIAS_NAME;
 
-    private static final String TEMPLATE_RESOURCE = "/org/elasticsearch/xpack/idp/saml-service-provider-template.json";
+    private static final String TEMPLATE_RESOURCE = "/idp/saml-service-provider-template.json";
     private static final String TEMPLATE_META_VERSION_KEY = "idp-version";
     private static final String TEMPLATE_VERSION_SUBSTITUTE = "idp.template.version";
 
@@ -124,7 +124,7 @@ public class SamlServiceProviderIndex implements Closeable {
 
         public DocumentSupplier(DocumentVersion version, Supplier<SamlServiceProviderDocument> document) {
             this.version = version;
-            this.document = new CachedSupplier<>(document);
+            this.document = CachedSupplier.wrap(document);
         }
 
         public SamlServiceProviderDocument getDocument() {
@@ -215,7 +215,7 @@ public class SamlServiceProviderIndex implements Closeable {
     }
 
     private boolean isTemplateUpToDate(ClusterState state) {
-        return TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger, null);
+        return TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger);
     }
 
     public void deleteDocument(DocumentVersion version, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<DeleteResponse> listener) {
@@ -332,7 +332,7 @@ public class SamlServiceProviderIndex implements Closeable {
         }));
     }
 
-    private SamlServiceProviderDocument toDocument(String documentId, BytesReference source) {
+    private static SamlServiceProviderDocument toDocument(String documentId, BytesReference source) {
         try (
             StreamInput in = source.streamInput();
             XContentParser parser = XContentType.JSON.xContent()

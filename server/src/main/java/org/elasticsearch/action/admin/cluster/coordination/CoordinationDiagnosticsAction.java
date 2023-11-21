@@ -131,7 +131,7 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
                 transportService,
                 actionFilters,
                 CoordinationDiagnosticsAction.Request::new,
-                ThreadPool.Names.CLUSTER_COORDINATION
+                transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION)
             );
             this.coordinationDiagnosticsService = coordinationDiagnosticsService;
         }

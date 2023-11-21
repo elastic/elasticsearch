@@ -52,7 +52,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
             actionFilters,
             indexNameExpressionResolver,
             ClearIndicesCacheRequest::new,
-            ThreadPool.Names.MANAGEMENT,
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT),
             false
         );
         this.indicesService = indicesService;

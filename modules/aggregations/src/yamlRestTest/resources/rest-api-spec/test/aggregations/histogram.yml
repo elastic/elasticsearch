@@ -3,8 +3,6 @@ setup:
       indices.create:
           index: test_1
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 number:
@@ -14,9 +12,6 @@ setup:
                   fields:
                     nanos:
                       type: date_nanos
-  - do:
-      cluster.health:
-        wait_for_status: green
 
 ---
 "Basic test":
@@ -722,7 +717,6 @@ setup:
           index: test_2
           body:
             settings:
-              number_of_replicas: 0
               number_of_shards: 1
             mappings:
               properties:
@@ -780,7 +774,6 @@ setup:
           index: test_2
           body:
             settings:
-              number_of_replicas: 0
               number_of_shards: 1
             mappings:
               properties:

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -26,6 +27,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,10 +46,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -65,7 +69,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     private MockTransportService startTransport(
         String id,
         List<DiscoveryNode> knownNodes,
-        Version version,
+        VersionInformation version,
         TransportVersion transportVersion
     ) {
         return startTransport(id, knownNodes, version, transportVersion, Settings.EMPTY);
@@ -74,7 +78,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     private MockTransportService startTransport(
         final String id,
         final List<DiscoveryNode> knownNodes,
-        final Version version,
+        final VersionInformation version,
         final TransportVersion transportVersion,
         final Settings settings
     ) {
@@ -90,9 +94,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS));
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS));
-        }
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(ProxyConnectionStrategy.PROXY_ADDRESS));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS));
@@ -128,13 +130,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
             MockTransportService cluster1Transport = startTransport(
                 "cluster_1_node",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current()
             );
             MockTransportService cluster2Transport = startTransport(
                 "cluster_2_node",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current()
             )
         ) {
@@ -147,7 +149,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -165,23 +167,25 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
                     assertFalse(service.isRemoteClusterRegistered("foo"));
-                    Map<String, List<String>> perClusterIndices = service.groupClusterIndices(
-                        service.getRemoteClusterNames(),
-                        new String[] {
-                            "cluster_1:bar",
-                            "cluster_2:foo:bar",
-                            "cluster_1:test",
-                            "cluster_2:foo*",
-                            "foo",
-                            "cluster*:baz",
-                            "*:boo" }
-                    );
-                    List<String> localIndices = perClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                    assertNotNull(localIndices);
-                    assertEquals("foo", localIndices.get(0));
-                    assertEquals(2, perClusterIndices.size());
-                    assertEquals(Arrays.asList("bar", "test", "baz", "boo"), perClusterIndices.get("cluster_1"));
-                    assertEquals(Arrays.asList("foo:bar", "foo*", "baz", "boo"), perClusterIndices.get("cluster_2"));
+                    {
+                        Map<String, List<String>> perClusterIndices = service.groupClusterIndices(
+                            service.getRemoteClusterNames(),
+                            new String[] {
+                                "cluster_1:bar",
+                                "cluster_2:foo:bar",
+                                "cluster_1:test",
+                                "cluster_2:foo*",
+                                "foo",
+                                "cluster*:baz",
+                                "*:boo" }
+                        );
+                        List<String> localIndices = perClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                        assertNotNull(localIndices);
+                        assertEquals("foo", localIndices.get(0));
+                        assertEquals(2, perClusterIndices.size());
+                        assertEquals(Arrays.asList("bar", "test", "baz", "boo"), perClusterIndices.get("cluster_1"));
+                        assertEquals(Arrays.asList("foo:bar", "foo*", "baz", "boo"), perClusterIndices.get("cluster_2"));
+                    }
 
                     expectThrows(
                         NoSuchRemoteClusterException.class,
@@ -198,6 +202,125 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             new String[] { "cluster_1:bar", "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "does_not_exist:*" }
                         )
                     );
+
+                    // test cluster exclusions
+                    {
+                        String[] indices = shuffledList(List.of("cluster*:foo*", "foo", "-cluster_1:*", "*:boo")).toArray(new String[0]);
+
+                        Map<String, List<String>> perClusterIndices = service.groupClusterIndices(service.getRemoteClusterNames(), indices);
+                        assertEquals(2, perClusterIndices.size());
+                        List<String> localIndexes = perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                        assertNotNull(localIndexes);
+                        assertEquals(1, localIndexes.size());
+                        assertEquals("foo", localIndexes.get(0));
+
+                        List<String> cluster2 = perClusterIndices.get("cluster_2");
+                        assertNotNull(cluster2);
+                        assertEquals(2, cluster2.size());
+                        assertEquals(List.of("boo", "foo*"), cluster2.stream().sorted().toList());
+                    }
+                    {
+                        String[] indices = shuffledList(List.of("*:*", "-clu*_1:*", "*:boo")).toArray(new String[0]);
+
+                        Map<String, List<String>> perClusterIndices = service.groupClusterIndices(service.getRemoteClusterNames(), indices);
+                        assertEquals(1, perClusterIndices.size());
+
+                        List<String> cluster2 = perClusterIndices.get("cluster_2");
+                        assertNotNull(cluster2);
+                        assertEquals(2, cluster2.size());
+                        assertEquals(List.of("*", "boo"), cluster2.stream().sorted().toList());
+                    }
+                    {
+                        String[] indices = shuffledList(List.of("cluster*:foo*", "cluster_2:*", "foo", "-cluster_1:*", "-c*:*")).toArray(
+                            new String[0]
+                        );
+
+                        Map<String, List<String>> perClusterIndices = service.groupClusterIndices(service.getRemoteClusterNames(), indices);
+                        assertEquals(1, perClusterIndices.size());
+                        List<String> localIndexes = perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                        assertNotNull(localIndexes);
+                        assertEquals(1, localIndexes.size());
+                        assertEquals("foo", localIndexes.get(0));
+                    }
+                    {
+                        String[] indices = shuffledList(List.of("cluster*:*", "foo", "-*:*")).toArray(new String[0]);
+
+                        Map<String, List<String>> perClusterIndices = service.groupClusterIndices(service.getRemoteClusterNames(), indices);
+                        assertEquals(1, perClusterIndices.size());
+                        List<String> localIndexes = perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                        assertNotNull(localIndexes);
+                        assertEquals(1, localIndexes.size());
+                        assertEquals("foo", localIndexes.get(0));
+                    }
+                    {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.groupClusterIndices(
+                                service.getRemoteClusterNames(),
+                                // -cluster_1:foo* is not allowed, only -cluster_1:*
+                                new String[] { "cluster_1:bar", "-cluster_2:foo*", "cluster_1:test", "cluster_2:foo*", "foo" }
+                            )
+                        );
+                        assertThat(
+                            e.getMessage(),
+                            equalTo("To exclude a cluster you must specify the '*' wildcard for the index expression, but found: [foo*]")
+                        );
+                    }
+                    {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.groupClusterIndices(
+                                service.getRemoteClusterNames(),
+                                // -cluster_1:* will fail since cluster_1 was never included in order to qualify to be excluded
+                                new String[] { "-cluster_1:*", "cluster_2:foo*", "foo" }
+                            )
+                        );
+                        assertThat(
+                            e.getMessage(),
+                            equalTo(
+                                "Attempt to exclude cluster [cluster_1] failed as it is not included in the list of clusters to "
+                                    + "be included: [(local), cluster_2]. Input: [-cluster_1:*,cluster_2:foo*,foo]"
+                            )
+                        );
+                    }
+                    {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.groupClusterIndices(service.getRemoteClusterNames(), new String[] { "-cluster_1:*" })
+                        );
+                        assertThat(
+                            e.getMessage(),
+                            equalTo(
+                                "Attempt to exclude cluster [cluster_1] failed as it is not included in the list of clusters to "
+                                    + "be included: []. Input: [-cluster_1:*]"
+                            )
+                        );
+                    }
+                    {
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.groupClusterIndices(service.getRemoteClusterNames(), new String[] { "-*:*" })
+                        );
+                        assertThat(
+                            e.getMessage(),
+                            equalTo(
+                                "Attempt to exclude clusters [cluster_1, cluster_2] failed as they are not included in the list of "
+                                    + "clusters to be included: []. Input: [-*:*]"
+                            )
+                        );
+                    }
+                    {
+                        String[] indices = shuffledList(List.of("cluster*:*", "*:foo", "-*:*")).toArray(new String[0]);
+
+                        IllegalArgumentException e = expectThrows(
+                            IllegalArgumentException.class,
+                            () -> service.groupClusterIndices(service.getRemoteClusterNames(), indices)
+                        );
+                        assertThat(
+                            e.getMessage(),
+                            containsString("The '-' exclusions in the index expression list excludes all indexes. Nothing to search.")
+                        );
+                    }
                 }
             }
         }
@@ -209,13 +332,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
             MockTransportService cluster1Transport = startTransport(
                 "cluster_1_node",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current()
             );
             MockTransportService cluster2Transport = startTransport(
                 "cluster_2_node",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current()
             )
         ) {
@@ -228,7 +351,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -319,13 +442,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
             MockTransportService cluster1Transport = startTransport(
                 "cluster_1_node",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current()
             );
             MockTransportService cluster2Transport = startTransport(
                 "cluster_2_node",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current()
             )
         ) {
@@ -338,7 +461,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -357,7 +480,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         "cluster_1",
                         Collections.singletonList(cluster1Seed.getAddress().toString())
                     );
-                    PlainActionFuture<Void> clusterAdded = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> clusterAdded = new PlainActionFuture<>();
                     // Add the cluster on a different thread to test that we wait for a new cluster to
                     // connect before returning.
                     new Thread(() -> {
@@ -395,7 +518,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
     public void testDefaultPingSchedule() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT, TransportVersion.current())
+            MockTransportService seedTransport = startTransport(
+                "cluster_1_node",
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current()
+            )
         ) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             knownNodes.add(seedTransport.getLocalDiscoNode());
@@ -412,7 +540,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     settings,
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -443,13 +571,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
             MockTransportService cluster1Transport = startTransport(
                 "cluster_1_node",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current()
             );
             MockTransportService cluster2Transport = startTransport(
                 "cluster_2_node",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current()
             )
         ) {
@@ -467,7 +595,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     transportSettings,
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -502,7 +630,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             MockTransportService cluster1Transport = startTransport(
                 "cluster_1_node",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current()
             )
         ) {
@@ -513,7 +641,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -560,16 +688,32 @@ public class RemoteClusterServiceTests extends ESTestCase {
         final List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         final Settings gateway = Settings.builder().put("node.attr.gateway", true).build();
         try (
-            MockTransportService c1N1 = startTransport("cluster_1_node_1", knownNodes, Version.CURRENT, TransportVersion.current());
+            MockTransportService c1N1 = startTransport(
+                "cluster_1_node_1",
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current()
+            );
             MockTransportService c1N2 = startTransport(
                 "cluster_1_node_2",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 gateway
             );
-            MockTransportService c2N1 = startTransport("cluster_2_node_1", knownNodes, Version.CURRENT, TransportVersion.current());
-            MockTransportService c2N2 = startTransport("cluster_2_node_2", knownNodes, Version.CURRENT, TransportVersion.current(), gateway)
+            MockTransportService c2N1 = startTransport(
+                "cluster_2_node_1",
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current()
+            );
+            MockTransportService c2N2 = startTransport(
+                "cluster_2_node_2",
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                gateway
+            )
         ) {
             final DiscoveryNode c1N1Node = c1N1.getLocalDiscoNode();
             final DiscoveryNode c1N2Node = c1N2.getLocalDiscoNode();
@@ -584,7 +728,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     settings,
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -638,19 +782,31 @@ public class RemoteClusterServiceTests extends ESTestCase {
             MockTransportService c1N1 = startTransport(
                 "cluster_1_node_1",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 dedicatedMaster
             );
-            MockTransportService c1N2 = startTransport("cluster_1_node_2", knownNodes, Version.CURRENT, TransportVersion.current(), data);
+            MockTransportService c1N2 = startTransport(
+                "cluster_1_node_2",
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                data
+            );
             MockTransportService c2N1 = startTransport(
                 "cluster_2_node_1",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 dedicatedMaster
             );
-            MockTransportService c2N2 = startTransport("cluster_2_node_2", knownNodes, Version.CURRENT, TransportVersion.current(), data)
+            MockTransportService c2N2 = startTransport(
+                "cluster_2_node_2",
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                data
+            )
         ) {
             final DiscoveryNode c1N1Node = c1N1.getLocalDiscoNode();
             final DiscoveryNode c1N2Node = c1N2.getLocalDiscoNode();
@@ -665,7 +821,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     settings,
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -710,7 +866,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    private ActionListener<Void> connectionListener(final CountDownLatch latch) {
+    private ActionListener<RemoteClusterService.RemoteClusterConnectionStatus> connectionListener(final CountDownLatch latch) {
         return ActionTestUtils.assertNoFailureListener(x -> latch.countDown());
     }
 
@@ -723,28 +879,28 @@ public class RemoteClusterServiceTests extends ESTestCase {
             MockTransportService c1N1 = startTransport(
                 "cluster_1_node_1",
                 knownNodes_c1,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 settings
             );
             MockTransportService c1N2 = startTransport(
                 "cluster_1_node_2",
                 knownNodes_c1,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 settings
             );
             MockTransportService c2N1 = startTransport(
                 "cluster_2_node_1",
                 knownNodes_c2,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 settings
             );
             MockTransportService c2N2 = startTransport(
                 "cluster_2_node_2",
                 knownNodes_c2,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 settings
             )
@@ -763,7 +919,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     settings,
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -999,8 +1155,18 @@ public class RemoteClusterServiceTests extends ESTestCase {
     public void testReconnectWhenStrategySettingsUpdated() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (
-            MockTransportService cluster_node_0 = startTransport("cluster_node_0", knownNodes, Version.CURRENT, TransportVersion.current());
-            MockTransportService cluster_node_1 = startTransport("cluster_node_1", knownNodes, Version.CURRENT, TransportVersion.current())
+            MockTransportService cluster_node_0 = startTransport(
+                "cluster_node_0",
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current()
+            );
+            MockTransportService cluster_node_1 = startTransport(
+                "cluster_node_1",
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current()
+            )
         ) {
 
             final DiscoveryNode node0 = cluster_node_0.getLocalDiscoNode();
@@ -1012,7 +1178,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -1092,7 +1258,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testSkipUnavailable() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT, TransportVersion.current())) {
+        try (
+            MockTransportService seedTransport = startTransport(
+                "seed_node",
+                knownNodes,
+                VersionInformation.CURRENT,
+                TransportVersion.current()
+            )
+        ) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             knownNodes.add(seedNode);
             Settings.Builder builder = Settings.builder();
@@ -1100,7 +1273,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -1127,7 +1300,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool,
                 null
@@ -1148,7 +1321,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 threadPool,
                 null
@@ -1170,14 +1343,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
             MockTransportService c1 = startTransport(
                 "cluster_1",
                 knownNodes,
-                Version.CURRENT,
+                VersionInformation.CURRENT,
                 TransportVersion.current(),
                 Settings.builder()
                     .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), "true")
                     .put(RemoteClusterPortSettings.PORT.getKey(), "0")
                     .build()
             );
-            MockTransportService c2 = startTransport("cluster_2", knownNodes, Version.CURRENT, TransportVersion.current());
+            MockTransportService c2 = startTransport("cluster_2", knownNodes, VersionInformation.CURRENT, TransportVersion.current());
         ) {
             final DiscoveryNode c1Node = c1.getLocalDiscoNode().withTransportAddress(c1.boundRemoteAccessAddress().publishAddress());
             final DiscoveryNode c2Node = c2.getLocalDiscoNode();
@@ -1188,7 +1361,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     settings,
-                    Version.CURRENT,
+                    VersionInformation.CURRENT,
                     TransportVersion.current(),
                     threadPool,
                     null
@@ -1250,6 +1423,53 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertEquals(0, transportService.getConnectionManager().size());
                 }
             }
+        }
+    }
+
+    public void testLogsConnectionResult() throws IOException {
+
+        try (
+            var remote = startTransport("remote", List.of(), VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY);
+            var local = startTransport("local", List.of(), VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY);
+            var remoteClusterService = new RemoteClusterService(Settings.EMPTY, local)
+        ) {
+            var clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+            remoteClusterService.listenForUpdates(clusterSettings);
+
+            assertThatLogger(
+                () -> clusterSettings.applySettings(
+                    Settings.builder().putList("cluster.remote.remote_1.seeds", remote.getLocalDiscoNode().getAddress().toString()).build()
+                ),
+                RemoteClusterService.class,
+                new MockLogAppender.SeenEventExpectation(
+                    "Should log when connecting to remote",
+                    RemoteClusterService.class.getCanonicalName(),
+                    Level.INFO,
+                    "remote cluster connection [remote_1] updated: CONNECTED"
+                )
+            );
+
+            assertThatLogger(
+                () -> clusterSettings.applySettings(Settings.EMPTY),
+                RemoteClusterService.class,
+                new MockLogAppender.SeenEventExpectation(
+                    "Should log when disconnecting from remote",
+                    RemoteClusterService.class.getCanonicalName(),
+                    Level.INFO,
+                    "remote cluster connection [remote_1] updated: DISCONNECTED"
+                )
+            );
+
+            assertThatLogger(
+                () -> clusterSettings.applySettings(Settings.builder().put(randomIdentifier(), randomIdentifier()).build()),
+                RemoteClusterService.class,
+                new MockLogAppender.UnseenEventExpectation(
+                    "Should not log when changing unrelated setting",
+                    RemoteClusterService.class.getCanonicalName(),
+                    Level.INFO,
+                    "*"
+                )
+            );
         }
     }
 

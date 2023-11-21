@@ -10,7 +10,6 @@ package org.elasticsearch.env;
 import joptsimple.OptionSet;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
@@ -25,6 +24,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -240,7 +240,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                                         IndexMetadata.builder(INDEX.getName())
                                             .settings(
                                                 Settings.builder()
-                                                    .put("index.version.created", Version.CURRENT)
+                                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                     .put(IndexMetadata.SETTING_INDEX_UUID, INDEX.getUUID())
                                             )
                                             .numberOfShards(1)

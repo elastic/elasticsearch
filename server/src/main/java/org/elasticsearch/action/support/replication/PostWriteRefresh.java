@@ -26,14 +26,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Executor;
+
 public class PostWriteRefresh {
 
     public static final String POST_WRITE_REFRESH_ORIGIN = "post_write_refresh";
     public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
     private final TransportService transportService;
+    private final Executor refreshExecutor;
 
     public PostWriteRefresh(final TransportService transportService) {
         this.transportService = transportService;
+        this.refreshExecutor = transportService.getThreadPool().executor(ThreadPool.Names.REFRESH);
     }
 
     public void refreshShard(
@@ -62,23 +66,15 @@ public class PostWriteRefresh {
                     listener.onFailure(e);
                 }
             });
-            case IMMEDIATE -> immediate(indexShard, new ActionListener<>() {
-                @Override
-                public void onResponse(Engine.RefreshResult refreshResult) {
-                    // Fast refresh indices do not depend on the unpromotables being refreshed
-                    boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexShard.indexSettings().getSettings());
-                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0 && fastRefresh == false) {
-                        sendUnpromotableRequests(indexShard, refreshResult.generation(), true, listener, postWriteRefreshTimeout);
-                    } else {
-                        listener.onResponse(true);
-                    }
+            case IMMEDIATE -> immediate(indexShard, listener.delegateFailureAndWrap((l, r) -> {
+                // Fast refresh indices do not depend on the unpromotables being refreshed
+                boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexShard.indexSettings().getSettings());
+                if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0 && fastRefresh == false) {
+                    sendUnpromotableRequests(indexShard, r.generation(), true, l, postWriteRefreshTimeout);
+                } else {
+                    l.onResponse(true);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            }));
             default -> throw new IllegalArgumentException("unknown refresh policy: " + policy);
         }
     }
@@ -150,6 +146,7 @@ public class PostWriteRefresh {
     ) {
         UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
             indexShard.getReplicationGroup().getRoutingTable(),
+            indexShard.getOperationPrimaryTerm(),
             generation,
             true
         );
@@ -158,11 +155,7 @@ public class PostWriteRefresh {
             TransportUnpromotableShardRefreshAction.NAME,
             unpromotableReplicaRequest,
             TransportRequestOptions.timeout(postWriteRefreshTimeout),
-            new ActionListenerResponseHandler<>(
-                listener.delegateFailure((l, r) -> l.onResponse(wasForced)),
-                (in) -> ActionResponse.Empty.INSTANCE,
-                ThreadPool.Names.REFRESH
-            )
+            new ActionListenerResponseHandler<>(listener.safeMap(r -> wasForced), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
         );
     }
 

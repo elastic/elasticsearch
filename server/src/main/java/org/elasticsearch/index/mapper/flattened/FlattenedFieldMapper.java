@@ -100,7 +100,7 @@ import java.util.function.Function;
  *
  * the mapper will produce untokenized string fields with the name "field" and values
  * "some value" and "true", as well as string fields called "field._keyed" with values
- * "key\0some value" and "key2.key3\0true". Note that \0 is used as a reserved separator
+ * "key1\0some value" and "key2.key3\0true". Note that \0 is used as a reserved separator
  *  character (see {@link FlattenedFieldParser#SEPARATOR}).
  */
 public final class FlattenedFieldMapper extends FieldMapper {
@@ -208,7 +208,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
             if (multiFields.iterator().hasNext()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [fields]");
             }
-            CopyTo copyTo = this.copyTo.build();
             if (copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
             }
@@ -385,7 +384,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 a = Operations.concatenate(a, Automata.makeString(prefix));
                 a = Operations.concatenate(a, Automata.makeAnyString());
             }
-            a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+            assert a.isDeterministic();
+            a = MinimizationOperations.minimize(a, 0);
 
             CompiledAutomaton automaton = new CompiledAutomaton(a);
             if (searchAfter != null) {
@@ -793,6 +793,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     public RootFlattenedFieldType fieldType() {
         return (RootFlattenedFieldType) super.fieldType();
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
+        return true;
     }
 
     @Override

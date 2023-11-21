@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
@@ -24,6 +23,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -55,7 +55,7 @@ public class Pivot extends AbstractCompositeAggFunction {
 
     private final PivotConfig config;
     private final SettingsConfig settings;
-    private final Version version;
+    private final TransformConfigVersion version;
 
     /**
      * Create a new Pivot function
@@ -63,11 +63,11 @@ public class Pivot extends AbstractCompositeAggFunction {
      * @param settings Any miscellaneous settings for the function
      * @param version The version of the transform
      */
-    public Pivot(PivotConfig config, SettingsConfig settings, Version version, Set<String> runtimeFields) {
+    public Pivot(PivotConfig config, SettingsConfig settings, TransformConfigVersion version, Set<String> runtimeFields) {
         super(createCompositeAggregation(config, runtimeFields));
         this.config = config;
         this.settings = settings;
-        this.version = version == null ? Version.CURRENT : version;
+        this.version = version == null ? TransformConfigVersion.CURRENT : version;
     }
 
     @Override
@@ -97,7 +97,15 @@ public class Pivot extends AbstractCompositeAggFunction {
             listener.onResponse(emptyMap());
             return;
         }
-        SchemaUtil.deduceMappings(client, headers, config, sourceConfig.getIndex(), sourceConfig.getRuntimeMappings(), listener);
+        SchemaUtil.deduceMappings(
+            client,
+            headers,
+            config,
+            sourceConfig.getIndex(),
+            sourceConfig.getQueryConfig().getQuery(),
+            sourceConfig.getRuntimeMappings(),
+            listener
+        );
     }
 
     /**
@@ -141,7 +149,7 @@ public class Pivot extends AbstractCompositeAggFunction {
         // >= 7.11 as string
         // note: it depends on the version when the transform has been created, not the version of the code
         boolean datesAsEpoch = settings.getDatesAsEpochMillis() != null ? settings.getDatesAsEpochMillis()
-            : version.onOrAfter(Version.V_7_11_0) ? false
+            : version.onOrAfter(TransformConfigVersion.V_7_11_0) ? false
             : true;
 
         return AggregationResultUtils.extractCompositeAggregationResults(

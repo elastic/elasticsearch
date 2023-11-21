@@ -1,0 +1,18 @@
+[role="xpack"]
+[[inference-apis]]
+== {infer-cap} APIs
+
+experimental[]
+
+You can use the following APIs to manage {infer} models and perform {infer}:
+
+* <<delete-inference-api>>
+* <<get-inference-api>>
+* <<post-inference-api>>
+* <<put-inference-api>>
+
+
+include::delete-inference.asciidoc[]
+include::get-inference.asciidoc[]
+include::post-inference.asciidoc[]
+include::put-inference.asciidoc[]

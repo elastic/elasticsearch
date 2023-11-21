@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.hamcrest.Matchers.containsString;
@@ -66,7 +67,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
         final Index index = metadata.index("test").getIndex();
@@ -135,7 +136,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
         final Index index = metadata.index("test").getIndex();
@@ -237,7 +238,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         DiscoveryNode node_1 = DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
         final IndexMetadata indexMetadata = metadata.index("test");
 
@@ -406,13 +407,13 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Metadata.Builder metaBuilder = Metadata.builder();
         metaBuilder.put(
             IndexMetadata.builder("test")
-                .settings(settings(Version.CURRENT).put("index.uuid", "1234"))
+                .settings(settings(IndexVersion.current()).put("index.uuid", "1234"))
                 .numberOfShards(3)
                 .numberOfReplicas(1)
         );
         metaBuilder.put(
             IndexMetadata.builder("other")
-                .settings(settings(Version.CURRENT).put("index.uuid", "5678"))
+                .settings(settings(IndexVersion.current()).put("index.uuid", "5678"))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
         );
@@ -459,9 +460,9 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         test_2 = ShardRoutingHelper.initialize(test_2, "node1");
         test_2 = ShardRoutingHelper.moveToStarted(test_2);
 
-        assertEquals(1000L, DiskThresholdDecider.getExpectedShardSize(test_2, 0L, allocation));
-        assertEquals(100L, DiskThresholdDecider.getExpectedShardSize(test_1, 0L, allocation));
-        assertEquals(10L, DiskThresholdDecider.getExpectedShardSize(test_0, 0L, allocation));
+        assertEquals(1000L, getExpectedShardSize(test_2, 0L, allocation));
+        assertEquals(100L, getExpectedShardSize(test_1, 0L, allocation));
+        assertEquals(10L, getExpectedShardSize(test_0, 0L, allocation));
 
         RoutingNode node = RoutingNodesHelper.routingNode(
             "node1",
@@ -484,7 +485,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         );
         test_3 = ShardRoutingHelper.initialize(test_3, "node1");
         test_3 = ShardRoutingHelper.moveToStarted(test_3);
-        assertEquals(0L, DiskThresholdDecider.getExpectedShardSize(test_3, 0L, allocation));
+        assertEquals(0L, getExpectedShardSize(test_3, 0L, allocation));
 
         boolean primary = randomBoolean();
         ShardRouting other_0 = ShardRouting.newUnassigned(
@@ -524,7 +525,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .put(
                 IndexMetadata.builder(mainIndexName)
                     .settings(
-                        settings(Version.CURRENT).put("index.uuid", "1234")
+                        settings(IndexVersion.current()).put("index.uuid", "1234")
                             .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
                     )
                     .numberOfShards(3)
@@ -532,7 +533,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             )
             .put(
                 IndexMetadata.builder(anotherIndexName)
-                    .settings(settings(Version.CURRENT).put("index.uuid", "5678"))
+                    .settings(settings(IndexVersion.current()).put("index.uuid", "5678"))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
             )
@@ -641,14 +642,14 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Metadata.Builder metaBuilder = Metadata.builder();
         metaBuilder.put(
             IndexMetadata.builder("test")
-                .settings(settings(Version.CURRENT).put("index.uuid", "1234"))
+                .settings(settings(IndexVersion.current()).put("index.uuid", "1234"))
                 .numberOfShards(4)
                 .numberOfReplicas(0)
         );
         metaBuilder.put(
             IndexMetadata.builder("target")
                 .settings(
-                    settings(Version.CURRENT).put("index.uuid", "5678")
+                    settings(IndexVersion.current()).put("index.uuid", "5678")
                         .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, "test")
                         .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, "1234")
                 )
@@ -658,7 +659,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         metaBuilder.put(
             IndexMetadata.builder("target2")
                 .settings(
-                    settings(Version.CURRENT).put("index.uuid", "9101112")
+                    settings(IndexVersion.current()).put("index.uuid", "9101112")
                         .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, "test")
                         .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, "1234")
                 )
@@ -725,10 +726,10 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             ShardRouting.Role.DEFAULT
         );
         test_3 = ShardRoutingHelper.initialize(test_3, "node1");
-        assertEquals(500L, DiskThresholdDecider.getExpectedShardSize(test_3, 0L, allocation));
-        assertEquals(500L, DiskThresholdDecider.getExpectedShardSize(test_2, 0L, allocation));
-        assertEquals(100L, DiskThresholdDecider.getExpectedShardSize(test_1, 0L, allocation));
-        assertEquals(10L, DiskThresholdDecider.getExpectedShardSize(test_0, 0L, allocation));
+        assertEquals(500L, getExpectedShardSize(test_3, 0L, allocation));
+        assertEquals(500L, getExpectedShardSize(test_2, 0L, allocation));
+        assertEquals(100L, getExpectedShardSize(test_1, 0L, allocation));
+        assertEquals(10L, getExpectedShardSize(test_0, 0L, allocation));
 
         ShardRouting target = ShardRouting.newUnassigned(
             new ShardId(new Index("target", "5678"), 0),
@@ -737,7 +738,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        assertEquals(1110L, DiskThresholdDecider.getExpectedShardSize(target, 0L, allocation));
+        assertEquals(1110L, getExpectedShardSize(target, 0L, allocation));
 
         ShardRouting target2 = ShardRouting.newUnassigned(
             new ShardId(new Index("target2", "9101112"), 0),
@@ -746,7 +747,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        assertEquals(110L, DiskThresholdDecider.getExpectedShardSize(target2, 0L, allocation));
+        assertEquals(110L, getExpectedShardSize(target2, 0L, allocation));
 
         target2 = ShardRouting.newUnassigned(
             new ShardId(new Index("target2", "9101112"), 1),
@@ -755,7 +756,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        assertEquals(1000L, DiskThresholdDecider.getExpectedShardSize(target2, 0L, allocation));
+        assertEquals(1000L, getExpectedShardSize(target2, 0L, allocation));
 
         // check that the DiskThresholdDecider still works even if the source index has been deleted
         ClusterState clusterStateWithMissingSourceIndex = ClusterState.builder(clusterState)
@@ -765,8 +766,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         allocationService.reroute(clusterState, "foo", ActionListener.noop());
         RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(null, clusterStateWithMissingSourceIndex, info, null, 0);
-        assertEquals(42L, DiskThresholdDecider.getExpectedShardSize(target, 42L, allocationWithMissingSourceIndex));
-        assertEquals(42L, DiskThresholdDecider.getExpectedShardSize(target2, 42L, allocationWithMissingSourceIndex));
+        assertEquals(42L, getExpectedShardSize(target, 42L, allocationWithMissingSourceIndex));
+        assertEquals(42L, getExpectedShardSize(target2, 42L, allocationWithMissingSourceIndex));
     }
 
     public void testDiskUsageWithRelocations() {
@@ -839,7 +840,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT).put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true))
+                    .settings(settings(IndexVersion.current()).put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
             )
@@ -906,7 +907,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
         final Index index = metadata.index("test").getIndex();

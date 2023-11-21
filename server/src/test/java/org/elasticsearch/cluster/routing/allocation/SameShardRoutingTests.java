@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -31,12 +31,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShardsWithState;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
@@ -53,7 +53,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build()
         );
 
-        final Settings.Builder indexSettings = settings(Version.CURRENT);
+        final Settings.Builder indexSettings = settings(IndexVersion.current());
         if (randomBoolean()) {
             indexSettings.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
         }
@@ -72,30 +72,20 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        new DiscoveryNode(
-                            "node1",
-                            "node1",
-                            "node1",
-                            "test1",
-                            "test1",
-                            buildNewFakeTransportAddress(),
-                            emptyMap(),
-                            MASTER_DATA_ROLES,
-                            null
-                        )
+                        DiscoveryNodeUtils.builder("node1")
+                            .name("node1")
+                            .ephemeralId("node1")
+                            .address("test1", "test1", buildNewFakeTransportAddress())
+                            .roles(MASTER_DATA_ROLES)
+                            .build()
                     )
                     .add(
-                        new DiscoveryNode(
-                            "node2",
-                            "node2",
-                            "node2",
-                            "test1",
-                            "test1",
-                            buildNewFakeTransportAddress(),
-                            emptyMap(),
-                            MASTER_DATA_ROLES,
-                            null
-                        )
+                        DiscoveryNodeUtils.builder("node2")
+                            .name("node2")
+                            .ephemeralId("node2")
+                            .address("test1", "test1", buildNewFakeTransportAddress())
+                            .roles(MASTER_DATA_ROLES)
+                            .build()
                     )
             )
             .build();
@@ -114,17 +104,12 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .nodes(
                 DiscoveryNodes.builder(clusterState.nodes())
                     .add(
-                        new DiscoveryNode(
-                            "node3",
-                            "node3",
-                            "node3",
-                            "test2",
-                            "test2",
-                            buildNewFakeTransportAddress(),
-                            emptyMap(),
-                            MASTER_DATA_ROLES,
-                            null
-                        )
+                        DiscoveryNodeUtils.builder("node3")
+                            .name("node3")
+                            .ephemeralId("node3")
+                            .address("test2", "test2", buildNewFakeTransportAddress())
+                            .roles(MASTER_DATA_ROLES)
+                            .build()
                     )
             )
             .build();
@@ -143,7 +128,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .build();
         AllocationService strategy = createAllocationService(sameHostSetting);
 
-        final Settings.Builder indexSettings = settings(Version.CURRENT);
+        final Settings.Builder indexSettings = settings(IndexVersion.current());
         if (randomBoolean()) {
             indexSettings.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
         }
@@ -164,30 +149,20 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        new DiscoveryNode(
-                            "node1",
-                            "node1",
-                            "node1",
-                            host1,
-                            host1,
-                            buildNewFakeTransportAddress(),
-                            emptyMap(),
-                            MASTER_DATA_ROLES,
-                            null
-                        )
+                        DiscoveryNodeUtils.builder("node1")
+                            .name("node1")
+                            .ephemeralId("node1")
+                            .address(host1, host1, buildNewFakeTransportAddress())
+                            .roles(MASTER_DATA_ROLES)
+                            .build()
                     )
                     .add(
-                        new DiscoveryNode(
-                            "node2",
-                            "node2",
-                            "node2",
-                            host2,
-                            host2,
-                            buildNewFakeTransportAddress(),
-                            emptyMap(),
-                            MASTER_DATA_ROLES,
-                            null
-                        )
+                        DiscoveryNodeUtils.builder("node2")
+                            .name("node2")
+                            .ephemeralId("node2")
+                            .address(host2, host2, buildNewFakeTransportAddress())
+                            .roles(MASTER_DATA_ROLES)
+                            .build()
                     )
             )
             .build();
@@ -252,33 +227,23 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         final Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(indexSettings(Version.CURRENT, 1, 99).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+                    .settings(indexSettings(IndexVersion.current(), 1, 99).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
             )
             .build();
 
-        final DiscoveryNode node1 = new DiscoveryNode(
-            "node1",
-            "node1",
-            "node1",
-            "test1",
-            "test1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            null
-        );
+        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1")
+            .name("node1")
+            .ephemeralId("node1")
+            .address("test1", "test1", buildNewFakeTransportAddress())
+            .roles(MASTER_DATA_ROLES)
+            .build();
 
-        final DiscoveryNode node2 = new DiscoveryNode(
-            "node2",
-            "node2",
-            "node2",
-            "test1",
-            "test1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            null
-        );
+        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2")
+            .name("node2")
+            .ephemeralId("node2")
+            .address("test1", "test1", buildNewFakeTransportAddress())
+            .roles(MASTER_DATA_ROLES)
+            .build();
 
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.DEFAULT)

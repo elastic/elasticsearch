@@ -89,7 +89,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -118,7 +118,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final ScriptCompiler scriptCompiler;
-        private final NumberType type;
+        public final NumberType type;
 
         private boolean allowMultipleValues = true;
         private final IndexVersion indexCreatedVersion;
@@ -268,14 +268,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public NumberFieldMapper build(MapperBuilderContext context) {
             MappedFieldType ft = new NumberFieldType(context.buildFullName(name), this);
-            return new NumberFieldMapper(
-                name,
-                ft,
-                multiFieldsBuilder.build(this, context),
-                copyTo.build(),
-                context.isSourceSynthetic(),
-                this
-            );
+            return new NumberFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, context.isSourceSynthetic(), this);
         }
     }
 
@@ -444,6 +437,16 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                 };
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
+                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
+            }
+
+            @Override
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher);
+            }
         },
         FLOAT("float", NumericType.FLOAT) {
             @Override
@@ -596,6 +599,16 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                 };
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
+                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
+            }
+
+            @Override
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher);
+            }
         },
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
@@ -726,6 +739,16 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                 };
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
+                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher);
+            }
         },
         BYTE("byte", NumericType.BYTE) {
             @Override
@@ -819,6 +842,16 @@ public class NumberFieldMapper extends FieldMapper {
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName, boolean ignoreMalformed) {
                 return NumberType.syntheticLongFieldLoader(fieldName, fieldSimpleName, ignoreMalformed);
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
+                return new BlockDocValuesReader.IntsBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher);
+            }
         },
         SHORT("short", NumericType.SHORT) {
             @Override
@@ -907,6 +940,16 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName, boolean ignoreMalformed) {
                 return NumberType.syntheticLongFieldLoader(fieldName, fieldSimpleName, ignoreMalformed);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
+                return new BlockDocValuesReader.IntsBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher);
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -1065,6 +1108,16 @@ public class NumberFieldMapper extends FieldMapper {
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName, boolean ignoreMalformed) {
                 return NumberType.syntheticLongFieldLoader(fieldName, fieldSimpleName, ignoreMalformed);
             }
+
+            @Override
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
+                return new BlockDocValuesReader.IntsBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher);
+            }
         },
         LONG("long", NumericType.LONG) {
             @Override
@@ -1191,6 +1244,16 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName, boolean ignoreMalformed) {
                 return syntheticLongFieldLoader(fieldName, fieldSimpleName, ignoreMalformed);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromDocValues(String fieldName) {
+                return new BlockDocValuesReader.LongsBlockLoader(fieldName);
+            }
+
+            @Override
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher) {
+                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher);
             }
         };
 
@@ -1455,6 +1518,10 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             };
         }
+
+        abstract BlockLoader blockLoaderFromDocValues(String fieldName);
+
+        abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher);
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {
@@ -1583,6 +1650,18 @@ public class NumberFieldMapper extends FieldMapper {
                 return this::parsePoint;
             }
             return null;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
+                // Counters are not supported by ESQL so we load them in null
+                return BlockLoader.CONSTANT_NULLS;
+            }
+            if (hasDocValues()) {
+                return type.blockLoaderFromDocValues(name());
+            }
+            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

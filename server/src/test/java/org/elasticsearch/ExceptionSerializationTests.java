@@ -64,15 +64,19 @@ import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.PeerRecoveryNotFound;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
+import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.ingest.IngestProcessorException;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestResponseTests;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.TooManyScrollContextsException;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -354,7 +358,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         TransportVersion version = TransportVersionUtils.randomVersion(random());
         SearchContextMissingException ex = serialize(new SearchContextMissingException(contextId), version);
         assertThat(ex.contextId().getId(), equalTo(contextId.getId()));
-        if (version.onOrAfter(TransportVersion.V_7_7_0)) {
+        if (version.onOrAfter(TransportVersions.V_7_7_0)) {
             assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
         } else {
             assertThat(ex.contextId().getSessionId(), equalTo(""));
@@ -364,7 +368,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testCircuitBreakingException() throws IOException {
         CircuitBreakingException ex = serialize(
             new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
-            TransportVersion.V_7_0_0
+            TransportVersions.V_7_0_0
         );
         assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
@@ -689,7 +693,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
         ids.put(25, org.elasticsearch.script.GeneralScriptException.class);
         ids.put(26, null);
-        ids.put(27, org.elasticsearch.snapshots.SnapshotCreationException.class);
+        ids.put(27, null); // was SnapshotCreationException
         ids.put(28, null); // was DeleteFailedEngineException, deprecated in 6.0 and removed in 7.0
         ids.put(29, org.elasticsearch.index.engine.DocumentMissingException.class);
         ids.put(30, org.elasticsearch.snapshots.SnapshotException.class);
@@ -830,6 +834,10 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(168, DocumentParsingException.class);
         ids.put(169, HttpHeadersValidationException.class);
         ids.put(170, ElasticsearchRoleRestrictionException.class);
+        ids.put(171, ApiNotAvailableException.class);
+        ids.put(172, RecoveryCommitTooNewException.class);
+        ids.put(173, TooManyScrollContextsException.class);
+        ids.put(174, AggregationExecutionException.InvalidPath.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

@@ -23,6 +23,7 @@ public class IllegalIndexShardStateException extends ElasticsearchException {
         this(shardId, currentState, msg, null, args);
     }
 
+    @SuppressWarnings("this-escape")
     public IllegalIndexShardStateException(ShardId shardId, IndexShardState currentState, String msg, Throwable ex, Object... args) {
         super("CurrentState[" + currentState + "] " + msg, ex, args);
         setShard(shardId);

@@ -531,7 +531,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                 new SnapshotId(CcrRepository.LATEST, CcrRepository.LATEST),
                 new IndexId(indexStats.getIndex(), indexStats.getUuid()),
                 new ShardId(new Index(indexStats.getIndex(), indexStats.getUuid()), shardId)
-            ).asCopy();
+            );
 
             assertThat(indexShardSnapshotStatus, notNullValue());
             assertThat(indexShardSnapshotStatus.getStage(), is(IndexShardSnapshotStatus.Stage.DONE));
@@ -548,10 +548,9 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         final Map<Integer, Long> fetchedSnapshotShardSizes = new ConcurrentHashMap<>();
 
-        final PlainActionFuture<Void> waitForRestoreInProgress = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> waitForRestoreInProgress = new PlainActionFuture<>();
         final ClusterStateListener listener = event -> {
-            RestoreInProgress restoreInProgress = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-            if (restoreInProgress != null && restoreInProgress.isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
+            if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
                 final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
                 for (ShardRouting shardRouting : indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
                     if (shardRouting.unassignedInfo().getLastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA) {
@@ -599,7 +598,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             );
         }
 
-        assertHitCount(followerClient().prepareSearch(followerIndex).setSize(0).get(), numDocs);
+        assertHitCount(followerClient().prepareSearch(followerIndex).setSize(0), numDocs);
         assertAcked(followerClient().admin().indices().prepareDelete(followerIndex).setMasterNodeTimeout(TimeValue.MAX_VALUE));
     }
 
@@ -635,12 +634,9 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         try {
             final SnapshotsInfoService snapshotsInfoService = getFollowerCluster().getCurrentMasterNodeInstance(SnapshotsInfoService.class);
 
-            final PlainActionFuture<Void> waitForAllShardSnapshotSizesFailures = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> waitForAllShardSnapshotSizesFailures = new PlainActionFuture<>();
             final ClusterStateListener listener = event -> {
-                RestoreInProgress restoreInProgress = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-                if (restoreInProgress != null
-                    && restoreInProgress.isEmpty() == false
-                    && event.state().routingTable().hasIndex(followerIndex)) {
+                if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
                     try {
                         final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
                         // this assertBusy completes because the listener is added after the InternalSnapshotsInfoService

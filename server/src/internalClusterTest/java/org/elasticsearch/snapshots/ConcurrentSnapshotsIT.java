@@ -39,6 +39,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -366,7 +367,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> wait for snapshot on second data node to finish");
         awaitClusterState(state -> {
-            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
             return snapshotsInProgress.count() == 2 && snapshotHasCompletedShard(repoName, secondSnapshot, snapshotsInProgress);
         });
 
@@ -422,7 +423,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> wait for snapshot on second data node to finish");
         awaitClusterState(state -> {
-            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
             return snapshotsInProgress.count() == 2 && snapshotHasCompletedShard(repoName, secondSnapshot, snapshotsInProgress);
         });
 
@@ -442,8 +443,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> waiting for second and third snapshot to finish");
         assertBusy(() -> {
             assertThat(currentSnapshots(repoName), hasSize(1));
-            final SnapshotsInProgress snapshotsInProgress = clusterService().state().custom(SnapshotsInProgress.TYPE);
-            assertThat(snapshotsInProgress.forRepo(repoName).get(0).state(), is(SnapshotsInProgress.State.ABORTED));
+            assertThat(
+                SnapshotsInProgress.get(clusterService().state()).forRepo(repoName).get(0).state(),
+                is(SnapshotsInProgress.State.ABORTED)
+            );
         }, 30L, TimeUnit.SECONDS);
 
         unblockNode(repoName, dataNode);
@@ -485,7 +488,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> wait for snapshot on second data node to finish");
         awaitClusterState(state -> {
-            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
             return snapshotsInProgress.count() == 2 && snapshotHasCompletedShard(repoName, secondSnapshot, snapshotsInProgress);
         });
 
@@ -512,9 +515,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> waiting for second snapshot to finish and the other two snapshots to become aborted");
         assertBusy(() -> {
             assertThat(currentSnapshots(repoName), hasSize(2));
-            for (SnapshotsInProgress.Entry entry : clusterService().state()
-                .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .forRepo(repoName)) {
+            for (SnapshotsInProgress.Entry entry : SnapshotsInProgress.get(clusterService().state()).forRepo(repoName)) {
                 assertThat(entry.state(), is(SnapshotsInProgress.State.ABORTED));
                 assertThat(entry.snapshot().getSnapshotId().getName(), not(secondSnapshot));
             }
@@ -768,7 +769,18 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ensureStableCluster(3);
 
         awaitNoMoreRunningOperations();
-        expectThrows(RepositoryException.class, deleteFuture::actionGet);
+        var innerException = expectThrows(ExecutionException.class, RuntimeException.class, deleteFuture::get);
+
+        // There may be many layers of RTE to unwrap here, see https://github.com/elastic/elasticsearch/issues/102351.
+        // ExceptionsHelper#unwrapCause gives up at 10 layers of wrapping so we must unwrap more tenaciously by hand here:
+        while (true) {
+            if (innerException instanceof RemoteTransportException remoteTransportException) {
+                innerException = asInstanceOf(RuntimeException.class, remoteTransportException.getCause());
+            } else {
+                assertThat(innerException, instanceOf(RepositoryException.class));
+                break;
+            }
+        }
     }
 
     public void testQueuedSnapshotOperationsAndBrokenRepoOnMasterFailOver() throws Exception {
@@ -941,7 +953,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             indexDoc(testIndex, Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(client().prepareSearch(testIndex).setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+        assertThat(prepareSearch(testIndex).setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
 
         logger.info("--> start relocations");
         allowNodes(testIndex, 1);
@@ -1583,15 +1595,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .execute();
 
         awaitClusterState(state -> {
-            final List<SnapshotsInProgress.Entry> snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .forRepo(repository);
+            final List<SnapshotsInProgress.Entry> snapshotsInProgress = SnapshotsInProgress.get(state).forRepo(repository);
             return snapshotsInProgress.size() == 2 && snapshotsInProgress.get(1).state().completed();
         });
 
         unblockAllDataNodes(repository);
-        awaitClusterState(
-            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).forRepo(repository).get(0).state().completed()
-        );
+        awaitClusterState(state -> SnapshotsInProgress.get(state).forRepo(repository).get(0).state().completed());
 
         unblockNode(repository, master);
         assertSuccessful(snapshot2);

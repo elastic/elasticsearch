@@ -42,7 +42,7 @@ On each rollover, the new index becomes the write index.
 [[ilm-automatic-rollover]]
 === Automatic rollover
 
-{ilm-init} enables you to automatically roll over to a new index based
+{ilm-init} and the data stream lifecycle (in preview:[]]) enable you to automatically roll over to a new index based
 on conditions like the index size, document count, or age. When a rollover is triggered, a new
 index is created, the write alias is updated to point to the new index, and all
 subsequent updates are written to the new index.
@@ -51,3 +51,15 @@ TIP: Rolling over to a new index based on size, document count, or age is prefer
 to time-based rollovers. Rolling over at an arbitrary time often results in
 many small indices, which can have a negative impact on performance and
 resource usage.
+
+IMPORTANT: Empty indices will not be rolled over, even if they have an associated `max_age` that
+would otherwise result in a roll over occurring. A policy can override this behavior, and explicitly
+opt in to rolling over empty indices, by adding a `"min_docs": 0` condition. This can also be
+disabled on a cluster-wide basis by setting `indices.lifecycle.rollover.only_if_has_documents` to
+`false`.
+
+IMPORTANT: The rollover action implicitly always rolls over a data stream or alias if one or more shards contain
+200000000 or more documents. Normally a shard will reach 50GB long before it reaches 200M documents,
+but this isn't the case for space efficient data sets. Search performance will very likely suffer
+if a shard contains more than 200M documents. This is the reason of the builtin limit.
+

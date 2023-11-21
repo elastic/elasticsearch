@@ -7,11 +7,11 @@
 package org.elasticsearch.index.engine.frozen;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeAction;
@@ -111,8 +111,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertHitCount(
             client().prepareSearch()
                 .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
-                .setSearchType(useDFS ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)
-                .get(),
+                .setSearchType(useDFS ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH),
             3
         );
         assertThat(engine, Matchers.instanceOf(FrozenEngine.class));
@@ -288,12 +287,12 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             client().execute(
                 FreezeIndexAction.INSTANCE,
                 new FreezeRequest("idx*").setFreeze(false).indicesOptions(IndicesOptions.strictExpand())
-            ).actionGet()
+            )
         );
         ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
         assertEquals(IndexMetadata.State.CLOSE, stateResponse.getState().getMetadata().index("idx-closed").getState());
         assertEquals(IndexMetadata.State.OPEN, stateResponse.getState().getMetadata().index("idx").getState());
-        assertHitCount(client().prepareSearch().get(), 1L);
+        assertHitCount(client().prepareSearch(), 1L);
     }
 
     public void testFreezePattern() {
@@ -307,7 +306,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         IndicesStatsResponse index = indicesAdmin().prepareStats(indexName).clear().setRefresh(true).get();
         assertEquals(0, index.getTotal().refresh.getTotal());
-        assertHitCount(client().prepareSearch(indexName).setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED).get(), 1);
+        assertHitCount(client().prepareSearch(indexName).setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED), 1);
         index = indicesAdmin().prepareStats(indexName).clear().setRefresh(true).get();
         assertEquals(1, index.getTotal().refresh.getTotal());
 
@@ -480,7 +479,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                 new FreezeRequest("idx*", "not_available").indicesOptions(
                     IndicesOptions.fromParameters(null, "true", null, null, IndicesOptions.strictExpandOpen())
                 )
-            ).actionGet()
+            )
         );
         assertIndexFrozen("idx");
         assertEquals(IndexMetadata.State.CLOSE, clusterAdmin().prepareState().get().getState().metadata().index("idx-close").getState());
@@ -549,7 +548,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         final long nbDocs = randomIntBetween(0, 50);
         for (long i = 0; i < nbDocs; i++) {
-            final IndexResponse indexResponse = client().prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
+            final DocWriteResponse indexResponse = client().prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
             assertThat(indexResponse.status(), is(RestStatus.CREATED));
         }
 
@@ -580,7 +579,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         final int nbDocs = randomIntBetween(0, 50);
         int uncommittedOps = 0;
         for (long i = 0; i < nbDocs; i++) {
-            final IndexResponse indexResponse = client().prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
+            final DocWriteResponse indexResponse = client().prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
             assertThat(indexResponse.status(), is(RestStatus.CREATED));
             if (rarely()) {
                 indicesAdmin().prepareFlush(indexName).get();
@@ -614,8 +613,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     public void testComputesTimestampRangeFromMilliseconds() {
         final int shardCount = between(1, 3);
         createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount).build());
-        client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-05T01:02:03.456Z").get();
-        client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-06T02:03:04.567Z").get();
+        client().prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-05T01:02:03.456Z").get();
+        client().prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567Z").get();
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
 
@@ -637,7 +636,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         final XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
-            .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+            .startObject(DataStream.TIMESTAMP_FIELD_NAME)
             .field("type", "date_nanos")
             .field("format", "strict_date_optional_time_nanos")
             .endObject()
@@ -646,8 +645,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         final int shardCount = between(1, 3);
         createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount).build(), mapping);
-        client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-05T01:02:03.456789012Z").get();
-        client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, "2010-01-06T02:03:04.567890123Z").get();
+        client().prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-05T01:02:03.456789012Z").get();
+        client().prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567890123Z").get();
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
 

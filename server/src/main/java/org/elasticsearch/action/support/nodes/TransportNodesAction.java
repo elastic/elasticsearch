@@ -15,14 +15,16 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CancellableFanOut;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,7 +47,7 @@ public abstract class TransportNodesAction<
     NodesRequest extends BaseNodesRequest<NodesRequest>,
     NodesResponse extends BaseNodesResponse<?>,
     NodeRequest extends TransportRequest,
-    NodeResponse extends BaseNodeResponse> extends HandledTransportAction<NodesRequest, NodesResponse> {
+    NodeResponse extends BaseNodeResponse> extends TransportAction<NodesRequest, NodesResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportNodesAction.class);
 
@@ -57,35 +59,59 @@ public abstract class TransportNodesAction<
 
     /**
      * @param actionName        action name
-     * @param threadPool        thread-pool
      * @param clusterService    cluster service
      * @param transportService  transport service
      * @param actionFilters     action filters
-     * @param request           node request writer
      * @param nodeRequest       node request reader
      * @param executor          executor to execute node action and final collection
      */
+    protected TransportNodesAction(
+        String actionName,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<NodeRequest> nodeRequest,
+        Executor executor
+    ) {
+        super(actionName, actionFilters, transportService.getTaskManager());
+        assert executor.equals(EsExecutors.DIRECT_EXECUTOR_SERVICE) == false
+            : "TransportNodesAction must always fork off the transport thread";
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.transportService = Objects.requireNonNull(transportService);
+        this.finalExecutor = executor;
+        this.transportNodeAction = actionName + "[n]";
+        transportService.registerRequestHandler(transportNodeAction, finalExecutor, nodeRequest, new NodeTransportHandler());
+    }
+
+    /**
+     * @deprecated Use the local-only constructor instead.
+     */
+    @Deprecated(forRemoval = true)
+    @SuppressWarnings("this-escape")
     protected TransportNodesAction(
         String actionName,
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        Writeable.Reader<NodesRequest> request,
+        Writeable.Reader<NodesRequest> requestReader,
         Writeable.Reader<NodeRequest> nodeRequest,
-        String executor
+        Executor executor
     ) {
-        super(actionName, transportService, actionFilters, request);
-        assert executor.equals(ThreadPool.Names.SAME) == false : "TransportNodesAction must always fork off the transport thread";
-        this.clusterService = Objects.requireNonNull(clusterService);
-        this.transportService = Objects.requireNonNull(transportService);
-        this.finalExecutor = threadPool.executor(executor);
-        this.transportNodeAction = actionName + "[n]";
-        transportService.registerRequestHandler(transportNodeAction, executor, nodeRequest, new NodeTransportHandler());
+        this(actionName, clusterService, transportService, actionFilters, nodeRequest, executor);
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            requestReader,
+            (request, channel, task) -> execute(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
+        // coordination can run on SAME because it's only O(#nodes) work
         if (request.concreteNodes() == null) {
             resolveRequest(request, clusterService.state());
             assert request.concreteNodes() != null;
@@ -105,13 +131,17 @@ public abstract class TransportNodesAction<
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 }
 
-                transportService.sendRequest(
-                    discoveryNode,
-                    transportNodeAction,
-                    nodeRequest,
-                    transportRequestOptions,
-                    new ActionListenerResponseHandler<>(listener, nodeResponseReader(discoveryNode))
-                );
+                try {
+                    transportService.sendRequest(
+                        discoveryNode,
+                        transportNodeAction,
+                        nodeRequest,
+                        transportRequestOptions,
+                        new ActionListenerResponseHandler<>(listener, nodeResponseReader(discoveryNode), finalExecutor)
+                    );
+                } finally {
+                    nodeRequest.decRef();
+                }
             }
 
             @Override

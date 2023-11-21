@@ -15,8 +15,8 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
@@ -26,6 +26,7 @@ import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -173,7 +174,7 @@ class Elasticsearch {
         // initialize probes before the security manager is installed
         initializeProbes();
 
-        Runtime.getRuntime().addShutdownHook(new Thread(Elasticsearch::shutdown));
+        Runtime.getRuntime().addShutdownHook(new Thread(Elasticsearch::shutdown, "elasticsearch-shutdown"));
 
         // look for jar hell
         final Logger logger = LogManager.getLogger(JarHell.class);
@@ -188,6 +189,7 @@ class Elasticsearch {
             // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed
             AbstractRefCounted.class,
             SubscribableListener.class,
+            RunOnce.class,
             // We eagerly initialize to work around log4j permissions & JDK-8309727
             VectorUtil.class
         );
@@ -374,7 +376,7 @@ class Elasticsearch {
                     Bootstrap.exit(1);
                 }
             }
-        }).start();
+        }, "elasticsearch-cli-monitor-thread").start();
     }
 
     /**
@@ -449,7 +451,7 @@ class Elasticsearch {
             } catch (InterruptedException e) {
                 // bail out
             }
-        }, "elasticsearch[keepAlive/" + Version.CURRENT + "]");
+        }, "elasticsearch[keepAlive/" + Build.current().version() + "]");
     }
 
     private void start() throws NodeValidationException {

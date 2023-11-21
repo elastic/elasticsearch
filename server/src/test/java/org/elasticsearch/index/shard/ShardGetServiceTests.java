@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -30,12 +30,11 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class ShardGetServiceTests extends IndexShardTestCase {
 
     public void testGetForUpdate() throws IOException {
-        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
@@ -135,7 +134,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
               },
               "_source": { %s }
               }
-            }""", fieldType, fieldType, sourceOptions)).settings(indexSettings(Version.CURRENT, 1, 1)).primaryTerm(0, 1).build();
+            }""", fieldType, fieldType, sourceOptions)).settings(indexSettings(IndexVersion.current(), 1, 1)).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
         recoverShardFromStore(primary);
         LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
@@ -200,8 +199,12 @@ public class ShardGetServiceTests extends IndexShardTestCase {
     }
 
     public void testTypelessGetForUpdate() throws IOException {
-        IndexMetadata metadata = IndexMetadata.builder("index").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(indexSettings(Version.CURRENT, 1, 1)).primaryTerm(0, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("index")
+            .putMapping("""
+                { "properties": { "foo":  { "type": "text"}}}""")
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
+            .primaryTerm(0, 1)
+            .build();
         IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(shard);
         Engine.IndexResult indexResult = indexDoc(shard, "some_type", "0", "{\"foo\" : \"bar\"}");
@@ -214,7 +217,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
     }
 
     public void testGetFromTranslog() throws IOException {
-        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
@@ -237,16 +240,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
         assertNull(getResult);
         var lastUnsafeGeneration = engine.getLastUnsafeSegmentGenerationForGets();
-        assertThat(lastUnsafeGeneration, greaterThan(0L));
+        // last unsafe generation is set to last committed gen after the refresh triggered by realtime get
+        assertThat(lastUnsafeGeneration, equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
         assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
 
         // A flush shouldn't change the recorded last unsafe generation for gets
-        PlainActionFuture<Engine.FlushResult> flushFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Engine.FlushResult> flushFuture = new PlainActionFuture<>();
         engine.flush(true, true, flushFuture);
         var flushResult = flushFuture.actionGet();
         assertTrue(flushResult.flushPerformed());
-        assertThat(flushResult.generation(), equalTo(lastUnsafeGeneration));
+        assertThat(flushResult.generation(), equalTo(lastUnsafeGeneration + 1));
         assertThat(engine.getLastUnsafeSegmentGenerationForGets(), equalTo(lastUnsafeGeneration));
         // No longer in translog
         getResult = primary.getService()

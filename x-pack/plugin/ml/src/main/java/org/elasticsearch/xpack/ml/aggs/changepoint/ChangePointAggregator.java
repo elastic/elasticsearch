@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
+import org.apache.commons.math3.exception.NotStrictlyPositiveException;
 import org.apache.commons.math3.special.Beta;
 import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -31,6 +34,8 @@ import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractBucket;
 import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractDoubleBucketedValues;
 
 public class ChangePointAggregator extends SiblingPipelineAggregator {
+
+    private static final Logger logger = LogManager.getLogger(ChangePointAggregator.class);
 
     static final double P_VALUE_THRESHOLD = 0.025;
     private static final int MINIMUM_BUCKETS = 10;
@@ -85,7 +90,11 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         Tuple<int[], Integer> candidatePoints = candidateChangePoints(bucketValues.getValues());
         ChangeType changeType = changePValue(bucketValues, candidatePoints, P_VALUE_THRESHOLD);
         if (changeType.pValue() > P_VALUE_THRESHOLD) {
-            changeType = maxDeviationKdePValue(bucketValues, P_VALUE_THRESHOLD);
+            try {
+                changeType = maxDeviationKdePValue(bucketValues, P_VALUE_THRESHOLD);
+            } catch (NotStrictlyPositiveException nspe) {
+                logger.debug("failure calculating spikes", nspe);
+            }
         }
         ChangePointBucket changePointBucket = null;
         if (changeType.changePoint() >= 0) {

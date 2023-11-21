@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,21 +69,9 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         out.writeString(path);
     }
 
-    /**
-     * Get the path to use for this nested aggregation.
-     */
-    public String path() {
-        return path;
-    }
-
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.ONE;
-    }
-
-    @Override
-    public boolean supportsConcurrentExecution() {
-        return false;
     }
 
     @Override
@@ -161,6 +150,6 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

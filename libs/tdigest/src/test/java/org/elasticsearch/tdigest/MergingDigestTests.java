@@ -118,7 +118,7 @@ public class MergingDigestTests extends TDigestTests {
                 d.add(x);
             }
         }
-        int last = 0;
+        long last = 0;
         for (Centroid centroid : d.centroids()) {
             if (last == 0) {
                 assertEquals(1, centroid.count());

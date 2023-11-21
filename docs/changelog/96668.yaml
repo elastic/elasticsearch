@@ -1,6 +1,0 @@
-pr: 96668
-summary: Fix iteration of empty percentiles throwing Null Pointer Exception
-area: Aggregations
-type: bug
-issues:
- - 96626

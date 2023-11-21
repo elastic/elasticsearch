@@ -72,7 +72,7 @@ public class ClearScrollRequest extends ActionRequest implements ToXContentObjec
         if (scrollIds == null) {
             out.writeVInt(0);
         } else {
-            out.writeStringArray(scrollIds.toArray(new String[scrollIds.size()]));
+            out.writeStringCollection(scrollIds);
         }
     }
 

@@ -1,0 +1,7 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+v | result
+keyword | version
+text | version
+version | version
+|===

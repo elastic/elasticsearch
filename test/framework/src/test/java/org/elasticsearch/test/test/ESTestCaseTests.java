@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
@@ -37,12 +38,14 @@ import java.util.function.Supplier;
 
 import javax.crypto.KeyGenerator;
 
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assume.assumeThat;
@@ -357,5 +360,26 @@ public class ESTestCaseTests extends ESTestCase {
         final Throwable t = wrappedThrowable.getCause(); // unwrap Throwable (FipsUnapprovedOperationError)
         assertThat(t.getClass().getCanonicalName(), is(equalTo("org.bouncycastle.crypto.fips.FipsUnapprovedOperationError")));
         assertThat(t.getMessage(), is(equalTo("Attempt to create key with unapproved RNG: AES")));
+    }
+
+    public void testRandomUnsignedLongBetween() {
+        assertThat(
+            randomUnsignedLongBetween(BigInteger.ZERO, UNSIGNED_LONG_MAX),
+            both(greaterThanOrEqualTo(BigInteger.ZERO)).and(lessThanOrEqualTo(UNSIGNED_LONG_MAX))
+        );
+
+        BigInteger from = BigInteger.valueOf(randomLong()).subtract(BigInteger.valueOf(Long.MIN_VALUE));
+        BigInteger to = BigInteger.valueOf(randomLong()).subtract(BigInteger.valueOf(Long.MIN_VALUE));
+        if (from.compareTo(to) > 0) {
+            BigInteger s = from;
+            from = to;
+            to = s;
+        }
+        assertThat(randomUnsignedLongBetween(from, to), both(greaterThanOrEqualTo(from)).and(lessThanOrEqualTo(to)));
+    }
+
+    public void testRandomUnsignedLongBetweenDegenerate() {
+        BigInteger target = BigInteger.valueOf(randomLong()).subtract(BigInteger.valueOf(Long.MIN_VALUE));
+        assertThat(randomUnsignedLongBetween(target, target), equalTo(target));
     }
 }

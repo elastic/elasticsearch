@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.rest.RestRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.empty;
@@ -64,6 +66,8 @@ public class RestPluginsActionTests extends ESTestCase {
                 new NodeInfo(
                     Version.CURRENT,
                     TransportVersion.current(),
+                    IndexVersion.current(),
+                    Map.of(),
                     null,
                     node(i),
                     null,

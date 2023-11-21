@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.HitExtractorInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ReferenceInput;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.util.Queries;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,6 +49,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.FULL;
+import static org.elasticsearch.xpack.ql.util.Queries.Clause.FILTER;
 
 public final class RuntimeUtils {
 
@@ -56,21 +59,21 @@ public final class RuntimeUtils {
     private RuntimeUtils() {}
 
     public static ActionListener<SearchResponse> searchLogListener(ActionListener<SearchResponse> listener, Logger log) {
-        return ActionListener.wrap(response -> {
+        return listener.delegateFailureAndWrap((delegate, response) -> {
             ShardSearchFailure[] failures = response.getShardFailures();
             if (CollectionUtils.isEmpty(failures) == false) {
-                listener.onFailure(new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause()));
+                delegate.onFailure(new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause()));
                 return;
             }
             if (log.isTraceEnabled()) {
                 logSearchResponse(response, log);
             }
-            listener.onResponse(response);
-        }, listener::onFailure);
+            delegate.onResponse(response);
+        });
     }
 
     public static ActionListener<MultiSearchResponse> multiSearchLogListener(ActionListener<MultiSearchResponse> listener, Logger log) {
-        return ActionListener.wrap(items -> {
+        return listener.delegateFailureAndWrap((delegate, items) -> {
             for (MultiSearchResponse.Item item : items) {
                 Exception failure = item.getFailure();
                 SearchResponse response = item.getResponse();
@@ -82,15 +85,15 @@ public final class RuntimeUtils {
                     }
                 }
                 if (failure != null) {
-                    listener.onFailure(failure);
+                    delegate.onFailure(failure);
                     return;
                 }
                 if (log.isTraceEnabled()) {
                     logSearchResponse(response, log);
                 }
             }
-            listener.onResponse(items);
-        }, listener::onFailure);
+            delegate.onResponse(items);
+        });
     }
 
     private static void logSearchResponse(SearchResponse response, Logger logger) {
@@ -154,7 +157,7 @@ public final class RuntimeUtils {
                 hitNames.add(he.hitName());
 
                 if (hitNames.size() > 1) {
-                    throw new EqlIllegalArgumentException("Multi-level nested fields [{}] not supported yet", hitNames);
+                    throw new EqlClientException("Multi-level nested fields [{}] not supported yet", hitNames);
                 }
 
                 return new HitExtractorInput(l.source(), l.expression(), he);
@@ -184,62 +187,29 @@ public final class RuntimeUtils {
         return Arrays.asList(response.getHits().getHits());
     }
 
-    // optimized method that adds filter to existing bool queries without additional wrapping
-    // additionally checks whether the given query exists for safe decoration
-    public static SearchSourceBuilder addFilter(QueryBuilder filter, SearchSourceBuilder source) {
-        BoolQueryBuilder bool = null;
-        QueryBuilder query = source.query();
-
-        if (query instanceof BoolQueryBuilder boolQueryBuilder) {
-            bool = boolQueryBuilder;
-            if (filter != null && bool.filter().contains(filter) == false) {
-                bool.filter(filter);
-            }
-        } else {
-            bool = boolQuery();
-            if (query != null) {
-                bool.filter(query);
-            }
-            if (filter != null) {
-                bool.filter(filter);
-            }
-
-            source.query(bool);
-        }
-        return source;
+    /**
+     * optimized method that adds filter to existing bool queries without additional wrapping
+     * additionally checks whether the given query exists for safe decoration
+     */
+    public static SearchSourceBuilder combineFilters(SearchSourceBuilder source, QueryBuilder filter) {
+        var query = Queries.combine(FILTER, Arrays.asList(source.query(), filter));
+        query = query == null ? boolQuery() : query;
+        return source.query(query);
     }
 
     public static SearchSourceBuilder replaceFilter(
+        SearchSourceBuilder source,
         List<QueryBuilder> oldFilters,
-        List<QueryBuilder> newFilters,
-        SearchSourceBuilder source
+        List<QueryBuilder> newFilters
     ) {
-        BoolQueryBuilder bool = null;
-        QueryBuilder query = source.query();
-
-        if (query instanceof BoolQueryBuilder boolQueryBuilder) {
-            bool = boolQueryBuilder;
-            if (oldFilters != null) {
-                bool.filter().removeAll(oldFilters);
-            }
-
-            if (newFilters != null) {
-                bool.filter().addAll(newFilters);
-            }
-        }
-        // no bool query means no old filters
-        else {
-            bool = boolQuery();
-            if (query != null) {
-                bool.filter(query);
-            }
-            if (newFilters != null) {
-                bool.filter().addAll(newFilters);
-            }
-
-            source.query(bool);
-        }
-        return source;
+        var query = source.query();
+        query = removeFilters(query, oldFilters);
+        query = Queries.combine(
+            FILTER,
+            org.elasticsearch.xpack.ql.util.CollectionUtils.combine(Collections.singletonList(query), newFilters)
+        );
+        query = query == null ? boolQuery() : query;
+        return source.query(query);
     }
 
     public static SearchSourceBuilder wrapAsFilter(SearchSourceBuilder source) {
@@ -251,5 +221,14 @@ public final class RuntimeUtils {
 
         source.query(bool);
         return source;
+    }
+
+    public static QueryBuilder removeFilters(QueryBuilder query, List<QueryBuilder> filters) {
+        if (query instanceof BoolQueryBuilder boolQueryBuilder) {
+            if (org.elasticsearch.xpack.ql.util.CollectionUtils.isEmpty(filters) == false) {
+                boolQueryBuilder.filter().removeAll(filters);
+            }
+        }
+        return query;
     }
 }

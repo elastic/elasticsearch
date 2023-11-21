@@ -37,7 +37,7 @@ public class MinDocQueryTests extends ESTestCase {
 
     public void testRewrite() throws Exception {
         IndexReader reader = new MultiReader();
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
         MinDocQuery query = new MinDocQuery(42);
         Query rewritten = query.rewrite(searcher);
         QueryUtils.checkUnequal(query, rewritten);

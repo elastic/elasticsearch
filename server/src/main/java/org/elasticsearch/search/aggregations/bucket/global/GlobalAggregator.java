@@ -24,14 +24,16 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import java.io.IOException;
 import java.util.Map;
 
-public class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
+public final class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
     private final Weight weight;
 
     public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext context, Map<String, Object> metadata)
         throws IOException {
 
         super(name, subFactories, context, null, CardinalityUpperBound.ONE, metadata);
-        weight = context.filterQuery(new MatchAllDocsQuery()).createWeight(context.searcher(), scoreMode(), 1.0f);
+        weight = context.searcher()
+            .rewrite(context.filterQuery(new MatchAllDocsQuery()))
+            .createWeight(context.searcher(), scoreMode(), 1.0f);
     }
 
     @Override

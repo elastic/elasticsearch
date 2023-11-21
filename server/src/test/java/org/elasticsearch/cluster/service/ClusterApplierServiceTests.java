@@ -351,9 +351,15 @@ public class ClusterApplierServiceTests extends ESTestCase {
                 clusterApplierService.state();
                 error.set(new AssertionError("successfully sampled state"));
             } catch (AssertionError e) {
-                if (e.getMessage().contains("should not be called by a cluster state applier") == false) {
-                    error.set(e);
+                // NB not a string constant shared between implementation and test, because the content of this message is important and
+                // mustn't be changed inadvertently.
+                if (e.getMessage().equals("""
+                    On the cluster applier thread you must use ClusterChangedEvent#state() and ClusterChangedEvent#previousState() instead \
+                    of ClusterApplierService#state(). It is almost certainly a bug to read the latest-applied state from within a cluster \
+                    applier since the new state has been committed at this point but is not yet applied.""")) {
+                    return;
                 }
+                error.set(e);
             }
         });
 

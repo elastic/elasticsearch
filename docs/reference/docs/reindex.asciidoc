@@ -123,7 +123,7 @@ conflict.
 
 IMPORTANT: Because data streams are <<data-streams-append-only,append-only>>,
 any reindex request to a destination data stream must have an `op_type`
-of`create`. A reindex can only add new documents to a destination data stream.
+of `create`. A reindex can only add new documents to a destination data stream.
 It cannot update existing documents in a destination data stream.
 
 By default, version conflicts abort the `_reindex` process.
@@ -984,9 +984,9 @@ POST _reindex
 --------------------------------------------------
 // TEST[setup:host]
 // TEST[s/^/PUT my-index-000001\n/]
-// TEST[s/otherhost:9200",/\${host}"/]
-// TEST[s/"username": "user",//]
-// TEST[s/"password": "pass"//]
+// TEST[s/otherhost:9200",/\${host}",/]
+// TEST[s/"username": "user",/"username": "test_admin",/]
+// TEST[s/"password": "pass"/"password": "x-pack-test-password"/]
 
 The `host` parameter must contain a scheme, host, port (e.g.
 `https://otherhost:9200`), and optional path (e.g. `https://otherhost:9200/proxy`).
@@ -1025,7 +1025,7 @@ POST _reindex
 // TEST[setup:host]
 // TEST[s/^/PUT my-index-000001\n/]
 // TEST[s/otherhost:9200",/\${host}",/]
-// TEST[s/API_KEY_VALUE" /\93116930-2ecb-4161-aa5e-4f3586c87ac6"/]
+// TEST[s/"headers": \{[^}]*\}/"username": "test_admin", "password": "x-pack-test-password"/]
 
 Remote hosts have to be explicitly allowed in `elasticsearch.yml` using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
@@ -1064,7 +1064,8 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "http://otherhost:9200"
+      "host": "http://otherhost:9200",
+      ...
     },
     "index": "source",
     "size": 10,
@@ -1082,6 +1083,7 @@ POST _reindex
 // TEST[setup:host]
 // TEST[s/^/PUT source\n/]
 // TEST[s/otherhost:9200/\${host}/]
+// TEST[s/\.\.\./"username": "test_admin", "password": "x-pack-test-password"/]
 
 It is also possible to set the socket read timeout on the remote connection
 with the `socket_timeout` field and the connection timeout with the
@@ -1096,6 +1098,7 @@ POST _reindex
   "source": {
     "remote": {
       "host": "http://otherhost:9200",
+      ...,
       "socket_timeout": "1m",
       "connect_timeout": "10s"
     },
@@ -1114,6 +1117,7 @@ POST _reindex
 // TEST[setup:host]
 // TEST[s/^/PUT source\n/]
 // TEST[s/otherhost:9200/\${host}/]
+// TEST[s/\.\.\.,/"username": "test_admin", "password": "x-pack-test-password",/]
 
 [[reindex-ssl]]
 ===== Configuring SSL parameters
@@ -1138,6 +1142,7 @@ You cannot specify both `reindex.ssl.certificate_authorities` and
 
 `reindex.ssl.truststore.password`::
 The password to the truststore (`reindex.ssl.truststore.path`).
+deprecated:[7.17.0] Prefer `reindex.ssl.truststore.secure_password` instead.
 This setting cannot be used with `reindex.ssl.truststore.secure_password`.
 
 `reindex.ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
@@ -1171,6 +1176,7 @@ You cannot specify both `reindex.ssl.key` and `reindex.ssl.keystore.path`.
 `reindex.ssl.key_passphrase`::
 Specifies the passphrase to decrypt the PEM encoded private key
 (`reindex.ssl.key`) if it is encrypted.
+deprecated:[7.17.0] Prefer `reindex.ssl.secure_key_passphrase` instead.
 Cannot be used with `reindex.ssl.secure_key_passphrase`.
 
 `reindex.ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
@@ -1190,8 +1196,9 @@ If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults
 to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `reindex.ssl.keystore.password`::
-The password to the keystore (`reindex.ssl.keystore.path`). This setting cannot be used
-with `reindex.ssl.keystore.secure_password`.
+The password to the keystore (`reindex.ssl.keystore.path`).
+deprecated:[7.17.0] Prefer `reindex.ssl.keystore.secure_password` instead.
+This setting cannot be used with `reindex.ssl.keystore.secure_password`.
 
 `reindex.ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
 The password to the keystore (`reindex.ssl.keystore.path`).
@@ -1199,8 +1206,9 @@ This setting cannot be used with `reindex.ssl.keystore.password`.
 
 `reindex.ssl.keystore.key_password`::
 The password for the key in the keystore (`reindex.ssl.keystore.path`).
-Defaults to the keystore password. This setting cannot be used with
-`reindex.ssl.keystore.secure_key_password`.
+Defaults to the keystore password.
+deprecated:[7.17.0] Prefer `reindex.ssl.keystore.secure_key_password` instead.
+This setting cannot be used with `reindex.ssl.keystore.secure_key_password`.
 
 `reindex.ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
 The password for the key in the keystore (`reindex.ssl.keystore.path`).

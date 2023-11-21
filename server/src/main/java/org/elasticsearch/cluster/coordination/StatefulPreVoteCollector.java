@@ -18,6 +18,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -25,6 +26,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 
@@ -39,6 +41,7 @@ public class StatefulPreVoteCollector extends PreVoteCollector {
     public static final String REQUEST_PRE_VOTE_ACTION_NAME = "internal:cluster/request_pre_vote";
 
     private final TransportService transportService;
+    private final Executor clusterCoordinationExecutor;
     private final Runnable startElection;
     private final LongConsumer updateMaxTermSeen;
     private final ElectionStrategy electionStrategy;
@@ -53,6 +56,7 @@ public class StatefulPreVoteCollector extends PreVoteCollector {
         LeaderHeartbeatService leaderHeartbeatService
     ) {
         this.transportService = transportService;
+        this.clusterCoordinationExecutor = transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION);
         this.startElection = startElection;
         this.updateMaxTermSeen = updateMaxTermSeen;
         this.electionStrategy = electionStrategy;
@@ -60,7 +64,7 @@ public class StatefulPreVoteCollector extends PreVoteCollector {
 
         transportService.registerRequestHandler(
             REQUEST_PRE_VOTE_ACTION_NAME,
-            Names.CLUSTER_COORDINATION,
+            this.clusterCoordinationExecutor,
             false,
             false,
             PreVoteRequest::new,
@@ -155,8 +159,8 @@ public class StatefulPreVoteCollector extends PreVoteCollector {
                         }
 
                         @Override
-                        public String executor() {
-                            return Names.CLUSTER_COORDINATION;
+                        public Executor executor(ThreadPool threadPool) {
+                            return clusterCoordinationExecutor;
                         }
 
                         @Override

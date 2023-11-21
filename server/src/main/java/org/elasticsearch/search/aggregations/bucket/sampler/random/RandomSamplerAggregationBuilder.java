@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +21,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -42,10 +42,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     static {
         PARSER.declareInt(RandomSamplerAggregationBuilder::setSeed, SEED);
         PARSER.declareDouble(RandomSamplerAggregationBuilder::setProbability, PROBABILITY);
-    }
-
-    public static RandomSamplerAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new RandomSamplerAggregationBuilder(aggregationName), null);
     }
 
     private int seed = Randomness.get().nextInt();
@@ -75,10 +71,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         super(in);
         this.p = in.readDouble();
         this.seed = in.readInt();
-    }
-
-    public double getProbability() {
-        return p;
     }
 
     protected RandomSamplerAggregationBuilder(
@@ -139,10 +131,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         return new RandomSamplerAggregatorFactory(name, seed, p, context, parent, subfactoriesBuilder, metadata);
     }
 
-    public int getSeed() {
-        return seed;
-    }
-
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -169,7 +157,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_2_0;
+        return TransportVersions.V_8_2_0;
     }
 
     @Override

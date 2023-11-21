@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +32,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
         ToXContentObject,
         Comparable<DesiredNodeWithStatus> {
 
-    private static final TransportVersion STATUS_TRACKING_SUPPORT_VERSION = TransportVersion.V_8_4_0;
+    private static final TransportVersion STATUS_TRACKING_SUPPORT_VERSION = TransportVersions.V_8_4_0;
     private static final ParseField STATUS_FIELD = new ParseField("status");
 
     public static final ConstructingObjectParser<DesiredNodeWithStatus, Void> PARSER = new ConstructingObjectParser<>(

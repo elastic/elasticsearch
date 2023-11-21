@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -92,8 +91,8 @@ public class BucketHelpersTests extends ESTestCase {
             }
         };
 
-        AggregationExecutionException e = expectThrows(
-            AggregationExecutionException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> BucketHelpers.resolveBucketValue(agg, bucket, "foo>bar", BucketHelpers.GapPolicy.SKIP)
         );
 

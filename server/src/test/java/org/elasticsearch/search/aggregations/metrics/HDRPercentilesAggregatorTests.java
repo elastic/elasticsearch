@@ -56,7 +56,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, hdr -> {
-            assertEquals(0L, hdr.state.getTotalCount());
+            assertEquals(0L, hdr.getState().getTotalCount());
             assertFalse(AggregationInspectionHelper.hasValue(hdr));
         });
     }
@@ -77,7 +77,6 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     /**
      * Attempting to use HDRPercentileAggregation on a range field throws IllegalArgumentException
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42949")
     public void testRangeField() throws IOException {
         // Currently fails (throws ClassCast exception), but should be fixed once HDRPercentileAggregation uses the ValuesSource registry
         final String fieldName = "range";
@@ -94,7 +93,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, hdr -> {
-            assertEquals(0L, hdr.state.getTotalCount());
+            assertEquals(0L, hdr.getState().getTotalCount());
             assertFalse(AggregationInspectionHelper.hasValue(hdr));
         });
     }
@@ -106,7 +105,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 20)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 10)));
         }, hdr -> {
-            assertEquals(4L, hdr.state.getTotalCount());
+            assertEquals(4L, hdr.getState().getTotalCount());
             double approximation = 0.05d;
             assertEquals(10.0d, hdr.percentile(25), approximation);
             assertEquals(20.0d, hdr.percentile(50), approximation);
@@ -123,7 +122,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 20)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 10)));
         }, hdr -> {
-            assertEquals(4L, hdr.state.getTotalCount());
+            assertEquals(4L, hdr.getState().getTotalCount());
             double approximation = 0.05d;
             assertEquals(10.0d, hdr.percentile(25), approximation);
             assertEquals(20.0d, hdr.percentile(50), approximation);
@@ -142,13 +141,13 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         };
 
         testCase(LongPoint.newRangeQuery("row", 0, 2), docs, hdr -> {
-            assertEquals(2L, hdr.state.getTotalCount());
+            assertEquals(2L, hdr.getState().getTotalCount());
             assertEquals(10.0d, hdr.percentile(randomDoubleBetween(1, 50, true)), 0.05d);
             assertTrue(AggregationInspectionHelper.hasValue(hdr));
         });
 
         testCase(LongPoint.newRangeQuery("row", 5, 10), docs, hdr -> {
-            assertEquals(0L, hdr.state.getTotalCount());
+            assertEquals(0L, hdr.getState().getTotalCount());
             assertFalse(AggregationInspectionHelper.hasValue(hdr));
         });
     }

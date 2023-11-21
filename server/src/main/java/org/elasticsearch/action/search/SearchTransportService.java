@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -50,8 +51,10 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -110,7 +113,11 @@ public class SearchTransportService {
             new SearchFreeContextRequest(originalIndices, contextId),
             TransportRequestOptions.EMPTY,
             // no need to respond if it was freed or not
-            new ActionListenerResponseHandler<>(ActionListener.noop(), SearchFreeContextResponse::new)
+            new ActionListenerResponseHandler<>(
+                ActionListener.noop(),
+                SearchFreeContextResponse::new,
+                TransportResponseHandler.TRANSPORT_WORKER
+            )
         );
     }
 
@@ -124,7 +131,7 @@ public class SearchTransportService {
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             new ScrollFreeContextRequest(contextId),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new)
+            new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 
@@ -140,7 +147,7 @@ public class SearchTransportService {
             request,
             task,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, CanMatchShardResponse::new)
+            new ActionListenerResponseHandler<>(listener, CanMatchShardResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 
@@ -150,7 +157,7 @@ public class SearchTransportService {
         SearchTask task,
         final ActionListener<CanMatchNodeResponse> listener
     ) {
-        if (connection.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)
+        if (connection.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)
             && connection.getNode().getVersion().onOrAfter(Version.V_7_16_0)) {
             transportService.sendChildRequest(
                 connection,
@@ -158,7 +165,7 @@ public class SearchTransportService {
                 request,
                 task,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, CanMatchNodeResponse::new)
+                new ActionListenerResponseHandler<>(listener, CanMatchNodeResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
             );
         } else {
             // BWC layer: translate into shard-level requests
@@ -209,7 +216,11 @@ public class SearchTransportService {
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             TransportRequest.Empty.INSTANCE,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, (in) -> TransportResponse.Empty.INSTANCE)
+            new ActionListenerResponseHandler<>(
+                listener,
+                (in) -> TransportResponse.Empty.INSTANCE,
+                TransportResponseHandler.TRANSPORT_WORKER
+            )
         );
     }
 
@@ -356,7 +367,7 @@ public class SearchTransportService {
     }
 
     static class ScrollFreeContextRequest extends TransportRequest {
-        private ShardSearchContextId contextId;
+        private final ShardSearchContextId contextId;
 
         ScrollFreeContextRequest(ShardSearchContextId contextId) {
             this.contextId = Objects.requireNonNull(contextId);
@@ -380,7 +391,7 @@ public class SearchTransportService {
     }
 
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
-        private OriginalIndices originalIndices;
+        private final OriginalIndices originalIndices;
 
         SearchFreeContextRequest(OriginalIndices originalIndices, ShardSearchContextId id) {
             super(id);
@@ -418,7 +429,7 @@ public class SearchTransportService {
 
     public static class SearchFreeContextResponse extends TransportResponse {
 
-        private boolean freed;
+        private final boolean freed;
 
         SearchFreeContextResponse(StreamInput in) throws IOException {
             freed = in.readBoolean();
@@ -441,7 +452,7 @@ public class SearchTransportService {
     public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ScrollFreeContextRequest::new,
             (request, channel, task) -> {
                 boolean freed = searchService.freeReaderContext(request.id());
@@ -451,7 +462,7 @@ public class SearchTransportService {
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_SCROLL_ACTION_NAME, false, SearchFreeContextResponse::new);
         transportService.registerRequestHandler(
             FREE_CONTEXT_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             SearchFreeContextRequest::new,
             (request, channel, task) -> {
                 boolean freed = searchService.freeReaderContext(request.id());
@@ -461,7 +472,7 @@ public class SearchTransportService {
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, false, SearchFreeContextResponse::new);
         transportService.registerRequestHandler(
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             TransportRequest.Empty::new,
             (request, channel, task) -> {
                 searchService.freeAllScrollContexts();
@@ -477,7 +488,7 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(
             DFS_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
             (request, channel, task) -> searchService.executeDfsPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
         );
@@ -486,7 +497,7 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(
             QUERY_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
@@ -503,7 +514,7 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(
             QUERY_ID_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             QuerySearchRequest::new,
             (request, channel, task) -> {
                 searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
@@ -513,7 +524,7 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(
             QUERY_SCROLL_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             InternalScrollSearchRequest::new,
             (request, channel, task) -> {
                 searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
@@ -523,7 +534,7 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(
             QUERY_FETCH_SCROLL_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             InternalScrollSearchRequest::new,
             (request, channel, task) -> {
                 searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
@@ -531,32 +542,33 @@ public class SearchTransportService {
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, true, ScrollQueryFetchSearchResult::new);
 
+        TransportRequestHandler<ShardFetchRequest> shardFetchHandler = (request, channel, task) -> searchService.executeFetchPhase(
+            request,
+            (SearchShardTask) task,
+            new ChannelActionListener<>(channel)
+        );
         transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardFetchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
-            }
+            shardFetchHandler
         );
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, true, FetchSearchResult::new);
 
         transportService.registerRequestHandler(
             FETCH_ID_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true,
             true,
             ShardFetchSearchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
-            }
+            shardFetchHandler
         );
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, true, FetchSearchResult::new);
 
         // this is cheap, it does not fetch during the rewrite phase, so we can let it quickly execute on a networking thread
         transportService.registerRequestHandler(
             QUERY_CAN_MATCH_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
             (request, channel, task) -> {
                 searchService.canMatch(request, new ChannelActionListener<>(channel));
@@ -566,7 +578,7 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(
             QUERY_CAN_MATCH_NODE_NAME,
-            ThreadPool.Names.SEARCH_COORDINATION,
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION),
             CanMatchNodeRequest::new,
             (request, channel, task) -> {
                 searchService.canMatch(request, new ChannelActionListener<>(channel));
@@ -600,7 +612,7 @@ public class SearchTransportService {
             final Map<String, Long> clientConnections,
             final String nodeId
         ) {
-            super(listener, responseReader);
+            super(listener, responseReader, TransportResponseHandler.TRANSPORT_WORKER);
             this.clientConnections = clientConnections;
             this.nodeId = nodeId;
             // Increment the number of connections for this node by one

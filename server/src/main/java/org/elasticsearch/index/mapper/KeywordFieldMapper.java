@@ -87,14 +87,15 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "keyword";
 
     public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
 
         static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_SET);
-            FIELD_TYPE.freeze();
+            FieldType ft = new FieldType();
+            ft.setTokenized(false);
+            ft.setOmitNorms(true);
+            ft.setIndexOptions(IndexOptions.DOCS);
+            ft.setDocValuesType(DocValuesType.SORTED_SET);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
 
         public static TextSearchInfo TEXT_SEARCH_INFO = new TextSearchInfo(
@@ -136,7 +137,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -160,7 +161,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
-        private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
+        private final Parameter<SimilarityProvider> similarity = TextParams.similarity(
+            m -> toType(m).fieldType().getTextSearchInfo().similarity()
+        );
 
         private final Parameter<String> normalizer;
 
@@ -323,7 +326,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 fieldtype,
                 buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 context.isSourceSynthetic(),
                 this
             );
@@ -530,7 +533,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
-
             Terms terms = null;
             if (isIndexed()) {
                 terms = MultiTerms.getTerms(reader, name());
@@ -541,11 +543,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // Field does not exist on this shard.
                 return null;
             }
-            Automaton a = caseInsensitive ? AutomatonQueries.caseInsensitivePrefix(prefix) : Automata.makeString(prefix);
-            a = Operations.concatenate(a, Automata.makeAnyString());
-            a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+            Automaton a = caseInsensitive
+                ? AutomatonQueries.caseInsensitivePrefix(prefix)
+                : Operations.concatenate(Automata.makeString(prefix), Automata.makeAnyString());
+            assert a.isDeterministic();
+            a = MinimizationOperations.minimize(a, 0);
 
-            CompiledAutomaton automaton = new CompiledAutomaton(a);
+            CompiledAutomaton automaton = new CompiledAutomaton(a, true, true);
 
             BytesRef searchBytes = searchAfter == null ? null : new BytesRef(searchAfter);
 
@@ -571,6 +575,24 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         NamedAnalyzer normalizer() {
             return normalizer;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+            }
+            if (isSyntheticSource) {
+                if (false == isStored()) {
+                    throw new IllegalStateException(
+                        "keyword field ["
+                            + name()
+                            + "] is only supported in synthetic _source index if it creates doc values or stored fields"
+                    );
+                }
+                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
+            }
+            return new BlockSourceReader.BytesRefsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override
@@ -806,7 +828,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean hasDocValues;
     private final String indexOptions;
     private final FieldType fieldType;
-    private final SimilarityProvider similarity;
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
     private final Script script;
@@ -830,8 +851,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.indexOptions = builder.indexOptions.getValue();
-        this.fieldType = fieldType;
-        this.similarity = builder.similarity.getValue();
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
         this.script = builder.script.get();
@@ -987,7 +1007,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return syntheticFieldLoader(simpleName());
     }
 
-    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }

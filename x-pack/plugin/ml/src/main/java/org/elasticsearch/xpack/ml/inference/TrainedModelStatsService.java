@@ -161,7 +161,7 @@ public class TrainedModelStatsService {
         scheduledFuture = threadPool.scheduleWithFixedDelay(
             this::updateStats,
             PERSISTENCE_INTERVAL,
-            MachineLearning.UTILITY_THREAD_POOL_NAME
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
     }
 
@@ -241,7 +241,9 @@ public class TrainedModelStatsService {
                 return false;
             }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null
+                || routingTable.allPrimaryShardsActive() == false
+                || routingTable.readyForSearch(clusterState) == false) {
                 return false;
             }
         }
@@ -262,7 +264,8 @@ public class TrainedModelStatsService {
                     client,
                     clusterState,
                     MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
-                    listener
+                    listener,
+                    MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
                 ),
                 listener::onFailure
             )

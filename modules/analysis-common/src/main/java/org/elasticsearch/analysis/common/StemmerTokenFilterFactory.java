@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
 import org.apache.lucene.analysis.en.KStemFilter;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.es.SpanishLightStemFilter;
+import org.apache.lucene.analysis.fa.PersianStemFilter;
 import org.apache.lucene.analysis.fi.FinnishLightStemFilter;
 import org.apache.lucene.analysis.fr.FrenchLightStemFilter;
 import org.apache.lucene.analysis.fr.FrenchMinimalStemFilter;
@@ -69,6 +70,7 @@ import org.tartarus.snowball.ext.NorwegianStemmer;
 import org.tartarus.snowball.ext.PortugueseStemmer;
 import org.tartarus.snowball.ext.RomanianStemmer;
 import org.tartarus.snowball.ext.RussianStemmer;
+import org.tartarus.snowball.ext.SerbianStemmer;
 import org.tartarus.snowball.ext.SpanishStemmer;
 import org.tartarus.snowball.ext.SwedishStemmer;
 import org.tartarus.snowball.ext.TurkishStemmer;
@@ -213,6 +215,10 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             } else if ("minimal_nynorsk".equalsIgnoreCase(language) || "minimalNynorsk".equalsIgnoreCase(language)) {
                 return new NorwegianMinimalStemFilter(tokenStream, NorwegianLightStemmer.NYNORSK);
 
+                // Persian stemmers
+            } else if ("persian".equalsIgnoreCase(language)) {
+                return new PersianStemFilter(tokenStream);
+
                 // Portuguese stemmers
             } else if ("portuguese".equalsIgnoreCase(language)) {
                 return new SnowballFilter(tokenStream, new PortugueseStemmer());
@@ -231,6 +237,9 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
                 return new SnowballFilter(tokenStream, new RussianStemmer());
             } else if ("light_russian".equalsIgnoreCase(language) || "lightRussian".equalsIgnoreCase(language)) {
                 return new RussianLightStemFilter(tokenStream);
+
+            } else if ("serbian".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new SerbianStemmer());
 
                 // Spanish stemmers
             } else if ("spanish".equalsIgnoreCase(language)) {

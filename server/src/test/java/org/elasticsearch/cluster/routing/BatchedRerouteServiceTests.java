@@ -7,10 +7,13 @@
  */
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -18,6 +21,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -28,6 +33,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -229,6 +235,102 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             }
         }
 
-        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS)); // i.e. it doesn't leak any listeners
+        safeAwait(countDownLatch); // i.e. it doesn't leak any listeners
+    }
+
+    @TestLogging(reason = "testing log output", value = "org.elasticsearch.cluster.routing.BatchedRerouteService:DEBUG")
+    public void testExceptionFidelity() {
+
+        final var mockLogAppender = new MockLogAppender();
+        try (var ignored = mockLogAppender.capturing(BatchedRerouteService.class)) {
+
+            clusterService.getMasterService()
+                .setClusterStatePublisher(
+                    (event, publishListener, ackListener) -> publishListener.onFailure(new FailedToCommitClusterStateException("simulated"))
+                );
+
+            // Case 1: an exception thrown from within the reroute itself
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "failure within reroute",
+                    BatchedRerouteService.class.getCanonicalName(),
+                    Level.ERROR,
+                    "unexpected failure"
+                )
+            );
+
+            final BatchedRerouteService failingRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
+                throw new ElasticsearchException("simulated");
+            });
+            final var rerouteFailureFuture = new PlainActionFuture<Void>();
+            failingRerouteService.reroute("publish failure", randomFrom(EnumSet.allOf(Priority.class)), rerouteFailureFuture);
+            assertThat(
+                expectThrows(ExecutionException.class, ElasticsearchException.class, () -> rerouteFailureFuture.get(10, TimeUnit.SECONDS))
+                    .getMessage(),
+                equalTo("simulated")
+            );
+            mockLogAppender.assertAllExpectationsMatched();
+
+            // None of the other cases should yield any log messages by default
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("no errors", BatchedRerouteService.class.getCanonicalName(), Level.ERROR, "*")
+            );
+            mockLogAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("no warnings", BatchedRerouteService.class.getCanonicalName(), Level.WARN, "*")
+            );
+            mockLogAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("no info", BatchedRerouteService.class.getCanonicalName(), Level.INFO, "*")
+            );
+
+            // Case 2: a FailedToCommitClusterStateException (see the call to setClusterStatePublisher above)
+
+            final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
+                l.onResponse(null);
+                return ClusterState.builder(s).build();
+            });
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "publish failure",
+                    BatchedRerouteService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "unexpected failure"
+                )
+            );
+
+            final var publishFailureFuture = new PlainActionFuture<Void>();
+            batchedRerouteService.reroute("publish failure", randomFrom(EnumSet.allOf(Priority.class)), publishFailureFuture);
+            expectThrows(
+                ExecutionException.class,
+                FailedToCommitClusterStateException.class,
+                () -> publishFailureFuture.get(10, TimeUnit.SECONDS)
+            );
+            mockLogAppender.assertAllExpectationsMatched();
+
+            // Case 3: a NotMasterException
+
+            PlainActionFuture.<Void, RuntimeException>get(future -> {
+                clusterService.getClusterApplierService().onNewClusterState("simulated", () -> {
+                    final var state = clusterService.state();
+                    return ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(null)).build();
+                }, future);
+            }, 10, TimeUnit.SECONDS);
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "not-master failure",
+                    BatchedRerouteService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "unexpected failure"
+                )
+            );
+            final var notMasterFuture = new PlainActionFuture<Void>();
+            batchedRerouteService.reroute("not-master failure", randomFrom(EnumSet.allOf(Priority.class)), notMasterFuture);
+            expectThrows(ExecutionException.class, NotMasterException.class, () -> notMasterFuture.get(10, TimeUnit.SECONDS));
+
+            mockLogAppender.assertAllExpectationsMatched();
+        }
     }
 }

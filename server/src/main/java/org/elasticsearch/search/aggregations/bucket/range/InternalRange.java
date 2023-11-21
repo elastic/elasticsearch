@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -117,11 +116,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return aggregations;
         }
 
-        @SuppressWarnings("unchecked")
-        protected Factory<? extends Bucket, ?> getFactory() {
-            return FACTORY;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             final String key = getKeyAsString();
@@ -160,19 +154,19 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public void writeTo(StreamOutput out) throws IOException {
             // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
             // while it is optional for all subsequent versions.
-            if (out.getTransportVersion().equals(TransportVersion.V_8_0_0)) {
+            if (out.getTransportVersion().equals(TransportVersions.V_8_0_0)) {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
-            } else if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_1)) {
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_1)) {
                 out.writeOptionalString(key);
             } else {
                 out.writeString(key == null ? generateKey(from, to, format) : key);
             }
             out.writeDouble(from);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
                 out.writeOptionalDouble(from);
             }
             out.writeDouble(to);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
                 out.writeOptionalDouble(to);
             }
             out.writeVLong(docCount);
@@ -204,10 +198,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     public static class Factory<B extends Bucket, R extends InternalRange<B, R>> {
         public ValuesSourceType getValueSourceType() {
             return CoreValuesSourceType.NUMERIC;
-        }
-
-        public ValueType getValueType() {
-            return ValueType.NUMERIC;
         }
 
         @SuppressWarnings("unchecked")
@@ -261,6 +251,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     public InternalRange(StreamInput in) throws IOException {
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
@@ -270,11 +261,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         for (int i = 0; i < size; i++) {
             // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
             // while it is optional for all subsequent versions.
-            final String key = in.getTransportVersion().equals(TransportVersion.V_8_0_0) ? in.readString()
-                : in.getTransportVersion().onOrAfter(TransportVersion.V_7_17_1) ? in.readOptionalString()
+            final String key = in.getTransportVersion().equals(TransportVersions.V_8_0_0) ? in.readString()
+                : in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_1) ? in.readOptionalString()
                 : in.readString();
             double from = in.readDouble();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
                 final Double originalFrom = in.readOptionalDouble();
                 if (originalFrom != null) {
                     from = originalFrom;
@@ -283,7 +274,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 }
             }
             double to = in.readDouble();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_17_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
                 final Double originalTo = in.readOptionalDouble();
                 if (originalTo != null) {
                     to = originalTo;

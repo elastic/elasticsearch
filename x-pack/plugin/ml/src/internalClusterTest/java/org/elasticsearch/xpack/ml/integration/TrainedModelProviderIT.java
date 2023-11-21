@@ -6,13 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,6 +19,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
@@ -320,7 +320,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
                 new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true"))
             )
         ) {
-            AtomicReference<IndexResponse> putDocHolder = new AtomicReference<>();
+            AtomicReference<DocWriteResponse> putDocHolder = new AtomicReference<>();
             blockingCall(
                 listener -> client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -461,7 +461,7 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setModelType(TrainedModelType.TREE_ENSEMBLE)
-            .setVersion(Version.CURRENT)
+            .setVersion(MlConfigVersion.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setModelSize(0)
             .setEstimatedOperations(0)

@@ -26,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -243,17 +244,16 @@ final class CompositeIndexEventListener implements IndexEventListener {
         }
     }
 
-    private void iterateBeforeIndexShardRecovery(
-        final IndexShard indexShard,
-        final IndexSettings indexSettings,
-        final Iterator<IndexEventListener> iterator,
-        final ActionListener<Void> outerListener
+    private static void callListeners(
+        IndexShard indexShard,
+        Iterator<Consumer<ActionListener<Void>>> iterator,
+        ActionListener<Void> outerListener
     ) {
         while (iterator.hasNext()) {
             final var nextListener = iterator.next();
             final var future = new ListenableFuture<Void>();
             try {
-                nextListener.beforeIndexShardRecovery(indexShard, indexSettings, future);
+                nextListener.accept(future);
                 if (future.isDone()) {
                     // common case, not actually async, so just check for an exception and continue on the same thread
                     future.result();
@@ -269,9 +269,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 outerListener.delegateFailure(
                     (delegate, v) -> indexShard.getThreadPool()
                         .executor(ThreadPool.Names.GENERIC)
-                        .execute(
-                            ActionRunnable.wrap(delegate, l -> iterateBeforeIndexShardRecovery(indexShard, indexSettings, iterator, l))
-                        )
+                        .execute(ActionRunnable.wrap(delegate, l -> callListeners(indexShard, iterator, l)))
                 )
             );
             return;
@@ -280,14 +278,49 @@ final class CompositeIndexEventListener implements IndexEventListener {
         outerListener.onResponse(null);
     }
 
+    private void iterateBeforeIndexShardRecovery(
+        final IndexShard indexShard,
+        final IndexSettings indexSettings,
+        final List<IndexEventListener> listeners,
+        final ActionListener<Void> outerListener
+    ) {
+        callListeners(
+            indexShard,
+            listeners.stream()
+                .map(iel -> (Consumer<ActionListener<Void>>) (l) -> iel.beforeIndexShardRecovery(indexShard, indexSettings, l))
+                .iterator(),
+            outerListener
+        );
+    }
+
+    private void iterateAfterIndexShardRecovery(
+        final IndexShard indexShard,
+        final List<IndexEventListener> listeners,
+        final ActionListener<Void> outerListener
+    ) {
+        callListeners(
+            indexShard,
+            listeners.stream().map(iel -> (Consumer<ActionListener<Void>>) (l) -> iel.afterIndexShardRecovery(indexShard, l)).iterator(),
+            outerListener
+        );
+    }
+
     @Override
     public void beforeIndexShardRecovery(
         final IndexShard indexShard,
         final IndexSettings indexSettings,
         final ActionListener<Void> outerListener
     ) {
-        iterateBeforeIndexShardRecovery(indexShard, indexSettings, listeners.iterator(), outerListener.delegateResponse((l, e) -> {
+        iterateBeforeIndexShardRecovery(indexShard, indexSettings, listeners, outerListener.delegateResponse((l, e) -> {
             logger.warn(() -> format("failed to invoke the listener before the shard recovery starts for %s", indexShard.shardId()), e);
+            l.onFailure(e);
+        }));
+    }
+
+    @Override
+    public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> outerListener) {
+        iterateAfterIndexShardRecovery(indexShard, listeners, outerListener.delegateResponse((l, e) -> {
+            logger.warn(() -> format("failed to invoke the listener after the shard recovery for %s", indexShard.shardId()), e);
             l.onFailure(e);
         }));
     }

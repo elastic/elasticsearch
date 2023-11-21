@@ -10,6 +10,7 @@ package org.elasticsearch.common.blobstore.url;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -59,6 +60,6 @@ public class FileURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
     @Override
     public void testURLBlobStoreCanReadBlobRange() throws IOException {
-        expectThrows(UnsupportedOperationException.class, () -> getBlobContainer().readBlob("test", 0, 12));
+        expectThrows(UnsupportedOperationException.class, () -> getBlobContainer().readBlob(OperationPurpose.SNAPSHOT, "test", 0, 12));
     }
 }

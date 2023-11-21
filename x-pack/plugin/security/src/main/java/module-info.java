@@ -63,7 +63,8 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.action.service to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.token to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.user to org.elasticsearch.server;
-    exports org.elasticsearch.xpack.security.operator to org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.action.settings to org.elasticsearch.server;
+    exports org.elasticsearch.xpack.security.operator to org.elasticsearch.internal.operator, org.elasticsearch.internal.security;
 
     exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent;
 
@@ -81,4 +82,6 @@ module org.elasticsearch.security {
     provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
         with
             org.elasticsearch.xpack.security.ReservedSecurityStateHandlerProvider;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.security.SecurityFeatures;
 }

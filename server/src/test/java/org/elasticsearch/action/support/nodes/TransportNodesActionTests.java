@@ -24,6 +24,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelHelper;
@@ -44,12 +46,14 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -74,6 +78,7 @@ public class TransportNodesActionTests extends ESTestCase {
         int numNodes = clusterService.state().getNodes().getSize();
         // check a request was sent to the right number of nodes
         assertEquals(numNodes, capturedRequests.size());
+        assertTrue(capturedRequests.values().stream().flatMap(Collection::stream).noneMatch(cr -> cr.request().hasReferences()));
     }
 
     public void testNodesSelectors() {
@@ -269,7 +274,7 @@ public class TransportNodesActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             TestNodesRequest::new,
             TestNodeRequest::new,
-            ThreadPool.Names.GENERIC
+            THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
     }
 
@@ -281,7 +286,7 @@ public class TransportNodesActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             TestNodesRequest::new,
             TestNodeRequest::new,
-            ThreadPool.Names.GENERIC
+            THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
     }
 
@@ -303,9 +308,9 @@ public class TransportNodesActionTests extends ESTestCase {
             ActionFilters actionFilters,
             Writeable.Reader<TestNodesRequest> request,
             Writeable.Reader<TestNodeRequest> nodeRequest,
-            String nodeExecutor
+            Executor nodeExecutor
         ) {
-            super("indices:admin/test", threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
+            super("indices:admin/test", clusterService, transportService, actionFilters, nodeRequest, nodeExecutor);
         }
 
         @Override
@@ -343,7 +348,7 @@ public class TransportNodesActionTests extends ESTestCase {
             ActionFilters actionFilters,
             Writeable.Reader<TestNodesRequest> request,
             Writeable.Reader<TestNodeRequest> nodeRequest,
-            String nodeExecutor
+            Executor nodeExecutor
         ) {
             super(threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
         }
@@ -380,20 +385,42 @@ public class TransportNodesActionTests extends ESTestCase {
 
         @Override
         protected List<TestNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(TestNodeResponse::new);
+            return in.readCollectionAsList(TestNodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<TestNodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
     }
 
     private static class TestNodeRequest extends TransportRequest {
+        private final RefCounted refCounted = AbstractRefCounted.of(() -> {});
+
         TestNodeRequest() {}
 
         TestNodeRequest(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
         }
     }
 

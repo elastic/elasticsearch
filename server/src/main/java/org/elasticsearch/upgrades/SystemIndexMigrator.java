@@ -11,7 +11,6 @@ package org.elasticsearch.upgrades;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -55,7 +54,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION;
+import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_INDEX_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 import static org.elasticsearch.core.Strings.format;
 
@@ -67,8 +66,6 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class SystemIndexMigrator extends AllocatedPersistentTask {
     private static final Logger logger = LogManager.getLogger(SystemIndexMigrator.class);
-
-    private static final Version READY_FOR_MIGRATION_VERSION = Version.V_7_16_0;
 
     // Fixed properties & services
     private final ParentTaskAssigningClient baseClient;
@@ -359,7 +356,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         if (indexMetadata == null) {
             return false;
         }
-        return indexMetadata.isSystem() && indexMetadata.getCreationVersion().before(NO_UPGRADE_REQUIRED_VERSION);
+        return indexMetadata.isSystem() && indexMetadata.getCreationVersion().before(NO_UPGRADE_REQUIRED_INDEX_VERSION);
     }
 
     private void migrateSingleIndex(ClusterState clusterState, Consumer<BulkByScrollResponse> listener) {
@@ -421,11 +418,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         logger.info("migrating index [{}] from feature [{}] to new index [{}]", oldIndexName, migrationInfo.getFeatureName(), newIndexName);
         ActionListener<BulkByScrollResponse> innerListener = ActionListener.wrap(listener::accept, this::markAsFailed);
         try {
-            Exception versionException = checkNodeVersionsReadyForMigration(clusterState);
-            if (versionException != null) {
-                markAsFailed(versionException);
-                return;
-            }
             createIndex(migrationInfo, ActionListener.wrap(shardsAcknowledgedResponse -> {
                 logger.debug(
                     "while migrating [{}] , got create index response: [{}]",
@@ -600,20 +592,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             ActionListener.wrap(state -> super.markAsFailed(e), exception -> super.markAsFailed(e))
         ).submit(clusterService);
         super.markAsFailed(e);
-    }
-
-    private static Exception checkNodeVersionsReadyForMigration(ClusterState state) {
-        final Version minNodeVersion = state.nodes().getMinNodeVersion();
-        if (minNodeVersion.before(READY_FOR_MIGRATION_VERSION)) {
-            return new IllegalStateException(
-                "all nodes must be on version ["
-                    + READY_FOR_MIGRATION_VERSION
-                    + "] or later to migrate feature indices but lowest node version currently in cluster is ["
-                    + minNodeVersion
-                    + "]"
-            );
-        }
-        return null;
     }
 
     /**

@@ -7,19 +7,15 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.search.Collector;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.query.CollectorResult;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
-import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.query.QueryPhase;
-import org.elasticsearch.search.query.SingleThreadCollectorManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Aggregation phase of a search request, used to collect aggregations
@@ -32,34 +28,44 @@ public class AggregationPhase {
         if (context.aggregations() == null) {
             return;
         }
-        BucketCollector bucketCollector;
+        final Supplier<AggregatorCollector> collectorSupplier;
+        if (context.aggregations().isInSortOrderExecutionRequired()) {
+            AggregatorCollector collector = newAggregatorCollector(context);
+            executeInSortOrder(context, collector.bucketCollector);
+            collectorSupplier = () -> new AggregatorCollector(collector.aggregators, BucketCollector.NO_OP_BUCKET_COLLECTOR);
+        } else {
+            collectorSupplier = () -> newAggregatorCollector(context);
+        }
+        context.aggregations()
+            .registerAggsCollectorManager(
+                new AggregatorCollectorManager(
+                    collectorSupplier,
+                    internalAggregations -> context.queryResult().aggregations(internalAggregations),
+                    () -> context.aggregations().getAggregationReduceContextBuilder().forPartialReduction()
+                )
+            );
+    }
+
+    private static AggregatorCollector newAggregatorCollector(SearchContext context) {
         try {
-            context.aggregations().aggregators(context.aggregations().factories().createTopLevelAggregators());
-            bucketCollector = MultiBucketCollector.wrap(true, List.of(context.aggregations().aggregators()));
+            Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators();
+            BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregators));
             bucketCollector.preCollection();
+            return new AggregatorCollector(aggregators, bucketCollector);
         } catch (IOException e) {
             throw new AggregationInitializationException("Could not initialize aggregators", e);
         }
-        final Collector collector;
-        if (context.aggregations().factories().context() != null
-            && context.aggregations().factories().context().isInSortOrderExecutionRequired()) {
-            TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
-            searcher.setMinimumScore(context.minimumScore());
-            searcher.setProfiler(context);
-            try {
-                searcher.search(context.rewrittenQuery(), bucketCollector);
-            } catch (IOException e) {
-                throw new AggregationExecutionException("Could not perform time series aggregation", e);
-            }
-            collector = BucketCollector.NO_OP_COLLECTOR;
-        } else {
-            collector = bucketCollector.asCollector();
-        }
-        if (context.getProfilers() != null) {
-            InternalProfileCollector profileCollector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION);
-            context.aggregations().registerAggsCollectorManager(new InternalProfileCollectorManager(profileCollector));
-        } else {
-            context.aggregations().registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
+    }
+
+    private static void executeInSortOrder(SearchContext context, BucketCollector collector) {
+        TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
+        searcher.setMinimumScore(context.minimumScore());
+        searcher.setProfiler(context);
+        try {
+            searcher.search(context.rewrittenQuery(), collector);
+        } catch (IOException e) {
+            // Seems like this should be 400 (non-retryable), but we clearly intentionally throw a 500 here. Why?
+            throw new AggregationExecutionException("Could not perform time series aggregation", e);
         }
     }
 
@@ -81,35 +87,5 @@ public class AggregationPhase {
         }
 
         return cancellationChecks;
-    }
-
-    public static void execute(SearchContext context) {
-        if (context.aggregations() == null) {
-            context.queryResult().aggregations(null);
-            return;
-        }
-
-        if (context.queryResult().hasAggs()) {
-            // no need to compute the aggs twice, they should be computed on a per context basis
-            return;
-        }
-
-        Aggregator[] aggregators = context.aggregations().aggregators();
-
-        List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
-        for (Aggregator aggregator : context.aggregations().aggregators()) {
-            try {
-                aggregator.postCollection();
-                aggregations.add(aggregator.buildTopLevel());
-            } catch (IOException e) {
-                throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
-            }
-            // release the aggregator to claim the used bytes as we don't need it anymore
-            aggregator.releaseAggregations();
-        }
-        context.queryResult().aggregations(InternalAggregations.from(aggregations));
-
-        // disable aggregations so that they don't run on next pages in case of scrolling
-        context.aggregations(null);
     }
 }

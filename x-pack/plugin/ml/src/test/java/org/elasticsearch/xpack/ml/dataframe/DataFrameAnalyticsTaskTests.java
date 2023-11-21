@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -29,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
@@ -182,7 +182,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
             "task_id",
-            Version.CURRENT,
+            MlConfigVersion.CURRENT,
             false
         );
 
@@ -278,7 +278,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
             "job-id",
-            Version.CURRENT,
+            MlConfigVersion.CURRENT,
             false
         );
 
@@ -333,18 +333,20 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
                 assertThat(parsedProgress.get().get(0), equalTo(new PhaseProgress("reindexing", 100)));
             }
 
-            verify(client).execute(
-                same(UpdatePersistentTaskStatusAction.INSTANCE),
-                eq(
-                    new UpdatePersistentTaskStatusAction.Request(
-                        "task-id",
-                        42,
-                        new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 42, "some exception")
-                    )
-                ),
-                any()
+            ArgumentCaptor<UpdatePersistentTaskStatusAction.Request> captor = ArgumentCaptor.forClass(
+                UpdatePersistentTaskStatusAction.Request.class
             );
+
+            verify(client).execute(same(UpdatePersistentTaskStatusAction.INSTANCE), captor.capture(), any());
+
+            UpdatePersistentTaskStatusAction.Request request = captor.getValue();
+            assertThat(request.getTaskId(), equalTo("task-id"));
+            DataFrameAnalyticsTaskState state = (DataFrameAnalyticsTaskState) request.getState();
+            assertThat(state.getState(), equalTo(DataFrameAnalyticsState.FAILED));
+            assertThat(state.getAllocationId(), equalTo(42L));
+            assertThat(state.getReason(), equalTo("some exception"));
         }
+
         verifyNoMoreInteractions(client, analyticsManager, auditor, taskManager);
     }
 

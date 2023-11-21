@@ -438,6 +438,8 @@ tag::ignore_throttled[]
 `ignore_throttled`::
 (Optional, Boolean) If `true`, concrete, expanded or aliased indices are
 ignored when frozen. Defaults to `true`.
++
+deprecated:[7.16.0]
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
@@ -689,6 +691,12 @@ tag::require-alias[]
 Defaults to `false`.
 end::require-alias[]
 
+tag::bulk-list-executed-pipelines[]
+`list_executed_pipelines`::
+(Optional, Boolean) If `true`, the response will include the ingest pipelines that
+were executed. Defaults to `false`.
+end::bulk-list-executed-pipelines[]
+
 tag::bulk-dynamic-templates[]
 `dynamic_templates`::
 (Optional, map)
@@ -767,6 +775,7 @@ currently supported:
 +
 --
 * <<search-aggregations-metrics-avg-aggregation,Average>>
+* <<search-aggregations-metrics-boxplot-aggregation,Boxplot>>
 * <<search-aggregations-pipeline-bucket-script-aggregation,Bucket script>>
 * <<search-aggregations-pipeline-bucket-selector-aggregation,Bucket selector>>
 * <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>

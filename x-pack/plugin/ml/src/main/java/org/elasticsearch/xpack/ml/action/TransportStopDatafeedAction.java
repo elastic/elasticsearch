@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -33,6 +34,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
@@ -92,7 +94,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
             StopDatafeedAction.Request::new,
             StopDatafeedAction.Response::new,
             StopDatafeedAction.Response::new,
-            MachineLearning.UTILITY_THREAD_POOL_NAME
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
         this.threadPool = Objects.requireNonNull(threadPool);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
@@ -179,7 +181,11 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, StopDatafeedAction.Response::new)
+                    new ActionListenerResponseHandler<>(
+                        listener,
+                        StopDatafeedAction.Response::new,
+                        TransportResponseHandler.TRANSPORT_WORKER
+                    )
                 );
             }
         } else {
@@ -332,7 +338,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                         threadPool.schedule(
                             () -> doExecute(task, request, listener, attempt + 1),
                             TimeValue.timeValueMillis(100L * attempt),
-                            ThreadPool.Names.SAME
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
                         );
                     } else {
                         listener.onFailure(
@@ -450,7 +456,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         }));
     }
 
-    private void sendResponseOrFailure(
+    private static void sendResponseOrFailure(
         String datafeedId,
         ActionListener<StopDatafeedAction.Response> listener,
         AtomicArray<Exception> failures
@@ -507,7 +513,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 }
             }
             return true;
-        }, request.getTimeout(), listener.delegateFailure((l, result) -> l.onResponse(response)));
+        }, request.getTimeout(), listener.safeMap(result -> response));
     }
 
     @Override

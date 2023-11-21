@@ -30,7 +30,7 @@ public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
         new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
-            MapperBuilderContext.root(false)
+            MapperBuilderContext.root(false, false)
         ),
         new MetadataFieldMapper[0],
         null
@@ -136,7 +136,7 @@ public final class Mapping implements ToXContentFragment {
      * @return the resulting merged mapping.
      */
     Mapping merge(Mapping mergeWith, MergeReason reason) {
-        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, MapperBuilderContext.root(isSourceSynthetic()));
+        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, MapperBuilderContext.root(isSourceSynthetic(), false));
 
         // When merging metadata fields as part of applying an index template, new field definitions
         // completely overwrite existing ones instead of being merged. This behavior matches how we
@@ -148,7 +148,7 @@ public final class Mapping implements ToXContentFragment {
             if (mergeInto == null || reason == MergeReason.INDEX_TEMPLATE) {
                 merged = metaMergeWith;
             } else {
-                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, MapperBuilderContext.root(isSourceSynthetic()));
+                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, MapperBuilderContext.root(isSourceSynthetic(), false));
             }
             mergedMetadataMappers.put(merged.getClass(), merged);
         }

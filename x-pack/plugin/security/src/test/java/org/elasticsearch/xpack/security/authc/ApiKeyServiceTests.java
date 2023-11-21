@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -47,6 +48,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -155,7 +157,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
@@ -214,7 +216,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     1,
                     1000,
                     "xpack.security.crypto.thread_pool",
-                    false
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
                 )
             )
         );
@@ -265,6 +267,8 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetApiKeys() throws Exception {
+        final long now = randomMillisUpToYear9999();
+        when(clock.instant()).thenReturn(Instant.ofEpochMilli(now));
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         when(client.threadPool()).thenReturn(threadPool);
         SearchRequestBuilder searchRequestBuilder = Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE));
@@ -282,7 +286,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         String apiKeyName = randomFrom(randomAlphaOfLengthBetween(3, 8), null);
         String[] apiKeyIds = generateRandomStringArray(4, 4, true, true);
         PlainActionFuture<GetApiKeyResponse> getApiKeyResponsePlainActionFuture = new PlainActionFuture<>();
-        service.getApiKeys(realmNames, username, apiKeyName, apiKeyIds, randomBoolean(), getApiKeyResponsePlainActionFuture);
+        final boolean activeOnly = randomBoolean();
+        service.getApiKeys(realmNames, username, apiKeyName, apiKeyIds, randomBoolean(), activeOnly, getApiKeyResponsePlainActionFuture);
         final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
         if (realmNames != null && realmNames.length > 0) {
             if (realmNames.length == 1) {
@@ -308,6 +313,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
         if (apiKeyIds != null && apiKeyIds.length > 0) {
             boolQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyIds));
+        }
+        if (activeOnly) {
+            boolQuery.filter(QueryBuilders.termQuery("api_key_invalidated", false));
+            final BoolQueryBuilder expiredQuery = QueryBuilders.boolQuery();
+            expiredQuery.should(QueryBuilders.rangeQuery("expiration_time").gt(now));
+            expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
+            boolQuery.filter(expiredQuery);
         }
         verify(searchRequestBuilder).setQuery(eq(boolQuery));
         verify(searchRequestBuilder).setFetchSource(eq(true));
@@ -532,7 +544,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testGetCredentialsFromThreadContext() {
         final ApiKeyService apiKeyService = createApiKeyService();
         ThreadContext threadContext = threadPool.getThreadContext();
-        assertNull(apiKeyService.getCredentialsFromThreadContext(threadContext));
+        assertNull(apiKeyService.parseCredentialsFromApiKeyString(getAuthenticatorContext(threadContext).getApiKeyString()));
 
         final String apiKeyAuthScheme = randomFrom("apikey", "apiKey", "ApiKey", "APikey", "APIKEY");
         final String id = randomAlphaOfLength(12);
@@ -541,7 +553,9 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", headerValue);
-            ApiKeyService.ApiKeyCredentials creds = apiKeyService.getCredentialsFromThreadContext(threadContext);
+            ApiKeyService.ApiKeyCredentials creds = apiKeyService.parseCredentialsFromApiKeyString(
+                getAuthenticatorContext(threadContext).getApiKeyString()
+            );
             assertNotNull(creds);
             assertEquals(id, creds.getId());
             assertEquals(key, creds.getKey().toString());
@@ -551,7 +565,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         headerValue = apiKeyAuthScheme + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", headerValue);
-            ApiKeyService.ApiKeyCredentials creds = apiKeyService.getCredentialsFromThreadContext(threadContext);
+            ApiKeyService.ApiKeyCredentials creds = apiKeyService.parseCredentialsFromApiKeyString(
+                getAuthenticatorContext(threadContext).getApiKeyString()
+            );
             assertNull(creds);
         }
 
@@ -561,10 +577,23 @@ public class ApiKeyServiceTests extends ESTestCase {
             threadContext.putHeader("Authorization", headerValue);
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> apiKeyService.getCredentialsFromThreadContext(threadContext)
+                () -> apiKeyService.parseCredentialsFromApiKeyString(getAuthenticatorContext(threadContext).getApiKeyString())
             );
             assertEquals("invalid ApiKey value", e.getMessage());
         }
+    }
+
+    public void testGetCredentialsFromHeaderFailsForInvalidCrossClusterApiKeySecretLength() {
+        final String id = randomAlphaOfLength(20);
+        final String key = randomAlphaOfLength(randomValueOtherThan(22, () -> randomIntBetween(0, 99)));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ApiKeyService.getCredentialsFromHeader(
+                "ApiKey " + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)),
+                ApiKey.Type.CROSS_CLUSTER
+            )
+        );
+        assertThat(e.getMessage(), containsString("invalid cross-cluster API key value"));
     }
 
     public void testAuthenticateWithApiKey() throws Exception {
@@ -852,7 +881,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testCrossClusterApiKeyUsageFailsWhenIndexNotAvailable() {
         securityIndex = SecurityMocks.mockSecurityIndexManager(".security", true, false);
         final ElasticsearchException expectedException = new ElasticsearchException("not available");
-        when(securityIndex.getUnavailableReason()).thenReturn(expectedException);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(expectedException);
         final ApiKeyService apiKeyService = createApiKeyService();
 
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
@@ -1156,7 +1185,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(roleWithoutRestriction.getRestriction().getWorkflows(), nullValue());
     }
 
-    public void testApiKeyServiceDisabled() throws Exception {
+    public void testApiKeyServiceDisabled() {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), false).build();
         final ApiKeyService service = createApiKeyService(settings);
 
@@ -1167,6 +1196,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 randomAlphaOfLength(8),
                 null,
                 null,
+                randomBoolean(),
                 randomBoolean(),
                 new PlainActionFuture<>()
             )
@@ -2166,7 +2196,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(request.getMetadata()).thenReturn(newMetadata);
         final var service = createApiKeyService();
 
-        final XContentBuilder builder = service.maybeBuildUpdatedDocument(
+        final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
             apiKeyId,
             oldApiKeyDoc,
             newVersion,
@@ -2316,8 +2346,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         // Selecting random unsupported version.
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)
+            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
 
         final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(
@@ -2354,7 +2384,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         // Selecting random supported version.
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS,
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY,
             TransportVersion.current()
         );
 
@@ -2406,8 +2436,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_9_0)
+            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
 
@@ -2427,7 +2457,11 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString("all nodes must have transport version [8090099] or higher to support creating cross cluster API keys")
+            containsString(
+                "all nodes must have transport version ["
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                    + "] or higher to support creating cross cluster API keys"
+            )
         );
     }
 
@@ -2537,7 +2571,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion(WORKFLOWS_RESTRICTION_VERSION)
         );
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
@@ -2567,7 +2601,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
         assertThat(
             e1.getMessage(),
-            containsString("all nodes must have transport version [8500005] or higher to support restrictions for API keys")
+            containsString(
+                "all nodes must have transport version ["
+                    + WORKFLOWS_RESTRICTION_VERSION
+                    + "] or higher to support restrictions for API keys"
+            )
         );
 
         final BulkUpdateApiKeyRequest updateRequest = new BulkUpdateApiKeyRequest(
@@ -2580,7 +2618,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
         assertThat(
             e2.getMessage(),
-            containsString("all nodes must have transport version [8500005] or higher to support restrictions for API keys")
+            containsString(
+                "all nodes must have transport version ["
+                    + WORKFLOWS_RESTRICTION_VERSION
+                    + "] or higher to support restrictions for API keys"
+            )
         );
     }
 
@@ -2616,7 +2658,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final List<RoleDescriptor> requestRoleDescriptors = randomList(
             0,
             1,
-            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), randomBoolean())
+            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), false, randomBoolean())
         );
 
         final AbstractCreateApiKeyRequest createRequest = mock(AbstractCreateApiKeyRequest.class);
@@ -2700,7 +2742,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     XContentType.JSON
                 )
             );
-            PlainActionFuture<AuthenticationResult<User>> authenticationResultFuture = PlainActionFuture.newFuture();
+            PlainActionFuture<AuthenticationResult<User>> authenticationResultFuture = new PlainActionFuture<>();
             ApiKeyService.validateApiKeyTypeAndExpiration(
                 apiKeyDoc,
                 new ApiKeyService.ApiKeyCredentials("id", new SecureString(randomAlphaOfLength(16).toCharArray()), ApiKey.Type.REST),
@@ -2884,5 +2926,15 @@ public class ApiKeyServiceTests extends ESTestCase {
         } else {
             return ApiKey.Type.REST;
         }
+    }
+
+    private static Authenticator.Context getAuthenticatorContext(ThreadContext threadContext) {
+        return new Authenticator.Context(
+            threadContext,
+            mock(AuthenticationService.AuditableRequest.class),
+            null,
+            randomBoolean(),
+            mock(Realms.class)
+        );
     }
 }

@@ -55,6 +55,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
         return channel -> client.admin().indices().resizeIndex(resizeRequest, new RestToXContentListener<>(channel));
     }
 
+    // no @ServerlessScope on purpose, not available
     public static class RestShrinkIndexAction extends RestResizeHandler {
 
         @Override
@@ -74,6 +75,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     }
 
+    // no @ServerlessScope on purpose, not available
     public static class RestSplitIndexAction extends RestResizeHandler {
 
         @Override
@@ -93,6 +95,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     }
 
+    // no @ServerlessScope on purpose, not available
     public static class RestCloneIndexAction extends RestResizeHandler {
 
         @Override

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -14,6 +13,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
@@ -79,7 +79,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             // threshold is not breached and the underlying step condition is met
             IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
                 .settings(
-                    settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true")
+                    settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true")
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "480h")
                 )
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(System.currentTimeMillis())))
@@ -103,7 +103,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             // threshold is not breached and the underlying step condition is NOT met
             IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
                 .settings(
-                    settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false")
+                    settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false")
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "48h")
                 )
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(System.currentTimeMillis())))
@@ -137,7 +137,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             // underlying step is executed once even if the threshold is breached and the underlying complete result is returned
             IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
                 .settings(
-                    settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true")
+                    settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true")
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1s")
                 )
                 .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
@@ -165,7 +165,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             // step under test will return `complete` (becuase the threshold is breached and we don't want to wait anymore)
             IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
                 .settings(
-                    settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false")
+                    settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false")
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1h")
                 )
                 .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
@@ -242,7 +242,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
 
     public void testIsCompletableBreaches() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(Clock.systemUTC().millis())))

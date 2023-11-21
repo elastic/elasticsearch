@@ -188,7 +188,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
                 Request::new,
                 indexNameExpressionResolver,
                 PersistentTaskResponse::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
@@ -220,7 +220,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
                 request.taskId,
                 request.taskName,
                 request.params,
-                listener.delegateFailure((delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task)))
+                listener.safeMap(PersistentTaskResponse::new)
             );
         }
     }

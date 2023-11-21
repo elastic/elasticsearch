@@ -81,10 +81,10 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             GeoIpDownloaderStatsAction.Response res = client().execute(GeoIpDownloaderStatsAction.INSTANCE, req).actionGet();
             XContentTestUtils.JsonMapView view = new XContentTestUtils.JsonMapView(convertToMap(res));
-            assertThat(view.get("stats.successful_downloads"), equalTo(3));
+            assertThat(view.get("stats.successful_downloads"), equalTo(4));
             assertThat(view.get("stats.failed_downloads"), equalTo(0));
             assertThat(view.get("stats.skipped_updates"), equalTo(0));
-            assertThat(view.get("stats.databases_count"), equalTo(3));
+            assertThat(view.get("stats.databases_count"), equalTo(4));
             assertThat(view.get("stats.total_download_time"), greaterThan(0));
             Map<String, Map<String, List<Map<String, Object>>>> nodes = view.get("nodes");
             assertThat(nodes.values(), hasSize(greaterThan(0)));
@@ -92,7 +92,7 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
                 assertThat(value, hasKey("databases"));
                 assertThat(
                     value.get("databases").stream().map(m -> m.get("name")).collect(Collectors.toSet()),
-                    containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb")
+                    containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
                 );
             }
         });

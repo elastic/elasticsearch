@@ -18,6 +18,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;
@@ -25,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiPredicate;
 
 /**
  * Used to execute REST requests according to the docs snippets that need to be tests. Wraps a
@@ -51,7 +53,8 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
         Map<String, String> params,
         HttpEntity entity,
         Map<String, String> headers,
-        NodeSelector nodeSelector
+        NodeSelector nodeSelector,
+        BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate
     ) throws IOException {
 
         if ("raw".equals(apiName)) {
@@ -73,6 +76,6 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
                 throw new ClientYamlTestResponseException(e);
             }
         }
-        return super.callApi(apiName, params, entity, headers, nodeSelector);
+        return super.callApi(apiName, params, entity, headers, nodeSelector, pathPredicate);
     }
 }

@@ -24,7 +24,8 @@ public class PutTrainedModelVocabularyActionRequestTests extends AbstractWireSer
             modelId,
             randomList(vocabLength, vocabLength, () -> randomAlphaOfLength(10)),
             randomBoolean() ? null : randomList(1, vocabLength, () -> randomAlphaOfLength(10)),
-            randomBoolean() ? null : randomList(vocabLength, vocabLength, ESTestCase::randomDouble)
+            randomBoolean() ? null : randomList(vocabLength, vocabLength, ESTestCase::randomDouble),
+            randomBoolean()
         );
     }
 

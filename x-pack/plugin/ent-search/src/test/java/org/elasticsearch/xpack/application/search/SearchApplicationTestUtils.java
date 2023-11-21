@@ -13,10 +13,12 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.application.rules.QueryRule;
 import org.elasticsearch.xpack.application.rules.QueryRuleCriteria;
+import org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType;
 import org.elasticsearch.xpack.application.rules.QueryRuleset;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -28,8 +30,10 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
 
 // TODO - move this one package up and rename to EnterpriseSearchModuleTestUtils
 public final class SearchApplicationTestUtils {
@@ -79,11 +83,9 @@ public final class SearchApplicationTestUtils {
     }
 
     public static QueryRuleCriteria randomQueryRuleCriteria() {
-        return new QueryRuleCriteria(
-            randomFrom(QueryRuleCriteria.CriteriaType.values()),
-            randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10)
-        );
+        // We intentionally don't allow ALWAYS criteria in this method, since we want to test parsing metadata and values
+        QueryRuleCriteriaType type = randomFrom(Arrays.stream(QueryRuleCriteriaType.values()).filter(t -> t != ALWAYS).toList());
+        return new QueryRuleCriteria(type, randomAlphaOfLengthBetween(1, 10), randomList(1, 5, () -> randomAlphaOfLengthBetween(1, 10)));
     }
 
     public static QueryRule randomQueryRule() {

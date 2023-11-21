@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -59,6 +59,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,6 +86,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -103,6 +105,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
     private final ScriptService scriptService;
+    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final Map<String, Processor.Factory> processorFactories;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -115,7 +118,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private volatile ClusterState state;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
-        return (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC);
+        return (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic());
     }
 
     public static MatcherWatchdog createGrokThreadWatchdog(Environment env, ThreadPool threadPool) {
@@ -169,6 +172,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    @SuppressWarnings("this-escape")
     public IngestService(
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -177,10 +181,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         AnalysisRegistry analysisRegistry,
         List<IngestPlugin> ingestPlugins,
         Client client,
-        MatcherWatchdog matcherWatchdog
+        MatcherWatchdog matcherWatchdog,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
+        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -198,6 +204,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
+    }
+
+    /**
+     * This copy constructor returns a copy of the given ingestService, using all of the same internal state. The returned copy is not
+     * registered to listen to any cluster state changes
+     * @param ingestService
+     */
+    IngestService(IngestService ingestService) {
+        this.clusterService = ingestService.clusterService;
+        this.scriptService = ingestService.scriptService;
+        this.documentParsingObserverSupplier = ingestService.documentParsingObserverSupplier;
+        this.processorFactories = ingestService.processorFactories;
+        this.threadPool = ingestService.threadPool;
+        this.taskQueue = ingestService.taskQueue;
+        this.pipelines = ingestService.pipelines;
+        this.state = ingestService.state;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -709,9 +731,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             totalMetrics.postIngest(ingestTimeInNanos);
                             ref.close();
                         });
+                        DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.get();
 
-                        IngestDocument ingestDocument = newIngestDocument(indexRequest);
+                        IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
+
                         executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
+                        indexRequest.setPipelinesHaveRun();
+
+                        assert actionRequest.index() != null;
+                        documentParsingObserver.setIndexName(actionRequest.index());
+                        documentParsingObserver.close();
+
                         i++;
                     }
                 }
@@ -810,7 +840,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             if (pipeline == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
-
+            indexRequest.addPipeline(pipelineId);
             final String originalIndex = indexRequest.indices()[0];
             executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
@@ -928,7 +958,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    private void executePipeline(
+    private static void executePipeline(
         final IngestDocument ingestDocument,
         final Pipeline pipeline,
         final BiConsumer<Boolean, Exception> handler
@@ -999,14 +1029,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Builds a new ingest document from the passed-in index request.
      */
-    private static IngestDocument newIngestDocument(final IndexRequest request) {
+    private static IngestDocument newIngestDocument(final IndexRequest request, DocumentParsingObserver documentParsingObserver) {
         return new IngestDocument(
             request.index(),
             request.id(),
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap()
+            request.sourceAsMap(documentParsingObserver)
         );
     }
 
@@ -1056,7 +1086,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private static void cacheRawTimestamp(final IndexRequest request, final IngestDocument document) {
         if (request.getRawTimestamp() == null) {
             // cache the @timestamp from the ingest document's source map if there is one
-            Object rawTimestamp = document.getSource().get(TimestampField.FIXED_TIMESTAMP_FIELD);
+            Object rawTimestamp = document.getSource().get(DataStream.TIMESTAMP_FIELD_NAME);
             if (rawTimestamp != null) {
                 request.setRawTimestamp(rawTimestamp);
             }

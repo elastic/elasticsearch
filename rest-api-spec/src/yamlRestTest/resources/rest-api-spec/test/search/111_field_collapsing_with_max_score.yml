@@ -1,0 +1,113 @@
+setup:
+  - skip:
+      version: " - 8.9.99"
+      reason: Collapse with max score was fixed in 8.10.0
+      features: close_to
+
+  - do:
+      indices.create:
+        index: user_comments
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+              properties:
+                user_id: { type: keyword }
+                comment: { type: text }
+
+  - do:
+      bulk:
+        index: user_comments
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"user_id": "user1", "comment": "Canada is beautiful."}'
+          - '{"index": {"_id": "2"}}'
+          - '{"user_id": "user1", "comment": "Canada is the second-largest country in the world by land area."}'
+          - '{"index": {"_id": "3"}}'
+          - '{"user_id": "user2", "comment": "The capital of Canada is Ottawa."}'
+          - '{"index": {"_id": "4"}}'
+          - '{"user_id": "user2", "comment": "Canada is cold."}'
+          - '{"index": {"_id": "5"}}'
+          - '{"user_id": "user3", "comment": "Canada celebrates Canada Day on July 1st."}'
+
+---
+"Max score returned when there is no sort":
+  - do:
+      search:
+        index: user_comments
+        body:
+          query:
+            match:
+              comment: "Canada"
+          collapse:
+            field: user_id
+
+  - match: {hits.total.value: 5 }
+  - length: {hits.hits: 3 }
+  - match: {hits.hits.0.fields.user_id: ["user3"] }
+  - close_to: { hits.max_score: { value: 0.11545, error: 0.00001 } }
+
+---
+"Max score is not returned when there is sort and track_scores is false (by default)":
+  - do:
+      search:
+        index: user_comments
+        body:
+          sort:
+            user_id: asc
+          query:
+            match:
+              comment: "Canada"
+          collapse:
+            field: user_id
+
+  - match: {hits.total.value: 5 }
+  - length: {hits.hits: 3 }
+  - match: {hits.hits.0.fields.user_id: ["user1"] }
+  - is_false: hits.max_score
+
+---
+"Max score returned when there is sort and track_scores is true":
+  - do:
+      search:
+        index: user_comments
+        body:
+          sort:
+            user_id: asc
+          query:
+            match:
+              comment: "Canada"
+          collapse:
+            field: user_id
+          track_scores: true
+
+  - match: {hits.total.value: 5 }
+  - length: {hits.hits: 3 }
+  - match: {hits.hits.0.fields.user_id: ["user1"] }
+  - close_to: { hits.max_score: { value: 0.11545, error: 0.00001 } }
+
+---
+"Max score returned over all documents not only top hits":
+  - do:
+      search:
+        index: user_comments
+        body:
+          size: 2
+          sort:
+            user_id: asc
+          query:
+            match:
+              comment: "Canada"
+          collapse:
+            field: user_id
+          track_scores: true
+
+  - match: {hits.total.value: 5 }
+  - length: {hits.hits: 2 }
+  - close_to: { hits.max_score: { value: 0.11545, error: 0.00001 } }
+  - match: {hits.hits.0.fields.user_id: ["user1"] }
+  - close_to: { hits.hits.0._score: { value: 0.11030, error: 0.00001 } }
+  - match: { hits.hits.1.fields.user_id: [ "user2" ] }
+  - close_to: { hits.hits.1._score: { value: 0.08817, error: 0.00001 } }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.shards;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -121,7 +121,6 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 .setPatterns(Collections.singletonList("should-fail"))
                 .setOrder(1)
                 .setSettings(indexSettings(counts.getFailingIndexShards(), counts.getFailingIndexReplicas()))
-                .get()
         );
 
         final IllegalArgumentException e = expectThrows(
@@ -243,7 +242,6 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             indicesAdmin().prepareUpdateSettings("test-index")
                 .setPreserveExisting(true)
                 .setSettings(Settings.builder().put("number_of_replicas", dataNodes))
-                .get()
         );
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertEquals(0, clusterState.getMetadata().index("test-index").getNumberOfReplicas());
@@ -294,7 +292,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         assertThat(snapshotInfos.size(), equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
+        assertThat(snapshotInfo.version(), equalTo(IndexVersion.current()));
 
         // Test restore after index deletion
         logger.info("--> delete indices");

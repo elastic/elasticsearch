@@ -18,12 +18,14 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -56,7 +58,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
@@ -217,18 +218,10 @@ public class RefreshListenersTests extends ESTestCase {
                 assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
                 latch.countDown();
             }));
-            assertFalse(listeners.addOrNotify(index.getSeqNo(), randomBoolean(), new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError(e);
-                }
-            }));
+            assertFalse(listeners.addOrNotify(index.getSeqNo(), randomBoolean(), ActionTestUtils.assertNoFailureListener(ignored -> {
+                assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
+                latch.countDown();
+            })));
         }
         assertNull(threadPool.getThreadContext().getHeader("test"));
         assertEquals(2, latch.getCount());
@@ -398,7 +391,11 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = between(1, threadCount * 2);
 
         // This thread just refreshes every once in a while to cause trouble.
-        Cancellable refresher = threadPool.scheduleWithFixedDelay(() -> engine.refresh("because test"), timeValueMillis(100), Names.SAME);
+        Cancellable refresher = threadPool.scheduleWithFixedDelay(
+            () -> engine.refresh("because test"),
+            timeValueMillis(100),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
 
         // These threads add and block until the refresh makes the change visible and then do a non-realtime get.
         Thread[] indexers = new Thread[threadCount];

@@ -41,7 +41,7 @@ public class StringScriptFieldWildcardQuery extends AbstractStringScriptFieldAut
 
     private static Automaton buildAutomaton(Term term, boolean caseInsensitive) {
         if (caseInsensitive) {
-            return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term, Integer.MAX_VALUE);
+            return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term);
         }
         return WildcardQuery.toAutomaton(term);
     }

@@ -120,6 +120,7 @@ public class JwtRealmSettings {
     private static final List<String> DEFAULT_ALLOWED_SIGNATURE_ALGORITHMS = Collections.singletonList("RS256");
     private static final boolean DEFAULT_POPULATE_USER_METADATA = true;
     private static final TimeValue DEFAULT_JWT_CACHE_TTL = TimeValue.timeValueMinutes(20);
+    private static final TimeValue DEFAULT_JWT_CLIENT_AUTH_GRACE_PERIOD = TimeValue.timeValueMinutes(1);
     private static final int DEFAULT_JWT_CACHE_SIZE = 100_000;
     private static final int MIN_JWT_CACHE_SIZE = 0;
     private static final TimeValue DEFAULT_HTTP_CONNECT_TIMEOUT = TimeValue.timeValueSeconds(5);
@@ -172,7 +173,8 @@ public class JwtRealmSettings {
                 CLAIMS_MAIL.getPattern(),
                 CLAIMS_NAME.getClaim(),
                 CLAIMS_NAME.getPattern(),
-                POPULATE_USER_METADATA
+                POPULATE_USER_METADATA,
+                CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD
             )
         );
         // JWT Client settings
@@ -353,6 +355,12 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<SecureString> CLIENT_AUTHENTICATION_SHARED_SECRET = RealmSettings.secureString(
         TYPE,
         "client_authentication.shared_secret"
+    );
+
+    public static final Setting.AffixSetting<TimeValue> CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "client_authentication.rotation_grace_period",
+        key -> Setting.timeSetting(key, DEFAULT_JWT_CLIENT_AUTH_GRACE_PERIOD, Setting.Property.NodeScope)
     );
 
     // Individual Cache settings

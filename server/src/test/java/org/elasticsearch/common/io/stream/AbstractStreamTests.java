@@ -368,32 +368,42 @@ public abstract class AbstractStreamTests extends ESTestCase {
         runWriteReadCollectionTest(
             () -> new FooBar(randomInt(), randomInt()),
             StreamOutput::writeCollection,
-            in -> in.readList(FooBar::new)
+            in -> in.readCollectionAsList(FooBar::new)
         );
 
         runWriteReadCollectionTest(
             () -> new FooBar(randomInt(), randomInt()),
             StreamOutput::writeOptionalCollection,
-            in -> in.readOptionalList(FooBar::new)
+            in -> in.readOptionalCollectionAsList(FooBar::new)
         );
 
-        runWriteReadOptionalCollectionWithNullInput(out -> out.writeOptionalCollection(null), in -> in.readOptionalList(FooBar::new));
+        runWriteReadOptionalCollectionWithNullInput(
+            out -> out.writeOptionalCollection(null),
+            in -> in.readOptionalCollectionAsList(FooBar::new)
+        );
     }
 
     public void testStringCollection() throws IOException {
-        runWriteReadCollectionTest(() -> randomUnicodeOfLength(16), StreamOutput::writeStringCollection, StreamInput::readStringList);
+        runWriteReadCollectionTest(
+            () -> randomUnicodeOfLength(16),
+            StreamOutput::writeStringCollection,
+            StreamInput::readStringCollectionAsList
+        );
     }
 
     public void testOptionalStringCollection() throws IOException {
         runWriteReadCollectionTest(
             () -> randomUnicodeOfLength(16),
             StreamOutput::writeOptionalStringCollection,
-            StreamInput::readOptionalStringList
+            StreamInput::readOptionalStringCollectionAsList
         );
     }
 
     public void testOptionalStringCollectionWithNullInput() throws IOException {
-        runWriteReadOptionalCollectionWithNullInput(out -> out.writeOptionalStringCollection(null), StreamInput::readOptionalStringList);
+        runWriteReadOptionalCollectionWithNullInput(
+            out -> out.writeOptionalStringCollection(null),
+            StreamInput::readOptionalStringCollectionAsList
+        );
     }
 
     private <T> void runWriteReadCollectionTest(
@@ -437,7 +447,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         out.writeCollection(sourceSet, StreamOutput::writeLong);
 
-        final Set<Long> targetSet = getStreamInput(out.bytes()).readSet(StreamInput::readLong);
+        final Set<Long> targetSet = getStreamInput(out.bytes()).readCollectionAsSet(StreamInput::readLong);
         assertThat(targetSet, equalTo(sourceSet));
     }
 
@@ -683,7 +693,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final BytesReference bytesReference = output.bytes();
 
         final StreamInput input = getStreamInput(bytesReference);
-        List<T> got = input.readImmutableList(reader);
+        List<T> got = input.readCollectionAsImmutableList(reader);
         assertThat(got, equalTo(expected));
 
         expectThrows(UnsupportedOperationException.class, got::clear);

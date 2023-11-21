@@ -8,13 +8,17 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 final class SystemJvmOptions {
 
-    static List<String> systemJvmOptions() {
-        return List.of(
+    static List<String> systemJvmOptions(Settings nodeSettings) {
+        return Stream.of(
             /*
              * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property networkaddress.cache.ttl;
              * can be set to -1 to cache forever.
@@ -60,8 +64,9 @@ final class SystemJvmOptions {
              * explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
              */
             "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
-            maybeOverrideDockerCgroup()
-        ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
+            maybeOverrideDockerCgroup(),
+            maybeSetActiveProcessorCount(nodeSettings)
+        ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
 
     /*
@@ -81,6 +86,18 @@ final class SystemJvmOptions {
     private static String maybeOverrideDockerCgroup() {
         if ("docker".equals(System.getProperty("es.distribution.type"))) {
             return "-Des.cgroups.hierarchy.override=/";
+        }
+        return "";
+    }
+
+    /*
+     * node.processors determines thread pool sizes for Elasticsearch. When it
+     * is set, we need to also tell the JVM to respect a different value
+     */
+    private static String maybeSetActiveProcessorCount(Settings nodeSettings) {
+        if (EsExecutors.NODE_PROCESSORS_SETTING.exists(nodeSettings)) {
+            int allocated = EsExecutors.allocatedProcessors(nodeSettings);
+            return "-XX:ActiveProcessorCount=" + allocated;
         }
         return "";
     }

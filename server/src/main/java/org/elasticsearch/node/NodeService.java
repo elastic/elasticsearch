@@ -11,6 +11,7 @@ package org.elasticsearch.node;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -19,9 +20,11 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -36,7 +39,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class NodeService implements Closeable {
     private final Settings settings;
@@ -114,7 +120,9 @@ public class NodeService implements Closeable {
         return new NodeInfo(
             Version.CURRENT,
             TransportVersion.current(),
-            Build.CURRENT,
+            IndexVersion.current(),
+            findComponentVersions(),
+            Build.current(),
             transportService.getLocalNode(),
             settings ? settingsFilter.filter(this.settings) : null,
             os ? monitorService.osService().info() : null,
@@ -131,8 +139,23 @@ public class NodeService implements Closeable {
         );
     }
 
+    private Map<String, Integer> findComponentVersions() {
+        var versions = pluginService.loadServiceProviders(ComponentVersionNumber.class)
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(ComponentVersionNumber::componentId, cvn -> cvn.versionNumber().id()));
+
+        if (Assertions.ENABLED) {
+            var isSnakeCase = Pattern.compile("[a-z_]+").asMatchPredicate();
+            for (String key : versions.keySet()) {
+                assert isSnakeCase.test(key) : "Version component " + key + " should use snake_case";
+            }
+        }
+        return versions;
+    }
+
     public NodeStats stats(
         CommonStatsFlags indices,
+        boolean includeShardsStats,
         boolean os,
         boolean process,
         boolean jvm,
@@ -154,7 +177,7 @@ public class NodeService implements Closeable {
         return new NodeStats(
             transportService.getLocalNode(),
             System.currentTimeMillis(),
-            indices.anySet() ? indicesService.stats(indices) : null,
+            indices.anySet() ? indicesService.stats(indices, includeShardsStats) : null,
             os ? monitorService.osService().stats() : null,
             process ? monitorService.processService().stats() : null,
             jvm ? monitorService.jvmService().stats() : null,

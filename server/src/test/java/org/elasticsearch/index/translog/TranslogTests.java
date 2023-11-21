@@ -26,6 +26,7 @@ import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.LineFileDocs;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -48,6 +49,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
@@ -272,7 +274,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     private TranslogConfig getTranslogConfig(final Path path) {
-        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         return getTranslogConfig(path, settings);
     }
 
@@ -1627,7 +1629,7 @@ public class TranslogTests extends ESTestCase {
 
     public void testTranslogOperationListener() throws IOException {
         Path tempDir = createTempDir();
-        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
 
         final ArrayList<Long> seqNos = new ArrayList<>();
         final ArrayList<Location> locations = new ArrayList<>();
@@ -3401,7 +3403,7 @@ public class TranslogTests extends ESTestCase {
 
         TransportVersion wireVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             TransportVersion.current()
         );
         BytesStreamOutput out = new BytesStreamOutput();

@@ -60,13 +60,13 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            actions = in.readList(DataStreamAction::new);
+            actions = in.readCollectionAsList(DataStreamAction::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(actions);
+            out.writeCollection(actions);
         }
 
         public Request(List<DataStreamAction> actions) {

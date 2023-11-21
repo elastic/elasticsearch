@@ -8,10 +8,12 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -24,14 +26,13 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -72,7 +73,6 @@ import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
-import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -80,7 +80,6 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -172,7 +171,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     public void testIndexSortedOnField() {
-        Settings settings = indexSettings(Version.CURRENT, 1, 1).put("index.sort.field", "sort_field").build();
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put("index.sort.field", "sort_field").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
 
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
@@ -290,7 +289,11 @@ public class SearchExecutionContextTests extends ESTestCase {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.addRuntimeFields(runtimeFieldTypes);
-        Mapping mapping = new Mapping(builder.build(MapperBuilderContext.root(false)), new MetadataFieldMapper[0], Collections.emptyMap());
+        Mapping mapping = new Mapping(
+            builder.build(MapperBuilderContext.root(false, false)),
+            new MetadataFieldMapper[0],
+            Collections.emptyMap()
+        );
         return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), Collections.emptyList());
     }
 
@@ -376,28 +379,26 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertTrue(mappingLookup.isMultiField("cat.subfield"));
     }
 
-    public void testSyntheticSourceScriptLoading() throws IOException {
-
+    public void testSyntheticSourceSearchLookup() throws IOException {
         // Build a mapping using synthetic source
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null).setSynthetic().build();
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(MapperBuilderContext.root(true));
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new KeywordFieldMapper.Builder("cat", IndexVersion.current()).ignoreAbove(100)
+        ).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
         MappingLookup lookup = MappingLookup.fromMapping(mapping);
 
         SearchExecutionContext sec = createSearchExecutionContext("index", "", lookup, Map.of());
+        assertTrue(sec.isSourceSynthetic());
 
-        // Attempting to access synthetic source via this context should throw an error
+        MemoryIndex mi = new MemoryIndex();
+        mi.addField(new KeywordField("cat", "meow", Field.Store.YES), null);
+        LeafReaderContext leafReaderContext = mi.createSearcher().getIndexReader().leaves().get(0);
+
         SearchLookup searchLookup = sec.lookup();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> searchLookup.getSource(null, 0));
-        assertThat(e.getMessage(), equalTo("Cannot access source from scripts in synthetic mode"));
-
-        // Setting the source provider explicitly then gives us a new SearchLookup that can use source
-        Source source = Source.fromMap(Map.of("field", "value"), XContentType.JSON);
-        sec.setLookupProviders((ctx, doc) -> source, LeafFieldLookupProvider.fromStoredFields());
-        SearchLookup searchLookup1 = sec.lookup();
-        assertNotSame(searchLookup, searchLookup1);
-        assertSame(source, searchLookup1.getSource(null, 0));
-
+        Source source = searchLookup.getSource(leafReaderContext, 0);
+        assertEquals(1, source.source().size());
+        assertEquals("meow", source.source().get("cat"));
     }
 
     public static SearchExecutionContext createSearchExecutionContext(String indexUuid, String clusterAlias) {
@@ -420,7 +421,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         Map<String, Object> runtimeMappings
     ) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
-        indexMetadataBuilder.settings(indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, indexUuid));
+        indexMetadataBuilder.settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, indexUuid));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         MapperService mapperService = createMapperService(indexSettings, mappingLookup);
@@ -429,7 +430,6 @@ public class SearchExecutionContextTests extends ESTestCase {
             0,
             0,
             indexSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
             null,
             (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
             mapperService,

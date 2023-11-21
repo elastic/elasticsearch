@@ -88,7 +88,7 @@ public class SimulateDocumentBaseResultTests extends AbstractXContentTestCase<Si
     }
 
     public static void assertEqualDocs(SimulateDocumentBaseResult response, SimulateDocumentBaseResult parsedResponse) {
-        assertEquals(response.getIngestDocument(), parsedResponse.getIngestDocument());
+        assertIngestDocument(response.getIngestDocument(), parsedResponse.getIngestDocument());
         if (response.getFailure() != null) {
             assertNotNull(parsedResponse.getFailure());
             assertThat(parsedResponse.getFailure().getMessage(), containsString(response.getFailure().getMessage()));

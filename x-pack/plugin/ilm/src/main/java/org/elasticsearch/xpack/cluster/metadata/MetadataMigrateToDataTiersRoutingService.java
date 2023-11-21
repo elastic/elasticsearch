@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -49,8 +51,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXC
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE_SETTING;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
@@ -545,6 +549,18 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     finalSettings.remove(nodeAttrIndexIncludeRoutingSetting);
                 }
 
+                if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(newSettings)) {
+                    String configuredTierPreference = null;
+                    try {
+                        configuredTierPreference = TIER_PREFERENCE_SETTING.get(newSettings);
+                    } catch (IllegalArgumentException ignored) {
+                        // we'll configure the correct tier preference below
+                    }
+                    if (configuredTierPreference == null || configuredTierPreference.equals(DATA_FROZEN) == false) {
+                        finalSettings.put(TIER_PREFERENCE_SETTING.getKey(), DATA_FROZEN);
+                    }
+                }
+
                 mb.put(
                     IndexMetadata.builder(indexMetadata).settings(finalSettings).settingsVersion(indexMetadata.getSettingsVersion() + 1)
                 );
@@ -674,7 +690,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
                 if (settings.keySet().contains(requireRoutingSetting) || settings.keySet().contains(includeRoutingSetting)) {
                     Template currentInnerTemplate = composableTemplate.template();
-                    ComposableIndexTemplate.Builder migratedComposableTemplateBuilder = new ComposableIndexTemplate.Builder();
+                    ComposableIndexTemplate.Builder migratedComposableTemplateBuilder = ComposableIndexTemplate.builder();
                     Settings.Builder settingsBuilder = Settings.builder().put(settings);
                     settingsBuilder.remove(requireRoutingSetting);
                     settingsBuilder.remove(includeRoutingSetting);
@@ -735,7 +751,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     ComponentTemplate migratedComponentTemplate = new ComponentTemplate(
                         migratedInnerTemplate,
                         componentTemplate.version(),
-                        componentTemplate.metadata()
+                        componentTemplate.metadata(),
+                        componentTemplate.deprecated()
                     );
 
                     mb.put(componentEntry.getKey(), migratedComponentTemplate);
@@ -749,7 +766,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
     private static Settings migrateToDefaultTierPreference(ClusterState currentState, IndexMetadata indexMetadata) {
         Settings currentIndexSettings = indexMetadata.getSettings();
-        List<String> tierPreference = DataTier.parseTierList(currentIndexSettings.get(DataTier.TIER_PREFERENCE));
+        List<String> tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(currentIndexSettings));
         if (tierPreference.isEmpty() == false) {
             return currentIndexSettings;
         }
@@ -759,6 +776,15 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         boolean isDataStream = currentState.metadata().findDataStreams(indexName).isEmpty() == false;
         String convertedTierPreference = isDataStream ? DataTier.DATA_HOT : DataTier.DATA_CONTENT;
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
+            if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexMetadata.getSettings())) {
+                // partially mounted index
+                convertedTierPreference = MountSearchableSnapshotRequest.Storage.SHARED_CACHE.defaultDataTiersPreference();
+            } else {
+                // fully mounted index
+                convertedTierPreference = MountSearchableSnapshotRequest.Storage.FULL_COPY.defaultDataTiersPreference();
+            }
+        }
         newSettingsBuilder.put(TIER_PREFERENCE, convertedTierPreference);
         logger.debug("index [{}]: configured setting [{}] to [{}]", indexName, TIER_PREFERENCE, convertedTierPreference);
         return newSettingsBuilder.build();

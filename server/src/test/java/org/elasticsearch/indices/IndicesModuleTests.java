@@ -8,8 +8,8 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.ArrayList;
@@ -91,7 +90,7 @@ public class IndicesModuleTests extends ESTestCase {
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_0_0, IndexVersion.current());
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
             assertThat(
                 module.getMapperRegistry().getMapperParser("object", IndexVersion.current()),
                 instanceOf(ObjectMapper.TypeParser.class)
@@ -108,8 +107,8 @@ public class IndicesModuleTests extends ESTestCase {
         {
             IndexVersion version = IndexVersionUtils.randomVersionBetween(
                 random(),
-                IndexVersion.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+                IndexVersions.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
             );
             assertEquals(EXPECTED_METADATA_FIELDS.length - 1, module.getMapperRegistry().getMetadataMapperParsers(version).size());
         }
@@ -227,14 +226,14 @@ public class IndicesModuleTests extends ESTestCase {
 
     public void testFieldNamesIsLast() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
-        IndexVersion version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).indexVersion;
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
         List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers(version).keySet());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
     }
 
     public void testFieldNamesIsLastWithPlugins() {
         IndicesModule module = new IndicesModule(fakePlugins);
-        IndexVersion version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).indexVersion;
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
         List<String> fieldNames = new ArrayList<>(module.getMapperRegistry().getMetadataMapperParsers(version).keySet());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
     }

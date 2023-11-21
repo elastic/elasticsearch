@@ -1,6 +1,7 @@
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 import org.elasticsearch.gradle.internal.info.BuildParams
 
@@ -18,14 +19,19 @@ artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+  maxParallelForks = 1
+}
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution()
+}
+tasks.named('yamlRestTestV7CompatTest') {
+  usesDefaultDistribution()
+}
+
 if (BuildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }
-}
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'basic'
-  setting 'xpack.monitoring.collection.enabled', 'true'
-  setting 'xpack.security.enabled', 'false'
 }

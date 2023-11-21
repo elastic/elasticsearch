@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
@@ -35,8 +35,8 @@ public class CartesianShapeIT extends CartesianShapeIntegTestCase {
     }
 
     @Override
-    protected Version randomSupportedVersion() {
-        return VersionUtils.randomIndexCompatibleVersion(random());
+    protected IndexVersion randomSupportedVersion() {
+        return IndexVersionUtils.randomCompatibleVersion(random());
     }
 
     @Override
@@ -46,7 +46,7 @@ public class CartesianShapeIT extends CartesianShapeIntegTestCase {
 
     public void testMappingUpdate() {
         // create index
-        Version version = randomSupportedVersion();
+        IndexVersion version = randomSupportedVersion();
         assertAcked(indicesAdmin().prepareCreate("test").setSettings(settings(version).build()).setMapping("shape", "type=shape").get());
         ensureGreen();
 

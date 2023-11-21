@@ -41,7 +41,7 @@ public class SamlObjectSigner {
         signature.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256);
         signature.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
         object.setSignature(signature);
-        Element element = samlFactory.toDomElement(object);
+        Element element = SamlFactory.toDomElement(object);
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
                 try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignerProvider.class)) {

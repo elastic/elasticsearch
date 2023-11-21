@@ -546,7 +546,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 transport,
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID()),
+                boundAddress -> DiscoveryNodeUtils.create(UUIDs.randomBase64UUID()),
                 null,
                 emptySet()
             );
@@ -559,7 +559,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             Predicate<ClusterName> clusterNamePredicate,
             ActionListener<HandshakeResponse> listener
         ) {
-            listener.onResponse(new HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), connection.getNode(), new ClusterName("")));
+            listener.onResponse(new HandshakeResponse(Version.CURRENT, Build.current().hash(), connection.getNode(), new ClusterName("")));
         }
 
     }

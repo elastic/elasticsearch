@@ -14,7 +14,8 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/eql-correctness.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/eql-correctness.*'
           github-hooks: true
           status-context: elasticsearch-ci/eql-correctness
           cancel-builds-on-update: true
@@ -22,11 +23,10 @@
             - 6.8
           excluded-regions:
             - ^docs/.*
-          black-list-labels:
-            - '>test-mute'
+            - ^x-pack/docs/.*
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
       - shell: |

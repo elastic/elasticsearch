@@ -10,6 +10,7 @@ package org.elasticsearch.health.stats;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -17,6 +18,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.metrics.Counters;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
@@ -34,7 +36,7 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
     public static final String NAME = "cluster:monitor/health_api/stats";
 
     private HealthApiStatsAction() {
-        super(NAME, Response::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 
     public static class Request extends BaseNodesRequest<Request> {
@@ -43,13 +45,9 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
             super((String[]) null);
         }
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+            TransportAction.localOnly();
         }
 
         @Override
@@ -74,27 +72,23 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
 
     public static class Response extends BaseNodesResponse<Response.Node> {
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-        }
-
         public Response(ClusterName clusterName, List<Node> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+            TransportAction.localOnly();
         }
 
         @Override
         protected List<Node> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(Node::new);
+            return TransportAction.localOnly();
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
-            out.writeList(nodes);
+            TransportAction.localOnly();
         }
 
         public Counters getStats() {

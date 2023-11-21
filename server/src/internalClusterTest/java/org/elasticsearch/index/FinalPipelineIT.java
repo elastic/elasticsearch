@@ -8,25 +8,18 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -34,14 +27,8 @@ import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
@@ -51,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -132,13 +118,13 @@ public class FinalPipelineIT extends ESIntegTestCase {
             {"processors": [{"final": {"exists":"no_such_field"}}]}""");
         clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index")
+        DocWriteResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        SearchResponse target = client().prepareSearch("target").get();
+        SearchResponse target = prepareSearch("target").get();
         assertEquals(1, target.getHits().getTotalHits().value);
         assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
     }
@@ -158,13 +144,13 @@ public class FinalPipelineIT extends ESIntegTestCase {
             {"processors": [{"final": {}}]}""");
         clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index")
+        DocWriteResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        SearchResponse target = client().prepareSearch("target").get();
+        SearchResponse target = prepareSearch("target").get();
         assertEquals(1, target.getHits().getTotalHits().value);
         assertEquals(true, target.getHits().getAt(0).getSourceAsMap().get("final"));
     }
@@ -184,13 +170,13 @@ public class FinalPipelineIT extends ESIntegTestCase {
             {"processors": [{"final": {}}]}""");
         clusterAdmin().putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON)).actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index")
+        DocWriteResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        SearchResponse target = client().prepareSearch("target").get();
+        SearchResponse target = prepareSearch("target").get();
         assertEquals(1, target.getHits().getTotalHits().value);
         assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
     }
@@ -210,13 +196,13 @@ public class FinalPipelineIT extends ESIntegTestCase {
             {"processors": [{"final": {}}]}""");
         clusterAdmin().putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON)).actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index")
+        DocWriteResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        SearchResponse target = client().prepareSearch("target").get();
+        SearchResponse target = prepareSearch("target").get();
         assertEquals(1, target.getHits().getTotalHits().value);
         assertTrue(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
     }
@@ -275,7 +261,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         index.setSource(Map.of("field", "value"));
         index.setPipeline("request_pipeline");
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        final IndexResponse response = index.get();
+        final DocWriteResponse response = index.get();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
         final GetRequestBuilder get = client().prepareGet("index", "1");
         final GetResponse getResponse = get.get();
@@ -302,7 +288,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final IndexRequestBuilder index = client().prepareIndex("index").setId("1");
         index.setSource(Map.of("field", "value"));
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        final IndexResponse response = index.get();
+        final DocWriteResponse response = index.get();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
         final GetRequestBuilder get = client().prepareGet("index", "1");
         final GetResponse getResponse = get.get();
@@ -349,7 +335,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final IndexRequestBuilder index = client().prepareIndex("index").setId("1");
         index.setSource(Map.of("field", "value"));
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        final IndexResponse response = index.get();
+        final DocWriteResponse response = index.get();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
         final GetRequestBuilder get = client().prepareGet("index", "1");
         final GetResponse getResponse = get.get();
@@ -390,25 +376,6 @@ public class FinalPipelineIT extends ESIntegTestCase {
     }
 
     public static class TestPlugin extends Plugin implements IngestPlugin {
-
-        @Override
-        public Collection<Object> createComponents(
-            final Client client,
-            final ClusterService clusterService,
-            final ThreadPool threadPool,
-            final ResourceWatcherService resourceWatcherService,
-            final ScriptService scriptService,
-            final NamedXContentRegistry xContentRegistry,
-            final Environment environment,
-            final NodeEnvironment nodeEnvironment,
-            final NamedWriteableRegistry namedWriteableRegistry,
-            final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
-            AllocationService allocationService
-        ) {
-            return List.of();
-        }
 
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {

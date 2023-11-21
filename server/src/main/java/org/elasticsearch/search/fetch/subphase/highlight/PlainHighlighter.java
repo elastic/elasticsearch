@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
-import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
+import static org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter.convertFieldValue;
 
 public class PlainHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-plain";

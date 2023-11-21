@@ -48,6 +48,7 @@ import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 
@@ -433,7 +434,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             super(in);
             this.id = in.readInt();
             this.node = new DiscoveryNode(in);
-            this.subRequests = in.readList(TestRequest::new);
+            this.subRequests = in.readCollectionAsList(TestRequest::new);
             this.timeout = in.readBoolean();
         }
 
@@ -456,7 +457,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             super.writeTo(out);
             out.writeInt(id);
             node.writeTo(out);
-            out.writeList(subRequests);
+            out.writeCollection(subRequests);
             out.writeBoolean(timeout);
         }
 
@@ -511,7 +512,13 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
         @Inject
         public TransportTestAction(TransportService transportService, NodeClient client, ActionFilters actionFilters) {
-            super(ACTION.name(), transportService, actionFilters, TestRequest::new, ThreadPool.Names.GENERIC);
+            super(
+                ACTION.name(),
+                transportService,
+                actionFilters,
+                TestRequest::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
+            );
             this.transportService = transportService;
             this.client = client;
         }
@@ -537,7 +544,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                     }
                     listener.onResponse(new TestResponse());
                 }
-            }, delay, ThreadPool.Names.GENERIC);
+            }, delay, transportService.getThreadPool().generic());
         }
 
         @Override
@@ -583,7 +590,11 @@ public class CancellableTasksIT extends ESIntegTestCase {
                             ACTION.name(),
                             subRequest,
                             transportRequestOptions,
-                            new ActionListenerResponseHandler<TestResponse>(latchedListener, TestResponse::new)
+                            new ActionListenerResponseHandler<TestResponse>(
+                                latchedListener,
+                                TestResponse::new,
+                                TransportResponseHandler.TRANSPORT_WORKER
+                            )
                         );
                     }
                 }

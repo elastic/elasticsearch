@@ -11,7 +11,6 @@ package org.elasticsearch.snapshots;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -49,6 +48,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
@@ -74,6 +74,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -160,7 +161,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfos.size(), equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
+        assertThat(snapshotInfo.version(), equalTo(IndexVersion.current()));
 
         if (snapshotClosed) {
             assertAcked(indicesAdmin().prepareOpen(indicesToSnapshot).setWaitForActiveShards(ActiveShardCount.ALL).get());
@@ -347,6 +348,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setSettings(
                     Settings.builder()
                         .put("location", randomRepoPath())
+                        // io exception writing index.latest won't fail anything which makes assertions below complicated, so we disable
+                        // index.latest
+                        .put(BlobStoreRepository.SUPPORT_URL_REPO.getKey(), false)
                         .put("random", randomAlphaOfLength(10))
                         .put("random_control_io_exception_rate", 0.2)
                 )
@@ -913,6 +917,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertDocCount("test-idx", 100L);
     }
 
+    private int numberOfFiles(Path dir) throws Exception {
+        final AtomicInteger count = new AtomicInteger();
+        forEachFileRecursively(dir, ((path, basicFileAttributes) -> count.incrementAndGet()));
+        return count.get();
+    }
+
     public void testDeleteRepositoryWhileSnapshotting() throws Exception {
         disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks");
         Client client = client();
@@ -1040,7 +1050,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertRequestBuilderThrows(
             client.admin().cluster().prepareDeleteSnapshot("readonly-repo", "test-snap"),
             RepositoryException.class,
-            "cannot delete snapshot from a readonly repository"
+            "repository is readonly"
         );
 
         logger.info("--> try making another snapshot");
@@ -1092,7 +1102,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         waitForBlock(blockedNode, "test-repo");
 
         awaitClusterState(state -> {
-            SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
             Set<Snapshot> snapshots = snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot).collect(Collectors.toSet());
             if (snapshots.size() != 1) {
                 return false;
@@ -1605,7 +1615,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(snapshotInfo.successfulShards()));
 
         ensureGreen("test-idx-1", "test-idx-2");
-        assertHitCount(client().prepareSearch("test-idx-*").setSize(0).get(), 3);
+        assertHitCount(prepareSearch("test-idx-*").setSize(0), 3);
     }
 
     /**
@@ -1674,7 +1684,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ensureGreen();
         for (Map.Entry<String, Integer> entry : nbDocsPerIndex.entrySet()) {
             if (isRestorableIndex.test(entry.getKey())) {
-                assertHitCount(client().prepareSearch(entry.getKey()).setSize(0).get(), entry.getValue().longValue());
+                assertHitCount(prepareSearch(entry.getKey()).setSize(0), entry.getValue().longValue());
             }
         }
 
@@ -2097,7 +2107,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfos.size(), equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
+        assertThat(snapshotInfo.version(), equalTo(IndexVersion.current()));
 
         logger.info("--> deleting indices");
         cluster().wipeIndices(normalIndex, hiddenIndex, dottedHiddenIndex);

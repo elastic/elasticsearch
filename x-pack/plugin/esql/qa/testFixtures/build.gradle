@@ -1,0 +1,32 @@
+apply plugin: 'elasticsearch.java'
+
+
+dependencies {
+    implementation project(':x-pack:plugin:esql:compute')
+    compileOnly project(':x-pack:plugin:esql')
+    implementation project(":libs:elasticsearch-x-content")
+    implementation project(':client:rest')
+    implementation project(':libs:elasticsearch-logging')
+    implementation project(':test:framework')
+    api(testArtifact(project(xpackModule('ql'))))
+    implementation project(':server')
+    api "net.sf.supercsv:super-csv:${versions.supercsv}"
+}
+
+/**
+ * Runs CSV Spec Tests data loader to load data to a running stand-alone instance
+ * Accepts an URL as first argument, eg. http://localhost:9200 or http://user:pass@localhost:9200
+ *
+ * eg.
+ * ./gradlew :x-pack:plugin:esql:qa:testFixtures:loadCsvSpecData --args="http://elastic-admin:elastic-password@localhost:9200"
+ *
+ * If no arguments are specified, the default URL is http://localhost:9200 without authentication.
+ * It also supports HTTPS.
+ */
+task loadCsvSpecData(type: JavaExec) {
+  group = "Execution"
+  description = "Loads ESQL CSV Spec Tests data on a running stand-alone instance"
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = "org.elasticsearch.xpack.esql.CsvTestsDataLoader"
+}
+

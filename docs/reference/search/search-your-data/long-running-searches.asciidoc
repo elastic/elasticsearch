@@ -1,6 +1,6 @@
 [role="xpack"]
 [[async-search-intro]]
-== Long-running searches
+=== Long-running searches
 
 {es} generally allows you to quickly search across big amounts of data. There are
 situations where a search executes on many shards, possibly against

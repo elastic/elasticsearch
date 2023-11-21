@@ -518,7 +518,10 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .applySettings(settings)
+                .address(boundAddress.publishAddress())
+                .build(),
             null,
             Collections.emptySet()
         );
@@ -532,7 +535,9 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             threadPool,
             List.of()
         );
+        final NodeClient client = mock(NodeClient.class);
         final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(
+            client,
             threadPool,
             transportService,
             null,
@@ -541,7 +546,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         );
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
-        final NodeClient client = mock(NodeClient.class);
         return new IndicesClusterStateService(
             settings,
             indicesService,

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ReportingService;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
@@ -308,13 +310,13 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         CountDownLatch latch = new CountDownLatch(1);
         updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<>() {
             @Override
-            public void onResponse(Void o) {
-                logger.debug("connected to new remote cluster [{}]", clusterAlias);
+            public void onResponse(RemoteClusterConnectionStatus status) {
+                logger.info("remote cluster connection [{}] updated: {}", clusterAlias, status);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(() -> "connection to new remote cluster [" + clusterAlias + "] failed", e);
+                logger.warn(() -> "failed to update remote cluster connection [" + clusterAlias + "]", e);
             }
         }, latch::countDown));
 
@@ -323,7 +325,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             // are on the cluster state thread and our custom future implementation will throw an
             // assertion.
             if (latch.await(10, TimeUnit.SECONDS) == false) {
-                logger.warn("failed to connect to new remote cluster [{}] within {}", clusterAlias, TimeValue.timeValueSeconds(10));
+                logger.warn("failed to update remote cluster connection [{}] within {}", clusterAlias, TimeValue.timeValueSeconds(10));
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -337,7 +339,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @param newSettings the updated settings for the remote connection
      * @param listener a listener invoked once every configured cluster has been connected to
      */
-    synchronized void updateRemoteCluster(String clusterAlias, Settings newSettings, ActionListener<Void> listener) {
+    synchronized void updateRemoteCluster(
+        String clusterAlias,
+        Settings newSettings,
+        ActionListener<RemoteClusterConnectionStatus> listener
+    ) {
         if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
@@ -350,7 +356,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
             }
             remoteClusters.remove(clusterAlias);
-            listener.onResponse(null);
+            listener.onResponse(RemoteClusterConnectionStatus.DISCONNECTED);
             return;
         }
 
@@ -364,7 +370,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 credentialsProtectedRemoteClusters.contains(clusterAlias)
             );
             remoteClusters.put(clusterAlias, remote);
-            remote.ensureConnected(listener);
+            remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
         } else if (remote.shouldRebuildConnection(newSettings)) {
             // Changes to connection configuration. Must tear down existing connection
             try {
@@ -381,11 +387,18 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 credentialsProtectedRemoteClusters.contains(clusterAlias)
             );
             remoteClusters.put(clusterAlias, remote);
-            remote.ensureConnected(listener);
+            remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.RECONNECTED));
         } else {
             // No changes to connection configuration.
-            listener.onResponse(null);
+            listener.onResponse(RemoteClusterConnectionStatus.UNCHANGED);
         }
+    }
+
+    enum RemoteClusterConnectionStatus {
+        CONNECTED,
+        DISCONNECTED,
+        RECONNECTED,
+        UNCHANGED
     }
 
     /**
@@ -403,7 +416,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
         CountDownActionListener listener = new CountDownActionListener(enabledClusters.size(), future);
         for (String clusterAlias : enabledClusters) {
-            updateRemoteCluster(clusterAlias, settings, listener);
+            updateRemoteCluster(clusterAlias, settings, listener.map(ignored -> null));
         }
 
         if (enabledClusters.isEmpty()) {
@@ -485,12 +498,13 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     /**
      * Returns a client to the remote cluster if the given cluster alias exists.
      *
-     * @param threadPool      the {@link ThreadPool} for the client
-     * @param clusterAlias    the cluster alias the remote cluster is registered under
-     * @param ensureConnected whether requests should wait for a connection attempt when there isn't a connection available
+     * @param threadPool       the {@link ThreadPool} for the client
+     * @param clusterAlias     the cluster alias the remote cluster is registered under
+     * @param responseExecutor the executor to use to process the response
+     * @param ensureConnected  whether requests should wait for a connection attempt when there isn't a connection available
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
-    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias, boolean ensureConnected) {
+    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias, Executor responseExecutor, boolean ensureConnected) {
         if (transportService.getRemoteClusterService().isEnabled() == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
@@ -499,20 +513,22 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
-        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias, ensureConnected);
+        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias, responseExecutor, ensureConnected);
     }
 
     /**
      * Returns a client to the remote cluster if the given cluster alias exists.
      *
-     * @param threadPool   the {@link ThreadPool} for the client
-     * @param clusterAlias the cluster alias the remote cluster is registered under
+     * @param threadPool       the {@link ThreadPool} for the client
+     * @param clusterAlias     the cluster alias the remote cluster is registered under
+     * @param responseExecutor the executor to use to process the response
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
-    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias, Executor responseExecutor) {
         return getRemoteClusterClient(
             threadPool,
             clusterAlias,
+            responseExecutor,
             transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false
         );
     }
@@ -524,7 +540,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     static void registerRemoteClusterHandshakeRequestHandler(TransportService transportService) {
         transportService.registerRequestHandler(
             REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
             TransportService.HandshakeRequest::new,
@@ -542,7 +558,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 channel.sendResponse(
                     new TransportService.HandshakeResponse(
                         transportService.getLocalNode().getVersion(),
-                        Build.CURRENT.hash(),
+                        Build.current().hash(),
                         transportService.getLocalNode().withTransportAddress(transportService.boundRemoteAccessAddress().publishAddress()),
                         transportService.clusterName
                     )

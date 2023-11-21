@@ -77,11 +77,16 @@ public class FeatureFlagTests extends ESTestCase {
 
     private static Build randomBuild(boolean isSnapshot) {
         return new Build(
+            randomFrom("flavor1", "flavor2"),
             randomFrom(Build.Type.values()),
             Hex.encodeHexString(randomByteArrayOfLength(20)),
             Instant.now().toString(),
+            VersionUtils.randomVersion(random()).toString(),
+            randomFrom(random(), null, "alpha1", "beta1", "rc2"),
             isSnapshot,
-            VersionUtils.randomVersion(random()).toString()
+            VersionUtils.randomVersion(random()).toString(),
+            VersionUtils.randomVersion(random()).toString(),
+            randomAlphaOfLength(10)
         );
     }
 

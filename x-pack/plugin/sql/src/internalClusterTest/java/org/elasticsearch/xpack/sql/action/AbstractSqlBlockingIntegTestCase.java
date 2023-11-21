@@ -73,7 +73,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
     protected List<SearchBlockPlugin> initBlockFactory(boolean searchBlock, boolean fieldCapsBlock) {
         List<SearchBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(SearchBlockPlugin.class));
+            pluginsService.filterPlugins(SearchBlockPlugin.class).forEach(plugins::add);
         }
         for (SearchBlockPlugin plugin : plugins) {
             plugin.reset();
@@ -231,7 +231,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
                             task,
                             action,
                             request,
-                            ActionListener.wrap(resp -> executorService.execute(() -> actionWrapper.accept(resp)), listener::onFailure)
+                            listener.delegateFailureAndWrap((l, resp) -> executorService.execute(() -> actionWrapper.accept(resp)))
                         );
                     } else {
                         chain.proceed(task, action, request, listener);

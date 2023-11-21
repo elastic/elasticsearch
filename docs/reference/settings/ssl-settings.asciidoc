@@ -1,11 +1,15 @@
 ==== {component} TLS/SSL settings
 You can configure the following TLS/SSL settings.
 
-ifdef::server[]
 +{ssl-prefix}.ssl.enabled+::
 (<<static-cluster-setting,Static>>)
-Used to enable or disable TLS/SSL on the {ssl-layer}. The default is `false`.
-endif::server[]
+Used to enable or disable TLS/SSL on the {ssl-layer}.
+ifdef::enabled-by-default[]
+The default is `true`.
+endif::enabled-by-default[]
+ifndef::enabled-by-default[]
+The default is `false`.
+endif::enabled-by-default[]
 
 +{ssl-prefix}.ssl.supported_protocols+::
 (<<static-cluster-setting,Static>>)
@@ -31,9 +35,9 @@ endif::server[]
 ifndef::verifies[]
 The SSL settings in `pass:a[{ssl-prefix}.ssl]` control a _server context_ for TLS, which
 defines the settings for the TLS connection. The use of `verification_mode` in
-a TLS _server_ is discouraged. 
+a TLS _server_ is discouraged.
 endif::verifies[]
-Defines how to verify the certificates presented by another party in the TLS 
+Defines how to verify the certificates presented by another party in the TLS
 connection:
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 
@@ -62,9 +66,11 @@ When using PEM encoded files, use the following settings:
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 
+ifndef::secure-pass[]
 +{ssl-prefix}.ssl.key_passphrase+::
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+endif::secure-pass[]
 
 +{ssl-prefix}.ssl.secure_key_passphrase+::
 (<<secure-settings,Secure>>)
@@ -87,17 +93,21 @@ and certificates that should be trusted, use the following settings:
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 
+ifndef::secure-pass[]
 +{ssl-prefix}.ssl.keystore.password+::
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+endif::secure-pass[]
 
 +{ssl-prefix}.ssl.keystore.secure_password+::
 (<<secure-settings,Secure>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
+ifndef::secure-pass[]
 +{ssl-prefix}.ssl.keystore.key_password+::
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+endif::secure-pass[]
 
 +{ssl-prefix}.ssl.keystore.secure_key_password+::
 (<<secure-settings,Secure>>)
@@ -107,9 +117,11 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 
+ifndef::secure-pass[]
 +{ssl-prefix}.ssl.truststore.password+::
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+endif::secure-pass[]
 
 +{ssl-prefix}.ssl.truststore.secure_password+::
 (<<secure-settings,Secure>>)
@@ -131,17 +143,21 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
+ifndef::secure-pass[]
 +{ssl-prefix}.ssl.keystore.password+::
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+endif::secure-pass[]
 
 +{ssl-prefix}.ssl.keystore.secure_password+::
 (<<secure-settings,Secure>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
+ifndef::secure-pass[]
 +{ssl-prefix}.ssl.keystore.key_password+::
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+endif::secure-pass[]
 
 +{ssl-prefix}.ssl.keystore.secure_key_password+::
 (<<secure-settings,Secure>>)
@@ -156,9 +172,11 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
 //TBD:Should this use the ssl-truststore-type definition and default values?
 
+ifndef::secure-pass[]
 +{ssl-prefix}.ssl.truststore.password+::
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+endif::secure-pass[]
 
 +{ssl-prefix}.ssl.truststore.secure_password+::
 (<<secure-settings,Secure>>)

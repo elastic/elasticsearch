@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
 import java.util.List;
@@ -75,6 +76,7 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest = PARSER.parse(request.contentParser(), null);
+        createCrossClusterApiKeyRequest.setRefreshPolicy(ApiKeyService.defaultCreateDocRefreshPolicy(settings));
         return channel -> client.execute(
             CreateCrossClusterApiKeyAction.INSTANCE,
             createCrossClusterApiKeyRequest,
@@ -83,11 +85,8 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        final Exception failedFeature = super.checkFeatureAvailable(request);
-        if (failedFeature != null) {
-            return failedFeature;
-        } else if (ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
+        if (ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
             return null;
         } else {
             return LicenseUtils.newComplianceException(ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.getName());

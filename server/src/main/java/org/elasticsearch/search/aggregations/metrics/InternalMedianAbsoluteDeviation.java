@@ -23,7 +23,7 @@ import java.util.Objects;
 
 public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggregation.SingleValue implements MedianAbsoluteDeviation {
 
-    static double computeMedianAbsoluteDeviation(TDigestState valuesSketch) {
+    public static double computeMedianAbsoluteDeviation(TDigestState valuesSketch) {
 
         if (valuesSketch.size() == 0) {
             return Double.NaN;

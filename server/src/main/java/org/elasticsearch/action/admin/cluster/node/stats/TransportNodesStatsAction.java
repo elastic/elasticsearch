@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -23,6 +24,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,6 +37,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     TransportNodesStatsAction.NodeStatsRequest,
     NodeStats> {
 
+    public static final ActionType<NodesStatsResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/stats");
     private final NodeService nodeService;
 
     @Inject
@@ -46,14 +49,12 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         ActionFilters actionFilters
     ) {
         super(
-            NodesStatsAction.NAME,
-            threadPool,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
-            NodesStatsRequest::new,
             NodeStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.nodeService = nodeService;
     }
@@ -70,6 +71,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
     @Override
     protected NodeStats newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        assert Transports.assertNotTransportThread("deserializing node stats is too expensive for a transport thread");
         return new NodeStats(in);
     }
 
@@ -81,6 +83,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         Set<String> metrics = request.requestedMetrics();
         return nodeService.stats(
             request.indices(),
+            request.includeShardsStats(),
             NodesStatsRequest.Metric.OS.containedIn(metrics),
             NodesStatsRequest.Metric.PROCESS.containedIn(metrics),
             NodesStatsRequest.Metric.JVM.containedIn(metrics),
@@ -101,6 +104,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
     public static class NodeStatsRequest extends TransportRequest {
 
+        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
         NodesStatsRequest request;
 
         public NodeStatsRequest(StreamInput in) throws IOException {
@@ -114,7 +118,12 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+            return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+                @Override
+                public String getDescription() {
+                    return request.getDescription();
+                }
+            };
         }
 
         @Override

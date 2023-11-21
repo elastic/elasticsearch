@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.search.SearchAction;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -62,7 +62,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
     public void testAuthorize() {
         IndexMetadata.Builder imbBuilder = IndexMetadata.builder("_index")
-            .settings(indexSettings(Version.CURRENT, 1, 1))
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
             .putAlias(AliasMetadata.builder("_alias"));
         Metadata md = Metadata.builder().put(imbBuilder).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
@@ -146,7 +146,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_alias").getDocumentPermissions().getSingleSetOfQueries(), equalTo(query));
 
         IndexMetadata.Builder imbBuilder1 = IndexMetadata.builder("_index_1")
-            .settings(indexSettings(Version.CURRENT, 1, 1))
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
             .putAlias(AliasMetadata.builder("_alias"));
         md = Metadata.builder(md).put(imbBuilder1).build();
         lookup = md.getIndicesLookup();
@@ -182,7 +182,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
     public void testAuthorizeMultipleGroupsMixedDls() {
         IndexMetadata.Builder imbBuilder = IndexMetadata.builder("_index")
-            .settings(indexSettings(Version.CURRENT, 1, 1))
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
             .putAlias(AliasMetadata.builder("_alias"));
         Metadata md = Metadata.builder().put(imbBuilder).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
@@ -238,7 +238,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
     // tests that field permissions are merged correctly when we authorize with several groups and don't crash when an index has no group
     public void testCorePermissionAuthorize() {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final Metadata metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
             true
@@ -339,7 +339,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testSecurityIndicesPermissions() {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -397,7 +397,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testAsyncSearchIndicesPermissions() {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String asyncSearchIndex = XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2);
         final Metadata metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder(asyncSearchIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
@@ -500,7 +500,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testAuthorizationForMappingUpdates() {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final Metadata.Builder metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder("test1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
             true
@@ -670,12 +670,14 @@ public class IndicesPermissionTests extends ESTestCase {
             dataStream
         );
         IndexAbstraction concreteIndex = new IndexAbstraction.ConcreteIndex(
-            IndexMetadata.builder("logs-index").settings(indexSettings(Version.CURRENT, 1, 0)).build()
+            IndexMetadata.builder("logs-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build()
         );
         AliasMetadata aliasMetadata = new AliasMetadata.Builder("logs-alias").build();
         IndexAbstraction alias = new IndexAbstraction.Alias(
             aliasMetadata,
-            List.of(IndexMetadata.builder("logs-index").settings(indexSettings(Version.CURRENT, 1, 0)).putAlias(aliasMetadata).build())
+            List.of(
+                IndexMetadata.builder("logs-index").settings(indexSettings(IndexVersion.current(), 1, 0)).putAlias(aliasMetadata).build()
+            )
         );
         IndicesPermission.IsResourceAuthorizedPredicate predicate = new IndicesPermission.IsResourceAuthorizedPredicate(
             StringMatcher.of("other"),
@@ -729,12 +731,14 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     private static IndexAbstraction concreteIndexAbstraction(String name) {
-        return new IndexAbstraction.ConcreteIndex(IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 0)).build());
+        return new IndexAbstraction.ConcreteIndex(
+            IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0)).build()
+        );
     }
 
     private static IndexMetadata createBackingIndexMetadata(String name) {
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", true);
 
         IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name)

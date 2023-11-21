@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -129,9 +130,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         trackScores = in.readBoolean();
         version = in.readBoolean();
         seqNoAndPrimaryTerm = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
+                fetchFields = in.readCollectionAsList(FieldAndFormat::new);
             }
         }
     }
@@ -143,7 +144,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasFieldDataFields = docValueFields != null;
         out.writeBoolean(hasFieldDataFields);
         if (hasFieldDataFields) {
-            out.writeList(docValueFields);
+            out.writeCollection(docValueFields);
         }
         out.writeOptionalWriteable(storedFieldsContext);
         out.writeVInt(from);
@@ -157,15 +158,15 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasSorts = sorts != null;
         out.writeBoolean(hasSorts);
         if (hasSorts) {
-            out.writeNamedWriteableList(sorts);
+            out.writeNamedWriteableCollection(sorts);
         }
         out.writeBoolean(trackScores);
         out.writeBoolean(version);
         out.writeBoolean(seqNoAndPrimaryTerm);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
-                out.writeList(fetchFields);
+                out.writeCollection(fetchFields);
             }
         }
     }
@@ -278,13 +279,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Gets the bytes representing the sort builders for this request.
-     */
-    public List<SortBuilder<?>> sorts() {
-        return sorts;
-    }
-
-    /**
      * Adds highlight to perform as part of the search.
      */
     public TopHitsAggregationBuilder highlighter(HighlightBuilder highlightBuilder) {
@@ -292,23 +286,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             throw new IllegalArgumentException("[highlightBuilder] must not be null: [" + name + "]");
         }
         this.highlightBuilder = highlightBuilder;
-        return this;
-    }
-
-    /**
-     * Gets the highlighter builder for this request.
-     */
-    public HighlightBuilder highlighter() {
-        return highlightBuilder;
-    }
-
-    /**
-     * Indicates whether the response should contain the stored _source for
-     * every hit
-     */
-    public TopHitsAggregationBuilder fetchSource(boolean fetch) {
-        FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
-        this.fetchSourceContext = FetchSourceContext.of(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes());
         return this;
     }
 
@@ -362,14 +339,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Gets the {@link FetchSourceContext} which defines how the _source
-     * should be fetched.
-     */
-    public FetchSourceContext fetchSource() {
-        return fetchSourceContext;
-    }
-
-    /**
      * Adds a stored field to load and return (note, it must be stored) as part of the search request.
      * To disable the stored fields entirely (source and metadata fields) use {@code storedField("_none_")}.
      */
@@ -391,13 +360,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             storedFieldsContext.addFieldNames(fields);
         }
         return this;
-    }
-
-    /**
-     * Gets the stored fields context
-     */
-    public StoredFieldsContext storedFields() {
-        return storedFieldsContext;
     }
 
     /**
@@ -424,13 +386,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Gets the field-data fields.
-     */
-    public List<FieldAndFormat> docValueFields() {
-        return docValueFields;
-    }
-
-    /**
      * Adds a field to load and return as part of the search request.
      */
     public TopHitsAggregationBuilder fetchField(FieldAndFormat fieldAndFormat) {
@@ -449,13 +404,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      */
     public TopHitsAggregationBuilder fetchField(String field) {
         return fetchField(new FieldAndFormat(field, null, null));
-    }
-
-    /**
-     * Gets the fields to load and return as part of the search request.
-     */
-    public List<FieldAndFormat> fetchFields() {
-        return fetchFields;
     }
 
     /**
@@ -511,27 +459,12 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Gets the script fields.
-     */
-    public Set<ScriptField> scriptFields() {
-        return scriptFields;
-    }
-
-    /**
      * Should each {@link org.elasticsearch.search.SearchHit} be returned
      * with an explanation of the hit (ranking).
      */
     public TopHitsAggregationBuilder explain(boolean explain) {
         this.explain = explain;
         return this;
-    }
-
-    /**
-     * Indicates whether each search hit will be returned with an
-     * explanation of the hit (ranking)
-     */
-    public boolean explain() {
-        return explain;
     }
 
     /**
@@ -544,14 +477,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Indicates whether the document's version will be included in the
-     * search hits.
-     */
-    public boolean version() {
-        return version;
-    }
-
-    /**
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
      * sequence number and primary term of the last modification of the document.
      */
@@ -561,27 +486,12 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Indicates whether {@link org.elasticsearch.search.SearchHit}s should be returned with the
-     * sequence number and primary term of the last modification of the document.
-     */
-    public Boolean seqNoAndPrimaryTerm() {
-        return seqNoAndPrimaryTerm;
-    }
-
-    /**
      * Applies when sorting, and controls if scores will be tracked as well.
      * Defaults to {@code false}.
      */
     public TopHitsAggregationBuilder trackScores(boolean trackScores) {
         this.trackScores = trackScores;
         return this;
-    }
-
-    /**
-     * Indicates whether scores will be tracked for this request.
-     */
-    public boolean trackScores() {
-        return trackScores;
     }
 
     @Override
@@ -918,6 +828,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

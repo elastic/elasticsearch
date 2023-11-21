@@ -124,15 +124,15 @@ final class RemoteClusterConnection implements Closeable {
                 if (REMOTE_CLUSTER_PROFILE.equals(remoteConnectionManager.getConnectionProfile().getTransportProfile())) {
                     transportService.sendRequest(
                         connection,
-                        RemoteClusterNodesAction.NAME,
-                        RemoteClusterNodesAction.Request.INSTANCE,
+                        RemoteClusterNodesAction.TYPE.name(),
+                        RemoteClusterNodesAction.Request.ALL_NODES,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(contextPreservingActionListener.map(response -> {
                             final Map<String, DiscoveryNode> nodeLookup = response.getNodes()
                                 .stream()
                                 .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, Function.identity()));
                             return nodeLookup::get;
-                        }), RemoteClusterNodesAction.Response::new)
+                        }), RemoteClusterNodesAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                     );
                 } else {
                     final ClusterStateRequest request = new ClusterStateRequest();
@@ -147,7 +147,8 @@ final class RemoteClusterConnection implements Closeable {
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(
                             contextPreservingActionListener.map(response -> response.getState().nodes()::get),
-                            ClusterStateResponse::new
+                            ClusterStateResponse::new,
+                            TransportResponseHandler.TRANSPORT_WORKER
                         )
                     );
                 }

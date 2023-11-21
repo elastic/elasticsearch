@@ -7,7 +7,7 @@ setup:
         settings:
           index:
             number_of_shards:   1
-            number_of_replicas: 0
+            number_of_replicas: 1
         mappings:
           properties:
             keys:
@@ -33,7 +33,8 @@ setup:
   - do:
       cluster.health:
            index: test_1
-           wait_for_status: green
+           wait_for_status: yellow
+           wait_for_no_initializing_shards: true
 
   - do:
       graph.explore:

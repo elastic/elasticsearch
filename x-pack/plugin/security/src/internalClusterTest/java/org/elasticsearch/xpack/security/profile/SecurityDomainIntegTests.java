@@ -43,6 +43,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsString;
@@ -309,6 +312,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
 
     public void testDomainCaptureForApiKey() {
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
+        createApiKeyRequest.setRefreshPolicy(randomFrom(NONE, WAIT_UNTIL, IMMEDIATE));
 
         final CreateApiKeyResponse createApiKeyResponse = client().filterWithHeader(
             Map.of("Authorization", basicAuthHeaderValue(RAC_USER_NAME, NATIVE_RAC_USER_PASSWORD.clone()))
@@ -375,7 +379,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             .prepareHealth()
             .execute()
             .actionGet();
-        final SearchResponse searchResponse = client().prepareSearch(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).execute().actionGet();
+        final SearchResponse searchResponse = prepareSearch(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).execute().actionGet();
 
         final String encodedAuthentication = createTokenResponse.getAuthentication().encode();
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {

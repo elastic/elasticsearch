@@ -84,7 +84,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             GetJobsStatsAction.Request::new,
             GetJobsStatsAction.Response::new,
             in -> new QueryPage<>(in, JobStats::new),
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.clusterService = clusterService;
         this.processManager = processManager;
@@ -95,7 +95,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
 
     @Override
     protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> finalListener) {
-        logger.debug("Get stats for job [{}]", request.getJobId());
+        logger.trace("Get stats for job [{}]", request.getJobId());
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         ClusterState state = clusterService.state();

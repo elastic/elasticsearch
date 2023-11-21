@@ -8,7 +8,7 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
@@ -18,8 +18,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
 import org.elasticsearch.search.DummyQueryParserPlugin;
+import org.elasticsearch.search.FailBeforeCurrentVersionQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Arrays;
@@ -141,7 +143,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         search5.setScriptParams(params5);
         multiRequest.add(search5);
 
-        MultiSearchTemplateResponse response = client().execute(MultiSearchTemplateAction.INSTANCE, multiRequest).get();
+        MultiSearchTemplateResponse response = client().execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest).get();
         assertThat(response.getResponses(), arrayWithSize(5));
         assertThat(response.getTook().millis(), greaterThan(0L));
 
@@ -174,14 +176,13 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         assertThat(response4.getFailure().getMessage(), equalTo("no such index [unknown]"));
 
         MultiSearchTemplateResponse.Item response5 = response.getResponses()[4];
-        assertThat(response5.isFailure(), is(false));
-        SearchTemplateResponse searchTemplateResponse5 = response5.getResponse();
-        assertThat(searchTemplateResponse5.hasResponse(), is(false));
-        assertThat(searchTemplateResponse5.getSource().utf8ToString(), equalTo("{\"query\":{\"terms\":{\"group\":[1,2,3,]}}}"));
+        assertThat(response5.isFailure(), is(true));
+        assertNull(response5.getResponse());
+        assertThat(response5.getFailure(), instanceOf(XContentParseException.class));
     }
 
     /**
-    * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+    * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before TransportVersion.current() works
     */
     public void testCCSCheckCompatibility() throws Exception {
         String templateString = """
@@ -194,15 +195,21 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         searchTemplateRequest.setRequest(new SearchRequest());
         MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
         request.add(searchTemplateRequest);
-        MultiSearchTemplateResponse multiSearchTemplateResponse = client().execute(MultiSearchTemplateAction.INSTANCE, request).get();
+        MultiSearchTemplateResponse multiSearchTemplateResponse = client().execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, request)
+            .get();
         Item response = multiSearchTemplateResponse.getResponses()[0];
         assertTrue(response.isFailure());
         Exception ex = response.getFailure();
         assertThat(ex.getMessage(), containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version"));
         assertThat(ex.getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
-        assertEquals(
-            "This query isn't serializable with transport versions before " + TransportVersion.current(),
-            ex.getCause().getMessage()
+
+        String expectedCause = Strings.format(
+            "[fail_before_current_version] was released first in version %s, failed compatibility "
+                + "check trying to send it to node with version %s",
+            FailBeforeCurrentVersionQueryBuilder.FUTURE_VERSION,
+            TransportVersions.MINIMUM_CCS_VERSION
         );
+        String actualCause = ex.getCause().getMessage();
+        assertEquals(expectedCause, actualCause);
     }
 }

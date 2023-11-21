@@ -44,10 +44,10 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -674,8 +674,6 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                     ch.flushInbound();
                 }).get();
                 testThreadPool.generic().submit(() -> ch.close().get()).get();
-                assertThat(dispatchThrowableReference.get().toString(), containsString("Connection closed before received headers"));
-                assertThat(badDispatchInvocationCount.get(), is(6));
                 assertThat(authnInvocationCount.get(), is(0));
             }
         } finally {

@@ -8,7 +8,6 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
@@ -19,6 +18,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DummyQueryParserPlugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -101,7 +101,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
@@ -122,7 +122,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
@@ -143,7 +143,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
@@ -188,6 +188,57 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         getResponse = clusterAdmin().prepareGetStoredScript("testTemplate").get();
         assertNull(getResponse.getSource());
+    }
+
+    public void testBadTemplate() {
+
+        // This template will produce badly formed json if given a multi-valued `text_fields` parameter,
+        // as it does not add commas between the entries. We test that it produces a 400 json parsing
+        // error both when used directly and when used in a render template request.
+
+        String script = """
+            {
+                "query": {
+                    "multi_match": {
+                      "query": "{{query_string}}",
+                      "fields": [{{#text_fields}}"{{name}}^{{boost}}"{{/text_fields}}]
+                    }
+                },
+                "from": "{{from}}",
+                "size": "{{size}}"
+            }""";
+
+        Map<String, Object> params = Map.of(
+            "text_fields",
+            List.of(Map.of("name", "title", "boost", 10), Map.of("name", "description", "boost", 2)),
+            "from",
+            0,
+            "size",
+            0
+        );
+
+        {
+            XContentParseException e = expectThrows(XContentParseException.class, () -> {
+                new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest())
+                    .setScript(script)
+                    .setScriptParams(params)
+                    .setScriptType(ScriptType.INLINE)
+                    .get();
+            });
+            assertThat(e.getMessage(), containsString("Unexpected character"));
+        }
+
+        {
+            XContentParseException e = expectThrows(XContentParseException.class, () -> {
+                new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest())
+                    .setScript(script)
+                    .setScriptParams(params)
+                    .setScriptType(ScriptType.INLINE)
+                    .setSimulate(true)
+                    .get();
+            });
+            assertThat(e.getMessage(), containsString("Unexpected character"));
+        }
     }
 
     public void testIndexedTemplate() throws Exception {
@@ -352,7 +403,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     }
 
     /**
-     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before
+     * TransportVersions.MINIMUM_CCS_VERSION works
      */
     public void testCCSCheckCompatibility() throws Exception {
         String templateString = """
@@ -363,16 +415,24 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         request.setRequest(new SearchRequest());
         ExecutionException ex = expectThrows(
             ExecutionException.class,
-            () -> client().execute(SearchTemplateAction.INSTANCE, request).get()
+            () -> client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get()
         );
+
+        Throwable primary = ex.getCause();
+        assertNotNull(primary);
+
+        Throwable underlying = primary.getCause();
+        assertNotNull(underlying);
+
         assertThat(
-            ex.getCause().getMessage(),
+            primary.getMessage(),
             containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
         );
-        assertThat(ex.getCause().getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
-        assertEquals(
-            "This query isn't serializable with transport versions before " + TransportVersion.current(),
-            ex.getCause().getCause().getMessage()
-        );
+        assertThat(primary.getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
+
+        String expectedCause = "[fail_before_current_version] was released first in version XXXXXXX, failed compatibility check trying to"
+            + " send it to node with version XXXXXXX";
+        String actualCause = underlying.getMessage().replaceAll("\\d{7,}", "XXXXXXX");
+        assertEquals(expectedCause, actualCause);
     }
 }

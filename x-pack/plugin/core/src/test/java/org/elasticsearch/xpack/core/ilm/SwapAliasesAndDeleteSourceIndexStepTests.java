@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -19,7 +18,9 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Arrays;
@@ -69,7 +70,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
     public void testPerformAction() {
         String sourceIndexName = randomAlphaOfLength(10);
         IndexMetadata.Builder sourceIndexMetadataBuilder = IndexMetadata.builder(sourceIndexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
         Boolean isHidden = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
@@ -103,7 +104,8 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
                 .isHidden(isHidden)
         );
 
-        try (NoOpClient client = getIndicesAliasAssertingClient(expectedAliasActions)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getIndicesAliasAssertingClient(threadPool, expectedAliasActions);
             SwapAliasesAndDeleteSourceIndexStep step = new SwapAliasesAndDeleteSourceIndexStep(
                 randomStepKey(),
                 randomStepKey(),
@@ -112,7 +114,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             );
 
             IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndexName)
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5));
 
@@ -124,8 +126,8 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
         }
     }
 
-    private NoOpClient getIndicesAliasAssertingClient(List<AliasActions> expectedAliasActions) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getIndicesAliasAssertingClient(ThreadPool threadPool, List<AliasActions> expectedAliasActions) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

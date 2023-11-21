@@ -64,7 +64,7 @@ public class NestedLookupTests extends MapperServiceTestCase {
     }
 
     private static NestedObjectMapper buildMapper(String name) {
-        return new NestedObjectMapper.Builder(name, IndexVersion.current()).build(MapperBuilderContext.root(false));
+        return new NestedObjectMapper.Builder(name, IndexVersion.current()).build(MapperBuilderContext.root(false, false));
     }
 
     public void testAllParentFilters() {
@@ -79,6 +79,43 @@ public class NestedLookupTests extends MapperServiceTestCase {
 
         NestedLookup lookup = NestedLookup.build(mappers);
         assertThat(lookup.getNestedParentFilters().keySet(), containsInAnyOrder("a", "a.b", "a.b.c.d"));
+    }
+
+    public void testGetNestedParent() {
+        List<NestedObjectMapper> mappers = List.of(
+            buildMapper("a.b"),
+            buildMapper("a.d"),
+            buildMapper("a.b.c.d.e"),
+            buildMapper("a.b.d"),
+            buildMapper("a"),
+            buildMapper("a.b.c.d")
+        );
+
+        NestedLookup lookup = NestedLookup.build(mappers);
+        assertNull(lookup.getNestedParent("foo"));
+        assertEquals("a.b", lookup.getNestedParent("a.b.foo"));
+        assertEquals("a", lookup.getNestedParent("a.foo.bar"));
+        assertEquals("a.b.d", lookup.getNestedParent("a.b.d.foo"));
+        assertEquals("a.b", lookup.getNestedParent("a.b.c.foo"));
+        assertNull(lookup.getNestedParent("aa.b"));
+    }
+
+    public void testGetImmediateChildren() {
+        List<NestedObjectMapper> mappers = List.of(
+            buildMapper("a.b"),
+            buildMapper("a.d"),
+            buildMapper("a.b.c.d.e"),
+            buildMapper("a.b.d"),
+            buildMapper("a"),
+            buildMapper("a.b.c.d")
+        );
+
+        NestedLookup lookup = NestedLookup.build(mappers);
+        assertEquals(List.of("a.b.c.d", "a.b.d"), lookup.getImmediateChildMappers("a.b"));
+        assertEquals(List.of(), lookup.getImmediateChildMappers("a.b.d"));
+        assertEquals(List.of("a"), lookup.getImmediateChildMappers(""));
+        assertEquals(List.of(), lookup.getImmediateChildMappers("aa"));
+        assertEquals(List.of(), lookup.getImmediateChildMappers("a.c"));
     }
 
 }

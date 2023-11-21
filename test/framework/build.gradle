@@ -26,9 +26,9 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // mockito
-  api 'org.mockito:mockito-core:5.1.1'
-  api 'org.mockito:mockito-subclass:5.1.1'
-  api 'net.bytebuddy:byte-buddy:1.12.22'
+  api 'org.mockito:mockito-core:5.4.0'
+  api 'org.mockito:mockito-subclass:5.4.0'
+  api 'net.bytebuddy:byte-buddy:1.14.5'
   api 'org.objenesis:objenesis:3.3'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"

@@ -9,16 +9,22 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -29,7 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DynamicMappingTests extends MapperServiceTestCase {
 
-    private XContentBuilder dynamicMapping(String dynamicValue, CheckedConsumer<XContentBuilder, IOException> buildFields)
+    private static XContentBuilder dynamicMapping(String dynamicValue, CheckedConsumer<XContentBuilder, IOException> buildFields)
         throws IOException {
         return topMapping(b -> {
             b.field("dynamic", dynamicValue);
@@ -941,5 +947,60 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertNotNull(mapperService.fieldType("host.name"));
 
         assertEquals(0, mapperService.mappingLookup().objectMappers().size());
+    }
+
+    public void testDefaultDenseVectorMappings() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("numeric_detection", true)));
+        doTestDefaultDenseVectorMappings(mapper, XContentFactory.jsonBuilder());
+        doTestDefaultDenseVectorMappings(mapper, XContentFactory.yamlBuilder());
+        doTestDefaultDenseVectorMappings(mapper, XContentFactory.smileBuilder());
+        doTestDefaultDenseVectorMappings(mapper, XContentFactory.cborBuilder());
+    }
+
+    private void doTestDefaultDenseVectorMappings(DocumentMapper mapper, XContentBuilder builder) throws IOException {
+        BytesReference source = BytesReference.bytes(
+            builder.startObject()
+                .field("mapsToFloatTooSmall", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING - 1, 0.0, 5.0).toArray())
+                .field("mapsToFloatTooBig", Randomness.get().doubles(MAX_DIMS_COUNT + 1, 0.0, 5.0).toArray())
+                .field("mapsToDenseVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
+                .endObject()
+        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, builder.contentType()));
+        Mapping update = parsedDocument.dynamicMappingsUpdate();
+        assertNotNull(update);
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToFloatTooSmall")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToFloatTooBig")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToDenseVector")).fieldType().typeName(), equalTo("dense_vector"));
+        DenseVectorFieldMapper dvFieldMapper = ((DenseVectorFieldMapper) update.getRoot().getMapper("mapsToDenseVector"));
+    }
+
+    public void testDefaultDenseVectorMappingsObject() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("numeric_detection", true)));
+        BytesReference source = BytesReference.bytes(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("parent_object")
+                .field("mapsToFloatTooSmall", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING - 1, 0.0, 5.0).toArray())
+                .field("mapsToFloatTooBig", Randomness.get().doubles(MAX_DIMS_COUNT + 1, 0.0, 5.0).toArray())
+                .field("mapsToDenseVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
+                .endObject()
+                .endObject()
+        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, XContentType.JSON));
+        Mapping update = parsedDocument.dynamicMappingsUpdate();
+        assertNotNull(update);
+        ObjectMapper parent = (ObjectMapper) update.getRoot().getMapper("parent_object");
+        assertThat(((FieldMapper) parent.getMapper("mapsToDenseVector")).fieldType().typeName(), equalTo("dense_vector"));
+    }
+
+    public void testStringArraysAreText() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("numeric_detection", true)));
+        BytesReference source = BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject().field("mapsToString", Stream.generate(() -> "foo").limit(129).toArray()).endObject()
+        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, XContentType.JSON));
+        Mapping update = parsedDocument.dynamicMappingsUpdate();
+        assertNotNull(update);
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToString")).fieldType().typeName(), equalTo("text"));
     }
 }

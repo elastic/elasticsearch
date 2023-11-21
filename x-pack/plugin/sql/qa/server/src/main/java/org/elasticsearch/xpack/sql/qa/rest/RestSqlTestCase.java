@@ -1167,6 +1167,226 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
+    public void testTsdbMetrics() throws IOException {
+        createTsdb1();
+        createTsdb2();
+
+        String mode = randomMode();
+        // select all from tsdb1
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "@timestamp", "datetime", JDBCType.DATE, 34),
+                columnInfo(mode, "k8s.pod.ip", "ip", JDBCType.VARCHAR, 45),
+                columnInfo(mode, "k8s.pod.name", "keyword", JDBCType.VARCHAR, 32766),
+                columnInfo(mode, "k8s.pod.network.rx", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "k8s.pod.network.tx", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "k8s.pod.uid", "keyword", JDBCType.VARCHAR, 32766),
+                columnInfo(mode, "metricset", "keyword", JDBCType.VARCHAR, 32766)
+            )
+        );
+        expected.put(
+            "rows",
+            singletonList(
+                Arrays.asList(
+                    "2021-04-28T18:50:04.467Z",
+                    "10.10.55.1",
+                    "cat",
+                    802133794,
+                    2001818691,
+                    "947e4ced-1786-4e53-9e0c-5c447e959507",
+                    "pod"
+                )
+            )
+        );
+        assertResponse(expected, runSql(mode, "SELECT * FROM tsdb1", false));
+
+        // select all from tsdb2
+        expected = new HashMap<>();
+        expected.put(
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "@timestamp", "datetime", JDBCType.DATE, 34),
+                columnInfo(mode, "dim", "keyword", JDBCType.VARCHAR, 32766),
+                columnInfo(mode, "k8s.pod.ip", "ip", JDBCType.VARCHAR, 45),
+                columnInfo(mode, "k8s.pod.network.tx", "long", JDBCType.BIGINT, 20)
+            )
+        );
+        expected.put("rows", singletonList(Arrays.asList("2021-04-28T18:50:04.467Z", "A", null, null)));
+        assertResponse(expected, runSql(mode, "SELECT * FROM tsdb2", false));
+
+        // select all from both indices
+        expected = new HashMap<>();
+        expected.put(
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "@timestamp", "datetime", JDBCType.DATE, 34),
+                columnInfo(mode, "dim", "keyword", JDBCType.VARCHAR, 32766),
+                columnInfo(mode, "k8s.pod.ip", "ip", JDBCType.VARCHAR, 45),
+                columnInfo(mode, "k8s.pod.name", "keyword", JDBCType.VARCHAR, 32766),
+                columnInfo(mode, "k8s.pod.network.rx", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "k8s.pod.network.tx", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "k8s.pod.uid", "keyword", JDBCType.VARCHAR, 32766),
+                columnInfo(mode, "metricset", "keyword", JDBCType.VARCHAR, 32766)
+            )
+        );
+        expected.put(
+            "rows",
+            Arrays.asList(
+                Arrays.asList(
+                    "2021-04-28T18:50:04.467Z",
+                    null,
+                    "10.10.55.1",
+                    "cat",
+                    802133794,
+                    2001818691,
+                    "947e4ced-1786-4e53-9e0c-5c447e959507",
+                    "pod"
+                ),
+                Arrays.asList("2021-04-28T18:50:04.467Z", "A", null, null, null, null, null, null)
+            )
+        );
+        assertResponse(expected, runSql(mode, "SELECT * FROM \\\"tsdb*\\\"", false));
+
+        // select the column that is both mapped as counter and as long
+        expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(columnInfo(mode, "k8s.pod.network.tx", "long", JDBCType.BIGINT, 20)));
+        expected.put("rows", Arrays.asList(singletonList(2001818691), singletonList(null)));
+        assertResponse(expected, runSql(mode, "SELECT k8s.pod.network.tx FROM \\\"tsdb*\\\"", false));
+
+        deleteIndex(client(), "tsdb1");
+        deleteIndex(client(), "tsdb2");
+    }
+
+    private void createTsdb2() throws IOException {
+        Request request = new Request("PUT", "/tsdb2");
+        request.setJsonEntity("""
+            {
+                  "settings": {
+                      "index": {
+                          "mode": "time_series",
+                          "routing_path": ["dim"],
+                          "time_series": {
+                              "start_time": "2021-04-28T00:00:00Z",
+                              "end_time": "2021-04-29T00:00:00Z"
+                          }
+                      }
+                  },
+                  "mappings": {
+                      "properties": {
+                          "@timestamp": {
+                              "type": "date"
+                          },
+                          "dim": {
+                              "type": "keyword",
+                              "time_series_dimension": "true"
+                          },
+                          "agg_metric": {
+                              "type": "aggregate_metric_double",
+                              "metrics": ["max"],
+                              "default_metric": "max"
+                          },
+                          "k8s": {
+                              "properties": {
+                                  "pod": {
+                                      "properties": {
+                                          "ip": {
+                                              "type": "ip"
+                                          },
+                                          "network": {
+                                              "properties": {
+                                                  "tx": {
+                                                      "type": "long"
+                                                  }
+                                              }
+                                          }
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }""");
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/tsdb2/_doc");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity("{\"@timestamp\": \"2021-04-28T18:50:04.467Z\", \"dim\": \"A\", \"agg_metric\": {\"max\": 10}}");
+        client().performRequest(request);
+    }
+
+    private void createTsdb1() throws IOException {
+        Request request = new Request("PUT", "/tsdb1");
+        request.setJsonEntity("""
+            {
+                 "settings": {
+                     "index": {
+                         "mode": "time_series",
+                         "routing_path": [
+                             "metricset",
+                             "k8s.pod.uid"
+                         ],
+                         "time_series": {
+                             "start_time": "2021-04-28T00:00:00Z",
+                             "end_time": "2021-04-29T00:00:00Z"
+                         }
+                     }
+                 },
+                 "mappings": {
+                     "properties": {
+                         "@timestamp": {
+                             "type": "date"
+                         },
+                         "metricset": {
+                             "type": "keyword",
+                             "time_series_dimension": true
+                         },
+                         "k8s": {
+                             "properties": {
+                                 "pod": {
+                                     "properties": {
+                                         "uid": {
+                                             "type": "keyword",
+                                             "time_series_dimension": true
+                                         },
+                                         "name": {
+                                             "type": "keyword"
+                                         },
+                                         "ip": {
+                                             "type": "ip"
+                                         },
+                                         "network": {
+                                             "properties": {
+                                                 "tx": {
+                                                     "type": "long",
+                                                     "time_series_metric": "counter"
+                                                 },
+                                                 "rx": {
+                                                     "type": "long",
+                                                     "time_series_metric": "counter"
+                                                 }
+                                             }
+                                         }
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                 }
+             }""");
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/tsdb1/_doc");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity(
+            "{\"@timestamp\": \"2021-04-28T18:50:04.467Z\", \"metricset\": \"pod\","
+                + "\"k8s\": {\"pod\": {\"name\": \"cat\", \"uid\":\"947e4ced-1786-4e53-9e0c-5c447e959507\", \"ip\": \"10.10.55.1\","
+                + "\"network\": {\"tx\": 2001818691, \"rx\": 802133794}}}}"
+        );
+        client().performRequest(request);
+    }
+
     private void executeQueryWithNextPage(String format, String expectedHeader, String expectedLineFormat) throws IOException {
         int size = 20;
         String[] docs = new String[size];
@@ -1214,7 +1434,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(0, getNumberOfSearchContexts(provisioningClient(), "test"));
     }
 
-    private static void bulkLoadTestData(int count) throws IOException {
+    private void bulkLoadTestData(int count) throws IOException {
         Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
@@ -1539,7 +1759,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
      * 2. There are at most `expectedValues.size() / pageSize + 1` pages (the last one might or might not be empty)
      * 3. Optionally: That the last page is not empty.
      */
-    private void testFetchAllPages(String format, String query, List<String> expectedValues, int pageSize, boolean emptyLastPage)
+    private static void testFetchAllPages(String format, String query, List<String> expectedValues, int pageSize, boolean emptyLastPage)
         throws IOException {
         int remainingPages = expectedValues.size() / pageSize + 1;
 

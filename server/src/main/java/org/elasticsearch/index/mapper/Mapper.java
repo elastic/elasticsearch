@@ -8,15 +8,20 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
+
     public abstract static class Builder {
 
         protected final String name;
@@ -41,7 +46,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
          * Whether we can parse this type on indices with the given index created version.
          */
         default boolean supportsVersion(IndexVersion indexCreatedVersion) {
-            return indexCreatedVersion.onOrAfter(IndexVersion.MINIMUM_COMPATIBLE);
+            return indexCreatedVersion.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE);
         }
     }
 
@@ -104,5 +109,28 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public static String internFieldName(String fieldName) {
         return fieldNameStringDeduplicator.deduplicate(fieldName);
+    }
+
+    private static final Map<FieldType, FieldType> fieldTypeDeduplicator = new ConcurrentHashMap<>();
+
+    /**
+     * Freezes the given {@link FieldType} instances and tries to deduplicate it as long as the field does not return a non-empty value for
+     * {@link FieldType#getAttributes()}.
+     *
+     * @param fieldType field type to deduplicate
+     * @return deduplicated field type
+     */
+    public static FieldType freezeAndDeduplicateFieldType(FieldType fieldType) {
+        fieldType.freeze();
+        var attributes = fieldType.getAttributes();
+        if ((attributes != null && attributes.isEmpty() == false) || fieldType.getClass() != FieldType.class) {
+            // don't deduplicate subclasses or types with non-empty attribute maps to avoid memory leaks
+            return fieldType;
+        }
+        if (fieldTypeDeduplicator.size() > 1000) {
+            // guard against the case where we run up too many combinations via (vector-)dimensions combinations
+            fieldTypeDeduplicator.clear();
+        }
+        return fieldTypeDeduplicator.computeIfAbsent(fieldType, Function.identity());
     }
 }

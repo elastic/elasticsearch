@@ -21,12 +21,13 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -45,14 +46,16 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.AdminClient;
@@ -123,6 +126,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.script.MockScriptService;
+import org.elasticsearch.search.ConcurrentSearchTestPlugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
@@ -154,9 +158,7 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -173,8 +175,10 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -838,7 +842,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas), index);
     }
 
-    private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
+    private static Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
         String exclude = String.join(",", internalCluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
         return builder;
@@ -959,32 +963,54 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // been removed by the master so that the health check applies to the set of nodes we expect to be part of the cluster.
             .waitForNodes(Integer.toString(cluster().size()));
 
-        ClusterHealthResponse actionGet = clusterAdmin().health(healthRequest).actionGet();
-        if (actionGet.isTimedOut()) {
-            final String hotThreads = clusterAdmin().prepareNodesHotThreads()
-                .setThreads(99999)
-                .setIgnoreIdleThreads(false)
-                .get()
-                .getNodes()
-                .stream()
-                .map(NodeHotThreads::getHotThreads)
-                .collect(Collectors.joining("\n"));
+        final ClusterHealthResponse clusterHealthResponse = clusterAdmin().health(healthRequest).actionGet();
+        if (clusterHealthResponse.isTimedOut()) {
+            final var allocationExplainRef = new AtomicReference<ClusterAllocationExplainResponse>();
+            final var clusterStateRef = new AtomicReference<ClusterStateResponse>();
+            final var pendingTasksRef = new AtomicReference<PendingClusterTasksResponse>();
+            final var hotThreadsRef = new AtomicReference<NodesHotThreadsResponse>();
+
+            final var detailsFuture = new PlainActionFuture<Void>();
+            try (var listeners = new RefCountingListener(detailsFuture)) {
+                clusterAdmin().prepareAllocationExplain().execute(listeners.acquire(allocationExplainRef::set));
+                clusterAdmin().prepareState().execute(listeners.acquire(clusterStateRef::set));
+                clusterAdmin().preparePendingClusterTasks().execute(listeners.acquire(pendingTasksRef::set));
+                clusterAdmin().prepareNodesHotThreads()
+                    .setThreads(9999)
+                    .setIgnoreIdleThreads(false)
+                    .execute(listeners.acquire(hotThreadsRef::set));
+            }
+
+            try {
+                detailsFuture.get(60, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                logger.error("failed to get full debug details within 60s timeout", e);
+            }
+
             logger.info(
-                "{} timed out, cluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
+                "{} timed out\nallocation explain:\n{}\ncluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
                 method,
-                clusterAdmin().prepareState().get().getState(),
-                clusterAdmin().preparePendingClusterTasks().get(),
-                hotThreads
+                safeFormat(allocationExplainRef.get(), r -> Strings.toString(r.getExplanation(), true, true)),
+                safeFormat(clusterStateRef.get(), r -> r.getState().toString()),
+                safeFormat(pendingTasksRef.get(), r -> Strings.toString(r, true, true)),
+                safeFormat(
+                    hotThreadsRef.get(),
+                    r -> r.getNodes().stream().map(NodeHotThreads::getHotThreads).collect(Collectors.joining("\n"))
+                )
             );
             fail("timed out waiting for " + color + " state");
         }
         assertThat(
-            "Expected at least " + clusterHealthStatus + " but got " + actionGet.getStatus(),
-            actionGet.getStatus().value(),
+            "Expected at least " + clusterHealthStatus + " but got " + clusterHealthResponse.getStatus(),
+            clusterHealthResponse.getStatus().value(),
             lessThanOrEqualTo(clusterHealthStatus.value())
         );
         logger.debug("indices {} are {}", indices.length == 0 ? "[_all]" : indices, color);
-        return actionGet.getStatus();
+        return clusterHealthResponse.getStatus();
+    }
+
+    private static <T> String safeFormat(@Nullable T value, Function<T, String> formatter) {
+        return value == null ? null : formatter.apply(value);
     }
 
     /**
@@ -1036,8 +1062,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    long count = client().prepareSearch()
-                        .setTrackTotalHits(true)
+                    long count = prepareSearch().setTrackTotalHits(true)
                         .setSize(0)
                         .setQuery(matchAllQuery())
                         .get()
@@ -1065,6 +1090,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    public static SearchRequestBuilder prepareSearch(String... indices) {
+        return client().prepareSearch(indices);
     }
 
     /**
@@ -1280,7 +1309,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    private void ensureClusterInfoServiceRunning() {
+    private static void ensureClusterInfoServiceRunning() {
         if (isInternalCluster() && cluster().size() > 0) {
             // ensures that the cluster info service didn't leak its async task, which would prevent future refreshes
             refreshClusterInfo();
@@ -1364,7 +1393,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, XContentBuilder source) {
+    protected final DocWriteResponse index(String index, XContentBuilder source) {
         return client().prepareIndex(index).setSource(source).execute().actionGet();
     }
 
@@ -1374,21 +1403,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String id, Map<String, Object> source) {
-        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
-    }
-
-    protected final ActionFuture<IndexResponse> startIndex(String index, String id, BytesReference source, XContentType type) {
-        return client().prepareIndex(index).setId(id).setSource(source, type).execute();
-    }
-
-    /**
-     * Syntactic sugar for:
-     * <pre>
-     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
-     * </pre>
-     */
-    protected final IndexResponse index(String index, String id, XContentBuilder source) {
+    protected final DocWriteResponse index(String index, String id, Map<String, Object> source) {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
@@ -1398,7 +1413,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse indexDoc(String index, String id, Object... source) {
+    protected final DocWriteResponse index(String index, String id, XContentBuilder source) {
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
+    }
+
+    /**
+     * Syntactic sugar for:
+     * <pre>
+     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
+     * </pre>
+     */
+    protected final DocWriteResponse indexDoc(String index, String id, Object... source) {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
@@ -1410,7 +1435,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * <p>
      * where source is a JSON String.
      */
-    protected final IndexResponse index(String index, String id, String source) {
+    protected final DocWriteResponse index(String index, String id, String source) {
         return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 
@@ -1956,46 +1981,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Collections.emptyList();
     }
 
-    private ExternalTestCluster buildExternalCluster(String clusterAddresses, String clusterName) throws IOException {
-        String[] stringAddresses = clusterAddresses.split(",");
-        TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
-        int i = 0;
-        for (String stringAddress : stringAddresses) {
-            URL url = new URL("http://" + stringAddress);
-            InetAddress inetAddress = InetAddress.getByName(url.getHost());
-            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
-        }
-        return new ExternalTestCluster(
-            createTempDir(),
-            externalClusterClientSettings(),
-            nodePlugins(),
-            getClientWrapper(),
-            clusterName,
-            transportAddresses
-        );
-    }
-
-    protected Settings externalClusterClientSettings() {
-        return Settings.EMPTY;
-    }
-
-    protected boolean ignoreExternalCluster() {
-        return false;
-    }
-
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        String clusterAddresses = System.getProperty(TESTS_CLUSTER);
-        if (Strings.hasLength(clusterAddresses) && ignoreExternalCluster() == false) {
-            if (scope == Scope.TEST) {
-                throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
-            }
-            String clusterName = System.getProperty(TESTS_CLUSTER_NAME);
-            if (Strings.isNullOrEmpty(clusterName)) {
-                throw new IllegalArgumentException("External test cluster name must be provided");
-            }
-            return buildExternalCluster(clusterAddresses, clusterName);
-        }
-
         final String nodePrefix = switch (scope) {
             case TEST -> TEST_CLUSTER_NODE_PREFIX;
             case SUITE -> SUITE_CLUSTER_NODE_PREFIX;
@@ -2036,7 +2022,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             mockPlugins,
             getClientWrapper(),
             forbidPrivateIndexSettings(),
-            forceSingleDataPath()
+            forceSingleDataPath(),
+            autoManageVotingExclusions()
         );
     }
 
@@ -2044,6 +2031,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Settings.Builder initialNodeSettings = Settings.builder();
         if (addMockTransportService()) {
             initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
+        }
+        boolean enableConcurrentSearch = enableConcurrentSearch();
+        if (enableConcurrentSearch) {
+            initialNodeSettings.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
+        } else {
+            initialNodeSettings.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false);
         }
         return new NodeConfigurationSource() {
             @Override
@@ -2061,6 +2054,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
+                if (enableConcurrentSearch) {
+                    List<Class<? extends Plugin>> plugins = new ArrayList<>(ESIntegTestCase.this.nodePlugins());
+                    plugins.add(ConcurrentSearchTestPlugin.class);
+                    return plugins;
+                }
                 return ESIntegTestCase.this.nodePlugins();
             }
         };
@@ -2071,6 +2069,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * The default is {@code true}.
      */
     protected boolean addMockTransportService() {
+        return true;
+    }
+
+    /**
+     * Whether we'd like to enable inter-segment search concurrency and increase the likelihood of leveraging it, by creating multiple
+     * slices with a low amount of documents in them, which would not be allowed in production.
+     * Default is true, can be disabled if it causes problems in specific tests.
+     */
+    protected boolean enableConcurrentSearch() {
         return true;
     }
 
@@ -2154,7 +2161,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 @Override
                 public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
                     String action,
-                    String executor,
+                    Executor executor,
                     boolean forceExecution,
                     TransportRequestHandler<T> actualHandler
                 ) {
@@ -2388,6 +2395,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return createRestClient(null, "http");
     }
 
+    protected static RestClient createRestClient(String node) {
+        return createRestClient(client(node).admin().cluster().prepareNodesInfo("_local").get().getNodes(), null, "http");
+    }
+
     protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         NodesInfoResponse nodesInfoResponse = clusterAdmin().prepareNodesInfo().get();
         assertFalse(nodesInfoResponse.hasFailures());
@@ -2421,6 +2432,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @see SuiteScopeTestCase
      */
     protected void setupSuiteScopeCluster() throws Exception {}
+
+    protected boolean autoManageVotingExclusions() {
+        // Temporary workaround until #98055 is tackled
+        return true;
+    }
 
     private static boolean isSuiteScopedTest(Class<?> clazz) {
         return clazz.getAnnotation(SuiteScopeTestCase.class) != null;

@@ -9,7 +9,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
-archivesBaseName = 'x-pack-constant-keyword'
+base {
+  archivesName = 'x-pack-constant-keyword'
+}
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')

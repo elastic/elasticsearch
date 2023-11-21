@@ -1,0 +1,10 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+base | exponent | result
+double | double | double
+double | integer | double
+integer | double | double
+integer | integer | integer
+long | double | double
+long | integer | long
+|===

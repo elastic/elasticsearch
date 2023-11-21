@@ -73,7 +73,9 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
           continue position;
         }
         if (valueBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (valueBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -82,7 +84,9 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
           continue position;
         }
         if (chronoFieldBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (chronoFieldBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

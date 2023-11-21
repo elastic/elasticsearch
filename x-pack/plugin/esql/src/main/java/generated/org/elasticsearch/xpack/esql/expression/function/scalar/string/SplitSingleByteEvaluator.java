@@ -64,7 +64,9 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
           continue position;
         }
         if (strBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

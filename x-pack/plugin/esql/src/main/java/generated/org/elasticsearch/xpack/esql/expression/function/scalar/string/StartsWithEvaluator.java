@@ -70,7 +70,9 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
           continue position;
         }
         if (strBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -79,7 +81,9 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
           continue position;
         }
         if (prefixBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (prefixBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

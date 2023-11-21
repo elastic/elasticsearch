@@ -81,7 +81,9 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
           continue position;
         }
         if (strBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -90,7 +92,9 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
           continue position;
         }
         if (startBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (startBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -99,7 +103,9 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
           continue position;
         }
         if (lengthBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (lengthBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

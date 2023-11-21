@@ -69,7 +69,9 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
           continue position;
         }
         if (strBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -78,7 +80,9 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
           continue position;
         }
         if (startBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (startBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

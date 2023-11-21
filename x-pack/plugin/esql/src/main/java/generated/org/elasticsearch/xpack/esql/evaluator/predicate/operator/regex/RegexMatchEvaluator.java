@@ -63,7 +63,9 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
           continue position;
         }
         if (inputBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (inputBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

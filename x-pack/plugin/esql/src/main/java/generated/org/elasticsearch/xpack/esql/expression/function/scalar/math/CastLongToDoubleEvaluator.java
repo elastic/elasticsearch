@@ -57,7 +57,9 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
           continue position;
         }
         if (vBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (vBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

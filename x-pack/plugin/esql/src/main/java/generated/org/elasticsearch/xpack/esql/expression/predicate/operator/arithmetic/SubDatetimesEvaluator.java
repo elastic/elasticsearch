@@ -61,7 +61,9 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
           continue position;
         }
         if (datetimeBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (datetimeBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

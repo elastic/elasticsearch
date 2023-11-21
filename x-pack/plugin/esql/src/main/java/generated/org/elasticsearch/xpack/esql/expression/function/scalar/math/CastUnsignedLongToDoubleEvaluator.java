@@ -57,7 +57,9 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
           continue position;
         }
         if (vBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (vBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

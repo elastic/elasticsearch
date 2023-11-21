@@ -65,7 +65,9 @@ public final class ModDoublesEvaluator implements EvalOperator.ExpressionEvaluat
           continue position;
         }
         if (lhsBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (lhsBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -74,7 +76,9 @@ public final class ModDoublesEvaluator implements EvalOperator.ExpressionEvaluat
           continue position;
         }
         if (rhsBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (rhsBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

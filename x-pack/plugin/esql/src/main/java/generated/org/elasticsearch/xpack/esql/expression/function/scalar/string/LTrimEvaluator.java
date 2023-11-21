@@ -57,7 +57,9 @@ public final class LTrimEvaluator implements EvalOperator.ExpressionEvaluator {
           continue position;
         }
         if (valBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (valBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

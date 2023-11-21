@@ -72,7 +72,9 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
           continue position;
         }
         if (strBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -81,7 +83,9 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
           continue position;
         }
         if (delimBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (delimBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

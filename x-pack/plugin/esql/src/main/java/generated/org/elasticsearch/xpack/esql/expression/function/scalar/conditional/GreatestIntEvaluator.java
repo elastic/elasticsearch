@@ -67,7 +67,9 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
             continue position;
           }
           if (valuesBlocks[i].getValueCount(p) != 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            if (valuesBlocks[i].getValueCount(p) > 1) {
+              warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            }
             result.appendNull();
             continue position;
           }

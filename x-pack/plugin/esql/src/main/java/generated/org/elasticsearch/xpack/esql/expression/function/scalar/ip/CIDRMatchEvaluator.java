@@ -84,7 +84,9 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
           continue position;
         }
         if (ipBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (ipBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -94,7 +96,9 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
             continue position;
           }
           if (cidrsBlocks[i].getValueCount(p) != 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            if (cidrsBlocks[i].getValueCount(p) > 1) {
+              warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            }
             result.appendNull();
             continue position;
           }

@@ -65,7 +65,9 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
           continue position;
         }
         if (yBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (yBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -74,7 +76,9 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
           continue position;
         }
         if (xBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (xBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

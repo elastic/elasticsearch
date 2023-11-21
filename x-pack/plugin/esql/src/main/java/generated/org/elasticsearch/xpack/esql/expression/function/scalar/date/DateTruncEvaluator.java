@@ -59,7 +59,9 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
           continue position;
         }
         if (fieldValBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (fieldValBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

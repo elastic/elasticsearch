@@ -67,7 +67,9 @@ public final class PowLongEvaluator implements EvalOperator.ExpressionEvaluator 
           continue position;
         }
         if (baseBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (baseBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -76,7 +78,9 @@ public final class PowLongEvaluator implements EvalOperator.ExpressionEvaluator 
           continue position;
         }
         if (exponentBlock.getValueCount(p) != 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          if (exponentBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

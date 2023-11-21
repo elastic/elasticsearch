@@ -63,34 +63,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     @Override
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
         Layout.Builder layout = source.layout.builder();
-
         var sourceAttr = fieldExtractExec.sourceAttribute();
-
-        PhysicalOperation op = source;
+        List<IndexReader> readers = searchContexts.stream().map(s -> s.searcher().getIndexReader()).toList();
+        List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
+        int docChannel = source.layout.get(sourceAttr.id()).channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             if (attr instanceof FieldAttribute fa && fa.getExactInfo().hasExact()) {
                 attr = fa.exactAttribute();
             }
             layout.append(attr);
-            Layout previousLayout = op.layout;
-
             DataType dataType = attr.dataType();
             String fieldName = attr.name();
             List<BlockLoader> loaders = BlockReaderFactories.loaders(searchContexts, fieldName, EsqlDataTypes.isUnsupported(dataType));
-            List<IndexReader> readers = searchContexts.stream().map(s -> s.searcher().getIndexReader()).toList();
-
-            int docChannel = previousLayout.get(sourceAttr.id()).channel();
-
-            op = op.with(
-                new ValuesSourceReaderOperator.Factory(
-                    List.of(new ValuesSourceReaderOperator.FieldInfo(fieldName, loaders)),
-                    readers,
-                    docChannel
-                ),
-                layout.build()
-            );
+            fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, loaders));
         }
-        return op;
+        return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
     }
 
     public static Function<SearchContext, Query> querySupplier(QueryBuilder queryBuilder) {

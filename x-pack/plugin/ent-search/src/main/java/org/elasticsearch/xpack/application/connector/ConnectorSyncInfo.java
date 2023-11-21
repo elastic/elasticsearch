@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
     @Nullable
@@ -122,6 +123,41 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
         out.writeOptionalString(lastSyncScheduledAt);
         out.writeOptionalEnum(lastSyncStatus);
         out.writeOptionalString(lastSynced);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ConnectorSyncInfo that = (ConnectorSyncInfo) o;
+        return Objects.equals(lastAccessControlSyncError, that.lastAccessControlSyncError)
+            && Objects.equals(lastAccessControlSyncScheduledAt, that.lastAccessControlSyncScheduledAt)
+            && lastAccessControlSyncStatus == that.lastAccessControlSyncStatus
+            && Objects.equals(lastDeletedDocumentCount, that.lastDeletedDocumentCount)
+            && Objects.equals(lastIncrementalSyncScheduledAt, that.lastIncrementalSyncScheduledAt)
+            && Objects.equals(lastIndexedDocumentCount, that.lastIndexedDocumentCount)
+            && Objects.equals(lastSeen, that.lastSeen)
+            && Objects.equals(lastSyncError, that.lastSyncError)
+            && Objects.equals(lastSyncScheduledAt, that.lastSyncScheduledAt)
+            && lastSyncStatus == that.lastSyncStatus
+            && Objects.equals(lastSynced, that.lastSynced);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            lastAccessControlSyncError,
+            lastAccessControlSyncScheduledAt,
+            lastAccessControlSyncStatus,
+            lastDeletedDocumentCount,
+            lastIncrementalSyncScheduledAt,
+            lastIndexedDocumentCount,
+            lastSeen,
+            lastSyncError,
+            lastSyncScheduledAt,
+            lastSyncStatus,
+            lastSynced
+        );
     }
 
     public static class Builder {

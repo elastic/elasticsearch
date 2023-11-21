@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -97,7 +98,7 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
         static {
             PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("index_name"));
-            PARSER.declareString(optionalConstructorArg(), new ParseField("is_native"));
+            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("is_native"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("language"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("name"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("service_type"));
@@ -181,6 +182,25 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
         public String getServiceType() {
             return serviceType;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return Objects.equals(connectorId, request.connectorId)
+                && Objects.equals(description, request.description)
+                && Objects.equals(indexName, request.indexName)
+                && Objects.equals(isNative, request.isNative)
+                && Objects.equals(language, request.language)
+                && Objects.equals(name, request.name)
+                && Objects.equals(serviceType, request.serviceType);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(connectorId, description, indexName, isNative, language, name, serviceType);
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -215,6 +235,19 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
                 case NOT_FOUND -> RestStatus.NOT_FOUND;
                 default -> RestStatus.OK;
             };
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return result == response.result;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(result);
         }
     }
 }

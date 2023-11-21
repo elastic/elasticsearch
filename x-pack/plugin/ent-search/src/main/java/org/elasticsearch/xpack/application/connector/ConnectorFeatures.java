@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -148,6 +149,31 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         out.writeOptionalBoolean(incrementalSyncEnabled);
         out.writeOptionalBoolean(syncRulesAdvancedEnabled);
         out.writeOptionalBoolean(syncRulesBasicEnabled);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ConnectorFeatures that = (ConnectorFeatures) o;
+        return Objects.equals(documentLevelSecurityEnabled, that.documentLevelSecurityEnabled)
+            && Objects.equals(filteringAdvancedConfigEnabled, that.filteringAdvancedConfigEnabled)
+            && Objects.equals(filteringRulesEnabled, that.filteringRulesEnabled)
+            && Objects.equals(incrementalSyncEnabled, that.incrementalSyncEnabled)
+            && Objects.equals(syncRulesAdvancedEnabled, that.syncRulesAdvancedEnabled)
+            && Objects.equals(syncRulesBasicEnabled, that.syncRulesBasicEnabled);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            documentLevelSecurityEnabled,
+            filteringAdvancedConfigEnabled,
+            filteringRulesEnabled,
+            incrementalSyncEnabled,
+            syncRulesAdvancedEnabled,
+            syncRulesBasicEnabled
+        );
     }
 
     public static class Builder {

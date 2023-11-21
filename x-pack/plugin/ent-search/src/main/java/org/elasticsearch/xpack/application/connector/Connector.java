@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -31,9 +32,9 @@ public class Connector implements Writeable, ToXContentObject {
     private final String connectorId;
     @Nullable
     private final String apiKeyId;
-
-    private final Map<String, Object> configuration;
-
+    @Nullable
+    private final Map<String, Object> configuration; // TODO: add explicit types
+    @Nullable
     private final ConnectorCustomSchedule customScheduling;
     @Nullable
     private final String description;
@@ -41,9 +42,7 @@ public class Connector implements Writeable, ToXContentObject {
     private final String error;
     @Nullable
     private final ConnectorFeatures features;
-
     private final List<ConnectorFiltering> filtering;
-
     @Nullable
     private final String indexName;
     @Nullable
@@ -60,7 +59,6 @@ public class Connector implements Writeable, ToXContentObject {
     private final ConnectorScheduling scheduling;
     @Nullable
     private final String serviceType;
-
     private final ConnectorStatus status;
     @Nullable
     private final Object syncCursor;
@@ -90,7 +88,7 @@ public class Connector implements Writeable, ToXContentObject {
     ) {
         this.connectorId = connectorId;
         this.apiKeyId = apiKeyId;
-        this.configuration = configuration;
+        this.configuration = Objects.requireNonNullElse(configuration, Collections.emptyMap());
         this.customScheduling = customScheduling;
         this.description = description;
         this.error = error;
@@ -204,6 +202,57 @@ public class Connector implements Writeable, ToXContentObject {
 
     public String getConnectorId() {
         return connectorId;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Connector connector = (Connector) o;
+        return Objects.equals(connectorId, connector.connectorId)
+            && Objects.equals(apiKeyId, connector.apiKeyId)
+            && Objects.equals(configuration, connector.configuration)
+            && Objects.equals(customScheduling, connector.customScheduling)
+            && Objects.equals(description, connector.description)
+            && Objects.equals(error, connector.error)
+            && Objects.equals(features, connector.features)
+            && Objects.equals(filtering, connector.filtering)
+            && Objects.equals(indexName, connector.indexName)
+            && Objects.equals(isNative, connector.isNative)
+            && Objects.equals(language, connector.language)
+            && Objects.equals(syncInfo, connector.syncInfo)
+            && Objects.equals(name, connector.name)
+            && Objects.equals(pipeline, connector.pipeline)
+            && Objects.equals(scheduling, connector.scheduling)
+            && Objects.equals(serviceType, connector.serviceType)
+            && status == connector.status
+            && Objects.equals(syncCursor, connector.syncCursor)
+            && Objects.equals(syncNow, connector.syncNow);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            connectorId,
+            apiKeyId,
+            configuration,
+            customScheduling,
+            description,
+            error,
+            features,
+            filtering,
+            indexName,
+            isNative,
+            language,
+            syncInfo,
+            name,
+            pipeline,
+            scheduling,
+            serviceType,
+            status,
+            syncCursor,
+            syncNow
+        );
     }
 
     public static class Builder {

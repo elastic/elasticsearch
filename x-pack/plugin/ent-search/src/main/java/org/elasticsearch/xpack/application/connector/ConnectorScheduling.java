@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -97,6 +98,21 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         accessControl.writeTo(out);
         full.writeTo(out);
         incremental.writeTo(out);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ConnectorScheduling that = (ConnectorScheduling) o;
+        return Objects.equals(accessControl, that.accessControl)
+            && Objects.equals(full, that.full)
+            && Objects.equals(incremental, that.incremental);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(accessControl, full, incremental);
     }
 
     public static class Builder {
@@ -176,6 +192,19 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(enabled);
             out.writeString(interval);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ScheduleConfig that = (ScheduleConfig) o;
+            return enabled == that.enabled && Objects.equals(interval, that.interval);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(enabled, interval);
         }
 
         public static class Builder {

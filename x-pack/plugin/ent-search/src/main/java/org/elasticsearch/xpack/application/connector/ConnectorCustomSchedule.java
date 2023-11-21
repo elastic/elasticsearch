@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -53,7 +54,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         this.configurationOverrides = in.readMap(StreamInput::readString, ConfigurationOverride::new);
         this.enabled = in.readBoolean();
         this.interval = in.readString();
-        this.lastSynced = in.readString();
+        this.lastSynced = in.readOptionalString();
         this.name = in.readString();
     }
 
@@ -96,19 +97,11 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (configurationOverrides != null) {
+        {
             builder.field(CONFIG_OVERRIDES_FIELD.getPreferredName(), configurationOverrides);
-        }
-        if (enabled != null) {
             builder.field(ENABLED_FIELD.getPreferredName(), enabled);
-        }
-        if (interval != null) {
             builder.field(INTERVAL_FIELD.getPreferredName(), interval);
-        }
-        if (lastSynced != null) {
             builder.field(LAST_SYNCED_FIELD.getPreferredName(), lastSynced);
-        }
-        if (name != null) {
             builder.field(NAME_FIELD.getPreferredName(), name);
         }
         builder.endObject();
@@ -120,8 +113,25 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         out.writeMap(configurationOverrides, StreamOutput::writeString, StreamOutput::writeGenericValue);
         out.writeBoolean(enabled);
         out.writeString(interval);
-        out.writeString(lastSynced);
+        out.writeOptionalString(lastSynced);
         out.writeString(name);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ConnectorCustomSchedule that = (ConnectorCustomSchedule) o;
+        return Objects.equals(configurationOverrides, that.configurationOverrides)
+            && Objects.equals(enabled, that.enabled)
+            && Objects.equals(interval, that.interval)
+            && Objects.equals(lastSynced, that.lastSynced)
+            && Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(configurationOverrides, enabled, interval, lastSynced, name);
     }
 
     public static class Builder {
@@ -255,6 +265,23 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
             out.writeOptionalStringCollection(domainAllowList);
             out.writeOptionalStringCollection(sitemapUrls);
             out.writeOptionalStringCollection(seedUrls);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ConfigurationOverride that = (ConfigurationOverride) o;
+            return Objects.equals(maxCrawlDepth, that.maxCrawlDepth)
+                && Objects.equals(sitemapDiscoveryDisabled, that.sitemapDiscoveryDisabled)
+                && Objects.equals(domainAllowList, that.domainAllowList)
+                && Objects.equals(sitemapUrls, that.sitemapUrls)
+                && Objects.equals(seedUrls, that.seedUrls);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(maxCrawlDepth, sitemapDiscoveryDisabled, domainAllowList, sitemapUrls, seedUrls);
         }
 
         public static class Builder {

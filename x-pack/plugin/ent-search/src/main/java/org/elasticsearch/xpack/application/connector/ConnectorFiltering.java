@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 public class ConnectorFiltering implements Writeable, ToXContentObject {
 
@@ -56,6 +57,19 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         active.writeTo(out);
         out.writeString(domain);
         draft.writeTo(out);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ConnectorFiltering that = (ConnectorFiltering) o;
+        return Objects.equals(active, that.active) && Objects.equals(domain, that.domain) && Objects.equals(draft, that.draft);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(active, domain, draft);
     }
 
     public static class Builder {
@@ -159,6 +173,31 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
             out.writeCollection(rules);
             out.writeCollection(validationErrors);
             out.writeEnum(validationState);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FilteringRules that = (FilteringRules) o;
+            return Objects.equals(advancedSnippetCreatedAt, that.advancedSnippetCreatedAt)
+                && Objects.equals(advancedSnippetUpdatedAt, that.advancedSnippetUpdatedAt)
+                && Objects.equals(advancedSnippetValue, that.advancedSnippetValue)
+                && Objects.equals(rules, that.rules)
+                && Objects.equals(validationErrors, that.validationErrors)
+                && validationState == that.validationState;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                advancedSnippetCreatedAt,
+                advancedSnippetUpdatedAt,
+                advancedSnippetValue,
+                rules,
+                validationErrors,
+                validationState
+            );
         }
 
         public static class Builder {
@@ -282,6 +321,26 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
             out.writeString(value);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FilteringRule that = (FilteringRule) o;
+            return Objects.equals(createdAt, that.createdAt)
+                && Objects.equals(field, that.field)
+                && Objects.equals(id, that.id)
+                && Objects.equals(order, that.order)
+                && policy == that.policy
+                && rule == that.rule
+                && Objects.equals(updatedAt, that.updatedAt)
+                && Objects.equals(value, that.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(createdAt, field, id, order, policy, rule, updatedAt, value);
+        }
+
         public static class Builder {
 
             private String createdAt;
@@ -369,6 +428,19 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
             out.writeStringCollection(messages);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FilteringValidation that = (FilteringValidation) o;
+            return Objects.equals(ids, that.ids) && Objects.equals(messages, that.messages);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(ids, messages);
+        }
+
         public static class Builder {
 
             private List<String> ids;
@@ -435,7 +507,6 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
     public static ConnectorFiltering getDefaultConnectorFilteringConfig() {
 
         String currentTimestamp = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-        ;
 
         return new ConnectorFiltering.Builder().setActive(
             new FilteringRules.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)

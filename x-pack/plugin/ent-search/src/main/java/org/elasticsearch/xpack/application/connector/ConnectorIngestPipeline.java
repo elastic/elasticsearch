@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
 
@@ -61,6 +62,22 @@ public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeBoolean(reduceWhitespace);
         out.writeBoolean(runMlInference);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ConnectorIngestPipeline that = (ConnectorIngestPipeline) o;
+        return Objects.equals(extractBinaryContent, that.extractBinaryContent)
+            && Objects.equals(name, that.name)
+            && Objects.equals(reduceWhitespace, that.reduceWhitespace)
+            && Objects.equals(runMlInference, that.runMlInference);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(extractBinaryContent, name, reduceWhitespace, runMlInference);
     }
 
     public static class Builder {

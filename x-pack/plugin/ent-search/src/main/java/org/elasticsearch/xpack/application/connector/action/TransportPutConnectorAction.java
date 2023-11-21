@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.Connector;
-import org.elasticsearch.xpack.application.connector.ConnectorCustomSchedule;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorScheduling;
@@ -58,7 +57,6 @@ public class TransportPutConnectorAction extends HandledTransportAction<PutConne
             .setServiceType(request.getServiceType())
             // Default values
             .setConfiguration(Collections.emptyMap())
-            .setCustomScheduling(new ConnectorCustomSchedule.Builder().build())
             .setScheduling(ConnectorScheduling.getDefaultConnectorScheduling())
             .setFiltering(List.of(ConnectorFiltering.getDefaultConnectorFilteringConfig()))
             .build();

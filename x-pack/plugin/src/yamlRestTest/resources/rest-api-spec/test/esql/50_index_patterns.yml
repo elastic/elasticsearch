@@ -1,5 +1,7 @@
 setup:
   - skip:
+      version: " - 8.10.99"
+      reason: "ESQL is available in 8.11+"
       features: allowed_warnings_regex
 
 ---
@@ -28,9 +30,9 @@ disjoint_mappings:
         index: test1
         refresh: true
         body:
-          - { "index": {} }
-          - { "message1": "foo1"}
-          - { "index": {} }
+          - { "index": { } }
+          - { "message1": "foo1" }
+          - { "index": { } }
           - { "message1": "foo2" }
 
   - do:
@@ -38,9 +40,9 @@ disjoint_mappings:
         index: test2
         refresh: true
         body:
-          - { "index": {} }
+          - { "index": { } }
           - { "message2": 1 }
-          - { "index": {} }
+          - { "index": { } }
           - { "message2": 2 }
 
   - do:
@@ -315,9 +317,9 @@ same_name_different_type:
         index: test1
         refresh: true
         body:
-          - { "index": {} }
-          - { "message": "foo1"}
-          - { "index": {} }
+          - { "index": { } }
+          - { "message": "foo1" }
+          - { "index": { } }
           - { "message": "foo2" }
 
   - do:
@@ -325,9 +327,9 @@ same_name_different_type:
         index: test2
         refresh: true
         body:
-          - { "index": {} }
+          - { "index": { } }
           - { "message": 1 }
-          - { "index": {} }
+          - { "index": { } }
           - { "message": 2 }
 
   - do:
@@ -367,9 +369,9 @@ same_name_different_type_same_family:
         index: test1
         refresh: true
         body:
-          - { "index": {} }
-          - { "message": "foo1"}
-          - { "index": {} }
+          - { "index": { } }
+          - { "message": "foo1" }
+          - { "index": { } }
           - { "message": "foo2" }
 
   - do:
@@ -377,9 +379,9 @@ same_name_different_type_same_family:
         index: test2
         refresh: true
         body:
-          - { "index": {} }
+          - { "index": { } }
           - { "message": "foo3" }
-          - { "index": {} }
+          - { "index": { } }
           - { "message": "foo4" }
 
   - do:

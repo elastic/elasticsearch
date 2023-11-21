@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Pow}.
  * This class is generated. Do not edit it.
  */
-public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
   private final EvalOperator.ExpressionEvaluator base;
@@ -30,7 +30,7 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
 
   private final DriverContext driverContext;
 
-  public PowDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator base,
+  public PowEvaluator(Source source, EvalOperator.ExpressionEvaluator base,
       EvalOperator.ExpressionEvaluator exponent, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.base = base;
@@ -95,7 +95,7 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
 
   @Override
   public String toString() {
-    return "PowDoubleEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
+    return "PowEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
   }
 
   @Override
@@ -118,13 +118,13 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
     }
 
     @Override
-    public PowDoubleEvaluator get(DriverContext context) {
-      return new PowDoubleEvaluator(source, base.get(context), exponent.get(context), context);
+    public PowEvaluator get(DriverContext context) {
+      return new PowEvaluator(source, base.get(context), exponent.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "PowDoubleEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
+      return "PowEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
     }
   }
 }

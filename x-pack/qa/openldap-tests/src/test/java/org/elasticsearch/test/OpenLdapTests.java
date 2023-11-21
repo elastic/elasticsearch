@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.test.fixtures.idp.OpenLdapTestContainer;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -57,6 +59,8 @@ public class OpenLdapTests extends ESTestCase {
 
     public static final String OPEN_LDAP_DNS_URL = "ldaps://localhost:" + getFromProperty("636");
 
+    @ClassRule
+    public static OpenLdapTestContainer openLdapTestContainer = new OpenLdapTestContainer();
     /**
      *
      * ip.es.io is magic that will resolve any IP-like DNS name into the embedded IP
@@ -67,6 +71,7 @@ public class OpenLdapTests extends ESTestCase {
      * so in order to have a "not-valid-hostname" failure, we need a second
      * hostname that isn't in the certificate's Subj Alt Name list
      */
+    // TODO get rid of this
     private static final String OPEN_LDAP_ES_IO_URL = "ldaps://127.0.0.1.ip.es.io:" + getFromProperty("636");
 
     public static final String PASSWORD = "NickFuryHeartsES";
@@ -192,6 +197,7 @@ public class OpenLdapTests extends ESTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "vmode_full");
+        String url = openLdapTestContainer.getAddress();
         Settings settings = Settings.builder()
             // The certificate used in the vagrant box is valid for "localhost", but not for "*.ip.es.io"
             .put(buildLdapSettings(realmId, OPEN_LDAP_ES_IO_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))

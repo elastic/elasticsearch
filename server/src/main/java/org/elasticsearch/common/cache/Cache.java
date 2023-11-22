@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.cache;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Tuple;
 
@@ -418,6 +419,9 @@ public class Cache<K, V> {
                     loaded = loader.load(key);
                 } catch (Exception e) {
                     future.completeExceptionally(e);
+                    if (e instanceof ElasticsearchException ex) {
+                        throw ex;
+                    }
                     throw new ExecutionException(e);
                 }
                 if (loaded == null) {

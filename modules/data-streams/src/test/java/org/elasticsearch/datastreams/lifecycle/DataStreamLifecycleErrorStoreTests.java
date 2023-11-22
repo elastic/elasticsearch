@@ -12,12 +12,13 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore.MAX_ERROR_MESSAGE_LENGTH;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -36,7 +37,7 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
         assertThat(existingRecordedError, is(nullValue()));
         assertThat(errorStore.getError("test"), is(notNullValue()));
         assertThat(errorStore.getAllIndices().size(), is(1));
-        assertThat(errorStore.getAllIndices().get(0), is("test"));
+        assertThat(errorStore.getAllIndices(), hasItem("test"));
 
         existingRecordedError = errorStore.recordError("test", new IllegalStateException("bad state"));
         assertThat(existingRecordedError, is(notNullValue()));
@@ -51,7 +52,7 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
 
     public void testGetAllIndicesIsASnapshotViewOfTheStore() {
         Stream.iterate(0, i -> i + 1).limit(5).forEach(i -> errorStore.recordError("test" + i, new NullPointerException("testing")));
-        List<String> initialAllIndices = errorStore.getAllIndices();
+        Set<String> initialAllIndices = errorStore.getAllIndices();
         assertThat(initialAllIndices.size(), is(5));
         assertThat(
             initialAllIndices,

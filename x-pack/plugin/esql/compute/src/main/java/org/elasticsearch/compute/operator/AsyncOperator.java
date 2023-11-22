@@ -166,6 +166,7 @@ public abstract class AsyncOperator implements Operator {
 
     @Override
     public boolean isFinished() {
+        checkFailure();
         return finished && checkpoint.getPersistedCheckpoint() == checkpoint.getMaxSeqNo();
     }
 

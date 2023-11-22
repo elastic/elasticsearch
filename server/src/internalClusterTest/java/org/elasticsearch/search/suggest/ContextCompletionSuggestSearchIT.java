@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -41,6 +40,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -619,13 +619,13 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     Collections.singletonList(GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.52, 13.4)).build())
                 )
             );
-        SearchResponse searchResponse = prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, context)).get();
-
-        assertEquals(searchResponse.getSuggest().size(), 1);
-        assertEquals(
-            "Hotel Amsterdam in Berlin",
-            searchResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string()
-        );
+        assertResponse(prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, context)), response -> {
+            assertEquals(response.getSuggest().size(), 1);
+            assertEquals(
+                "Hotel Amsterdam in Berlin",
+                response.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string()
+            );
+        });
     }
 
     public void testSkipDuplicatesWithContexts() throws Exception {
@@ -669,9 +669,10 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void assertSuggestions(String suggestionName, SuggestionBuilder<?> suggestBuilder, String... suggestions) {
-        SearchResponse searchResponse = prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder))
-            .get();
-        CompletionSuggestSearchIT.assertSuggestions(searchResponse, suggestionName, suggestions);
+        assertResponse(
+            prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder)),
+            response -> CompletionSuggestSearchIT.assertSuggestions(response, suggestionName, suggestions)
+        );
     }
 
     private void createIndexAndMapping(CompletionMappingBuilder completionMappingBuilder) throws IOException {

@@ -320,6 +320,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -361,7 +362,7 @@ public abstract class AbstractClient implements Client {
         ActionType<Response> action,
         Request request
     ) {
-        PlainActionFuture<Response> actionFuture = new PlainActionFuture.ForRefCounted<>();
+        PlainActionFuture<Response> actionFuture = new RefCountedFuture<>();
         execute(action, request, actionFuture);
         return actionFuture;
     }
@@ -1597,5 +1598,19 @@ public abstract class AbstractClient implements Client {
                 }
             }
         };
+    }
+
+    /**
+     * Same as {@link PlainActionFuture} but for use with {@link RefCounted} result types. Unlike {@code PlainActionFuture} this future
+     * acquires a reference to its result. This means that the result reference must be released by a call to {@link RefCounted#decRef()}
+     * on the result before it goes out of scope.
+     * @param <R> reference counted result type
+     */
+    private static class RefCountedFuture<R extends RefCounted> extends PlainActionFuture<R> {
+        @Override
+        public final void onResponse(R result) {
+            result.incRef();
+            super.onResponse(result);
+        }
     }
 }

@@ -580,7 +580,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return BlockDocValuesReader.bytesRefsFromOrds(name());
+                return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
             if (isSyntheticSource) {
                 if (false == isStored()) {
@@ -590,9 +590,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                             + "] is only supported in synthetic _source index if it creates doc values or stored fields"
                     );
                 }
-                return BlockStoredFieldsReader.bytesRefsFromBytesRefs(name());
+                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
-            return BlockSourceReader.bytesRefs(sourceValueFetcher(blContext.sourcePaths(name())));
+            return new BlockSourceReader.BytesRefsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

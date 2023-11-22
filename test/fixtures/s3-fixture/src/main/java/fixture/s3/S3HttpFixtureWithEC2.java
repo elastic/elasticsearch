@@ -11,6 +11,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.rest.RestStatus;
 
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -22,14 +23,30 @@ public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
     private static final String EC2_PATH = "/latest/meta-data/iam/security-credentials/";
     private static final String EC2_PROFILE = "ec2Profile";
 
-    S3HttpFixtureWithEC2(final String[] args) throws Exception {
+    public S3HttpFixtureWithEC2(final String[] args) throws Exception {
         super(args);
+    }
+
+    public S3HttpFixtureWithEC2(boolean enabled) {
+        this(enabled, "ec2_bucket", "ec2_base_path", "ec2_access_key", "ec2_session_token");
+    }
+
+    public S3HttpFixtureWithEC2(boolean enabled, String... args) {
+        super(enabled, args);
+    }
+
+    public S3HttpFixtureWithEC2(InetSocketAddress inetSocketAddress, String[] strings) {
+        super(inetSocketAddress, strings);
+    }
+
+    public S3HttpFixtureWithEC2() {
+        this(true);
     }
 
     @Override
     protected HttpHandler createHandler(final String[] args) {
-        final String ec2AccessKey = Objects.requireNonNull(args[4]);
-        final String ec2SessionToken = Objects.requireNonNull(args[5], "session token is missing");
+        final String ec2AccessKey = Objects.requireNonNull(args[2]);
+        final String ec2SessionToken = Objects.requireNonNull(args[3], "session token is missing");
         final HttpHandler delegate = super.createHandler(args);
 
         return exchange -> {
@@ -83,6 +100,6 @@ public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
             );
         }
         final S3HttpFixtureWithEC2 fixture = new S3HttpFixtureWithEC2(args);
-        fixture.start();
+        fixture.startWithWait();
     }
 }

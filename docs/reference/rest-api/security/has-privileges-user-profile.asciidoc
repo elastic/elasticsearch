@@ -96,7 +96,7 @@ requested set of cluster, index, and application privileges:
 
 [source,console]
 --------------------------------------------------
-POST /_security/user/_has_privileges
+POST /_security/profile/_has_privileges
 {
   "uids": [
     "u_LQPnxDxEjIH0GOUoFkZr5Y57YUwSkL9Joiq-g4OCbPc_0",

@@ -1300,7 +1300,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 } else {
                     BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(
                         StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
-                        loader.rowStrideStoredFieldSpec().requiresSource()
+                        loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null
                     );
                     storedFieldsLoader.advanceTo(0);
                     BlockLoader.Builder builder = loader.builder(TestBlock.FACTORY, 1);

@@ -238,7 +238,9 @@ public class ValuesSourceReaderBenchmark {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
             BlockFactory.getNonBreakingInstance(),
             fields(name),
-            List.of(reader),
+            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                throw new UnsupportedOperationException("can't load _source here");
+            })),
             0
         );
         long sum = 0;

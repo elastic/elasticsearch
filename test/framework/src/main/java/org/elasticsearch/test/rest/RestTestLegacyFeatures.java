@@ -22,7 +22,6 @@ import java.util.Map;
 public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature FEATURE_STATE_RESET_SUPPORTED = new NodeFeature("system_indices.feature_state_reset_supported");
     public static final NodeFeature SYSTEM_INDICES_REST_ACCESS_ENFORCED = new NodeFeature("system_indices.rest_access_enforced");
-    public static final NodeFeature AUTO_EXPAND_REPLICAS_SUPPORTED = new NodeFeature("indices.auto_expand_replicas_supported");
     public static final NodeFeature HIDDEN_INDICES_SUPPORTED = new NodeFeature("indices.hidden_supported");
     public static final NodeFeature COMPONENT_TEMPLATE_SUPPORTED = new NodeFeature("indices.component_template_supported");
     public static final NodeFeature DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED = new NodeFeature(
@@ -36,8 +35,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             Version.V_7_13_0,
             SYSTEM_INDICES_REST_ACCESS_ENFORCED,
             Version.V_8_0_0,
-            AUTO_EXPAND_REPLICAS_SUPPORTED,
-            Version.V_7_6_0,
             HIDDEN_INDICES_SUPPORTED,
             Version.V_7_7_0,
             COMPONENT_TEMPLATE_SUPPORTED,

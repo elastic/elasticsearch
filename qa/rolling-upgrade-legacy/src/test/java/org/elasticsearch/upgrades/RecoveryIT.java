@@ -25,7 +25,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -724,11 +723,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final int numberOfReplicas = Integer.parseInt(
             getIndexSettingsAsMap(indexName).get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS).toString()
         );
-        if (clusterHasFeature(RestTestLegacyFeatures.AUTO_EXPAND_REPLICAS_SUPPORTED)) {
-            assertEquals(nodes.size() - 2, numberOfReplicas);
-        } else {
-            assertEquals(nodes.size() - 1, numberOfReplicas);
-        }
+        assertThat(nodes, hasSize(numberOfReplicas + 2));
     }
 
     public void testSoftDeletesDisabledWarning() throws Exception {

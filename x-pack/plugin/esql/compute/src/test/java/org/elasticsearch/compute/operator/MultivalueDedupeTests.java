@@ -136,20 +136,20 @@ public class MultivalueDedupeTests extends ESTestCase {
         );
     }
 
-    private void assertDeduped(BlockFactory blockFactory, BasicBlockTests.RandomBlock b, Block deduped) {
+    private void assertDeduped(BlockFactory blockFactory, BasicBlockTests.RandomBlock b, Block dedupedBlock) {
         try {
-            if (deduped != b.block()) {
-                assertThat(deduped.blockFactory(), sameInstance(blockFactory));
+            if (dedupedBlock != b.block()) {
+                assertThat(dedupedBlock.blockFactory(), sameInstance(blockFactory));
             }
             for (int p = 0; p < b.block().getPositionCount(); p++) {
                 List<Object> v = b.values().get(p);
                 Matcher<? extends Object> matcher = v == null
                     ? nullValue()
                     : containsInAnyOrder(v.stream().collect(Collectors.toSet()).stream().sorted().toArray());
-                BlockTestUtils.assertPositionValues(deduped, p, matcher);
+                BlockTestUtils.assertPositionValues(dedupedBlock, p, matcher);
             }
         } finally {
-            Releasables.closeExpectNoException(deduped);
+            Releasables.closeExpectNoException(dedupedBlock);
         }
     }
 

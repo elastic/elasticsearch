@@ -226,15 +226,17 @@ public class AsyncOperatorTests extends ESTestCase {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         Driver driver = new Driver(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, () -> {});
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), future);
-        assertBusy(() -> {
-            assertTrue(asyncOperator.isFinished());
-            assertTrue(future.isDone());
-        });
+        assertBusy(() -> assertTrue(future.isDone()));
         if (failed.get()) {
             ElasticsearchException error = expectThrows(ElasticsearchException.class, future::actionGet);
             assertThat(error.getMessage(), containsString("simulated"));
+            error = expectThrows(ElasticsearchException.class, asyncOperator::isFinished);
+            assertThat(error.getMessage(), containsString("simulated"));
+            error = expectThrows(ElasticsearchException.class, asyncOperator::getOutput);
+            assertThat(error.getMessage(), containsString("simulated"));
         } else {
-            future.actionGet();
+            assertTrue(asyncOperator.isFinished());
+            assertNull(asyncOperator.getOutput());
         }
     }
 

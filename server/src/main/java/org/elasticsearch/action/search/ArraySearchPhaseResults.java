@@ -9,7 +9,10 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.util.stream.Stream;
 
@@ -18,6 +21,8 @@ import java.util.stream.Stream;
  */
 class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPhaseResults<Result> {
     final AtomicArray<Result> results;
+
+    private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.of(this::doClose));
 
     ArraySearchPhaseResults(int size) {
         super(size);
@@ -32,7 +37,14 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
     void consumeResult(Result result, Runnable next) {
         assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
         results.set(result.getShardIndex(), result);
+        result.incRef();
         next.run();
+    }
+
+    protected void doClose() {
+        for (Result result : getAtomicArray().asList()) {
+            result.decRef();
+        }
     }
 
     boolean hasResult(int shardIndex) {
@@ -42,5 +54,25 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
     @Override
     AtomicArray<Result> getAtomicArray() {
         return results;
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 }

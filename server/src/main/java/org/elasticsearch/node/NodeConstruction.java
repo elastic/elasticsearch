@@ -102,13 +102,12 @@ import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.IndicesServiceBuilder;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.indices.SystemIndices;
@@ -140,9 +139,7 @@ import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
-import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -693,34 +690,6 @@ class NodeConstruction {
             compatibilityVersions
         );
 
-        // collect engine factory providers from plugins
-        final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders = pluginsService.filterPlugins(
-            EnginePlugin.class
-        ).<Function<IndexSettings, Optional<EngineFactory>>>map(plugin -> plugin::getEngineFactory).toList();
-
-        final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = pluginsService.filterPlugins(IndexStorePlugin.class)
-            .map(IndexStorePlugin::getDirectoryFactories)
-            .flatMap(m -> m.entrySet().stream())
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(
-            IndexStorePlugin.class
-        )
-            .map(IndexStorePlugin::getRecoveryStateFactories)
-            .flatMap(m -> m.entrySet().stream())
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        final List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners = pluginsService.filterPlugins(
-            IndexStorePlugin.class
-        ).map(IndexStorePlugin::getIndexFoldersDeletionListeners).flatMap(List::stream).toList();
-
-        final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers = pluginsService.filterPlugins(
-            IndexStorePlugin.class
-        )
-            .map(IndexStorePlugin::getSnapshotCommitSuppliers)
-            .flatMap(m -> m.entrySet().stream())
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
         if (DiscoveryNode.isMasterNode(settings)) {
@@ -734,33 +703,27 @@ class NodeConstruction {
         rerouteServiceReference.set(rerouteService);
         clusterService.setRerouteService(rerouteService);
 
-        final IndicesService indicesService = new IndicesService(
-            settings,
-            pluginsService,
-            nodeEnvironment,
-            xContentRegistry,
-            analysisRegistry,
-            clusterModule.getIndexNameExpressionResolver(),
-            indicesModule.getMapperRegistry(),
-            namedWriteableRegistry,
-            threadPool,
-            settingsModule.getIndexScopedSettings(),
-            circuitBreakerService,
-            bigArrays,
-            scriptService,
-            clusterService,
-            client,
-            featureService,
-            metaStateService,
-            engineFactoryProviders,
-            indexStoreFactories,
-            searchModule.getValuesSourceRegistry(),
-            recoveryStateFactories,
-            indexFoldersDeletionListeners,
-            snapshotCommitSuppliers,
-            searchModule.getRequestCacheKeyDifferentiator(),
-            documentParsingObserverSupplier
-        );
+        IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
+            .pluginsService(pluginsService)
+            .nodeEnvironment(nodeEnvironment)
+            .xContentRegistry(xContentRegistry)
+            .analysisRegistry(analysisRegistry)
+            .indexNameExpressionResolver(clusterModule.getIndexNameExpressionResolver())
+            .mapperRegistry(indicesModule.getMapperRegistry())
+            .namedWriteableRegistry(namedWriteableRegistry)
+            .threadPool(threadPool)
+            .indexScopedSettings(settingsModule.getIndexScopedSettings())
+            .circuitBreakerService(circuitBreakerService)
+            .bigArrays(bigArrays)
+            .scriptService(scriptService)
+            .clusterService(clusterService)
+            .client(client)
+            .featureService(featureService)
+            .metaStateService(metaStateService)
+            .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
+            .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
+            .documentParsingObserverSupplier(documentParsingObserverSupplier)
+            .build();
 
         final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
         IndexSettingProviders indexSettingProviders = new IndexSettingProviders(

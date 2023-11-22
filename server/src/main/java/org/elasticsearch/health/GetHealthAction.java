@@ -67,6 +67,12 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             }
         }
 
+        public Response(final ClusterName clusterName, final List<HealthIndicatorResult> indicators, HealthStatus topLevelStatus) {
+            this.indicators = indicators;
+            this.clusterName = clusterName;
+            this.status = topLevelStatus;
+        }
+
         public ClusterName getClusterName() {
             return clusterName;
         }

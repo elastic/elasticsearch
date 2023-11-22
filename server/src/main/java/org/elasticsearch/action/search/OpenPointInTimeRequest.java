@@ -38,7 +38,6 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     private String routing;
     @Nullable
     private String preference;
-    private QueryBuilder indexFilter;
 
     private QueryBuilder indexFilter;
 

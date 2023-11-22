@@ -185,7 +185,7 @@ fetch a tag:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [{_tsid: "KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}]}
+  - match: {hits.hits.0.fields._tsid: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}
 
 ---
 aggregate a dimension:
@@ -319,7 +319,7 @@ sort by tsid:
           sort:   [ "_tsid", "@timestamp" ]
 
   - match: {hits.total.value: 8}
-  - match: {hits.hits.0.sort: [{ _tsid : "KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}, 1619635803142]}
-  - match: {hits.hits.1.sort: [{ _tsid : "KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}, 1619635823142]}
-  - match: {hits.hits.4.sort: [{ _tsid : "KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}, 1619635804467]}
-  - match: {hits.hits.7.sort: [{ _tsid : "KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}, 1619635864467]}
+  - match: {hits.hits.0.sort: ["KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQAAAAAAAAA", 1619635803142]}
+  - match: {hits.hits.1.sort: ["KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQAAAAAAAAA", 1619635823142]}
+  - match: {hits.hits.4.sort: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0oAAAAAAAAA", 1619635804467]}
+  - match: {hits.hits.7.sort: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0oAAAAAAAAA", 1619635864467]}

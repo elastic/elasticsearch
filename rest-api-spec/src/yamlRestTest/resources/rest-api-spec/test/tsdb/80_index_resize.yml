@@ -148,4 +148,4 @@ clone:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [{_tsid: "KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}]}
+  - match: {hits.hits.0.fields._tsid: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}

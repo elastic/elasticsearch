@@ -82,8 +82,13 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
         Consumer<InternalTimeSeries> verifier = r -> {
             assertThat(r.getBuckets(), hasSize(2));
-            assertThat(r.getBucketByKey("{dim=1}"), instanceOf(InternalTimeSeries.InternalBucket.class));
-            InternalDateHistogram hb = r.getBucketByKey("{dim=1}").getAggregations().get("date");
+            assertThat(
+                r.getBucketByKey("NFFUy14C9UcX3MnFnsFrpf0AAAAAAAAAAAAAAAAAAAAAiw707uTAKMYIIZrxFHeWv4t2N0w"),
+                instanceOf(InternalTimeSeries.InternalBucket.class)
+            );
+            InternalDateHistogram hb = r.getBucketByKey("NFFUy14C9UcX3MnFnsFrpf0AAAAAAAAAAAAAAAAAAAAAiw707uTAKMYIIZrxFHeWv4t2N0w")
+                .getAggregations()
+                .get("date");
             {
                 Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
                 assertThat(rate.getValue(), closeTo((60 - 37 + 14) / 2000.0 * MILLIS_IN_SECOND, 0.00001));
@@ -92,7 +97,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
                 Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
                 assertThat(rate.getValue(), closeTo((37 - 15) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
-            hb = r.getBucketByKey("{dim=2}").getAggregations().get("date");
+            hb = r.getBucketByKey("NFFUy14C9UcX3MnFnsFrpf0AAAAAAAAAAAAAAAAAAAAAoUYmO5acXOT4AOJNerMhm2RoK9I").getAggregations().get("date");
             {
                 Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
                 assertThat(rate.getValue(), closeTo((150 - 74) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
@@ -162,7 +167,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     private static BytesReference tsid(String dim) throws IOException {
         TimeSeriesIdFieldMapper.TimeSeriesIdBuilder idBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
         idBuilder.addKeywordDimension("dim", dim);
-        return idBuilder.withoutHash();
+        return idBuilder.withHash();
     }
 
     private Document doc(long timestamp, BytesReference tsid, long counterValue) {

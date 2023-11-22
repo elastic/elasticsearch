@@ -13,7 +13,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.Murmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -37,13 +36,10 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -58,9 +54,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_tsid";
     public static final TimeSeriesIdFieldType FIELD_TYPE = new TimeSeriesIdFieldType();
     public static final TimeSeriesIdFieldMapper INSTANCE = new TimeSeriesIdFieldMapper();
-
-    // NOTE: used by {@link TimeSeriesIdFieldMapper#decodeTsid(StreamInput)} )}. Remove both if using _tsid hashing
-    public static final int TSID_HASH_SENTINEL = 0xBAADCAFE;
+    private static final Base64.Encoder BASE64_ENCODER = Base64.getUrlEncoder().withoutPadding();
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
@@ -164,31 +158,9 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
      */
     public static Object decodeTsid(StreamInput in) {
         try {
-            int sizeOrTsidHashSentinel = in.readVInt();
-            if (sizeOrTsidHashSentinel == TSID_HASH_SENTINEL) {
-                return Base64.getUrlEncoder().withoutPadding().encodeToString(in.readBytesRef().bytes);
-            }
-            Map<String, Object> result = new LinkedHashMap<>(sizeOrTsidHashSentinel);
-
-            for (int i = 0; i < sizeOrTsidHashSentinel; i++) {
-                String name = in.readBytesRef().utf8ToString();
-
-                int type = in.read();
-                switch (type) {
-                    case (byte) 's' -> // parse a string
-                        result.put(name, in.readBytesRef().utf8ToString());
-                    case (byte) 'l' -> // parse a long
-                        result.put(name, in.readLong());
-                    case (byte) 'u' -> { // parse an unsigned_long
-                        Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.readLong());
-                        result.put(name, ul);
-                    }
-                    default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
-                }
-            }
-            return result;
-        } catch (IOException | IllegalArgumentException e) {
-            throw new IllegalArgumentException("Error formatting " + NAME + ": " + e.getMessage(), e);
+            return base64Encode(in.readBytesRef());
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Unable to read tsid");
         }
     }
 
@@ -250,18 +222,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             // NOTE: hash all dimension field names
             int numberOfDimensions = Math.min(MAX_DIMENSIONS, dimensions.size());
             int tsidHashIndex = 0;
-            byte[] tsidHash = new byte[16 + 16 + 16 + 4 * numberOfDimensions];
+            byte[] tsidHash = new byte[16 + 16 + 4 * numberOfDimensions];
 
             tsidHasher.reset();
             for (final DimensionDataHolder dimension : dimensions) {
                 tsidHasher.update(dimension.name.bytes);
-            }
-            tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
-
-            // NOTE: hash all metric field names
-            tsidHasher.reset();
-            for (final String metric : metrics) {
-                tsidHasher.update(metric.getBytes(StandardCharsets.UTF_8));
             }
             tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
 
@@ -292,7 +257,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
             assert tsidHashIndex == tsidHash.length;
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.writeVInt(TSID_HASH_SENTINEL);
                 out.writeBytesRef(new BytesRef(tsidHash, 0, tsidHash.length));
                 return out.bytes();
             }
@@ -374,10 +338,10 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     }
 
     public static Object decodeTsid(BytesRef bytesRef) {
-        try (StreamInput input = new BytesArray(bytesRef).streamInput()) {
-            return decodeTsid(input);
-        } catch (IOException ex) {
-            throw new IllegalArgumentException("Dimension field cannot be deserialized.", ex);
-        }
+        return base64Encode(bytesRef);
+    }
+
+    private static String base64Encode(BytesRef bytesRef) {
+        return BASE64_ENCODER.encodeToString(bytesRef.bytes);
     }
 }

@@ -53,8 +53,8 @@ public class IdLoaderTests extends ESTestCase {
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs = List.of(
-            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
-            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
+            new Doc(startTime, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "yyy"))),
+            new Doc(startTime + 1, List.of(new Dimension("dim1", "aaa"), new Dimension("dim2", "xxx"))),
             new Doc(startTime + 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "xxx")))
         );
         CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
@@ -62,9 +62,10 @@ public class IdLoaderTests extends ESTestCase {
             LeafReader leafReader = indexReader.leaves().get(0).reader();
             assertThat(leafReader.numDocs(), equalTo(3));
             var leaf = idLoader.leaf(null, leafReader, new int[] { 0, 1, 2 });
-            assertThat(leaf.getId(0), equalTo(expectedId(routing, docs.get(0))));
+            // NOTE: time series data is ordered by (tsid, timestamp)
+            assertThat(leaf.getId(0), equalTo(expectedId(routing, docs.get(2))));
             assertThat(leaf.getId(1), equalTo(expectedId(routing, docs.get(1))));
-            assertThat(leaf.getId(2), equalTo(expectedId(routing, docs.get(2))));
+            assertThat(leaf.getId(2), equalTo(expectedId(routing, docs.get(0))));
         };
         prepareIndexReader(indexAndForceMerge(routing, docs), verify, false);
     }
@@ -234,7 +235,7 @@ public class IdLoaderTests extends ESTestCase {
                 fields.add(new SortedSetDocValuesField(dimension.field, new BytesRef(dimension.value.toString())));
             }
         }
-        BytesRef tsid = builder.withoutHash().toBytesRef();
+        BytesRef tsid = builder.withHash().toBytesRef();
         fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, tsid));
         iw.addDocument(fields);
     }
@@ -252,7 +253,7 @@ public class IdLoaderTests extends ESTestCase {
         return TsidExtractingIdFieldMapper.createId(
             false,
             routingBuilder,
-            timeSeriesIdBuilder.withoutHash().toBytesRef(),
+            timeSeriesIdBuilder.withHash().toBytesRef(),
             doc.timestamp,
             new byte[16]
         );

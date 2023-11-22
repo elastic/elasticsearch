@@ -377,9 +377,9 @@ public class DocValueFormatTests extends ESTestCase {
         timeSeriesIdBuilder.addKeywordDimension("string", randomAlphaOfLength(10));
         timeSeriesIdBuilder.addLongDimension("long", randomLong());
         timeSeriesIdBuilder.addUnsignedLongDimension("ulong", randomLong());
-        BytesRef tsidBytes = timeSeriesIdBuilder.withoutHash().toBytesRef();
-        Object tsidFormat = DocValueFormat.TIME_SERIES_ID.format(tsidBytes);
-        BytesRef tsidParse = DocValueFormat.TIME_SERIES_ID.parseBytesRef(tsidFormat);
-        assertEquals(tsidBytes, tsidParse);
+        BytesRef expected = timeSeriesIdBuilder.withHash().toBytesRef();
+        Object tsidFormat = DocValueFormat.TIME_SERIES_ID.format(expected);
+        BytesRef actual = DocValueFormat.TIME_SERIES_ID.parseBytesRef(tsidFormat);
+        assertEquals(expected, actual);
     }
 }

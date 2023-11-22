@@ -334,7 +334,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             downsampleIndexName,
                             parentTask,
                             metricFields,
-                            labelFields
+                            labelFields,
+                            dimensionFields
                         );
                     } else {
                         listener.onFailure(new ElasticsearchException("Failed to create downsample index [" + downsampleIndexName + "]"));
@@ -348,7 +349,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             downsampleIndexName,
                             parentTask,
                             metricFields,
-                            labelFields
+                            labelFields,
+                            dimensionFields
                         );
                     } else {
                         listener.onFailure(e);
@@ -366,7 +368,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         String downsampleIndexName,
         TaskId parentTask,
         List<String> metricFields,
-        List<String> labelFields
+        List<String> labelFields,
+        List<String> dimensionFields
     ) {
         final int numberOfShards = sourceIndexMetadata.getNumberOfShards();
         final Index sourceIndex = sourceIndexMetadata.getIndex();
@@ -386,6 +389,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 downsampleIndexName,
                 metricFields,
                 labelFields,
+                dimensionFields,
                 shardId
             );
             Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate = runningTask -> {
@@ -481,6 +485,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final String targetIndexName,
         final List<String> metricFields,
         final List<String> labelFields,
+        final List<String> dimensionFields,
         final ShardId shardId
     ) {
         return new DownsampleShardTaskParams(
@@ -490,7 +495,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             parseTimestamp(sourceIndexMetadata, IndexSettings.TIME_SERIES_END_TIME),
             shardId,
             metricFields.toArray(new String[0]),
-            labelFields.toArray(new String[0])
+            labelFields.toArray(new String[0]),
+            dimensionFields.toArray(new String[0])
         );
     }
 

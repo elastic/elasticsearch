@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
@@ -694,11 +692,25 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public Object format(BytesRef value) {
-            return TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(value).streamInput());
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(value.bytes);
         }
 
         @Override
         public BytesRef parseBytesRef(Object value) {
+            if (value instanceof BytesRef) {
+                return (BytesRef) value;
+            }
+            return plainTsidParseBytesRef(value);
+        }
+
+        /**
+         * After introducing tsid hashing this tsid parsing logic is deprecated.
+         * Tsid hashing does not allow us to parse the tsid extracting dimension fields key/values pairs.
+         * @param value The Map encoding tsid dimension fields key/value pairs.
+         *
+         * @return
+         */
+        private BytesRef plainTsidParseBytesRef(Object value) {
             if (value instanceof Map<?, ?> == false) {
                 throw new IllegalArgumentException("Cannot parse tsid object [" + value + "]");
             }
@@ -724,7 +736,7 @@ public interface DocValueFormat extends NamedWriteable {
             }
 
             try {
-                return builder.withHash().toBytesRef();
+                return builder.withoutHash().toBytesRef();
             } catch (IOException e) {
                 throw new IllegalArgumentException(e);
             }

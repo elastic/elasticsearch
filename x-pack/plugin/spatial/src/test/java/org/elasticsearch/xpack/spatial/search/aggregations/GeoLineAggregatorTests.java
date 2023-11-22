@@ -803,7 +803,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                     ArrayList<Field> fields = new ArrayList<>(
                         Arrays.asList(
                             new SortedDocValuesField("group_id", new BytesRef(testData.groups[g])),
-                            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.withoutHash().toBytesRef())
+                            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.withHash().toBytesRef())
                         )
                     );
                     GeoPoint point = points.get(i);

@@ -627,6 +627,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
+            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
 
@@ -675,6 +676,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
+            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
 
@@ -741,6 +743,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
+            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
         /*
@@ -792,6 +795,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 config,
                 new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
                 new String[] {},
+                new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
                 new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
             );
 
@@ -848,6 +852,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
+            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
             new DownsampleShardPersistentTaskState(
                 DownsampleShardIndexerStatus.STARTED,
                 new BytesRef(
@@ -922,37 +927,56 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             config,
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
+            new String[] { FIELD_DIMENSION_1 },
             new DownsampleShardPersistentTaskState(
                 DownsampleShardIndexerStatus.STARTED,
+                // NOTE: there is just one dimension with two possible values, this needs to be one of the two possible tsid values.
                 new BytesRef(
                     new byte[] {
-                        0x01,
-                        0x0C,
-                        0x64,
-                        0x69,
-                        0x6d,
-                        0x65,
-                        0x6E,
+                        0x24,
+                        0x42,
+                        (byte) 0xe4,
+                        (byte) 0x9f,
+                        (byte) 0xe2,
+                        (byte) 0xde,
+                        (byte) 0xbb,
+                        (byte) 0xf8,
+                        (byte) 0xfc,
+                        0x7d,
+                        0x1a,
+                        (byte) 0xb1,
+                        0x27,
+                        (byte) 0x85,
+                        (byte) 0xc2,
+                        (byte) 0x8e,
+                        0x3a,
+                        (byte) 0xae,
+                        0x38,
+                        0x6c,
+                        (byte) 0xf6,
+                        (byte) 0xae,
+                        0x0f,
+                        0x4f,
+                        0x44,
+                        (byte) 0xf1,
                         0x73,
-                        0x69,
-                        0x6F,
-                        0x6E,
-                        0x5F,
-                        0x6B,
-                        0x77,
-                        0x73,
-                        0x04,
-                        0x64,
-                        0x69,
-                        0x6D,
-                        0x32 }
+                        0x02,
+                        (byte) 0x90,
+                        0x1d,
+                        0x79,
+                        (byte) 0xf8,
+                        0x0d,
+                        (byte) 0xc2,
+                        0x7e,
+                        (byte) 0x91,
+                        0x15 }
                 )
             )
         );
 
         final DownsampleIndexerAction.ShardDownsampleResponse response2 = indexer.execute();
         int dim2DocCount = client().prepareSearch(sourceIndex)
-            .setQuery(new TermQueryBuilder(FIELD_DIMENSION_1, "dim2"))
+            .setQuery(new TermQueryBuilder(FIELD_DIMENSION_1, "dim1"))
             .setSize(10_000)
             .get()
             .getHits()

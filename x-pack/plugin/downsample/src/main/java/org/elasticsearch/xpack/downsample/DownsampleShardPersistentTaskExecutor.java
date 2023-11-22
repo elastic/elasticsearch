@@ -200,6 +200,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                         params.downsampleConfig(),
                         params.metrics(),
                         params.labels(),
+                        params.dimensions(),
                         initialState
                     );
                     downsampleShardIndexer.execute();

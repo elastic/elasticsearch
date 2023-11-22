@@ -739,10 +739,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         Set<DiscoveryNode> nodesWithRoles,
         @Nullable String role
     ) {
-        // All tier nodes at shards limit?
+        // All applicable nodes at shards limit?
         if (nodeRoleAllocationResults.stream().allMatch(hasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
             List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
-            // We need the routing nodes for the tiers this index is allowed on to determine the offending shard limits
+            // We need the routing nodes for the role this index is allowed on to determine the offending shard limits
             List<RoutingNode> candidateNodes = clusterState.getRoutingNodes()
                 .stream()
                 .filter(routingNode -> nodesWithRoles.contains(routingNode.node()))
@@ -756,24 +756,21 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             // Determine which total_shards_per_node settings are keeping things from allocating
             boolean clusterShardsPerNodeShouldChange = false;
             if (clusterShardsPerNode > 0) {
-                int minShardCountWithRole = candidateNodes.stream()
-                    .map(RoutingNode::numberOfOwningShards)
-                    .min(Integer::compareTo)
-                    .orElse(-1);
-                clusterShardsPerNodeShouldChange = minShardCountWithRole >= clusterShardsPerNode;
+                int minShardCount = candidateNodes.stream().map(RoutingNode::numberOfOwningShards).min(Integer::compareTo).orElse(-1);
+                clusterShardsPerNodeShouldChange = minShardCount >= clusterShardsPerNode;
             }
             boolean indexShardsPerNodeShouldChange = false;
             if (indexShardsPerNode > 0) {
-                int minShardCountWithRole = candidateNodes.stream()
+                int minShardCount = candidateNodes.stream()
                     .map(routingNode -> routingNode.numberOfOwningShardsForIndex(indexMetadata.getIndex()))
                     .min(Integer::compareTo)
                     .orElse(-1);
-                indexShardsPerNodeShouldChange = minShardCountWithRole >= indexShardsPerNode;
+                indexShardsPerNodeShouldChange = minShardCount >= indexShardsPerNode;
             }
 
             // Add appropriate diagnosis
             if (role != null) {
-                // We cannot allocate the shard to the most preferred tier because a shard limit is reached.
+                // We cannot allocate the shard to the most preferred role because a shard limit is reached.
                 if (clusterShardsPerNodeShouldChange) {
                     Optional.ofNullable(getIncreaseShardLimitClusterSettingAction(role)).ifPresent(diagnosisDefs::add);
                 }
@@ -841,13 +838,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     protected Optional<Diagnosis.Definition> checkNotEnoughNodesWithRole(
-        List<NodeAllocationResult> dataTierAllocationResults,
+        List<NodeAllocationResult> nodeAllocationResults,
         @Nullable String role
     ) {
         // Not enough nodes to hold shards on different nodes?
-        if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
-            // We couldn't determine a desired tier. This is likely because there are no tiers in the cluster,
-            // only `data` nodes. Give a generic ask for increasing the shard limit.
+        if (nodeAllocationResults.stream().allMatch(hasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
+            // We couldn't determine a desired role. This is likely because there are no nodes with the relevant role in the cluster.
+            // Give a generic ask for increasing the shard limit.
             if (role != null) {
                 return Optional.ofNullable(getIncreaseNodeWithRoleCapacityAction(role));
             } else {

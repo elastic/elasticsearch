@@ -11,19 +11,32 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.rest.RestStatus;
 
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 public class S3HttpFixtureWithECS extends S3HttpFixtureWithEC2 {
 
-    private S3HttpFixtureWithECS(final String[] args) throws Exception {
+    public S3HttpFixtureWithECS(final String[] args) throws Exception {
         super(args);
+    }
+
+    public S3HttpFixtureWithECS(boolean enabled) {
+        this(enabled, "ecs_bucket", "ecs_base_path", "ecs_access_key", "ecs_session_token");
+    }
+
+    public S3HttpFixtureWithECS(boolean enabled, String... args) {
+        super(enabled, args);
+    }
+
+    public S3HttpFixtureWithECS(InetSocketAddress inetSocketAddress, String[] strings) {
+        super(inetSocketAddress, strings);
     }
 
     @Override
     protected HttpHandler createHandler(final String[] args) {
-        final String ecsAccessKey = Objects.requireNonNull(args[4]);
-        final String ecsSessionToken = Objects.requireNonNull(args[5], "session token is missing");
+        final String ecsAccessKey = Objects.requireNonNull(args[2]);
+        final String ecsSessionToken = Objects.requireNonNull(args[3], "session token is missing");
         final HttpHandler delegate = super.createHandler(args);
 
         return exchange -> {
@@ -47,6 +60,6 @@ public class S3HttpFixtureWithECS extends S3HttpFixtureWithEC2 {
             );
         }
         final S3HttpFixtureWithECS fixture = new S3HttpFixtureWithECS(args);
-        fixture.start();
+        fixture.startWithWait();
     }
 }

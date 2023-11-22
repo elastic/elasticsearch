@@ -605,7 +605,8 @@ class NodeConstruction {
         ).collect(Collectors.toSet());
         final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
 
-        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager, scriptService);
+        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
+        clusterService.addStateApplier(scriptService);
 
         Supplier<DocumentParsingObserver> documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
 
@@ -1101,12 +1102,7 @@ class NodeConstruction {
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
     }
 
-    private ClusterService createClusterService(
-        SettingsModule settingsModule,
-        ThreadPool threadPool,
-        TaskManager taskManager,
-        ScriptService scriptService
-    ) {
+    private ClusterService createClusterService(SettingsModule settingsModule, ThreadPool threadPool, TaskManager taskManager) {
         ClusterService clusterService = new ClusterService(
             settingsModule.getSettings(),
             settingsModule.getClusterSettings(),
@@ -1114,7 +1110,6 @@ class NodeConstruction {
             taskManager
         );
         resourcesToClose.add(clusterService);
-        clusterService.addStateApplier(scriptService);
 
         Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
         if (consistentSettings.isEmpty() == false) {

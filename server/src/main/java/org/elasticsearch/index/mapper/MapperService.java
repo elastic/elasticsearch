@@ -45,6 +45,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -56,9 +57,23 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public enum MergeReason {
         /**
-         * Pre-flight check before sending a mapping update to the master
+         * Pre-flight check before sending a dynamic mapping update to the master
          */
-        MAPPING_UPDATE_PREFLIGHT,
+        MAPPING_AUTO_UPDATE_PREFLIGHT {
+            @Override
+            public boolean isAutoUpdate() {
+                return true;
+            }
+        },
+        /**
+         * Dynamic mapping updates
+         */
+        MAPPING_AUTO_UPDATE {
+            @Override
+            public boolean isAutoUpdate() {
+                return true;
+            }
+        },
         /**
          * Create or update a mapping.
          */
@@ -72,7 +87,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          * if a shard was moved to a different node or for administrative
          * purposes.
          */
-        MAPPING_RECOVERY
+        MAPPING_RECOVERY;
+
+        public boolean isAutoUpdate() {
+            return false;
+        }
     }
 
     public static final String SINGLE_MAPPING_NAME = "_doc";
@@ -362,7 +381,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
-        assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
+        assert reason != MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata != null) {
             merge(mappingMetadata.type(), mappingMetadata.source(), reason);
@@ -515,11 +534,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private synchronized DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
         Mapping incomingMapping = parseMapping(type, mappingSourceAsMap);
-        Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
+        Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason, indexSettings.getMappingTotalFieldsLimit());
         // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
         // We should identify these cases reliably and save expensive serialization here
         DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
-        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+        if (reason == MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT) {
             return newMapper;
         }
         this.mapper = newMapper;
@@ -557,11 +576,24 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
+        assert reason.isAutoUpdate() == false : "Auto-update merge reasons must specify the remaining fields until limit";
+        return mergeMappings(currentMapper, incomingMapping, reason, Long.MAX_VALUE);
+    }
+
+    public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason, long totalFieldsLimit) {
+        long remainingFieldsUntilLimit = Optional.ofNullable(currentMapper)
+            .map(DocumentMapper::mappers)
+            .map(ml -> ml.remainingFieldsUntilLimit(totalFieldsLimit))
+            .orElse(totalFieldsLimit);
         Mapping newMapping;
         if (currentMapper == null) {
-            newMapping = incomingMapping;
+            if (MappingLookup.fromMapping(incomingMapping).exceedsLimit(remainingFieldsUntilLimit, 0)) {
+                newMapping = Mapping.EMPTY.merge(incomingMapping, reason, remainingFieldsUntilLimit);
+            } else {
+                newMapping = incomingMapping;
+            }
         } else {
-            newMapping = currentMapper.mapping().merge(incomingMapping, reason);
+            newMapping = currentMapper.mapping().merge(incomingMapping, reason, remainingFieldsUntilLimit);
         }
         return newMapping;
     }

@@ -374,7 +374,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     .merge(
                         MapperService.SINGLE_MAPPING_NAME,
                         new CompressedXContent(result.getRequiredMappingUpdate()),
-                        MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
+                        MapperService.MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT
                     );
             } catch (Exception e) {
                 logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);

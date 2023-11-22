@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.field.WriteField;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -84,6 +86,16 @@ public class DynamicMappingIT extends ESIntegTestCase {
             // fails as it had been already mapped as a long by the previous index request.
             assertThat(e.getMessage(), Matchers.containsString("mapper [foo] cannot be changed from type [long] to [text]"));
         }
+    }
+
+    public void testSimpleDynamicMappingsSuccessful() {
+        createIndex("index");
+        client().prepareIndex("index").setId("1").setSource("a.x", 1).get();
+        client().prepareIndex("index").setId("2").setSource("a.y", 2).get();
+
+        Map<String, Object> mappings = indicesAdmin().prepareGetMappings("index").get().mappings().get("index").sourceAsMap();
+        assertTrue(new WriteField("properties.a", () -> mappings).exists());
+        assertTrue(new WriteField("properties.a.properties.x", () -> mappings).exists());
     }
 
     public void testConflictingDynamicMappingsBulk() {

@@ -128,6 +128,11 @@ public final class Mapping implements ToXContentFragment {
         return root.syntheticFieldLoader(Arrays.stream(metadataMappers));
     }
 
+    Mapping merge(Mapping mergeWith, MergeReason reason) {
+        assert reason.isAutoUpdate() == false : "Auto-update merge reasons must specify the remaining fields until limit";
+        return merge(mergeWith, reason, Long.MAX_VALUE);
+    }
+
     /**
      * Merges a new mapping into the existing one.
      *
@@ -135,8 +140,15 @@ public final class Mapping implements ToXContentFragment {
      * @param reason the reason this merge was initiated.
      * @return the resulting merged mapping.
      */
-    Mapping merge(Mapping mergeWith, MergeReason reason) {
-        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, MapperBuilderContext.root(isSourceSynthetic(), false));
+    Mapping merge(Mapping mergeWith, MergeReason reason, long remainingFieldsUntilLimit) {
+        MapperMergeContext mergeContext = MapperMergeContext.root(
+            isSourceSynthetic(),
+            false,
+            remainingFieldsUntilLimit,
+            root.dynamic(),
+            reason.isAutoUpdate()
+        );
+        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, mergeContext);
 
         // When merging metadata fields as part of applying an index template, new field definitions
         // completely overwrite existing ones instead of being merged. This behavior matches how we
@@ -148,7 +160,7 @@ public final class Mapping implements ToXContentFragment {
             if (mergeInto == null || reason == MergeReason.INDEX_TEMPLATE) {
                 merged = metaMergeWith;
             } else {
-                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, MapperBuilderContext.root(isSourceSynthetic(), false));
+                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith, mergeContext);
             }
             mergedMetadataMappers.put(merged.getClass(), merged);
         }

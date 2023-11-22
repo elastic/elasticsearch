@@ -75,9 +75,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract String typeName();
 
-    /** Return the merge of {@code mergeWith} into this.
-     *  Both {@code this} and {@code mergeWith} will be left unmodified. */
-    public abstract Mapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext);
+    /**
+     * Return the merge of {@code mergeWith} into this.
+     * Both {@code this} and {@code mergeWith} will be left unmodified.
+     */
+    public abstract Mapper merge(Mapper mergeWith, MapperMergeContext mapperBuilderContext);
 
     /**
      * Validate any cross-field references made by this mapper
@@ -134,6 +136,14 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             fieldTypeDeduplicator.clear();
         }
         return fieldTypeDeduplicator.computeIfAbsent(fieldType, Function.identity());
+    }
+
+    public int mapperSize() {
+        int size = 1;
+        for (Mapper mapper : this) {
+            size += mapper.mapperSize();
+        }
+        return size;
     }
 
 }

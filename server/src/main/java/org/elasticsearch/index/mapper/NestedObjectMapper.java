@@ -186,6 +186,20 @@ public class NestedObjectMapper extends ObjectMapper {
         return builder;
     }
 
+    public NestedObjectMapper withoutMappers() {
+        return new NestedObjectMapper(
+            simpleName(),
+            fullPath(),
+            null,
+            enabled,
+            dynamic,
+            includeInParent,
+            includeInRoot,
+            nestedTypePath,
+            nestedTypeFilter
+        );
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(simpleName());
@@ -207,12 +221,12 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason, MapperBuilderContext parentBuilderContext) {
+    public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason, MapperMergeContext parentMergeContext) {
         if ((mergeWith instanceof NestedObjectMapper) == false) {
             MapperErrors.throwNestedMappingConflictError(mergeWith.name());
         }
         NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
-        var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
+        var mergeResult = MergeResult.build(this, mergeWith, reason, parentMergeContext);
         Explicit<Boolean> incInParent = this.includeInParent;
         Explicit<Boolean> incInRoot = this.includeInRoot;
         if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {
@@ -230,6 +244,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
             }
         }
+        MapperBuilderContext parentBuilderContext = parentMergeContext.getMapperBuilderContext();
         if (parentBuilderContext instanceof NestedMapperBuilderContext nc) {
             if (nc.parentIncludedInRoot && incInParent.value()) {
                 incInRoot = Explicit.IMPLICIT_FALSE;
@@ -253,12 +268,16 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name, Dynamic dynamic) {
+        MapperBuilderContext mapperBuilderContext = mapperMergeContext.getMapperBuilderContext();
         boolean parentIncludedInRoot = this.includeInRoot.value();
         if (mapperBuilderContext instanceof NestedMapperBuilderContext == false) {
             parentIncludedInRoot |= this.includeInParent.value();
         }
-        return new NestedMapperBuilderContext(mapperBuilderContext.buildFullName(name), parentIncludedInRoot);
+        return mapperMergeContext.createChildContext(
+            new NestedMapperBuilderContext(mapperBuilderContext.buildFullName(name), parentIncludedInRoot),
+            dynamic
+        );
     }
 
     @Override

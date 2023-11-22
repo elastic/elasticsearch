@@ -24,10 +24,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -162,7 +163,7 @@ public class ObjectMapper extends Mapper {
         }
 
         protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
-            Map<String, Mapper> mappers = new HashMap<>();
+            Map<String, Mapper> mappers = new LinkedHashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
                 assert mapper instanceof ObjectMapper == false || subobjects.value() : "unexpected object while subobjects are disabled";
@@ -173,7 +174,7 @@ public class ObjectMapper extends Mapper {
                     // This can also happen due to multiple index templates being merged into a single mappings definition using
                     // XContentHelper#mergeDefaults, again in case some index templates contained mappings for the same field using a
                     // mix of object notation and dot notation.
-                    mapper = existing.merge(mapper, mapperBuilderContext);
+                    mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext));
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }
@@ -407,7 +408,7 @@ public class ObjectMapper extends Mapper {
         if (mappers == null) {
             this.mappers = Map.of();
         } else {
-            this.mappers = Map.copyOf(mappers);
+            this.mappers = Collections.unmodifiableMap(mappers);
         }
     }
 
@@ -419,6 +420,10 @@ public class ObjectMapper extends Mapper {
         builder.enabled = this.enabled;
         builder.dynamic = this.dynamic;
         return builder;
+    }
+
+    public ObjectMapper withoutMappers() {
+        return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, dynamic, null);
     }
 
     @Override
@@ -461,7 +466,7 @@ public class ObjectMapper extends Mapper {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
+    public ObjectMapper merge(Mapper mergeWith, MapperMergeContext mapperBuilderContext) {
         return merge(mergeWith, MergeReason.MAPPING_UPDATE, mapperBuilderContext);
     }
 
@@ -472,11 +477,11 @@ public class ObjectMapper extends Mapper {
         }
     }
 
-    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
-        return mapperBuilderContext.createChildContext(name);
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperBuilderContext, String name, Dynamic dynamic) {
+        return mapperBuilderContext.createChildContext(name, dynamic);
     }
 
-    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
+    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentBuilderContext) {
         var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
         return new ObjectMapper(
             simpleName(),
@@ -499,7 +504,7 @@ public class ObjectMapper extends Mapper {
             ObjectMapper existing,
             Mapper mergeWith,
             MergeReason reason,
-            MapperBuilderContext parentBuilderContext
+            MapperMergeContext parentMergeContext
         ) {
             if ((mergeWith instanceof ObjectMapper) == false) {
                 MapperErrors.throwObjectMappingConflictError(mergeWith.name());
@@ -535,31 +540,34 @@ public class ObjectMapper extends Mapper {
             } else {
                 subObjects = existing.subobjects;
             }
-            MapperBuilderContext objectBuilderContext = existing.createChildContext(parentBuilderContext, existing.simpleName());
-            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWith, reason, objectBuilderContext);
-            return new MergeResult(
-                enabled,
-                subObjects,
-                mergeWithObject.dynamic != null ? mergeWithObject.dynamic : existing.dynamic,
-                mergedMappers
-            );
+            Dynamic dynamic = mergeWithObject.dynamic != null ? mergeWithObject.dynamic : existing.dynamic;
+            MapperMergeContext objectMergeContext = existing.createChildContext(parentMergeContext, existing.simpleName(), dynamic);
+            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWith, reason, objectMergeContext);
+            return new MergeResult(enabled, subObjects, dynamic, mergedMappers);
         }
 
         private static Map<String, Mapper> buildMergedMappers(
             ObjectMapper existing,
             Mapper mergeWith,
             MergeReason reason,
-            MapperBuilderContext objectBuilderContext
+            MapperMergeContext objectMergeContext
         ) {
-            Map<String, Mapper> mergedMappers = null;
+            Map<String, Mapper> mergedMappers = new LinkedHashMap<>(existing.mappers);
             for (Mapper mergeWithMapper : mergeWith) {
-                Mapper mergeIntoMapper = (mergedMappers == null ? existing.mappers : mergedMappers).get(mergeWithMapper.simpleName());
+                Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
 
-                Mapper merged;
                 if (mergeIntoMapper == null) {
-                    merged = mergeWithMapper;
+                    if (mergeWithMapper instanceof ObjectMapper om) {
+                        ObjectMapper withoutMappers = om.withoutMappers();
+                        boolean added = objectMergeContext.addFieldIfPossible(mergedMappers, withoutMappers);
+                        if (added) {
+                            mergedMappers.put(om.simpleName(), withoutMappers.merge(mergeWithMapper, reason, objectMergeContext));
+                        }
+                    } else {
+                        objectMergeContext.addFieldIfPossible(mergedMappers, mergeWithMapper);
+                    }
                 } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
-                    merged = objectMapper.merge(mergeWithMapper, reason, objectBuilderContext);
+                    mergedMappers.put(objectMapper.simpleName(), objectMapper.merge(mergeWithMapper, reason, objectMergeContext));
                 } else {
                     assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                     if (mergeWithMapper instanceof NestedObjectMapper) {
@@ -571,22 +579,13 @@ public class ObjectMapper extends Mapper {
                     // If we're merging template mappings when creating an index, then a field definition always
                     // replaces an existing one.
                     if (reason == MergeReason.INDEX_TEMPLATE) {
-                        merged = mergeWithMapper;
+                        mergedMappers.put(mergeWithMapper.simpleName(), mergeIntoMapper);
                     } else {
-                        merged = mergeIntoMapper.merge(mergeWithMapper, objectBuilderContext);
+                        mergedMappers.put(mergeWithMapper.simpleName(), mergeIntoMapper.merge(mergeWithMapper, objectMergeContext));
                     }
                 }
-                if (mergedMappers == null) {
-                    mergedMappers = new HashMap<>(existing.mappers);
-                }
-                mergedMappers.put(merged.simpleName(), merged);
             }
-            if (mergedMappers != null) {
-                mergedMappers = Map.copyOf(mergedMappers);
-            } else {
-                mergedMappers = Map.copyOf(existing.mappers);
-            }
-            return mergedMappers;
+            return Collections.unmodifiableMap(mergedMappers);
         }
     }
 

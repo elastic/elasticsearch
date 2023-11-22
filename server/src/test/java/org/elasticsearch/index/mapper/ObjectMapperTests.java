@@ -122,7 +122,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             "_doc",
             new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))))
         );
-        Mapping merged = mapper.mapping().merge(mergeWith, reason);
+        Mapping merged = mapper.mapping().merge(mergeWith, reason, mapperService.getIndexSettings().getMappingTotalFieldsLimit());
         assertEquals(Dynamic.STRICT, merged.getRoot().dynamic());
     }
 
@@ -534,5 +534,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             )
         );
         assertThat(mapperBuilder.mapperSize(), equalTo(5));
+        assertThat(mapperBuilder.build(MapperBuilderContext.root(false, false)).mapperSize(), equalTo(5));
     }
 }

@@ -239,12 +239,22 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                     ActionListener<MultiSearchResponse> listener = ActionListener.wrap(response -> {
                         shardResponses.put(enrichIndexName, new Tuple<>(response, null));
                         if (counter.incrementAndGet() == itemsPerIndex.size()) {
-                            consumer.accept(reduce(request.requests().size(), itemsPerIndex, shardResponses), null);
+                            var res = reduce(request.requests().size(), itemsPerIndex, shardResponses);
+                            try {
+                                consumer.accept(res, null);
+                            } finally {
+                                res.decRef();
+                            }
                         }
                     }, e -> {
                         shardResponses.put(enrichIndexName, new Tuple<>(null, e));
                         if (counter.incrementAndGet() == itemsPerIndex.size()) {
-                            consumer.accept(reduce(request.requests().size(), itemsPerIndex, shardResponses), null);
+                            var res = reduce(request.requests().size(), itemsPerIndex, shardResponses);
+                            try {
+                                consumer.accept(res, null);
+                            } finally {
+                                res.decRef();
+                            }
                         }
                     });
 

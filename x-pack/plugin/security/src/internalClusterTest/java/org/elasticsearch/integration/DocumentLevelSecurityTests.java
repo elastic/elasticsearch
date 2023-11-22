@@ -451,68 +451,90 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         client().prepareIndex("test2").setId("3").setSource("field3", "value3", "id", 3).get();
         indicesAdmin().prepareRefresh("test1", "test2").get();
 
-        MultiSearchResponse response = client().filterWithHeader(
-            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-        )
-            .prepareMultiSearch()
-            .add(prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
-            .add(prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
-            .get();
-        assertFalse(response.getResponses()[0].isFailure());
-        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
-
-        assertFalse(response.getResponses()[1].isFailure());
-        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareMultiSearch()
-            .add(prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
-            .add(prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
-            .get();
-        assertFalse(response.getResponses()[0].isFailure());
-        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(2));
-
-        assertFalse(response.getResponses()[1].isFailure());
-        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(2));
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-            .prepareMultiSearch()
-            .add(
-                prepareSearch("test1").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN)).setQuery(QueryBuilders.matchAllQuery())
+        {
+            final MultiSearchResponse response = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
             )
-            .add(
-                prepareSearch("test2").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN)).setQuery(QueryBuilders.matchAllQuery())
-            )
-            .get();
-        assertFalse(response.getResponses()[0].isFailure());
-        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(2L));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().get("field2"), is("value2"));
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().get("id"), is(2));
+                .prepareMultiSearch()
+                .add(prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
+                .get();
+            try {
+                assertFalse(response.getResponses()[0].isFailure());
+                assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
+                assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
+                assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
 
-        assertFalse(response.getResponses()[1].isFailure());
-        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(2L));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSourceAsMap().size(), is(2));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSourceAsMap().get("field2"), is("value2"));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSourceAsMap().get("id"), is(2));
+                assertFalse(response.getResponses()[1].isFailure());
+                assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
+                assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
+                assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
+            } finally {
+                response.decRef();
+            }
+        }
+        {
+            final MultiSearchResponse response = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD))
+            )
+                .prepareMultiSearch()
+                .add(prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
+                .get();
+            try {
+                assertFalse(response.getResponses()[0].isFailure());
+                assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
+                assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
+                assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
+                assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(2));
+
+                assertFalse(response.getResponses()[1].isFailure());
+                assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
+                assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
+                assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
+                assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(2));
+            } finally {
+                response.decRef();
+            }
+        }
+        {
+            MultiSearchResponse response = client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD))
+            )
+                .prepareMultiSearch()
+                .add(
+                    prepareSearch("test1").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
+                        .setQuery(QueryBuilders.matchAllQuery())
+                )
+                .add(
+                    prepareSearch("test2").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
+                        .setQuery(QueryBuilders.matchAllQuery())
+                )
+                .get();
+            try {
+                assertFalse(response.getResponses()[0].isFailure());
+                assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(2L));
+                assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
+                assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
+                assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().size(), is(2));
+                assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().get("field2"), is("value2"));
+                assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().get("id"), is(2));
+
+                assertFalse(response.getResponses()[1].isFailure());
+                assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(2L));
+                assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
+                assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
+                assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
+                assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSourceAsMap().size(), is(2));
+                assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSourceAsMap().get("field2"), is("value2"));
+                assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSourceAsMap().get("id"), is(2));
+            } finally {
+                response.decRef();
+            }
+        }
     }
 
     public void testPercolateQueryWithIndexedDocWithDLS() {

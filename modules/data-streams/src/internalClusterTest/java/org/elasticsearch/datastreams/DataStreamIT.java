@@ -1852,10 +1852,14 @@ public class DataStreamIT extends ESIntegTestCase {
             String expectedErrorMessage = "no such index [" + dataStream + "]";
             if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
-                assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
-                assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
+                try {
+                    assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                    assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
+                    assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
+                    assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
+                } finally {
+                    multiSearchResponse.decRef();
+                }
             } else if (requestBuilder instanceof ValidateQueryRequestBuilder) {
                 Exception e = expectThrows(IndexNotFoundException.class, requestBuilder::get);
                 assertThat(e.getMessage(), equalTo(expectedErrorMessage));
@@ -1868,7 +1872,11 @@ public class DataStreamIT extends ESIntegTestCase {
                 assertHitCount(searchRequestBuilder, expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));
+                try {
+                    assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));
+                } finally {
+                    multiSearchResponse.decRef();
+                }
             } else {
                 requestBuilder.get();
             }

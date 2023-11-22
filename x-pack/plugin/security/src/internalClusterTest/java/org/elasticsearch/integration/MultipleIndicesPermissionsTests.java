@@ -170,16 +170,20 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
             .add(client.prepareSearch("test"))
             .add(client.prepareSearch("test1"))
             .get();
-        MultiSearchResponse.Item[] items = msearchResponse.getResponses();
-        assertThat(items.length, is(2));
-        assertThat(items[0].isFailure(), is(false));
-        searchResponse = items[0].getResponse();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
-        assertThat(items[1].isFailure(), is(false));
-        searchResponse = items[1].getResponse();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
+        try {
+            MultiSearchResponse.Item[] items = msearchResponse.getResponses();
+            assertThat(items.length, is(2));
+            assertThat(items[0].isFailure(), is(false));
+            searchResponse = items[0].getResponse();
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, 1);
+            assertThat(items[1].isFailure(), is(false));
+            searchResponse = items[1].getResponse();
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, 1);
+        } finally {
+            msearchResponse.decRef();
+        }
     }
 
     public void testMonitorRestrictedWildcards() throws Exception {

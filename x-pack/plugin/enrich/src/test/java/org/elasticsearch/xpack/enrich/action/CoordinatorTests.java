@@ -315,16 +315,20 @@ public class CoordinatorTests extends ESTestCase {
         shardResponses.put("index3", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[] { item2, item2, item2 }, 1), null));
 
         MultiSearchResponse result = Coordinator.reduce(9, itemsPerIndex, shardResponses);
-        assertThat(result.getResponses().length, equalTo(9));
-        assertThat(result.getResponses()[0], sameInstance(item1));
-        assertThat(result.getResponses()[1], sameInstance(item1));
-        assertThat(result.getResponses()[2], sameInstance(item1));
-        assertThat(result.getResponses()[3].getFailure(), sameInstance(failure));
-        assertThat(result.getResponses()[4].getFailure(), sameInstance(failure));
-        assertThat(result.getResponses()[5].getFailure(), sameInstance(failure));
-        assertThat(result.getResponses()[6], sameInstance(item2));
-        assertThat(result.getResponses()[7], sameInstance(item2));
-        assertThat(result.getResponses()[8], sameInstance(item2));
+        try {
+            assertThat(result.getResponses().length, equalTo(9));
+            assertThat(result.getResponses()[0], sameInstance(item1));
+            assertThat(result.getResponses()[1], sameInstance(item1));
+            assertThat(result.getResponses()[2], sameInstance(item1));
+            assertThat(result.getResponses()[3].getFailure(), sameInstance(failure));
+            assertThat(result.getResponses()[4].getFailure(), sameInstance(failure));
+            assertThat(result.getResponses()[5].getFailure(), sameInstance(failure));
+            assertThat(result.getResponses()[6], sameInstance(item2));
+            assertThat(result.getResponses()[7], sameInstance(item2));
+            assertThat(result.getResponses()[8], sameInstance(item2));
+        } finally {
+            result.decRef();
+        }
     }
 
     private static SearchResponse emptySearchResponse() {

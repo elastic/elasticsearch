@@ -52,7 +52,7 @@ public final class RepositoriesModule {
         // TODO: refactor APM metrics into their own class, passed in as a dependency (e.g. see BlobCacheMetrics as an example).
         telemetryProvider.getMeterRegistry().registerLongCounter(METRIC_REQUESTS_COUNT, "repository request counter", "unit");
         telemetryProvider.getMeterRegistry()
-            .registerLongCounter(
+            .registerLongHistogram(
                 HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM,
                 "HttpRequestTime in microseconds expressed as as a histogram",
                 "micros"

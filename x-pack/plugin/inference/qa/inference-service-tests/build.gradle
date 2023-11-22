@@ -4,7 +4,6 @@ dependencies {
   compileOnly project(':x-pack:plugin:core')
   javaRestTestImplementation project(path: xpackModule('inference'))
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
-  javaRestTestImplementation project(':x-pack:plugin:inference:qa:test-service-plugin')
 }
 
 tasks.named("javaRestTest").configure {

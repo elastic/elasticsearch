@@ -134,7 +134,7 @@ public class MockInferenceServiceIT extends ESRestTestCase {
         return entityAsMap(reponse);
     }
 
-    private Map<String, Object>inferOnMockService(String modelId, TaskType taskType, List<String> input) throws IOException {
+    private Map<String, Object> inferOnMockService(String modelId, TaskType taskType, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         var request = new Request("POST", endpoint);
 
@@ -151,20 +151,6 @@ public class MockInferenceServiceIT extends ESRestTestCase {
         var reponse = client().performRequest(request);
         assertOkWithErrorMessage(reponse);
         return entityAsMap(reponse);
-    }
-
-    private void assertModelsAreEqual(ModelConfigurations model1, ModelConfigurations model2) {
-        // The test can't rely on Model::equals as the specific subclass
-        // may be different. Model loses information about it's implemented
-        // subtype when it is streamed across the wire.
-        assertEquals(model1.getModelId(), model2.getModelId());
-        assertEquals(model1.getService(), model2.getService());
-        assertEquals(model1.getTaskType(), model2.getTaskType());
-
-        // TaskSettings and Service settings are named writables so
-        // the actual implementing class type is not lost when streamed \
-        assertEquals(model1.getServiceSettings(), model2.getServiceSettings());
-        assertEquals(model1.getTaskSettings(), model2.getTaskSettings());
     }
 
     @SuppressWarnings("unchecked")
@@ -188,5 +174,4 @@ public class MockInferenceServiceIT extends ESRestTestCase {
         String responseStr = EntityUtils.toString(response.getEntity());
         assertThat(responseStr, response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
-
 }

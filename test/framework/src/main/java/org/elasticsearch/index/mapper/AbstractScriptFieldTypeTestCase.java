@@ -430,6 +430,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             public Set<String> sourcePaths(String name) {
                 throw new UnsupportedOperationException();
             }
+
+            @Override
+            public String parentField(String field) {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 

@@ -70,7 +70,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             .endObject();
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping(mapping));
 
-        client().prepareIndex("test").setId("666").setSource("field", "foo bar").execute().actionGet();
+        client().prepareIndex("test").setId("666").setSource("field", "foo bar").get();
         refresh();
         for (int i = 0; i < 20; i++) {
             ActionFuture<TermVectorsResponse> termVector = client().termVectors(new TermVectorsRequest(indexOrAlias(), "" + i));
@@ -97,7 +97,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping(mapping));
 
         // when indexing a field that simply has a question mark, the term vectors will be null
-        client().prepareIndex("test").setId("0").setSource("existingfield", "?").execute().actionGet();
+        client().prepareIndex("test").setId("0").setSource("existingfield", "?").get();
         refresh();
         ActionFuture<TermVectorsResponse> termVector = client().termVectors(
             new TermVectorsRequest(indexOrAlias(), "0").selectedFields(new String[] { "existingfield" })
@@ -125,7 +125,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping(mapping));
 
         // when indexing a field that simply has a question mark, the term vectors will be null
-        client().prepareIndex("test").setId("0").setSource("anotherexistingfield", 1).execute().actionGet();
+        client().prepareIndex("test").setId("0").setSource("anotherexistingfield", 1).get();
         refresh();
         ActionFuture<TermVectorsResponse> termVectors = client().termVectors(
             new TermVectorsRequest(indexOrAlias(), "0").selectedFields(randomBoolean() ? new String[] { "existingfield" } : null)
@@ -214,8 +214,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         // 31the34 35lazy39 40dog43
                         .endObject()
                 )
-                .execute()
-                .actionGet();
+                .get();
             refresh();
         }
         for (int i = 0; i < 10; i++) {
@@ -224,7 +223,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setOffsets(true)
                 .setPositions(true)
                 .setSelectedFields();
-            TermVectorsResponse response = resp.execute().actionGet();
+            TermVectorsResponse response = resp.get();
             assertThat(response.getIndex(), equalTo("test"));
             assertThat("doc id: " + i + " doesn't exists but should", response.isExists(), equalTo(true));
             Fields fields = response.getFields();
@@ -317,8 +316,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         // 31the34 35lazy39 40dog43
                         .endObject()
                 )
-                .execute()
-                .actionGet();
+                .get();
             refresh();
         }
         String[] values = { "brown", "dog", "fox", "jumps", "lazy", "over", "quick", "the" };
@@ -335,7 +333,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setOffsets(isOffsetRequested)
                 .setPositions(isPositionsRequested)
                 .setSelectedFields();
-            TermVectorsResponse response = resp.execute().actionGet();
+            TermVectorsResponse response = resp.get();
             assertThat(infoString + "doc id: " + i + " doesn't exists but should", response.isExists(), equalTo(true));
             Fields fields = response.getFields();
             assertThat(fields.size(), equalTo(ft.storeTermVectors() ? 1 : 0));
@@ -470,7 +468,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource(source).execute().actionGet();
+            client().prepareIndex("test").setId(Integer.toString(i)).setSource(source).get();
             refresh();
         }
 
@@ -480,8 +478,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setOffsets(true)
                 .setPositions(true)
                 .setSelectedFields(fieldNames)
-                .execute()
-                .actionGet();
+                .get();
             assertThat("doc id: " + i + " doesn't exists but should", response.isExists(), equalTo(true));
             Fields fields = response.getFields();
             assertThat(fields.size(), equalTo(fieldNames.length));

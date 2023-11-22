@@ -338,7 +338,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                         .put("index.number_of_shards", shards)
                         .put("index.number_of_routing_shards", shards)
                         .put("index.routing_partition_size", partitionSize)
-                ).execute().actionGet();
+                ).get();
             } catch (IllegalStateException | IllegalArgumentException e) {
                 return false;
             }

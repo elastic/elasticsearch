@@ -821,14 +821,14 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> try to delete snapshot");
         final RepositoryException ex = expectThrows(
             RepositoryException.class,
-            () -> clusterAdmin().prepareDeleteSnapshot(repo, existingSnapshot).execute().actionGet()
+            () -> clusterAdmin().prepareDeleteSnapshot(repo, existingSnapshot).get()
         );
         assertThat(ex.getMessage(), containsString("concurrent modification of the index-N file"));
 
         logger.info("--> try to create snapshot");
         final RepositoryException ex2 = expectThrows(
             RepositoryException.class,
-            () -> clusterAdmin().prepareCreateSnapshot(repo, existingSnapshot).execute().actionGet()
+            () -> clusterAdmin().prepareCreateSnapshot(repo, existingSnapshot).get()
         );
         assertThat(ex2.getMessage(), containsString("The repository has been disabled to prevent data corruption"));
 

@@ -103,15 +103,15 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        DocWriteResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
+        DocWriteResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").get();
         assertEquals(DocWriteResponse.Result.UPDATED, indexResponse.getResult());
 
-        client().prepareDelete("test", "1").execute().actionGet();
+        client().prepareDelete("test", "1").get();
 
-        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
     }
@@ -120,14 +120,14 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        DocWriteResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
+        DocWriteResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        client().prepareDelete("test", "1").execute().actionGet();
+        client().prepareDelete("test", "1").get();
 
         flush();
 
-        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
+        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
     }
 
@@ -174,8 +174,7 @@ public class IndexActionIT extends ESIntegTestCase {
             .setSource("field1", "value1_1")
             .setVersion(123)
             .setVersionType(VersionType.EXTERNAL)
-            .execute()
-            .actionGet();
+            .get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
     }
 
@@ -185,8 +184,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
         BulkResponse bulkResponse = client().prepareBulk()
             .add(client().prepareIndex("test").setId("1").setSource("field1", "value1_1"))
-            .execute()
-            .actionGet();
+            .get();
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(1));
         IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
@@ -264,7 +262,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
     public void testDocumentWithBlankFieldName() {
         Exception e = expectThrows(DocumentParsingException.class, () -> {
-            client().prepareIndex("test").setId("1").setSource("", "value1_2").execute().actionGet();
+            client().prepareIndex("test").setId("1").setSource("", "value1_2").get();
         });
         assertThat(e.getMessage(), containsString("failed to parse"));
         assertThat(e.getCause().getMessage(), containsString("field name cannot be an empty string"));

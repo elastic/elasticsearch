@@ -697,7 +697,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 });
             }
 
-            RefreshResponse response = indicesAdmin().prepareRefresh(INDEX_NAME).execute().actionGet();
+            RefreshResponse response = indicesAdmin().prepareRefresh(INDEX_NAME).get();
             assertThat(
                 "each unpromotable replica shard should be added to the shard failures",
                 response.getFailedShards(),

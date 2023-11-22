@@ -646,7 +646,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             {
               "query": {
                 "simple_query_string": {
-                  "query": "hello"
+                  "query": "Hello"
                 }
               }
             }
@@ -657,7 +657,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             {
               "query": {
                 "simple_query_string": {
-                  "query": "hi"
+                  "query": "Hi"
                 }
               }
             }

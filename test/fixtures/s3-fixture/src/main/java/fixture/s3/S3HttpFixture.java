@@ -27,6 +27,9 @@ public class S3HttpFixture extends ExternalResource {
 
     private boolean enabled;
 
+    public S3HttpFixture() {
+        this(true);
+    }
     public S3HttpFixture(boolean enabled) {
         this(enabled, "bucket", "base_path_integration_tests", "s3_test_access_key");
     }

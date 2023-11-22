@@ -2355,10 +2355,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * Limit[500[INTEGER]]
-     * \_Project[[min{r}#501, max{r}#504, min{r}#501 AS min2, max{r}#504 AS max2, gender{f}#514]]
-     *   \_Aggregate[[gender{f}#514],[MIN(salary{f}#517) AS min, MAX(salary{f}#517) AS max, gender{f}#514]]
-     *     \_EsRelation[test][_meta_field{f}#518, emp_no{f}#512, first_name{f}#51..]
+     * Project[[min{r}#1385, max{r}#1388, min{r}#1385 AS min2, max{r}#1388 AS max2, gender{f}#1398]]
+     * \_Limit[500[INTEGER]]
+     *   \_Aggregate[[gender{f}#1398],[MIN(salary{f}#1401) AS min, MAX(salary{f}#1401) AS max, gender{f}#1398]]
+     *     \_EsRelation[test][_meta_field{f}#1402, emp_no{f}#1396, first_name{f}#..]
      */
     public void testEliminateDuplicateAggsMixed() {
         var plan = plan("""
@@ -2366,8 +2366,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | stats min = min(salary), max = max(salary), min2 = min(salary), max2 = max(salary) by gender
             """);
 
-        var limit = as(plan, Limit.class);
-        var project = as(limit.child(), Project.class);
+        var project = as(plan, Project.class);
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("min", "max", "min2", "max2", "gender"));
         as(projections.get(0), ReferenceAttribute.class);
@@ -2375,7 +2374,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.name(aliased(projections.get(2), ReferenceAttribute.class)), is("min"));
         assertThat(Expressions.name(aliased(projections.get(3), ReferenceAttribute.class)), is("max"));
 
-        var agg = as(project.child(), Aggregate.class);
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
         assertThat(Expressions.names(aggs), contains("min", "max", "gender"));
         aggFieldName(aggs.get(0), Min.class, "salary");
@@ -2401,10 +2401,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * Limit[500[INTEGER]]
-     * \_Project[[max(x){r}#1167, max(x){r}#1167 AS max(y), max(x){r}#1167 AS max(z)]]
-     *   \_Aggregate[[],[MAX(salary{f}#1177) AS max(x)]]
-     *     \_EsRelation[test][_meta_field{f}#1178, emp_no{f}#1172, first_name{f}#..]
+     * Project[[max(x){r}#11, max(x){r}#11 AS max(y), max(x){r}#11 AS max(z)]]
+     * \_Limit[500[INTEGER]]
+     *   \_Aggregate[[],[MAX(salary{f}#21) AS max(x)]]
+     *     \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
      */
     public void testEliminateDuplicateAggsNonCount() {
         var plan = plan("""
@@ -2415,15 +2415,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | stats max(x), max(y), max(z)
             """);
 
-        var limit = as(plan, Limit.class);
-        var project = as(limit.child(), Project.class);
+        var project = as(plan, Project.class);
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("max(x)", "max(y)", "max(z)"));
         as(projections.get(0), ReferenceAttribute.class);
         assertThat(Expressions.name(aliased(projections.get(1), ReferenceAttribute.class)), is("max(x)"));
         assertThat(Expressions.name(aliased(projections.get(2), ReferenceAttribute.class)), is("max(x)"));
 
-        var agg = as(project.child(), Aggregate.class);
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
         assertThat(Expressions.names(aggs), contains("max(x)"));
         aggFieldName(aggs.get(0), Max.class, "salary");

@@ -303,13 +303,13 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
-     * LimitExec[500[INTEGER]]
-     * \_ProjectExec[[c{r}#3, c{r}#3 AS call, c_literal{r}#7]]
+     * ProjectExec[[c{r}#3, c{r}#3 AS call, c_literal{r}#7]]
+     * \_LimitExec[500[INTEGER]]
      *   \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS c, COUNT(1[INTEGER]) AS c_literal],FINAL,null]
      *     \_ExchangeExec[[count{r}#18, seen{r}#19, count{r}#20, seen{r}#21],true]
      *       \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null], Stat[name=*, type=COUNT, query=null]]],
-     *       query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10010,"boost":1.0}}}}}][count{r}#23, seen{r}#24,
-     *       count{r}#25, seen{r}#26], limit[],
+     *         query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10010,"boost":1.0}}}}}]
+     *         [count{r}#23, seen{r}#24, count{r}#25, seen{r}#26], limit[],
      */
     public void testMultiCountAllWithFilter() {
         var plan = plan("""
@@ -318,13 +318,13 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             | stats c = count(), call = count(*), c_literal = count(1)
             """, IS_SV_STATS);
 
-        var limit = as(plan, LimitExec.class);
-        var project = as(limit.child(), ProjectExec.class);
+        var project = as(plan, ProjectExec.class);
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("c", "call", "c_literal"));
         var alias = as(projections.get(1), Alias.class);
         assertThat(Expressions.name(alias.child()), is("c"));
-        var agg = as(project.child(), AggregateExec.class);
+        var limit = as(project.child(), LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
         assertThat(agg.getMode(), is(FINAL));
         assertThat(Expressions.names(agg.aggregates()), contains("c", "c_literal"));
         var exchange = as(agg.child(), ExchangeExec.class);

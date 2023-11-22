@@ -1,5 +1,9 @@
 ---
 "Basic mlt query with docs - explicitly on same shard":
+  - skip:
+      version: "all"
+      reason: temporarily disabling for serverless
+
   - do:
       indices.create:
         index: mlt_one_shard_test_index

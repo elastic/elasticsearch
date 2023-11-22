@@ -98,7 +98,6 @@ public class KvIndexResolver {
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("start " + eventStart);
             log.debug(
                 "Resolved index pattern ["
                     + indexPattern

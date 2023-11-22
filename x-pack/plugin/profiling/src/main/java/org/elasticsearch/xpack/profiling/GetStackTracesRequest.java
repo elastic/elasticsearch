@@ -262,7 +262,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 if (customCostFactor == null) {
                     sb.append(", custom_cost_factor[]");
                 } else {
-                    sb.append(", custom_cost_factor[").append(requestedDuration).append("]");
+                    sb.append(", custom_cost_factor[").append(customCostFactor).append("]");
                 }
                 if (query == null) {
                     sb.append(", query[]");

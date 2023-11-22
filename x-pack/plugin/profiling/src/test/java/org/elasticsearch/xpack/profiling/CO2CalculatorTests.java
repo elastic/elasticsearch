@@ -70,13 +70,13 @@ public class CO2CalculatorTests extends ESTestCase {
         );
         // end::noformat
 
-        double samplingDurationInSeconds = 1_800d; // 30 minutes
+        double samplingDurationInSeconds = 1_800.0d; // 30 minutes
         long samples = 100_000L; // 100k samples
-        double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 20d);
+        double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 20.0d);
         CO2Calculator co2Calculator = new CO2Calculator(instanceTypeService, hostsTable, samplingDurationInSeconds);
 
         checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_A, samples), annualCoreHours, 0.000002213477d);
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples), annualCoreHours, 1.1d, 0.00004452d, 7d);
+        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples), annualCoreHours, 1.1d, 0.00004452d, 7.0d);
         checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_C, samples), annualCoreHours, 1.185d, 0.000410608d, 2.8d);
         checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_D, samples), annualCoreHours, 1.7d, 0.000379069d, 2.8d);
     }
@@ -93,7 +93,7 @@ public class CO2CalculatorTests extends ESTestCase {
         double co2TonsPerKWH,
         double wattsPerCore
     ) {
-        double kiloWattsPerCore = wattsPerCore / 1000d;
+        double kiloWattsPerCore = wattsPerCore / 1000.0d;
         double expectedAnnualCO2Tons = annualCoreHours * datacenterPUE * co2TonsPerKWH * kiloWattsPerCore;
         assertEquals(expectedAnnualCO2Tons, calculatedAnnualCO2Tons, 0.000000000001d);
     }

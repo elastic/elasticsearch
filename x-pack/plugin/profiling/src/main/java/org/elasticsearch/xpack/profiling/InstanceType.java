@@ -51,7 +51,9 @@ final class InstanceType implements ToXContentObject {
         // "cloud_environment:qa",
         // "cloud_region:eu-west-1",
         // ],
-        String provider = "", region = "", instanceType = "";
+        String provider = "";
+        String region = "";
+        String instanceType = "";
 
         List<String> tags = listOf(source.get("profiling.host.tags"));
         for (String tag : tags) {

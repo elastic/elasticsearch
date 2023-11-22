@@ -30,8 +30,8 @@ import static java.util.Collections.emptyList;
 public class GetStackTracesRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         Integer sampleSize = randomBoolean() ? randomIntBetween(0, Integer.MAX_VALUE) : null;
-        Double requestedDuration = randomBoolean() ? randomDoubleBetween(0.001, Double.MAX_VALUE, true) : null;
-        Double customCostFactor = randomBoolean() ? randomDoubleBetween(0.1, 5.0, true) : null;
+        Double requestedDuration = randomBoolean() ? randomDoubleBetween(0.001d, Double.MAX_VALUE, true) : null;
+        Double customCostFactor = randomBoolean() ? randomDoubleBetween(0.1d, 5.0d, true) : null;
         QueryBuilder query = randomBoolean() ? new BoolQueryBuilder() : null;
 
         GetStackTracesRequest request = new GetStackTracesRequest(sampleSize, requestedDuration, customCostFactor, query, null, null);
@@ -50,7 +50,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
         //tag::noformat
             .startObject()
                 .field("sample_size", 500)
-                .field("requested_duration", 100.540)
+                .field("requested_duration", 100.54d)
                 .startObject("query")
                     .startObject("range")
                         .startObject("@timestamp")
@@ -66,7 +66,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             request.parseXContent(content);
 
             assertEquals(Integer.valueOf(500), request.getSampleSize());
-            assertEquals(Double.valueOf(100.540), request.getRequestedDuration());
+            assertEquals(Double.valueOf(100.54d), request.getRequestedDuration());
             // a basic check suffices here
             assertEquals("@timestamp", ((RangeQueryBuilder) request.getQuery()).fieldName());
         }

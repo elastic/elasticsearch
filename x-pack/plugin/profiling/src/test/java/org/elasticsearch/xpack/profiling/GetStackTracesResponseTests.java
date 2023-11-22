@@ -31,8 +31,8 @@ public class GetStackTracesResponseTests extends AbstractWireSerializingTestCase
                     List.of("QCCDqjSg3bMK1C4YRK6Tiw"),
                     List.of("QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf"),
                     List.of(2),
-                    0.3,
-                    2.7,
+                    0.3d,
+                    2.7d,
                     1
                 )
             )

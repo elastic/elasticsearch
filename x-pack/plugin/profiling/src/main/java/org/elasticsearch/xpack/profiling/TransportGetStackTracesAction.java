@@ -147,18 +147,22 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     @Override
     protected void doExecute(Task submitTask, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
         licenseChecker.requireSupportedLicense();
+        GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
+        responseBuilder.setRequestedDuration(request.getRequestedDuration());
+        responseBuilder.setCustomCostFactor(request.getCustomCostFactor());
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         if (request.getIndices() == null) {
-            searchProfilingEvents(request, submitListener, client);
+            searchProfilingEvents(client, request, submitListener, responseBuilder);
         } else {
-            searchGenericEvents(request, submitListener, client);
+            searchGenericEvents(client, request, submitListener, responseBuilder);
         }
     }
 
     private void searchProfilingEvents(
+        Client client,
         GetStackTracesRequest request,
         ActionListener<GetStackTracesResponse> submitListener,
-        Client client
+        GetStackTracesResponseBuilder responseBuilder
     ) {
         StopWatch watch = new StopWatch("getResampledIndex");
         EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
@@ -177,7 +181,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     resampledIndex
                 );
                 log.debug(watch::report);
-                searchEventGroupedByStackTrace(client, request, resampledIndex, submitListener);
+                searchEventGroupedByStackTrace(client, request, submitListener, responseBuilder, resampledIndex);
             }, e -> {
                 // All profiling-events data streams are created lazily. In a relatively empty cluster it can happen that there are so few
                 // data that we need to resort to the "full" events stream. As this is an edge case we'd rather fail instead of prematurely
@@ -186,18 +190,20 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
                     EventsIndex fullIndex = EventsIndex.FULL_INDEX;
                     log.debug("Index [{}] does not exist. Using [{}] instead.", missingIndex, fullIndex.getName());
-                    searchEventGroupedByStackTrace(client, request, fullIndex, submitListener);
+                    searchEventGroupedByStackTrace(client, request, submitListener, responseBuilder, fullIndex);
                 } else {
                     submitListener.onFailure(e);
                 }
             }));
     }
 
-    private void searchGenericEvents(GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener, Client client) {
-        GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
+    private void searchGenericEvents(
+        Client client,
+        GetStackTracesRequest request,
+        ActionListener<GetStackTracesResponse> submitListener,
+        GetStackTracesResponseBuilder responseBuilder
+    ) {
         responseBuilder.setSamplingRate(1.0d);
-        responseBuilder.setRequestedDuration(request.getRequestedDuration());
-        responseBuilder.setCustomCostFactor(request.getCustomCostFactor());
         client.prepareSearch(request.indices())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -210,7 +216,13 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             .execute(handleEventsGroupedByStackTrace(client, responseBuilder, submitListener, searchResponse -> {
                 long totalSamples = 0;
                 StringTerms stacktraces = searchResponse.getAggregations().get("group_by");
-                List<HostEventCount> hostEventCounts = new ArrayList<>(MAX_TRACE_EVENTS_RESULT_SIZE); // Preparation for future host.id
+
+                // When we switch to aggregation by (hostID, stacktraceID) we need to change the empty List to this.
+                // List<HostEventCount> hostEventCounts = new ArrayList<>(MAX_TRACE_EVENTS_RESULT_SIZE);
+                // Related: https://github.com/elastic/prodfiler/issues/4300
+                // See also the aggregation in searchEventGroupedByStackTrace() for the other parts of the change.
+                List<HostEventCount> hostEventCounts = Collections.emptyList();
+
                 // aggregation
                 Map<String, TraceEvent> stackTraceEvents = new TreeMap<>();
                 for (StringTerms.Bucket stacktraceBucket : stacktraces.getBuckets()) {
@@ -234,13 +246,11 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     private void searchEventGroupedByStackTrace(
         Client client,
         GetStackTracesRequest request,
-        EventsIndex eventsIndex,
-        ActionListener<GetStackTracesResponse> submitListener
+        ActionListener<GetStackTracesResponse> submitListener,
+        GetStackTracesResponseBuilder responseBuilder,
+        EventsIndex eventsIndex
     ) {
-        GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
         responseBuilder.setSamplingRate(eventsIndex.getSampleRate());
-        responseBuilder.setRequestedDuration(request.getRequestedDuration());
-        responseBuilder.setCustomCostFactor(request.getCustomCostFactor());
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -338,8 +348,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
             log.debug(watch::report);
             if (stackTraceEvents.isEmpty() == false) {
-                long totalSamples = stackTraceEvents.values().stream().mapToLong(v -> v.count).sum();
-                responseBuilder.setTotalSamples(totalSamples);
                 responseBuilder.setStart(Instant.ofEpochMilli(minTime));
                 responseBuilder.setEnd(Instant.ofEpochMilli(maxTime));
                 responseBuilder.setStackTraceEvents(stackTraceEvents);
@@ -374,12 +382,12 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         List<Index> indices = resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
 
         // Build a set of unique host IDs.
-        Set<String> uniqueHostIDs = new HashSet<>(responseBuilder.hostEventCounts.size());
-        responseBuilder.hostEventCounts.forEach(hec -> {
+        Set<String> unknownHostIDs = new HashSet<>(responseBuilder.hostEventCounts.size());
+        for (HostEventCount hec : responseBuilder.hostEventCounts) {
             if (hostsTable.containsKey(hec.hostID) == false) {
-                uniqueHostIDs.add(hec.hostID);
+                unknownHostIDs.add(hec.hostID);
             }
-        });
+        }
 
         StackTraceHandler handler = new StackTraceHandler(
             clusterState,
@@ -388,13 +396,13 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             submitListener,
             eventIds.size(),
             // We need to expect a set of slices for each resolved index, plus one for the host metadata.
-            slicedEventIds.size() * indices.size() + (uniqueHostIDs.isEmpty() ? 0 : 1)
+            slicedEventIds.size() * indices.size() + (unknownHostIDs.isEmpty() ? 0 : 1)
         );
         for (List<String> slice : slicedEventIds) {
-            mget(client, indices, slice, ActionListener.wrap(handler::onResponse, submitListener::onFailure));
+            mget(client, indices, slice, ActionListener.wrap(handler::onStackTraceResponse, submitListener::onFailure));
         }
 
-        if (uniqueHostIDs.isEmpty()) {
+        if (unknownHostIDs.isEmpty()) {
             handler.calculateCO2AndCosts();
             return;
         }
@@ -412,7 +420,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                             .lt(responseBuilder.getEnd().toEpochMilli())
                             .format("epoch_millis")
                     )
-                    .filter(QueryBuilders.termsQuery("host.id", uniqueHostIDs))
+                    .filter(QueryBuilders.termsQuery("host.id", unknownHostIDs))
             )
             .setCollapse(
                 // Collapse on host.id to get a single host metadata for each host.
@@ -471,7 +479,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             this.submitListener = submitListener;
         }
 
-        public void onResponse(MultiGetResponse multiGetItemResponses) {
+        public void onStackTraceResponse(MultiGetResponse multiGetItemResponses) {
             for (MultiGetItemResponse trace : multiGetItemResponses) {
                 if (trace.isFailed()) {
                     submitListener.onFailure(trace.getFailure().getFailure());
@@ -534,7 +542,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
             if (missingStackTraces.isEmpty() == false) {
                 StringBuilder stringBuilder = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(missingStackTraces, ",", "", "", 3, stringBuilder);
+                Strings.collectionToDelimitedStringWithLimit(missingStackTraces, ",", "", "", 80, stringBuilder);
                 log.warn("CO2/cost calculator: missing trace events for StackTraceID [" + stringBuilder + "].");
             }
         }

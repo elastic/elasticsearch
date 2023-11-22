@@ -17,7 +17,7 @@ final class CostEntry implements ToXContentObject {
     final double co2Factor;
     final double costFactor;
 
-    CostEntry(Double co2Factor, Double costFactor) {
+    CostEntry(double co2Factor, double costFactor) {
         this.co2Factor = co2Factor;
         this.costFactor = costFactor;
     }

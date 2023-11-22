@@ -42,8 +42,8 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9"
                     ),
                     List.of(3, 3, 3, 3, 3, 3, 3, 3, 3),
-                    0.3,
-                    2.7,
+                    0.3d,
+                    2.7d,
                     1
                 )
             ),

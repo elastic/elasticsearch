@@ -60,6 +60,7 @@ public class FeatureService {
         if (state.clusterFeatures().clusterHasFeature(feature)) {
             return true;
         }
+
         var features = historicalFeatures.floorEntry(state.getNodes().getMinNodeVersion());
         return features != null && features.getValue().contains(feature.id());
     }

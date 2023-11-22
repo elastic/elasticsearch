@@ -16,8 +16,11 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -25,13 +28,16 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -216,6 +222,58 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         logger.info("--> Execute repository cleanup");
         final CleanupRepositoryResponse response = clusterAdmin().prepareCleanupRepository(TEST_REPO_NAME).get();
         assertCleanupResponse(response, 3L, 1L);
+    }
+
+    public void testIndexLatest() throws Exception {
+        // This test verifies that every completed snapshot operation updates a blob called literally 'index.latest' (by default at least),
+        // which is important because some external systems use the freshness of this specific blob as an indicator of whether a repository
+        // is in use. Most notably, ESS checks this blob as an extra layer of protection against a bug in the delete-old-repositories
+        // process incorrectly deleting repositories that have seen recent writes. It's possible that some future development might change
+        // the meaning of this blob, and that's ok, but we must continue to update it to keep those external systems working.
+
+        createIndex("test-idx-1");
+        for (int i = 0; i < 100; i++) {
+            client().prepareIndex("test-idx-1").setId(Integer.toString(i)).setSource("foo", "bar" + i).get();
+        }
+
+        final var repository = getRepository();
+        final var blobContents = new HashSet<BytesReference>();
+
+        final var createSnapshot1Response = clusterAdmin().prepareCreateSnapshot(TEST_REPO_NAME, randomIdentifier())
+            .setWaitForCompletion(true)
+            .get();
+        assertTrue(blobContents.add(readIndexLatest(repository)));
+
+        clusterAdmin().prepareGetSnapshots(TEST_REPO_NAME).get();
+        assertFalse(blobContents.add(readIndexLatest(repository)));
+
+        final var createSnapshot2Response = clusterAdmin().prepareCreateSnapshot(TEST_REPO_NAME, randomIdentifier())
+            .setWaitForCompletion(true)
+            .get();
+        assertTrue(blobContents.add(readIndexLatest(repository)));
+
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REPO_NAME, createSnapshot1Response.getSnapshotInfo().snapshotId().getName()));
+        assertTrue(blobContents.add(readIndexLatest(repository)));
+
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REPO_NAME, createSnapshot2Response.getSnapshotInfo().snapshotId().getName()));
+        assertTrue(blobContents.add(readIndexLatest(repository)));
+    }
+
+    private static BytesReference readIndexLatest(BlobStoreRepository repository) throws IOException {
+        try (var baos = new BytesStreamOutput()) {
+            Streams.copy(
+                repository.blobStore()
+                    .blobContainer(repository.basePath())
+                    .readBlob(
+                        OperationPurpose.SNAPSHOT,
+                        // Deliberately not using BlobStoreRepository#INDEX_LATEST_BLOB here, it's important for external systems that a
+                        // blob with literally this name is updated on each write:
+                        "index.latest"
+                    ),
+                baos
+            );
+            return baos.bytes();
+        }
     }
 
     protected void assertCleanupResponse(CleanupRepositoryResponse response, long bytes, long blobs) {

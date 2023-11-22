@@ -14,21 +14,20 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 
 public class HuggingFaceElserRequestEntityTests extends ESTestCase {
 
     public void testXContent() throws IOException {
-        var entity = new HuggingFaceElserRequestEntity("abc");
+        var entity = new HuggingFaceElserRequestEntity(List.of("abc"));
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {
-              "inputs" : "abc"
-            }"""));
+            {"inputs":["abc"]}"""));
     }
 }

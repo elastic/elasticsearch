@@ -281,7 +281,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                 name,
                 FIELD_TYPE,
                 new CountedKeywordFieldType(
-                    name,
+                    context.buildFullName(name),
                     true,
                     false,
                     true,

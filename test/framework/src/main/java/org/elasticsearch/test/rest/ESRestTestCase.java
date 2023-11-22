@@ -241,7 +241,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             for (Map.Entry<?, ?> node : nodes.entrySet()) {
                 Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-                // TODO: change this for serverless/non-semantic (change to string or remove if not needed)
+                // TODO (ES-7316): change this for serverless/non-semantic (change to string or remove if not needed)
                 nodeVersions.add(parseLegacyVersion(nodeInfo.get("version").toString()).get());
                 for (Object module : (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
@@ -283,10 +283,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
 
             testFeatureService = new TestFeatureService(
-                List.of(new RestTestLegacyFeatures()), // TODO: add new ESRestTestCaseHistoricalFeatures() too
+                List.of(new RestTestLegacyFeatures()), // TODO (ES-7313): add new ESRestTestCaseHistoricalFeatures() too
                 nodeVersions,
                 Set.of()
-            ); // TODO: GET and pass cluster state
+            ); // TODO (ES-7316): GET and pass cluster state
         }
 
         assert testFeatureService != null;

@@ -25,10 +25,10 @@ class TestFeatureService {
     TestFeatureService(List<? extends FeatureSpecification> specs, Collection<Version> nodeVersions, Set<String> clusterStateFeatures) {
 
         var minNodeVersion = nodeVersions.stream().min(Version::compareTo);
-        this.historicalFeaturesPredicate = minNodeVersion.map(v -> {
+        this.historicalFeaturesPredicate = minNodeVersion.<Predicate<String>>map(v -> {
             var featureData = FeatureData.createFromSpecifications(specs);
             var historicalFeatures = featureData.getHistoricalFeatures();
-            return (Predicate<String>) featureId -> hasHistoricalFeature(historicalFeatures, v, featureId);
+            return featureId -> hasHistoricalFeature(historicalFeatures, v, featureId);
         }).orElse(f -> false);
         this.clusterStateFeatures = clusterStateFeatures;
     }

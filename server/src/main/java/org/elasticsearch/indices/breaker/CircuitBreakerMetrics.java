@@ -37,12 +37,12 @@ import java.util.Objects;
  * trip counters.
  */
 public class CircuitBreakerMetrics {
-    public static final String CIRCUIT_BREAKER_PARENT_TRIP_COUNT_TOTAL = "circuit_breaker.parent.trip_count.total";
-    public static final String CIRCUIT_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL = "circuit_breaker.field_data.trip_count.total";
-    public static final String CIRCUIT_BREAKER_REQUEST_TRIP_COUNT_TOTAL = "circuit_breaker.request.trip_count.total";
-    public static final String CIRCUIT_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT_TOTAL = "circuit_breaker.in_flight_requests.trip_count.total";
+    public static final String ES_BREAKER_PARENT_TRIP_COUNT_TOTAL = "es.breaker.parent.trip.total";
+    public static final String ES_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL = "es.breaker.field_data.trip.total";
+    public static final String ES_BREAKER_REQUEST_TRIP_COUNT_TOTAL = "es.breaker.request.trip.total";
+    public static final String ES_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT_TOTAL = "es.breaker.in_flight_requests.trip.total";
 
-    private static final String CIRCUIT_BREAKER_CUSTOM_TRIP_COUNT_TOTAL_TEMPLATE = "circuit_breaker.%s.trip_count.total";
+    private static final String ES_BREAKER_CUSTOM_TRIP_COUNT_TOTAL_TEMPLATE = "es.breaker.%s.trip.total";
     private final MeterRegistry registry;
     private final LongCounter parentTripCountTotal;
     private final LongCounter fielddataTripCountTotal;
@@ -70,14 +70,14 @@ public class CircuitBreakerMetrics {
         this(
             telemetryProvider.getMeterRegistry(),
             telemetryProvider.getMeterRegistry()
-                .registerLongCounter(CIRCUIT_BREAKER_PARENT_TRIP_COUNT_TOTAL, "Parent circuit breaker trip count", "count"),
+                .registerLongCounter(ES_BREAKER_PARENT_TRIP_COUNT_TOTAL, "Parent circuit breaker trip count", "count"),
             telemetryProvider.getMeterRegistry()
-                .registerLongCounter(CIRCUIT_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL, "Field data circuit breaker trip count", "count"),
+                .registerLongCounter(ES_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL, "Field data circuit breaker trip count", "count"),
             telemetryProvider.getMeterRegistry()
-                .registerLongCounter(CIRCUIT_BREAKER_REQUEST_TRIP_COUNT_TOTAL, "Request circuit breaker trip count", "count"),
+                .registerLongCounter(ES_BREAKER_REQUEST_TRIP_COUNT_TOTAL, "Request circuit breaker trip count", "count"),
             telemetryProvider.getMeterRegistry()
                 .registerLongCounter(
-                    CIRCUIT_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT_TOTAL,
+                    ES_BREAKER_IN_FLIGHT_REQUESTS_TRIP_COUNT_TOTAL,
                     "In-flight requests circuit breaker trip count",
                     "count"
                 ),
@@ -162,7 +162,7 @@ public class CircuitBreakerMetrics {
         if (this.customTripCountsTotal.containsKey(circuitBreaker.getName())) {
             throw new IllegalArgumentException("A circuit circuitBreaker named [" + circuitBreaker.getName() + " already exists");
         }
-        final String canonicalName = Strings.format(CIRCUIT_BREAKER_CUSTOM_TRIP_COUNT_TOTAL_TEMPLATE, circuitBreaker.getName());
+        final String canonicalName = Strings.format(ES_BREAKER_CUSTOM_TRIP_COUNT_TOTAL_TEMPLATE, circuitBreaker.getName());
         this.customTripCountsTotal.put(
             canonicalName,
             registry.registerLongCounter(canonicalName, "A custom circuit circuitBreaker [" + circuitBreaker.getName() + "]", "count")

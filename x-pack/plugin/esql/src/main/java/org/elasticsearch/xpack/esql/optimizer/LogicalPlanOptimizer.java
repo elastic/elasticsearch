@@ -115,7 +115,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             "Operator Optimization",
             new CombineProjections(),
             new CombineEvals(),
-            new ReplaceDuplicateAggWithEval(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
@@ -149,7 +148,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         );
 
         var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
-        var cleanup = new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN());
+        var cleanup = new Batch<>(
+            "Clean Up",
+            new ReplaceDuplicateAggWithEval(),
+            // pushing down limits again, because ReplaceDuplicateAggWithEval could create new Project nodes that can still be optimized
+            new PushDownAndCombineLimits(),
+            new ReplaceLimitAndSortAsTopN()
+        );
         var defaultTopN = new Batch<>("Add default TopN", new AddDefaultTopN());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 

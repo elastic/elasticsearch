@@ -1,0 +1,5 @@
+pr: 102472
+summary: Expose the `invalidation_time` field in Get/Query `ApiKey` APIs
+area: Client
+type: enhancement
+issues: []

@@ -478,8 +478,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(ClearSecurityCacheAction.INSTANCE), any(ClearSecurityCacheRequest.class), anyActionListener());
 
-        final long invalidationTime = randomMillisUpToYear9999();
-        when(clock.instant()).thenReturn(Instant.ofEpochMilli(invalidationTime));
+        final long invalidation = randomMillisUpToYear9999();
+        when(clock.instant()).thenReturn(Instant.ofEpochMilli(invalidation));
         final ApiKeyService service = createApiKeyService();
         PlainActionFuture<InvalidateApiKeyResponse> future = new PlainActionFuture<>();
         service.invalidateApiKeys(null, null, null, new String[] { apiKeyId }, future);
@@ -488,12 +488,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(invalidateApiKeyResponse.getInvalidatedApiKeys(), equalTo(List.of(apiKeyId)));
         verify(updateRequestBuilder).setDoc(
             argThat(
-                (ArgumentMatcher<Map<String, Object>>) argument -> Map.of(
-                    "api_key_invalidated",
-                    true,
-                    "invalidation_time",
-                    invalidationTime
-                ).equals(argument)
+                (ArgumentMatcher<Map<String, Object>>) argument -> Map.of("api_key_invalidated", true, "invalidation_time", invalidation)
+                    .equals(argument)
             )
         );
     }
@@ -958,7 +954,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
-        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false);
+        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false, -1);
 
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
@@ -985,7 +981,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
         assertThat(result.getMetadata().get(API_KEY_TYPE_KEY), is(apiKeyDoc.type.value()));
 
-        apiKeyDoc = buildApiKeyDoc(hash, Clock.systemUTC().instant().plus(1L, ChronoUnit.HOURS).toEpochMilli(), false);
+        apiKeyDoc = buildApiKeyDoc(hash, Clock.systemUTC().instant().plus(1L, ChronoUnit.HOURS).toEpochMilli(), false, -1);
         future = new PlainActionFuture<>();
         service.validateApiKeyCredentials(
             apiKeyId,
@@ -1010,7 +1006,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
         assertThat(result.getMetadata().get(API_KEY_TYPE_KEY), is(apiKeyDoc.type.value()));
 
-        apiKeyDoc = buildApiKeyDoc(hash, Clock.systemUTC().instant().minus(1L, ChronoUnit.HOURS).toEpochMilli(), false);
+        apiKeyDoc = buildApiKeyDoc(hash, Clock.systemUTC().instant().minus(1L, ChronoUnit.HOURS).toEpochMilli(), false, -1);
         future = new PlainActionFuture<>();
         service.validateApiKeyCredentials(
             apiKeyId,
@@ -1024,7 +1020,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertFalse(result.isAuthenticated());
 
         // key is invalidated
-        apiKeyDoc = buildApiKeyDoc(hash, -1, true);
+        apiKeyDoc = buildApiKeyDoc(hash, -1, true, -1);
         service.getApiKeyAuthCache().put(apiKeyId, new ListenableFuture<>());
         assertNotNull(service.getApiKeyAuthCache().get(apiKeyId));
         future = new PlainActionFuture<>();
@@ -1215,7 +1211,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
-        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false);
+        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false, -1);
 
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
         ApiKeyCredentials creds = getApiKeyCredentials(apiKeyId, apiKey, apiKeyDoc.type);
@@ -1236,7 +1232,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNotNull(shouldBeSame);
         assertThat(shouldBeSame, sameInstance(cachedApiKeyHashResult));
 
-        apiKeyDoc = buildApiKeyDoc(hasher.hash(new SecureString("somelongenoughrandomstring".toCharArray())), -1, false);
+        apiKeyDoc = buildApiKeyDoc(hasher.hash(new SecureString("somelongenoughrandomstring".toCharArray())), -1, false, -1);
         creds = getApiKeyCredentials(randomAlphaOfLength(12), "otherlongenoughrandomstring", apiKeyDoc.type);
         future = new PlainActionFuture<>();
         service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
@@ -1514,7 +1510,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
         final Settings settings = Settings.builder().put(ApiKeyService.CACHE_TTL_SETTING.getKey(), "0s").build();
 
-        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false);
+        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false, -1);
 
         ApiKeyService service = createApiKeyService(settings);
         ApiKeyCredentials creds = getApiKeyCredentials(randomAlphaOfLength(12), apiKey, apiKeyDoc.type);
@@ -1534,7 +1530,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
         final Settings settings = Settings.builder().put(ApiKeyService.DOC_CACHE_TTL_SETTING.getKey(), "0s").build();
 
-        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false);
+        ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false, -1);
 
         ApiKeyService service = createApiKeyService(settings);
 
@@ -2078,7 +2074,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
 
         final var apiKeyService = createApiKeyService();
-        final var apiKeyDocWithNullName = buildApiKeyDoc(hash, -1, false, null, Version.V_8_2_0.id);
+        final var apiKeyDocWithNullName = buildApiKeyDoc(hash, -1, false, -1, null, Version.V_8_2_0.id);
         final var auth = Authentication.newRealmAuthentication(
             new User("test_user", "role"),
             new Authentication.RealmRef("realm1", "realm_type1", "node")
@@ -2090,14 +2086,14 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         assertThat(ex.getMessage(), containsString("cannot update legacy API key [" + apiKeyId + "] without name"));
 
-        final var apiKeyDocWithEmptyName = buildApiKeyDoc(hash, -1, false, "", Version.V_8_2_0.id);
+        final var apiKeyDocWithEmptyName = buildApiKeyDoc(hash, -1, false, -1, "", Version.V_8_2_0.id);
         ex = expectThrows(
             IllegalArgumentException.class,
             () -> apiKeyService.validateForUpdate(apiKeyId, apiKeyDocWithEmptyName.type, auth, apiKeyDocWithEmptyName)
         );
         assertThat(ex.getMessage(), containsString("cannot update legacy API key [" + apiKeyId + "] without name"));
 
-        final ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false, randomAlphaOfLengthBetween(3, 8), Version.CURRENT.id);
+        final ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false, -1, randomAlphaOfLengthBetween(3, 8), Version.CURRENT.id);
         final ApiKey.Type expectedType = randomValueOtherThan(apiKeyDoc.type, () -> randomFrom(ApiKey.Type.values()));
         ex = expectThrows(IllegalArgumentException.class, () -> apiKeyService.validateForUpdate(apiKeyId, expectedType, auth, apiKeyDoc));
         assertThat(
@@ -2511,6 +2507,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             hash,
             randomFrom(-1L, futureTime),
             false,
+            -1,
             randomAlphaOfLengthBetween(3, 8),
             Version.CURRENT.id
         );
@@ -2535,7 +2532,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
 
         // Expired API key
-        final var apiKeyDoc2 = buildApiKeyDoc(hash, pastTime, false, randomAlphaOfLengthBetween(3, 8), Version.CURRENT.id);
+        final var apiKeyDoc2 = buildApiKeyDoc(hash, pastTime, false, -1, randomAlphaOfLengthBetween(3, 8), Version.CURRENT.id);
         final ApiKeyCredentials apiKeyCredentials2 = getApiKeyCredentials(apiKeyId, apiKey, apiKeyDoc2.type);
         final PlainActionFuture<AuthenticationResult<User>> future2 = new PlainActionFuture<>();
         ApiKeyService.validateApiKeyTypeAndExpiration(apiKeyDoc2, apiKeyCredentials2, clock, future2);
@@ -2549,6 +2546,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             hash,
             randomFrom(-1L, futureTime),
             false,
+            -1,
             randomAlphaOfLengthBetween(3, 8),
             Version.CURRENT.id
         );
@@ -2861,15 +2859,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
     }
 
-    private ApiKeyDoc buildApiKeyDoc(char[] hash, long expirationTime, boolean invalidated) throws IOException {
-        return buildApiKeyDoc(hash, expirationTime, invalidated, randomAlphaOfLength(12));
+    private ApiKeyDoc buildApiKeyDoc(char[] hash, long expirationTime, boolean invalidated, long invalidation) throws IOException {
+        return buildApiKeyDoc(hash, expirationTime, invalidated, invalidation, randomAlphaOfLength(12));
     }
 
-    private ApiKeyDoc buildApiKeyDoc(char[] hash, long expirationTime, boolean invalidated, String name) throws IOException {
-        return buildApiKeyDoc(hash, expirationTime, invalidated, name, 0);
+    private ApiKeyDoc buildApiKeyDoc(char[] hash, long expirationTime, boolean invalidated, long invalidation, String name)
+        throws IOException {
+        return buildApiKeyDoc(hash, expirationTime, invalidated, invalidation, name, 0);
     }
 
-    private ApiKeyDoc buildApiKeyDoc(char[] hash, long expirationTime, boolean invalidated, String name, int version) throws IOException {
+    private ApiKeyDoc buildApiKeyDoc(char[] hash, long expirationTime, boolean invalidated, long invalidation, String name, int version)
+        throws IOException {
         final BytesReference metadataBytes = XContentTestUtils.convertToXContent(ApiKeyTests.randomMetadata(), XContentType.JSON);
         return new ApiKeyDoc(
             "api_key",
@@ -2877,6 +2877,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             Clock.systemUTC().instant().toEpochMilli(),
             expirationTime,
             invalidated,
+            invalidation,
             new String(hash),
             name,
             version,

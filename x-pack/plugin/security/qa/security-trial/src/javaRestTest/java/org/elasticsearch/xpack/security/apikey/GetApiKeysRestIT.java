@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.apikey;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
@@ -20,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.Before;
@@ -37,16 +39,21 @@ import javax.annotation.Nullable;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final SecureString END_USER_PASSWORD = new SecureString("end-user-password".toCharArray());
     private static final String MANAGE_OWN_API_KEY_USER = "manage_own_api_key_user";
+    private static final String MANAGE_API_KEY_USER = "manage_api_key_user";
     private static final String MANAGE_SECURITY_USER = "manage_security_user";
 
     @Before
     public void createUsers() throws IOException {
         createUser(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD, List.of("manage_own_api_key_role"));
         createRole("manage_own_api_key_role", Set.of("manage_own_api_key"));
+        createUser(MANAGE_API_KEY_USER, END_USER_PASSWORD, List.of("manage_api_key_role"));
+        createRole("manage_api_key_role", Set.of("manage_api_key"));
         createUser(MANAGE_SECURITY_USER, END_USER_PASSWORD, List.of("manage_security_role"));
         createRole("manage_security_role", Set.of("manage_security"));
     }
@@ -194,6 +201,41 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
     }
 
+    public void testInvalidateApiKey() throws Exception {
+        final String apiKeyId0 = createApiKey(MANAGE_API_KEY_USER, "key-2");
+
+        Request request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+        setUserForRequest(request, MANAGE_API_KEY_USER);
+        GetApiKeyResponse getApiKeyResponse = GetApiKeyResponse.fromXContent(getParser(client().performRequest(request)));
+
+        assertThat(getApiKeyResponse.getApiKeyInfos().length, equalTo(1));
+        ApiKey apiKey = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(apiKey.isInvalidated(), equalTo(false));
+        assertThat(apiKey.getInvalidation(), nullValue());
+        assertThat(apiKey.getId(), equalTo(apiKeyId0));
+
+        request = new Request(HttpDelete.METHOD_NAME, "/_security/api_key/");
+        setUserForRequest(request, MANAGE_API_KEY_USER);
+        request.setJsonEntity(XContentTestUtils.convertToXContent(Map.of("ids", List.of(apiKeyId0)), XContentType.JSON).utf8ToString());
+
+        InvalidateApiKeyResponse invalidateApiKeyResponse = InvalidateApiKeyResponse.fromXContent(
+            getParser(client().performRequest(request))
+        );
+
+        assertThat(invalidateApiKeyResponse.getInvalidatedApiKeys().size(), equalTo(1));
+        assertThat(invalidateApiKeyResponse.getInvalidatedApiKeys().get(0), equalTo(apiKey.getId()));
+
+        request = new Request(HttpGet.METHOD_NAME, "/_security/api_key/");
+        setUserForRequest(request, MANAGE_API_KEY_USER);
+        getApiKeyResponse = GetApiKeyResponse.fromXContent(getParser(client().performRequest(request)));
+
+        assertThat(getApiKeyResponse.getApiKeyInfos().length, equalTo(1));
+        apiKey = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(apiKey.isInvalidated(), equalTo(true));
+        assertThat(apiKey.getInvalidation(), notNullValue());
+        assertThat(apiKey.getId(), equalTo(apiKeyId0));
+    }
+
     private GetApiKeyResponse getApiKeysWithRequestParams(Map<String, String> requestParams) throws IOException {
         return getApiKeysWithRequestParams(MANAGE_SECURITY_USER, requestParams);
     }
@@ -223,7 +265,9 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
      */
     private String createApiKey(String creatorUser, String apiKeyName, @Nullable TimeValue expiration) throws IOException {
         // Sanity check to ensure API key name and creator name aren't flipped
-        assert creatorUser.equals(MANAGE_OWN_API_KEY_USER) || creatorUser.equals(MANAGE_SECURITY_USER);
+        assert creatorUser.equals(MANAGE_OWN_API_KEY_USER)
+            || creatorUser.equals(MANAGE_SECURITY_USER)
+            || creatorUser.equals(MANAGE_API_KEY_USER);
 
         // Exercise cross cluster keys, if viable (i.e., creator has enough privileges and feature flag is enabled)
         final boolean createCrossClusterKey = creatorUser.equals(MANAGE_SECURITY_USER) && randomBoolean();

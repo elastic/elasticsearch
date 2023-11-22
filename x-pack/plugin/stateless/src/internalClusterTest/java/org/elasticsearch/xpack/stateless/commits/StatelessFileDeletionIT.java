@@ -685,6 +685,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         startIndexNode();
         startSearchNode();
+        ensureStableCluster(5);
         final var excludeIndexOrSearchNode = randomBoolean();
         String nodeToExclude = excludeIndexOrSearchNode ? indexNodeA : searchNodeA;
         boolean excludeOrStop = randomBoolean();
@@ -705,11 +706,29 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         logger.info("--> deleting index");
         assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
-        if (excludeIndexOrSearchNode && excludeOrStop) {
-            // TODO: ES-6897 we cannot assert all blobs are deleted because the primary relocation handoff has leftover files
-        } else {
-            assertBusy(() -> { assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()); }); // all blobs should be deleted
-        }
+        assertBusy(() -> assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty())); // all blobs should be deleted
+    }
+
+    public void testDeleteIndexAfterPrimaryRelocation() throws Exception {
+        startMasterOnlyNode();
+        final var indexNodeA = startIndexNode();
+        final var searchNodeA = startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        var totalIndexedDocs = indexDocsAndFlush(indexName);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA);
+
+        startIndexNode();
+        ensureStableCluster(4);
+
+        logger.info("--> excluding {}", indexNodeA);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+
+        logger.info("--> deleting index");
+        assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
+        assertBusy(() -> assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty())); // all blobs should be deleted
     }
 
     public void testStaleNodeDoesNotDeleteCommitFiles() throws Exception {

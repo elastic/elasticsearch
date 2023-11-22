@@ -22,9 +22,13 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -37,7 +41,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class StatelessCommitCleaner extends AbstractLifecycleComponent {
+public class StatelessCommitCleaner extends AbstractLifecycleComponent implements ClusterStateListener {
     private final Logger logger = LogManager.getLogger(StatelessCommitCleaner.class);
 
     private final AtomicBoolean isRunning = new AtomicBoolean(true);
@@ -45,7 +49,9 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final ObjectStoreService objectStoreService;
     private final ConcurrentLinkedQueue<StaleCompoundCommit> pendingCommitsToDelete = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<StaleCompoundCommit> pendingCommitsOfRelocatingPrimariesToDelete = new ConcurrentLinkedQueue<>();
     private final Semaphore consistencyCheckPermit = new Semaphore(1);
+    private final Semaphore relocatingPrimariesCheckPermit = new Semaphore(1);
 
     public StatelessCommitCleaner(
         StatelessClusterConsistencyService consistencyService,
@@ -117,39 +123,126 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent {
         }
     }
 
-    private void deleteStaleCommitsIfIndexDeletedOrNodeIsStillPrimary(List<StaleCompoundCommit> commitsToDelete) {
-        ClusterState state = consistencyService.state();
-        for (StaleCompoundCommit staleCompoundCommit : commitsToDelete) {
-            if (isIndexDeletedOrLocalNodePrimary(staleCompoundCommit.shardId(), staleCompoundCommit.allocationPrimaryTerm(), state)) {
-                logger.debug("Delete shard file {}", staleCompoundCommit);
-                objectStoreService.asyncDeleteShardFile(staleCompoundCommit);
-            } else {
-                logger.debug("Unable to delete commit {} since the primary shard was re-assigned", staleCompoundCommit);
-            }
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.routingTableChanged()) {
+            handlePendingCommitsOfRelocatingPrimariesToDelete(event.state());
         }
     }
 
-    private boolean isIndexDeletedOrLocalNodePrimary(ShardId shardId, long allocationPrimaryTerm, ClusterState state) {
+    private void handlePendingCommitsOfRelocatingPrimariesToDelete() {
+        handlePendingCommitsOfRelocatingPrimariesToDelete(consistencyService.state());
+    }
+
+    private void handlePendingCommitsOfRelocatingPrimariesToDelete(ClusterState state) {
+        if (pendingCommitsOfRelocatingPrimariesToDelete.isEmpty() == false && relocatingPrimariesCheckPermit.tryAcquire()) {
+            threadPool.generic().execute(() -> {
+                boolean successful = false;
+                try {
+                    // Move commits from pending relocating primaries to the main list for deletion, if their primaries have started
+                    boolean anyMoved = false;
+                    for (var it = pendingCommitsOfRelocatingPrimariesToDelete.iterator(); it.hasNext();) {
+                        var commit = it.next();
+                        try {
+                            // Can throw if the index or shard is not there anymore
+                            if (state.routingTable().shardRoutingTable(commit.shardId()).primaryShard().started()) {
+                                pendingCommitsToDelete.add(commit);
+                                anyMoved = true;
+                                it.remove();
+                            }
+                        } catch (IndexNotFoundException e) {
+                            logger.trace(() -> Strings.format("Exception handling commit [{}] to delete of relocating primary", commit), e);
+                            it.remove();
+                        }
+                    }
+                    if (anyMoved) {
+                        maybeTriggerConsistencyCheck();
+                    }
+                    successful = true;
+                } catch (Exception e) {
+                    assert false : e;
+                    logger.warn("Exception while iterating pending commits to delete of relocating primaries", e);
+                } finally {
+                    relocatingPrimariesCheckPermit.release();
+                    if (successful && consistencyService.state().version() > state.version()) {
+                        // Check again with latest cluster state in case the list is still not empty
+                        handlePendingCommitsOfRelocatingPrimariesToDelete();
+                    }
+                }
+            });
+        }
+    }
+
+    private void deleteStaleCommitsIfIndexDeletedOrNodeIsStillPrimary(List<StaleCompoundCommit> commitsToDelete) {
+        ClusterState state = consistencyService.state();
+        boolean addedPendingCommitsOfRelocatingPrimariesToDelete = false;
+        for (StaleCompoundCommit staleCompoundCommit : commitsToDelete) {
+            ShardDeletionState shardDeletionState = getShardDeletionState(
+                staleCompoundCommit.shardId(),
+                staleCompoundCommit.allocationPrimaryTerm(),
+                state
+            );
+            switch (shardDeletionState) {
+                case LOCAL_NODE_IS_PRIMARY:
+                case INDEX_DELETED:
+                    logger.debug("Delete shard file {}", staleCompoundCommit);
+                    objectStoreService.asyncDeleteShardFile(staleCompoundCommit);
+                    break;
+                case LOCAL_NODE_IS_RELOCATING_TARGET_PRIMARY:
+                    logger.debug("Reinserting commit {} for pending deletion", staleCompoundCommit);
+                    pendingCommitsOfRelocatingPrimariesToDelete.add(staleCompoundCommit);
+                    addedPendingCommitsOfRelocatingPrimariesToDelete = true;
+                    break;
+                case LOCAL_NODE_IS_NOT_PRIMARY:
+                    logger.debug("Unable to delete commit {} since the primary shard was re-assigned", staleCompoundCommit);
+                    break;
+                default:
+                    logger.warn("Unable to delete commit {} due to unrecognized shard state {}", staleCompoundCommit, shardDeletionState);
+                    assert false : "unrecognized shard state " + shardDeletionState;
+                    break;
+            }
+        }
+        if (addedPendingCommitsOfRelocatingPrimariesToDelete) {
+            handlePendingCommitsOfRelocatingPrimariesToDelete();
+        }
+    }
+
+    private enum ShardDeletionState {
+        INDEX_DELETED,
+        LOCAL_NODE_IS_PRIMARY,
+        LOCAL_NODE_IS_RELOCATING_TARGET_PRIMARY,
+        LOCAL_NODE_IS_NOT_PRIMARY
+    }
+
+    private ShardDeletionState getShardDeletionState(ShardId shardId, long allocationPrimaryTerm, ClusterState state) {
         var indexRoutingTable = state.routingTable().index(shardId.getIndex());
         if (indexRoutingTable == null) {
-            return true;
+            return ShardDeletionState.INDEX_DELETED;
         }
 
         var primaryShard = indexRoutingTable.shard(shardId.getId()).primaryShard();
         var localNode = state.nodes().getLocalNode();
         var currentPrimaryTerm = state.metadata().index(shardId.getIndex()).primaryTerm(shardId.getId());
 
-        return localNode.getId().equals(primaryShard.currentNodeId()) && currentPrimaryTerm == allocationPrimaryTerm;
+        if (currentPrimaryTerm == allocationPrimaryTerm) {
+            if (localNode.getId().equals(primaryShard.currentNodeId())) {
+                return ShardDeletionState.LOCAL_NODE_IS_PRIMARY;
+            } else if (primaryShard.relocating() && localNode.getId().equals(primaryShard.relocatingNodeId())) {
+                // Primary relocation underway. The primary shard routing is RELOCATING and the target shard routing should be INITIALIZING.
+                return ShardDeletionState.LOCAL_NODE_IS_RELOCATING_TARGET_PRIMARY;
+            }
+        }
+        return ShardDeletionState.LOCAL_NODE_IS_NOT_PRIMARY;
     }
 
     @Override
     protected void doStart() {
-
+        consistencyService.clusterService().addListener(this);
     }
 
     @Override
     protected void doStop() {
-
+        consistencyService.clusterService().removeListener(this);
     }
 
     @Override

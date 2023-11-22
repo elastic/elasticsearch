@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.security.authc.jwt;
+package org.elasticsearch.xpack.core.security.authc.jwt;
 
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -29,13 +29,22 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     @Nullable
     private final SecureString clientAuthenticationSharedSecret;
 
+    public static JwtAuthenticationToken tryParseJwt(SecureString userCredentials, @Nullable SecureString clientCredentials) {
+        SignedJWT signedJWT = JwtUtil.parseSignedJWT(userCredentials);
+        if (signedJWT == null) {
+            return null;
+        }
+        return new JwtAuthenticationToken(signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
+    }
+
     /**
      * Store a mandatory JWT and optional Shared Secret.
      * @param signedJWT The JWT parsed from the end-user credentials
      * @param userCredentialsHash The hash of the end-user credentials is used to compute the key for user cache at the realm level.
-     *                            See also {@link JwtRealm#authenticate}.
+     *                            See also {@code JwtRealm#authenticate}.
      * @param clientAuthenticationSharedSecret URL-safe Shared Secret for Client authentication. Required by some JWT realms.
      */
+    @SuppressWarnings("this-escape")
     public JwtAuthenticationToken(
         SignedJWT signedJWT,
         byte[] userCredentialsHash,

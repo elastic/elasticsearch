@@ -32,6 +32,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -52,12 +54,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     /**
      * Creates a factory for {@link ValuesSourceReaderOperator}.
      * @param fields fields to load
+     * @param shardContexts per-shard loading information
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public record Factory(List<FieldInfo> fields, List<IndexReader> readers, int docChannel) implements OperatorFactory {
+    public record Factory(List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(driverContext.blockFactory(), fields, readers, docChannel);
+            return new ValuesSourceReaderOperator(driverContext.blockFactory(), fields, shardContexts, docChannel);
         }
 
         @Override
@@ -66,8 +69,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
     }
 
+    public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader) {}
+
     private final List<FieldWork> fields;
-    private final List<IndexReader> readers;
+    private final List<ShardContext> shardContexts;
     private final int docChannel;
     private final ComputeBlockLoaderFactory blockFactory;
 
@@ -86,9 +91,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * @param fields fields to load
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public ValuesSourceReaderOperator(BlockFactory blockFactory, List<FieldInfo> fields, List<IndexReader> readers, int docChannel) {
+    public ValuesSourceReaderOperator(BlockFactory blockFactory, List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel) {
         this.fields = fields.stream().map(f -> new FieldWork(f)).toList();
-        this.readers = readers;
+        this.shardContexts = shardContexts;
         this.docChannel = docChannel;
         this.blockFactory = new ComputeBlockLoaderFactory(blockFactory);
     }
@@ -161,10 +166,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                     "found row stride readers [" + rowStrideReaders + "] without stored fields [" + storedFieldsSpec + "]"
                 );
             }
+            LeafReaderContext ctx = ctx(shard, segment);
             BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 // TODO enable the optimization by passing non-null to docs if correct
-                StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx(shard, segment), null),
-                storedFieldsSpec.requiresSource()
+                StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                storedFieldsSpec.requiresSource() ? shardContexts.get(shard).newSourceLoader.get().leaf(ctx.reader(), null) : null
             );
             trackStoredFields(storedFieldsSpec); // TODO when optimization is enabled add it to tracking
             for (int p = 0; p < docs.getPositionCount(); p++) {
@@ -209,9 +215,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                     lastShard = shard;
                     lastSegment = segment;
                     StoredFieldsSpec storedFieldsSpec = storedFieldsSpecForShard(shard);
+                    LeafReaderContext ctx = ctx(shard, segment);
                     storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                        StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx(shard, segment), null),
-                        storedFieldsSpec.requiresSource()
+                        StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                        storedFieldsSpec.requiresSource() ? shardContexts.get(shard).newSourceLoader.get().leaf(ctx.reader(), null) : null
                     );
                     if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
                         trackStoredFields(storedFieldsSpec);
@@ -328,7 +335,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     }
 
     private LeafReaderContext ctx(int shard, int segment) {
-        return readers.get(shard).leaves().get(segment);
+        return shardContexts.get(shard).reader.leaves().get(segment);
     }
 
     @Override

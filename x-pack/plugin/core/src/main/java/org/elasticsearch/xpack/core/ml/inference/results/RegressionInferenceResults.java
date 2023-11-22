@@ -121,11 +121,23 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
     @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
+        addSupportingFieldsToMap(map);
         map.put(resultsField, value());
+        return map;
+    }
+
+    @Override
+    public Map<String, Object> asMap(String outputField) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        addSupportingFieldsToMap(map);
+        map.put(outputField, value());
+        return map;
+    }
+
+    private void addSupportingFieldsToMap(Map<String, Object> map) {
         if (featureImportance.isEmpty() == false) {
             map.put(FEATURE_IMPORTANCE, featureImportance.stream().map(RegressionFeatureImportance::toMap).collect(Collectors.toList()));
         }
-        return map;
     }
 
     @Override

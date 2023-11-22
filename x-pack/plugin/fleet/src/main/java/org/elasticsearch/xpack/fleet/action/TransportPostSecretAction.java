@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -26,7 +27,7 @@ public class TransportPostSecretAction extends HandledTransportAction<PostSecret
 
     @Inject
     public TransportPostSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(PostSecretAction.NAME, transportService, actionFilters, PostSecretRequest::new);
+        super(PostSecretAction.NAME, transportService, actionFilters, PostSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, FLEET_ORIGIN);
     }
 

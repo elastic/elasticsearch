@@ -16,7 +16,7 @@ public class WarningsTests extends ESTestCase {
         warnings.registerException(new IllegalArgumentException());
         assertCriticalWarnings(
             "Line 1:2: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.",
-            "java.lang.IllegalArgumentException: null"
+            "Line 1:2: java.lang.IllegalArgumentException: null"
         );
     }
 
@@ -29,7 +29,7 @@ public class WarningsTests extends ESTestCase {
         String[] expected = new String[21];
         expected[0] = "Line 1:2: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.";
         for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS; i++) {
-            expected[i + 1] = "java.lang.IllegalArgumentException: " + i;
+            expected[i + 1] = "Line 1:2: java.lang.IllegalArgumentException: " + i;
         }
 
         assertCriticalWarnings(expected);

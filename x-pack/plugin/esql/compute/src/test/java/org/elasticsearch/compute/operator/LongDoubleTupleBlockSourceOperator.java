@@ -7,8 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 
@@ -25,28 +24,28 @@ public class LongDoubleTupleBlockSourceOperator extends AbstractBlockSourceOpera
 
     private final List<Tuple<Long, Double>> values;
 
-    public LongDoubleTupleBlockSourceOperator(Stream<Tuple<Long, Double>> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public LongDoubleTupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, Double>> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public LongDoubleTupleBlockSourceOperator(Stream<Tuple<Long, Double>> values, int maxPagePositions) {
-        super(maxPagePositions);
+    public LongDoubleTupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, Double>> values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values.toList();
     }
 
-    public LongDoubleTupleBlockSourceOperator(List<Tuple<Long, Double>> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public LongDoubleTupleBlockSourceOperator(BlockFactory blockFactory, List<Tuple<Long, Double>> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public LongDoubleTupleBlockSourceOperator(List<Tuple<Long, Double>> values, int maxPagePositions) {
-        super(maxPagePositions);
+    public LongDoubleTupleBlockSourceOperator(BlockFactory blockFactory, List<Tuple<Long, Double>> values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values;
     }
 
     @Override
     protected Page createPage(int positionOffset, int length) {
-        var blockBuilder1 = LongBlock.newBlockBuilder(length);
-        var blockBuilder2 = DoubleBlock.newBlockBuilder(length);
+        var blockBuilder1 = blockFactory.newLongBlockBuilder(length);
+        var blockBuilder2 = blockFactory.newDoubleBlockBuilder(length);
         for (int i = 0; i < length; i++) {
             Tuple<Long, Double> item = values.get(positionOffset + i);
             if (item.v1() == null) {

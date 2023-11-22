@@ -47,11 +47,9 @@ public class TransportFindDanglingIndexAction extends TransportNodesAction<
     ) {
         super(
             FindDanglingIndexAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            FindDanglingIndexRequest::new,
             NodeFindDanglingIndexRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

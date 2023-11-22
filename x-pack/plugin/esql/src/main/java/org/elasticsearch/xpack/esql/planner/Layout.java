@@ -111,9 +111,10 @@ public interface Layout {
                 for (NameId id : set.nameIds) {
                     ChannelAndType next = new ChannelAndType(channel, set.type);
                     ChannelAndType prev = layout.put(id, next);
-                    if (prev != null) {
-                        throw new IllegalArgumentException("Name [" + id + "] is on two channels [" + prev + "] and [" + next + "]");
-                    }
+                    // Do allow multiple name to point to the same channel - see https://github.com/elastic/elasticsearch/pull/100238
+                    // if (prev != null) {
+                    // throw new IllegalArgumentException("Name [" + id + "] is on two channels [" + prev + "] and [" + next + "]");
+                    // }
                 }
             }
             return new DefaultLayout(Collections.unmodifiableMap(layout), numberOfChannels);

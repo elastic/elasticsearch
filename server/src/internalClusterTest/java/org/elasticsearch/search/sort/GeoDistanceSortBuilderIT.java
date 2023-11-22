@@ -32,6 +32,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSortValues;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
@@ -84,60 +85,65 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
             q[0] = new GeoPoint(2, 1);
         }
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MIN).order(SortOrder.ASC))
-            .get();
-        assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat(
-            (Double) searchResponse.getHits().getAt(0).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(2, 2, 3, 2, DistanceUnit.METERS), 10d)
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MIN).order(SortOrder.ASC)),
+            response -> {
+                assertOrderedSearchHits(response, "d1", "d2");
+                assertThat(
+                    (Double) response.getHits().getAt(0).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(2, 2, 3, 2, DistanceUnit.METERS), 10d)
+                );
+                assertThat(
+                    (Double) response.getHits().getAt(1).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(2, 1, 5, 1, DistanceUnit.METERS), 10d)
+                );
+            }
         );
-        assertThat(
-            (Double) searchResponse.getHits().getAt(1).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(2, 1, 5, 1, DistanceUnit.METERS), 10d)
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MIN).order(SortOrder.DESC)),
+            response -> {
+                assertOrderedSearchHits(response, "d2", "d1");
+                assertThat(
+                    (Double) response.getHits().getAt(0).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(2, 1, 5, 1, DistanceUnit.METERS), 10d)
+                );
+                assertThat(
+                    (Double) response.getHits().getAt(1).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(2, 2, 3, 2, DistanceUnit.METERS), 10d)
+                );
+            }
         );
-
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MIN).order(SortOrder.DESC))
-            .get();
-        assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat(
-            (Double) searchResponse.getHits().getAt(0).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(2, 1, 5, 1, DistanceUnit.METERS), 10d)
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MAX).order(SortOrder.ASC)),
+            response -> {
+                assertOrderedSearchHits(response, "d1", "d2");
+                assertThat(
+                    (Double) response.getHits().getAt(0).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(2, 2, 4, 1, DistanceUnit.METERS), 10d)
+                );
+                assertThat(
+                    (Double) response.getHits().getAt(1).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(2, 1, 6, 2, DistanceUnit.METERS), 10d)
+                );
+            }
         );
-        assertThat(
-            (Double) searchResponse.getHits().getAt(1).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(2, 2, 3, 2, DistanceUnit.METERS), 10d)
-        );
-
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MAX).order(SortOrder.ASC))
-            .get();
-        assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat(
-            (Double) searchResponse.getHits().getAt(0).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(2, 2, 4, 1, DistanceUnit.METERS), 10d)
-        );
-        assertThat(
-            (Double) searchResponse.getHits().getAt(1).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(2, 1, 6, 2, DistanceUnit.METERS), 10d)
-        );
-
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MAX).order(SortOrder.DESC))
-            .get();
-        assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat(
-            (Double) searchResponse.getHits().getAt(0).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(2, 1, 6, 2, DistanceUnit.METERS), 10d)
-        );
-        assertThat(
-            (Double) searchResponse.getHits().getAt(1).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(2, 2, 4, 1, DistanceUnit.METERS), 10d)
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MAX).order(SortOrder.DESC)),
+            response -> {
+                assertOrderedSearchHits(response, "d2", "d1");
+                assertThat(
+                    (Double) response.getHits().getAt(0).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(2, 1, 6, 2, DistanceUnit.METERS), 10d)
+                );
+                assertThat(
+                    (Double) response.getHits().getAt(1).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(2, 2, 4, 1, DistanceUnit.METERS), 10d)
+                );
+            }
         );
     }
 
@@ -168,32 +174,35 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         );
         GeoPoint q = new GeoPoint(0, 0);
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.AVG).order(SortOrder.ASC))
-            .get();
-        assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat(
-            (Double) searchResponse.getHits().getAt(0).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(0, 0, 0, 4, DistanceUnit.METERS), 10d)
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.AVG).order(SortOrder.ASC)),
+            response -> {
+                assertOrderedSearchHits(response, "d2", "d1");
+                assertThat(
+                    (Double) response.getHits().getAt(0).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(0, 0, 0, 4, DistanceUnit.METERS), 10d)
+                );
+                assertThat(
+                    (Double) response.getHits().getAt(1).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(0, 0, 0, 5, DistanceUnit.METERS), 10d)
+                );
+            }
         );
-        assertThat(
-            (Double) searchResponse.getHits().getAt(1).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(0, 0, 0, 5, DistanceUnit.METERS), 10d)
-        );
-
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MEDIAN).order(SortOrder.ASC))
-            .get();
-        assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat(
-            (Double) searchResponse.getHits().getAt(0).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(0, 0, 0, 4, DistanceUnit.METERS), 10d)
-        );
-        assertThat(
-            (Double) searchResponse.getHits().getAt(1).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(0, 0, 0, 5, DistanceUnit.METERS), 10d)
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MEDIAN).order(SortOrder.ASC)),
+            response -> {
+                assertOrderedSearchHits(response, "d1", "d2");
+                assertThat(
+                    (Double) response.getHits().getAt(0).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(0, 0, 0, 4, DistanceUnit.METERS), 10d)
+                );
+                assertThat(
+                    (Double) response.getHits().getAt(1).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(0, 0, 0, 5, DistanceUnit.METERS), 10d)
+                );
+            }
         );
     }
 
@@ -251,32 +260,33 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
             }
         }
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC))
-            .get();
-        assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat(
-            (Double) searchResponse.getHits().getAt(0).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(2.5, 1, 2, 1, DistanceUnit.METERS), 1.e-1)
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery()).addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC)),
+            response -> {
+                assertOrderedSearchHits(response, "d1", "d2");
+                assertThat(
+                    (Double) response.getHits().getAt(0).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(2.5, 1, 2, 1, DistanceUnit.METERS), 1.e-1)
+                );
+                assertThat(
+                    (Double) response.getHits().getAt(1).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(4.5, 1, 2, 1, DistanceUnit.METERS), 1.e-1)
+                );
+            }
         );
-        assertThat(
-            (Double) searchResponse.getHits().getAt(1).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(4.5, 1, 2, 1, DistanceUnit.METERS), 1.e-1)
-        );
-
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(geoDistanceSortBuilder.sortMode(SortMode.MAX).order(SortOrder.ASC))
-            .get();
-        assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat(
-            (Double) searchResponse.getHits().getAt(0).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(3.25, 4, 2, 1, DistanceUnit.METERS), 1.e-1)
-        );
-        assertThat(
-            (Double) searchResponse.getHits().getAt(1).getSortValues()[0],
-            closeTo(GeoDistance.ARC.calculate(5.25, 4, 2, 1, DistanceUnit.METERS), 1.e-1)
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery()).addSort(geoDistanceSortBuilder.sortMode(SortMode.MAX).order(SortOrder.ASC)),
+            response -> {
+                assertOrderedSearchHits(response, "d1", "d2");
+                assertThat(
+                    (Double) response.getHits().getAt(0).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(3.25, 4, 2, 1, DistanceUnit.METERS), 1.e-1)
+                );
+                assertThat(
+                    (Double) response.getHits().getAt(1).getSortValues()[0],
+                    closeTo(GeoDistance.ARC.calculate(5.25, 4, 2, 1, DistanceUnit.METERS), 1.e-1)
+                );
+            }
         );
 
     }
@@ -297,51 +307,48 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
         GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, hashPoint);
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC))
-            .get();
-        checkCorrectSortOrderForGeoSort(searchResponse);
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery()).addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC)),
+            response -> checkCorrectSortOrderForGeoSort(response)
+        );
 
         geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, new GeoPoint(2, 2));
 
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC))
-            .get();
-        checkCorrectSortOrderForGeoSort(searchResponse);
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery()).addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC)),
+            response -> checkCorrectSortOrderForGeoSort(response)
+        );
 
         geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, 2, 2);
 
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC))
-            .get();
-        checkCorrectSortOrderForGeoSort(searchResponse);
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery()).addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC)),
+            response -> checkCorrectSortOrderForGeoSort(response)
+        );
 
-        searchResponse = client().prepareSearch()
-            .setSource(new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0)))
-            .get();
-        checkCorrectSortOrderForGeoSort(searchResponse);
+        assertResponse(
+            prepareSearch().setSource(new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0))),
+            response -> checkCorrectSortOrderForGeoSort(response)
+        );
 
-        searchResponse = client().prepareSearch()
-            .setSource(new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, "s037ms06g7h0")))
-            .get();
-        checkCorrectSortOrderForGeoSort(searchResponse);
+        assertResponse(
+            prepareSearch().setSource(new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, "s037ms06g7h0"))),
+            response -> checkCorrectSortOrderForGeoSort(response)
+        );
 
-        searchResponse = client().prepareSearch()
-            .setSource(new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0)))
-            .get();
-        checkCorrectSortOrderForGeoSort(searchResponse);
+        assertResponse(
+            prepareSearch().setSource(new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0))),
+            response -> checkCorrectSortOrderForGeoSort(response)
+        );
 
-        searchResponse = client().prepareSearch()
-            .setSource(
+        assertResponse(
+            prepareSearch().setSource(
                 new SearchSourceBuilder().sort(
                     SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0).validation(GeoValidationMethod.COERCE)
                 )
-            )
-            .get();
-        checkCorrectSortOrderForGeoSort(searchResponse);
+            ),
+            response -> checkCorrectSortOrderForGeoSort(response)
+        );
     }
 
     private static void checkCorrectSortOrderForGeoSort(SearchResponse searchResponse) {
@@ -358,9 +365,9 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
     public void testCrossIndexIgnoreUnmapped() throws Exception {
         assertAcked(
-            prepareCreate("test1").setMapping("str_field", "type=keyword", "long_field", "type=long", "double_field", "type=double").get()
+            prepareCreate("test1").setMapping("str_field", "type=keyword", "long_field", "type=long", "double_field", "type=double")
         );
-        assertAcked(prepareCreate("test2").get());
+        assertAcked(prepareCreate("test2"));
 
         indexRandom(
             true,
@@ -368,25 +375,23 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
             client().prepareIndex("test2").setSource()
         );
 
-        SearchResponse resp = client().prepareSearch("test1", "test2")
-            .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("keyword"))
-            .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("keyword"))
-            .get();
-
-        assertSortValues(resp, new Object[] { "bcd", null }, new Object[] { null, null });
-
-        resp = client().prepareSearch("test1", "test2")
-            .addSort(fieldSort("long_field").order(SortOrder.ASC).unmappedType("long"))
-            .addSort(fieldSort("long_field2").order(SortOrder.DESC).unmappedType("long"))
-            .get();
-        assertSortValues(resp, new Object[] { 3L, Long.MIN_VALUE }, new Object[] { Long.MAX_VALUE, Long.MIN_VALUE });
-
-        resp = client().prepareSearch("test1", "test2")
-            .addSort(fieldSort("double_field").order(SortOrder.ASC).unmappedType("double"))
-            .addSort(fieldSort("double_field2").order(SortOrder.DESC).unmappedType("double"))
-            .get();
         assertSortValues(
-            resp,
+            prepareSearch("test1", "test2").addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("keyword"))
+                .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("keyword")),
+            new Object[] { "bcd", null },
+            new Object[] { null, null }
+        );
+
+        assertSortValues(
+            prepareSearch("test1", "test2").addSort(fieldSort("long_field").order(SortOrder.ASC).unmappedType("long"))
+                .addSort(fieldSort("long_field2").order(SortOrder.DESC).unmappedType("long")),
+            new Object[] { 3L, Long.MIN_VALUE },
+            new Object[] { Long.MAX_VALUE, Long.MIN_VALUE }
+        );
+
+        assertSortValues(
+            prepareSearch("test1", "test2").addSort(fieldSort("double_field").order(SortOrder.ASC).unmappedType("double"))
+                .addSort(fieldSort("double_field2").order(SortOrder.DESC).unmappedType("double")),
             new Object[] { 0.65, Double.NEGATIVE_INFINITY },
             new Object[] { Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY }
         );

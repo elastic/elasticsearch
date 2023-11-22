@@ -37,14 +37,13 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
-public class Case extends ScalarFunction implements EvaluatorMapper {
+public final class Case extends ScalarFunction implements EvaluatorMapper {
     record Condition(Expression condition, Expression value) {}
 
     private final List<Condition> conditions;
     private final Expression elseValue;
     private DataType dataType;
 
-    @SuppressWarnings("this-escape")
     public Case(Source source, Expression first, List<Expression> rest) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
         int conditionCount = children().size() / 2;
@@ -156,16 +155,33 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-
-        List<ConditionEvaluatorSupplier> conditionsEval = conditions.stream()
+        ElementType resultType = LocalExecutionPlanner.toElementType(dataType());
+        List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream()
             .map(c -> new ConditionEvaluatorSupplier(toEvaluator.apply(c.condition), toEvaluator.apply(c.value)))
             .toList();
-        var elseValueEval = toEvaluator.apply(elseValue);
-        return dvrCtx -> new CaseEvaluator(
-            LocalExecutionPlanner.toElementType(dataType()),
-            conditionsEval.stream().map(x -> x.apply(dvrCtx)).toList(),
-            elseValueEval.get(dvrCtx)
-        );
+        ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
+        return new ExpressionEvaluator.Factory() {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new CaseEvaluator(
+                    context,
+                    resultType,
+                    conditionsFactories.stream().map(x -> x.apply(context)).toList(),
+                    elseValueFactory.get(context)
+                );
+            }
+
+            @Override
+            public String toString() {
+                return "CaseEvaluator[resultType="
+                    + resultType
+                    + ", conditions="
+                    + conditionsFactories
+                    + ", elseVal="
+                    + elseValueFactory
+                    + ']';
+            }
+        };
     }
 
     record ConditionEvaluatorSupplier(ExpressionEvaluator.Factory condition, ExpressionEvaluator.Factory value)
@@ -174,6 +190,11 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
         @Override
         public ConditionEvaluator apply(DriverContext driverContext) {
             return new ConditionEvaluator(condition.get(driverContext), value.get(driverContext));
+        }
+
+        @Override
+        public String toString() {
+            return "ConditionEvaluator[" + "condition=" + condition + ", value=" + value + ']';
         }
     }
 
@@ -184,11 +205,14 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
         }
     }
 
-    private record CaseEvaluator(ElementType resultType, List<ConditionEvaluator> conditions, EvalOperator.ExpressionEvaluator elseVal)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    private record CaseEvaluator(
+        DriverContext driverContext,
+        ElementType resultType,
+        List<ConditionEvaluator> conditions,
+        EvalOperator.ExpressionEvaluator elseVal
+    ) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Block eval(Page page) {
+        public Block.Ref eval(Page page) {
             /*
              * We have to evaluate lazily so any errors or warnings that would be
              * produced by the right hand side are avoided. And so if anything
@@ -199,35 +223,45 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
              * a time - but it's not at all fast.
              */
             int positionCount = page.getPositionCount();
-            Block.Builder result = resultType.newBlockBuilder(positionCount);
-            position: for (int p = 0; p < positionCount; p++) {
-                int[] positions = new int[] { p };
-                Page limited = new Page(
-                    IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
-                );
-                for (ConditionEvaluator condition : conditions) {
-                    Block e = condition.condition.eval(limited);
-                    if (e.areAllValuesNull()) {
-                        continue;
+            try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+                position: for (int p = 0; p < positionCount; p++) {
+                    int[] positions = new int[] { p };
+                    Page limited = new Page(
+                        IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
+                    );
+                    try (Releasable ignored = limited::releaseBlocks) {
+                        for (ConditionEvaluator condition : conditions) {
+                            try (Block.Ref conditionRef = condition.condition.eval(limited)) {
+                                BooleanBlock b = (BooleanBlock) conditionRef.block();
+                                if (b.isNull(0)) {
+                                    continue;
+                                }
+                                if (false == b.getBoolean(b.getFirstValueIndex(0))) {
+                                    continue;
+                                }
+                                try (Block.Ref valueRef = condition.value.eval(limited)) {
+                                    result.copyFrom(valueRef.block(), 0, 1);
+                                    continue position;
+                                }
+                            }
+                        }
+                        try (Block.Ref elseRef = elseVal.eval(limited)) {
+                            result.copyFrom(elseRef.block(), 0, 1);
+                        }
                     }
-                    BooleanBlock b = (BooleanBlock) e;
-                    if (b.isNull(0)) {
-                        continue;
-                    }
-                    if (false == b.getBoolean(b.getFirstValueIndex(0))) {
-                        continue;
-                    }
-                    result.copyFrom(condition.value.eval(limited), 0, 1);
-                    continue position;
                 }
-                result.copyFrom(elseVal.eval(limited), 0, 1);
+                return Block.Ref.floating(result.build());
             }
-            return result.build();
         }
 
         @Override
         public void close() {
             Releasables.closeExpectNoException(() -> Releasables.close(conditions), elseVal);
+        }
+
+        @Override
+        public String toString() {
+            return "CaseEvaluator[resultType=" + resultType + ", conditions=" + conditions + ", elseVal=" + elseVal + ']';
         }
     }
 }

@@ -9,12 +9,12 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -88,14 +88,14 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertFalse(indexService.getIndexSettings().isExplicitRefresh());
         ensureGreen();
         AtomicInteger totalNumDocs = new AtomicInteger(Integer.MAX_VALUE);
-        assertNoSearchHits(client().prepareSearch().get());
+        assertNoSearchHits(client().prepareSearch());
         int numDocs = scaledRandomIntBetween(25, 100);
         totalNumDocs.set(numDocs);
         CountDownLatch indexingDone = new CountDownLatch(numDocs);
         client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         indexingDone.countDown(); // one doc is indexed above blocking
         IndexShard shard = indexService.getShard(0);
-        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         shard.scheduledRefresh(future);
         boolean hasRefreshed = future.actionGet();
         if (randomTimeValue == TimeValue.ZERO) {
@@ -125,21 +125,18 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         started.await();
         assertThat(count.applyAsLong(totalNumDocs.get()), equalTo(1L));
         for (int i = 1; i < numDocs; i++) {
-            client().prepareIndex("test")
-                .setId("" + i)
-                .setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
-                .execute(new ActionListener<IndexResponse>() {
-                    @Override
-                    public void onResponse(IndexResponse indexResponse) {
-                        indexingDone.countDown();
-                    }
+            client().prepareIndex("test").setId("" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).execute(new ActionListener<>() {
+                @Override
+                public void onResponse(DocWriteResponse indexResponse) {
+                    indexingDone.countDown();
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        indexingDone.countDown();
-                        throw new AssertionError(e);
-                    }
-                });
+                @Override
+                public void onFailure(Exception e) {
+                    indexingDone.countDown();
+                    throw new AssertionError(e);
+                }
+            });
         }
         indexingDone.await();
         t.join();
@@ -164,7 +161,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         CountDownLatch refreshLatch = new CountDownLatch(1);
         // async on purpose to make sure it happens concurrently
         indicesAdmin().prepareRefresh().execute(ActionListener.running(refreshLatch::countDown));
-        assertHitCount(client().prepareSearch().get(), 1);
+        assertHitCount(client().prepareSearch(), 1);
         client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         scheduleRefresh(shard, false);
         assertTrue(shard.hasRefreshPending());
@@ -174,7 +171,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         indicesAdmin().prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build())
             .execute(ActionListener.running(updateSettingsLatch::countDown));
-        assertHitCount(client().prepareSearch().get(), 2);
+        assertHitCount(client().prepareSearch(), 2);
         // wait for both to ensure we don't have in-flight operations
         updateSettingsLatch.await();
         refreshLatch.await();
@@ -186,7 +183,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         scheduleRefresh(shard, true);
         assertFalse(shard.hasRefreshPending());
         assertTrue(shard.isSearchIdle());
-        assertHitCount(client().prepareSearch().get(), 3);
+        assertHitCount(client().prepareSearch(), 3);
         final IndicesStatsResponse statsResponse = indicesAdmin().stats(new IndicesStatsRequest()).actionGet();
         for (ShardStats shardStats : statsResponse.getShards()) {
             if (shardStats.isSearchIdle()) {
@@ -196,7 +193,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
     }
 
     private static void scheduleRefresh(IndexShard shard, boolean expectRefresh) {
-        PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         shard.scheduledRefresh(future);
         assertThat(future.actionGet(), equalTo(expectRefresh));
     }

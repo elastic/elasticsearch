@@ -159,7 +159,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         );
         DiscoveryNode remoteNode = remoteTransportService.getLocalDiscoNode();
         remoteTransportService.registerRequestHandler(
-            RemoteClusterNodesAction.NAME,
+            RemoteClusterNodesAction.TYPE.name(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             RemoteClusterNodesAction.Request::new,
             (request, channel, task) -> channel.sendResponse(new RemoteClusterNodesAction.Response(List.of(remoteNode)))

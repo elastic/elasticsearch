@@ -9,15 +9,18 @@ package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.Model;
-import org.elasticsearch.xpack.inference.ServiceSettings;
-import org.elasticsearch.xpack.inference.TaskSettings;
-import org.elasticsearch.xpack.inference.TaskType;
 import org.elasticsearch.xpack.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeModel;
@@ -38,6 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class ModelRegistryIT extends ESSingleNodeTestCase {
 
@@ -99,13 +103,15 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertThat(modelHolder.get(), not(nullValue()));
 
-        UnparsedModel unparsedModel = UnparsedModel.unparsedModelFromMap(modelHolder.get().config());
-        assertEquals(model.getService(), unparsedModel.service());
-        ElserMlNodeModel roundTripModel = ElserMlNodeService.parseConfig(
-            false,
+        UnparsedModel unparsedModel = UnparsedModel.unparsedModelFromMap(modelHolder.get().config(), modelHolder.get().secrets());
+        assertEquals(model.getConfigurations().getService(), unparsedModel.service());
+
+        var elserService = new ElserMlNodeService(new InferenceServicePlugin.InferenceServiceFactoryContext(mock(Client.class)));
+        ElserMlNodeModel roundTripModel = elserService.parsePersistedConfig(
             unparsedModel.modelId(),
             unparsedModel.taskType(),
-            unparsedModel.settings()
+            unparsedModel.settings(),
+            unparsedModel.secrets()
         );
         assertEquals(model, roundTripModel);
     }
@@ -179,17 +185,19 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         latch.await();
     }
 
-    private static ModelWithUnknownField buildModelWithUnknownField(String modelId) {
-        return new ModelWithUnknownField(
-            modelId,
-            TaskType.SPARSE_EMBEDDING,
-            ElserMlNodeService.NAME,
-            ElserMlNodeServiceSettingsTests.createRandom(),
-            ElserMlNodeTaskSettingsTests.createRandom()
+    private static Model buildModelWithUnknownField(String modelId) {
+        return new Model(
+            new ModelWithUnknownField(
+                modelId,
+                TaskType.SPARSE_EMBEDDING,
+                ElserMlNodeService.NAME,
+                ElserMlNodeServiceSettingsTests.createRandom(),
+                ElserMlNodeTaskSettingsTests.createRandom()
+            )
         );
     }
 
-    private static class ModelWithUnknownField extends Model {
+    private static class ModelWithUnknownField extends ModelConfigurations {
 
         ModelWithUnknownField(
             String modelId,

@@ -47,11 +47,13 @@ public class EsqlDisruptionIT extends EsqlActionIT {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
+        Settings settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DEFAULT_SETTINGS)
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(1000, 2000)))
             .build();
+        logger.info("settings {}", settings);
+        return settings;
     }
 
     @Override
@@ -90,6 +92,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
             return future.actionGet(2, TimeUnit.MINUTES);
         } catch (Exception e) {
             assertTrue("request must be failed or completed after clearing disruption", future.isDone());
+            ensureBlocksReleased();
             logger.info("--> failed to execute esql query with disruption; retrying...", e);
             return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
         }

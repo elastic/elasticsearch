@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -38,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -491,7 +491,12 @@ public class ModelLoadingService implements ClusterStateListener {
                 handleLoadFailure(modelId, failure);
             }));
         }, failure -> {
-            logger.warn(() -> "[" + modelId + "] failed to load model configuration", failure);
+            if (consumer != Consumer.PIPELINE) {
+                // The model loading was triggered by an ingest pipeline change
+                // referencing a model that cannot be found. This is not an error
+                // as the model may be put later
+                logger.warn(() -> "[" + modelId + "] failed to load model configuration ", failure);
+            }
             handleLoadFailure(modelId, failure);
         }));
     }

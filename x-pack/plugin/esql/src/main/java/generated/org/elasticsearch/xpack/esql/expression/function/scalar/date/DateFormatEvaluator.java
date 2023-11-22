@@ -40,53 +40,51 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valRef = val.eval(page)) {
+      LongBlock valBlock = (LongBlock) valRef.block();
+      try (Block.Ref formatterRef = formatter.eval(page)) {
+        BytesRefBlock formatterBlock = (BytesRefBlock) formatterRef.block();
+        LongVector valVector = valBlock.asVector();
+        if (valVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+        }
+        BytesRefVector formatterVector = formatterBlock.asVector();
+        if (formatterVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), valVector, formatterVector).asBlock());
+      }
     }
-    LongBlock valBlock = (LongBlock) valUncastBlock;
-    Block formatterUncastBlock = formatter.eval(page);
-    if (formatterUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock formatterBlock = (BytesRefBlock) formatterUncastBlock;
-    LongVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock, formatterBlock);
-    }
-    BytesRefVector formatterVector = formatterBlock.asVector();
-    if (formatterVector == null) {
-      return eval(page.getPositionCount(), valBlock, formatterBlock);
-    }
-    return eval(page.getPositionCount(), valVector, formatterVector).asBlock();
   }
 
   public BytesRefBlock eval(int positionCount, LongBlock valBlock, BytesRefBlock formatterBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef formatterScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef formatterScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (formatterBlock.isNull(p) || formatterBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), locale));
       }
-      if (formatterBlock.isNull(p) || formatterBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), locale));
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefVector eval(int positionCount, LongVector valVector,
       BytesRefVector formatterVector) {
-    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
-    BytesRef formatterScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch), locale));
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+      BytesRef formatterScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch), locale));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -97,5 +95,30 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(val, formatter);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    private final EvalOperator.ExpressionEvaluator.Factory formatter;
+
+    private final Locale locale;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val,
+        EvalOperator.ExpressionEvaluator.Factory formatter, Locale locale) {
+      this.val = val;
+      this.formatter = formatter;
+      this.locale = locale;
+    }
+
+    @Override
+    public DateFormatEvaluator get(DriverContext context) {
+      return new DateFormatEvaluator(val.get(context), formatter.get(context), locale, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateFormatEvaluator[" + "val=" + val + ", formatter=" + formatter + ", locale=" + locale + "]";
+    }
   }
 }

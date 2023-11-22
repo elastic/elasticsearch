@@ -49,7 +49,7 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
             XPackUsageRequest::new,
             indexNameExpressionResolver,
             XPackUsageResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.client = client;
         this.usageActions = usageActions();

@@ -198,6 +198,8 @@ public interface SourceLoader {
          * Build something to load doc values for this field or return
          * {@code null} if there are no doc values for this field to
          * load.
+         *
+         * @param docIdsInLeaf can be null.
          */
         DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException;
 

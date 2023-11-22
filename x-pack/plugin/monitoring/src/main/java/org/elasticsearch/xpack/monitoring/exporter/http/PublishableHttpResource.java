@@ -27,9 +27,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 
 /**
  * {@code PublishableHttpResource} represents an {@link HttpResource} that is a single file or object that can be checked <em>and</em>
@@ -254,7 +256,7 @@ public abstract class PublishableHttpResource extends HttpResource {
 
         // avoid exists and DNE parameters from being an exception by default
         final Set<Integer> expectedResponseCodes = Sets.union(exists, doesNotExist);
-        request.addParameter("ignore", expectedResponseCodes.stream().map(i -> i.toString()).collect(Collectors.joining(",")));
+        request.addParameter(IGNORE_RESPONSE_CODES_PARAM, expectedResponseCodes.stream().map(Object::toString).collect(joining(",")));
 
         client.performRequestAsync(request, new ResponseListener() {
 
@@ -436,9 +438,9 @@ public abstract class PublishableHttpResource extends HttpResource {
         final Request request = new Request("DELETE", resourceBasePath + "/" + resourceName);
         addDefaultParameters(request);
 
-        if (false == defaultParameters.containsKey("ignore")) {
+        if (false == defaultParameters.containsKey(IGNORE_RESPONSE_CODES_PARAM)) {
             // avoid 404 being an exception by default
-            request.addParameter("ignore", Integer.toString(RestStatus.NOT_FOUND.getStatus()));
+            request.addParameter(IGNORE_RESPONSE_CODES_PARAM, Integer.toString(NOT_FOUND.getStatus()));
         }
 
         client.performRequestAsync(request, new ResponseListener() {
@@ -531,10 +533,10 @@ public abstract class PublishableHttpResource extends HttpResource {
     }
 
     private void addDefaultParameters(final Request request) {
-        this.addParameters(request, defaultParameters);
+        PublishableHttpResource.addParameters(request, defaultParameters);
     }
 
-    private void addParameters(final Request request, final Map<String, String> parameters) {
+    private static void addParameters(final Request request, final Map<String, String> parameters) {
         for (final Map.Entry<String, String> param : parameters.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }

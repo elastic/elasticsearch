@@ -215,7 +215,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     void updateTaskState() {
-        PlainActionFuture<PersistentTask<?>> future = PlainActionFuture.newFuture();
+        PlainActionFuture<PersistentTask<?>> future = new PlainActionFuture<>();
         updatePersistentTaskState(state, future);
         state = ((GeoIpTaskState) future.actionGet().getState());
     }
@@ -248,7 +248,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     // visible for testing
-    byte[] getChunk(InputStream is) throws IOException {
+    static byte[] getChunk(InputStream is) throws IOException {
         byte[] buf = new byte[MAX_CHUNK_SIZE];
         int chunkSize = 0;
         while (chunkSize < MAX_CHUNK_SIZE) {

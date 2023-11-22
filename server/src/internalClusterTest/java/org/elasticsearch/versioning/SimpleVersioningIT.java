@@ -65,7 +65,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             VersionConflictEngineException.class
         );
 
-        IndexResponse indexResponse = client().prepareIndex("test")
+        DocWriteResponse indexResponse = client().prepareIndex("test")
             .setId("1")
             .setSource("field1", "value1_1")
             .setVersion(18)
@@ -78,7 +78,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
     public void testExternalGTE() throws Exception {
         createIndex("test");
 
-        IndexResponse indexResponse = client().prepareIndex("test")
+        DocWriteResponse indexResponse = client().prepareIndex("test")
             .setId("1")
             .setSource("field1", "value1_1")
             .setVersion(12)
@@ -151,7 +151,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test")
+        DocWriteResponse indexResponse = client().prepareIndex("test")
             .setId("1")
             .setSource("field1", "value1_1")
             .setVersion(12)
@@ -268,7 +268,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             VersionConflictEngineException.class
         );
 
-        IndexResponse indexResponse = client().prepareIndex("test")
+        DocWriteResponse indexResponse = client().prepareIndex("test")
             .setId("1")
             .setSource("field1", "value1_1")
             .setCreate(true)
@@ -281,7 +281,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
+        DocWriteResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
         assertThat(indexResponse.getSeqNo(), equalTo(0L));
         assertThat(indexResponse.getPrimaryTerm(), equalTo(1L));
 
@@ -327,13 +327,13 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // search with versioning
         for (int i = 0; i < 10; i++) {
             // TODO: ADD SEQ NO!
-            SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
+            SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
             assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(2L));
         }
 
         // search without versioning
         for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
+            SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
             assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(Versions.NOT_FOUND));
         }
 
@@ -366,7 +366,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").get();
+        DocWriteResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").get();
         assertThat(indexResponse.getSeqNo(), equalTo(0L));
 
         client().admin().indices().prepareFlush().execute().actionGet();
@@ -396,8 +396,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
+            SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
                 .setVersion(true)
                 .seqNoAndPrimaryTerm(true)
                 .execute()
@@ -834,7 +833,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
     public void testSpecialVersioning() {
         internalCluster().ensureAtLeastNumDataNodes(2);
         createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
-        IndexResponse doc1 = client().prepareIndex("test")
+        DocWriteResponse doc1 = client().prepareIndex("test")
             .setId("1")
             .setSource("field", "value1")
             .setVersion(0)
@@ -842,7 +841,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             .execute()
             .actionGet();
         assertThat(doc1.getVersion(), equalTo(0L));
-        IndexResponse doc2 = client().prepareIndex("test")
+        DocWriteResponse doc2 = client().prepareIndex("test")
             .setId("1")
             .setSource("field", "value2")
             .setVersion(Versions.MATCH_ANY)
@@ -851,7 +850,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             .actionGet();
         assertThat(doc2.getVersion(), equalTo(1L));
         client().prepareDelete("test", "1").get(); // v2
-        IndexResponse doc3 = client().prepareIndex("test")
+        DocWriteResponse doc3 = client().prepareIndex("test")
             .setId("1")
             .setSource("field", "value3")
             .setVersion(Versions.MATCH_DELETED)
@@ -859,7 +858,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             .execute()
             .actionGet();
         assertThat(doc3.getVersion(), equalTo(3L));
-        IndexResponse doc4 = client().prepareIndex("test")
+        DocWriteResponse doc4 = client().prepareIndex("test")
             .setId("1")
             .setSource("field", "value4")
             .setVersion(4L)

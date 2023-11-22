@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -187,7 +188,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             exchange.close();
         });
 
-        try (InputStream inputStream = blobContainer.readBlob("large_blob_retries")) {
+        try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, "large_blob_retries")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
         }
     }
@@ -230,7 +231,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         }));
 
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-            blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
+            blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "write_blob_max_retries", stream, bytes.length, false);
         }
         assertThat(countDown.isCountedDown(), is(true));
     }
@@ -253,7 +254,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
         Exception exception = expectThrows(StorageException.class, () -> {
             try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-                blobContainer.writeBlob("write_blob_timeout", stream, bytes.length, false);
+                blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "write_blob_timeout", stream, bytes.length, false);
             }
         });
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
@@ -391,10 +392,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
         if (randomBoolean()) {
             try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
-                blobContainer.writeBlob("write_large_blob", stream, data.length, false);
+                blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "write_large_blob", stream, data.length, false);
             }
         } else {
-            blobContainer.writeMetadataBlob("write_large_blob", false, randomBoolean(), out -> out.write(data));
+            blobContainer.writeMetadataBlob(OperationPurpose.SNAPSHOT, "write_large_blob", false, randomBoolean(), out -> out.write(data));
         }
 
         assertThat(countInits.get(), equalTo(0));
@@ -451,7 +452,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             exchange.getResponseBody().write(response);
         }));
 
-        blobContainer.deleteBlobsIgnoringIfNotExists(blobNamesIterator);
+        blobContainer.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, blobNamesIterator);
 
         // Ensure that the remaining deletes are sent in the last batch
         if (pendingDeletes.get() > 0) {

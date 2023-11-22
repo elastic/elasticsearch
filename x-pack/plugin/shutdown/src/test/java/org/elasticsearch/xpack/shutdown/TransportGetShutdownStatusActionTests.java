@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -562,31 +563,22 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder()
-                                .put(Settings.builder().build())
-                                .put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID)
-                                .build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                            SHUTTING_DOWN_NODE_ID
-                        )
+                        DiscoveryNodeUtils.builder(SHUTTING_DOWN_NODE_ID)
+                            .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                            .build()
                     )
                     .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder().put(Settings.builder().build()).put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                            LIVE_NODE_ID
-                        )
+                        DiscoveryNodeUtils.builder(LIVE_NODE_ID)
+                            .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                            .build()
                     )
                     .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder()
-                                .put(Settings.builder().build())
-                                .put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID)
-                                .build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9202),
-                            OTHER_LIVE_NODE_ID
-                        )
+                        DiscoveryNodeUtils.builder(OTHER_LIVE_NODE_ID)
+                            .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9202))
+                            .build()
                     )
             )
             .routingTable(routingTable.build())
@@ -749,26 +741,23 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         Map<String, IndexMetadata> indicesTable = indices.stream().collect(toMap(imd -> imd.getIndex().getName(), Function.identity()));
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
             .add(
-                DiscoveryNode.createLocal(
-                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                    LIVE_NODE_ID
-                )
+                DiscoveryNodeUtils.builder(LIVE_NODE_ID)
+                    .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                    .build()
             )
             .add(
-                DiscoveryNode.createLocal(
-                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9202),
-                    OTHER_LIVE_NODE_ID
-                )
+                DiscoveryNodeUtils.builder(OTHER_LIVE_NODE_ID)
+                    .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9202))
+                    .build()
             );
         if (shuttingDownNodeAlreadyLeft == false) {
             discoveryNodesBuilder.add(
-                DiscoveryNode.createLocal(
-                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                    SHUTTING_DOWN_NODE_ID
-                )
+                DiscoveryNodeUtils.builder(SHUTTING_DOWN_NODE_ID)
+                    .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                    .build()
             );
         }
 

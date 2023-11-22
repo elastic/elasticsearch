@@ -63,11 +63,12 @@ public class TransformInternalIndexTests extends ESTestCase {
     }
 
     public static ClusterState randomTransformClusterState(boolean shardsReady) {
+        String uuid = UUIDs.randomBase64UUID();
         Map<String, IndexMetadata> indexMapBuilder = new HashMap<>();
         try {
             IndexMetadata.Builder builder = new IndexMetadata.Builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME).settings(
                 Settings.builder()
-                    .put(TransformInternalIndex.settings(Settings.EMPTY))
+                    .put(TransformInternalIndex.settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, uuid).build()))
                     .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
                     .build()
             ).numberOfReplicas(0).numberOfShards(1).putMapping(Strings.toString(TransformInternalIndex.mappings()));
@@ -80,7 +81,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
         csBuilder.metadata(metaBuilder.build());
 
-        final var index = new Index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, UUIDs.randomBase64UUID());
+        final var index = new Index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, uuid);
         csBuilder.routingTable(
             RoutingTable.builder()
                 .add(

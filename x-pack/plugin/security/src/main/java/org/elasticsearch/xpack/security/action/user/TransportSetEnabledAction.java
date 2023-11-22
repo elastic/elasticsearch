@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -39,7 +40,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
         SecurityContext securityContext,
         NativeUsersStore usersStore
     ) {
-        super(SetEnabledAction.NAME, transportService, actionFilters, SetEnabledRequest::new);
+        super(SetEnabledAction.NAME, transportService, actionFilters, SetEnabledRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.securityContext = securityContext;
         this.usersStore = usersStore;

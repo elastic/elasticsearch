@@ -1045,7 +1045,7 @@ public class TrainedModelProvider {
 
     public void getInferenceStats(String[] modelIds, @Nullable TaskId parentTaskId, ActionListener<List<InferenceStats>> listener) {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-        Arrays.stream(modelIds).map(this::buildStatsSearchRequest).forEach(multiSearchRequest::add);
+        Arrays.stream(modelIds).map(TrainedModelProvider::buildStatsSearchRequest).forEach(multiSearchRequest::add);
         if (multiSearchRequest.requests().isEmpty()) {
             listener.onResponse(Collections.emptyList());
             return;
@@ -1103,7 +1103,7 @@ public class TrainedModelProvider {
         );
     }
 
-    private SearchRequest buildStatsSearchRequest(String modelId) {
+    private static SearchRequest buildStatsSearchRequest(String modelId) {
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(InferenceStats.MODEL_ID.getPreferredName(), modelId))
             .filter(QueryBuilders.termQuery(InferenceStats.TYPE.getPreferredName(), InferenceStats.NAME));
@@ -1136,7 +1136,7 @@ public class TrainedModelProvider {
             );
     }
 
-    private InferenceStats handleMultiNodeStatsResponse(SearchResponse response, String modelId) {
+    private static InferenceStats handleMultiNodeStatsResponse(SearchResponse response, String modelId) {
         if (response.getAggregations() == null) {
             logger.trace(() -> "[" + modelId + "] no previously stored stats found");
             return null;
@@ -1245,7 +1245,7 @@ public class TrainedModelProvider {
         return boolQuery;
     }
 
-    private Set<String> matchedResourceIds(String[] tokens) {
+    private static Set<String> matchedResourceIds(String[] tokens) {
         if (Strings.isAllOrWildcard(tokens)) {
             return MODELS_STORED_AS_RESOURCE;
         }

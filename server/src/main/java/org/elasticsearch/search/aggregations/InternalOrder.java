@@ -65,7 +65,7 @@ public abstract class InternalOrder extends BucketOrder {
                 BucketComparator bucketComparator = path.bucketComparator(aggregator, order);
                 return (lhs, rhs) -> bucketComparator.compare(ordinalReader.applyAsLong(lhs), ordinalReader.applyAsLong(rhs));
             } catch (IllegalArgumentException e) {
-                throw new AggregationExecutionException("Invalid aggregation order path [" + path + "]. " + e.getMessage(), e);
+                throw new AggregationExecutionException.InvalidPath("Invalid aggregation order path [" + path + "]. " + e.getMessage(), e);
             }
         }
 
@@ -388,7 +388,6 @@ public abstract class InternalOrder extends BucketOrder {
     /**
      * @return compare by {@link Bucket#getKey()} that will be in the bucket once it is reduced
      */
-    @SuppressWarnings("unchecked")
     private static Comparator<DelayedBucket<? extends Bucket>> comparingDelayedKeys() {
         return DelayedBucket::compareKey;
     }

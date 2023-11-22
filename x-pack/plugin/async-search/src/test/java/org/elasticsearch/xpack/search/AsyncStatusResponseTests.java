@@ -153,48 +153,11 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                     response.getSkippedShards(),
                     response.getFailedShards(),
                     clusters.getTotal(),
-                    clusters.getSuccessful(),
-                    clusters.getSkipped(),
-                    response.getCompletionStatus() == null ? "" : Strings.format("""
-                        ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
-
-                expectedJson = Strings.format("""
-                    {
-                      "id" : "%s",
-                      "is_running" : %s,
-                      "is_partial" : %s,
-                      "start_time_in_millis" : %s,
-                      "expiration_time_in_millis" : %s,
-                      %s
-                      "_shards" : {
-                        "total" : %s,
-                        "successful" : %s,
-                        "skipped" : %s,
-                        "failed" : %s
-                      },
-                      "_clusters": {
-                       "total": %s,
-                       "successful": %s,
-                       "skipped": %s
-                      }
-                      %s
-                    }
-                    """, args);
-            } else {
-                Object[] args = new Object[] {
-                    response.getId(),
-                    response.isRunning(),
-                    response.isPartial(),
-                    response.getStartTime(),
-                    response.getExpirationTime(),
-                    completionTimeEntry,
-                    response.getTotalShards(),
-                    response.getSuccessfulShards(),
-                    response.getSkippedShards(),
-                    response.getFailedShards(),
-                    clusters.getTotal(),
-                    clusters.getSuccessful(),
-                    clusters.getSkipped(),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED),
                     response.getCompletionStatus() == null ? "" : Strings.format("""
                         ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
 
@@ -216,6 +179,55 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                        "total": %s,
                        "successful": %s,
                        "skipped": %s,
+                       "running": %s,
+                       "partial": %s,
+                       "failed": %s
+                      }
+                      %s
+                    }
+                    """, args);
+            } else {
+                Object[] args = new Object[] {
+                    response.getId(),
+                    response.isRunning(),
+                    response.isPartial(),
+                    response.getStartTime(),
+                    response.getExpirationTime(),
+                    completionTimeEntry,
+                    response.getTotalShards(),
+                    response.getSuccessfulShards(),
+                    response.getSkippedShards(),
+                    response.getFailedShards(),
+                    clusters.getTotal(),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL),
+                    clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED),
+                    response.getCompletionStatus() == null ? "" : Strings.format("""
+                        ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
+
+                expectedJson = Strings.format("""
+                    {
+                      "id" : "%s",
+                      "is_running" : %s,
+                      "is_partial" : %s,
+                      "start_time_in_millis" : %s,
+                      "expiration_time_in_millis" : %s,
+                      %s
+                      "_shards" : {
+                        "total" : %s,
+                        "successful" : %s,
+                        "skipped" : %s,
+                        "failed" : %s
+                      },
+                      "_clusters": {
+                       "total": %s,
+                       "successful": %s,
+                       "skipped": %s,
+                       "running": %s,
+                       "partial": %s,
+                       "failed": %s,
                         "details": {
                           "(local)": {
                             "status": "running",
@@ -373,11 +385,10 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         } else {
             // CCS search
             totalClusters = 80;
-            int successful = randomInt(60);
+            successfulClusters = randomInt(60);
             int partial = randomInt(20);
-            successfulClusters = successful + partial;
-            skippedClusters = totalClusters - successfulClusters;
-            clusters = AsyncSearchResponseTests.createCCSClusterObjects(80, 80, true, successful, skippedClusters, partial);
+            skippedClusters = totalClusters - (successfulClusters + partial);
+            clusters = AsyncSearchResponseTests.createCCSClusterObjects(80, 80, true, successfulClusters, skippedClusters, partial);
         }
         SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
@@ -396,11 +407,13 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         assertEquals(0, statusFromStoredSearch.getFailedShards());
         assertEquals(statusFromStoredSearch.getCompletionStatus(), RestStatus.OK);
         assertEquals(totalClusters, statusFromStoredSearch.getClusters().getTotal());
-        assertEquals(skippedClusters, statusFromStoredSearch.getClusters().getSkipped());
-        assertEquals(successfulClusters, statusFromStoredSearch.getClusters().getSuccessful());
+        assertEquals(skippedClusters, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+        assertEquals(
+            successfulClusters,
+            statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
+        );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98706")
     public void testGetStatusFromStoredSearchWithNonEmptyClustersStillRunning() {
         String searchId = randomSearchId();
 
@@ -412,6 +425,16 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int successful = randomInt(10);
         int partial = randomInt(10);
         int skipped = randomInt(10);
+
+        if (successful + partial + skipped == 0) {
+            int val = randomIntBetween(1, 10);
+            switch (randomInt(2)) {
+                case 0 -> successful = val;
+                case 1 -> partial = val;
+                case 2 -> skipped = val;
+                default -> throw new UnsupportedOperationException();
+            }
+        }
         SearchResponse.Clusters clusters = AsyncSearchResponseTests.createCCSClusterObjects(100, 99, true, successful, skipped, partial);
 
         SearchResponse searchResponse = new SearchResponse(
@@ -432,7 +455,8 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         assertEquals(0, statusFromStoredSearch.getFailedShards());
         assertNull("completion_status should not be present if still running", statusFromStoredSearch.getCompletionStatus());
         assertEquals(100, statusFromStoredSearch.getClusters().getTotal());
-        assertEquals(successful + partial, statusFromStoredSearch.getClusters().getSuccessful());
-        assertEquals(skipped, statusFromStoredSearch.getClusters().getSkipped());
+        assertEquals(successful, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+        assertEquals(partial, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+        assertEquals(skipped, statusFromStoredSearch.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
     }
 }

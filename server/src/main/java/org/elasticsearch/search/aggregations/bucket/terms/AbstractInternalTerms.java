@@ -10,7 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.DelayedBucket;
@@ -29,6 +29,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyAsc;
@@ -203,7 +204,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             if (lastBucket != null && cmp.compare(top.current(), lastBucket) != 0) {
                 // the key changed so bundle up the last key's worth of buckets
                 boolean shouldContinue = sink.apply(
-                    new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
+                    new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
                 );
                 if (false == shouldContinue) {
                     return;
@@ -227,7 +228,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         }
 
         if (sameTermBuckets.isEmpty() == false) {
-            sink.apply(new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
+            sink.apply(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
         }
     }
 
@@ -248,7 +249,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         }
         for (List<B> sameTermBuckets : bucketMap.values()) {
             boolean shouldContinue = sink.apply(
-                new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
+                new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
             );
             if (false == shouldContinue) {
                 return;
@@ -269,12 +270,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             if (referenceTerms != null && referenceTerms.getClass().equals(terms.getClass()) == false && terms.canLeadReduction()) {
                 // control gets into this loop when the same field name against which the query is executed
                 // is of different types in different indices.
-                throw new AggregationExecutionException(
-                    "Merging/Reducing the aggregations failed when computing the aggregation ["
-                        + referenceTerms.getName()
-                        + "] because the field you gave in the aggregation query existed as two different "
-                        + "types in two different indices"
-                );
+                throw AggregationErrors.reduceTypeMismatch(referenceTerms.getName(), Optional.empty());
             }
             otherDocCount[0] += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError = getDocCountError(terms);

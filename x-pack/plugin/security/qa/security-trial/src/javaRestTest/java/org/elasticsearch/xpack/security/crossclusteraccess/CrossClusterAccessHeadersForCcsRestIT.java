@@ -1040,7 +1040,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
             expectedActions.add(SearchShardsAction.NAME);
         }
         if (false == useProxyMode) {
-            expectedActions.add(RemoteClusterNodesAction.NAME);
+            expectedActions.add(RemoteClusterNodesAction.TYPE.name());
         }
         assertThat(
             actualActionsWithHeaders.stream().map(CapturedActionWithHeaders::action).collect(Collectors.toUnmodifiableSet()),
@@ -1121,7 +1121,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 }
             );
             service.registerRequestHandler(
-                RemoteClusterNodesAction.NAME,
+                RemoteClusterNodesAction.TYPE.name(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 RemoteClusterNodesAction.Request::new,
                 (request, channel, task) -> {

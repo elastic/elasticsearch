@@ -53,7 +53,9 @@ public class ToIPTests extends AbstractFunctionTestCase {
                     DataTypes.IP,
                     equalTo(null)
                 ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("java.lang.IllegalArgumentException: '" + value.utf8ToString() + "' is not an IP string literal.");
+                    .withWarning(
+                        "Line -1:-1: java.lang.IllegalArgumentException: '" + value.utf8ToString() + "' is not an IP string literal."
+                    );
                 return testCase;
             }));
         }

@@ -276,7 +276,7 @@ public abstract class SessionFactory implements Closeable {
         /**
          * @param ldapUrls URLS in the form of "ldap://..." or "ldaps://..."
          */
-        private boolean secureUrls(String[] ldapUrls) {
+        private static boolean secureUrls(String[] ldapUrls) {
             if (ldapUrls.length == 0) {
                 return true;
             }

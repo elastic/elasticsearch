@@ -117,7 +117,7 @@ public final class LuceneSliceQueue {
         }
         if (slices.stream()
             .flatMapToInt(
-                l -> l.stream().mapToInt(partialLeafReaderContext -> partialLeafReaderContext.maxDoc - partialLeafReaderContext.minDoc)
+                l -> l.stream().mapToInt(partialLeafReaderContext -> partialLeafReaderContext.maxDoc() - partialLeafReaderContext.minDoc())
             )
             .sum() != totalDocCount) {
             throw new IllegalStateException("wrong doc count");

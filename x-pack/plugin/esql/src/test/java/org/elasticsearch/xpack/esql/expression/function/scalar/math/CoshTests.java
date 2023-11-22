@@ -45,7 +45,7 @@ public class CoshTests extends AbstractFunctionTestCase {
                 -711d,
                 List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "java.lang.ArithmeticException: cosh overflow"
+                    "Line -1:-1: java.lang.ArithmeticException: cosh overflow"
                 )
             )
         );
@@ -58,7 +58,7 @@ public class CoshTests extends AbstractFunctionTestCase {
                 Double.POSITIVE_INFINITY,
                 List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "java.lang.ArithmeticException: cosh overflow"
+                    "Line -1:-1: java.lang.ArithmeticException: cosh overflow"
                 )
             )
         );

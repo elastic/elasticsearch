@@ -63,7 +63,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 if (canUseQueryPragmas()) {
                     pragmas.put(randomPragmas().getSettings()).put("exchange_concurrent_clients", between(1, 2));
                 }
-                run("from test-* | stats count(user) by tags", new QueryPragmas(pragmas.build()));
+                run("from test-* | stats count(user) by tags", new QueryPragmas(pragmas.build())).close();
             });
         }
         for (Thread thread : threads) {

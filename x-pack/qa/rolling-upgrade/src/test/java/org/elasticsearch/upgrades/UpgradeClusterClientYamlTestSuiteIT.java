@@ -43,7 +43,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     public void waitForTemplates() throws Exception {
         if (AbstractUpgradeTestCase.CLUSTER_TYPE == AbstractUpgradeTestCase.ClusterType.OLD) {
             try {
-                boolean clusterUnderstandsComposableTemplates = AbstractUpgradeTestCase.UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_8_0);
+                boolean clusterUnderstandsComposableTemplates = AbstractUpgradeTestCase.isOriginalClusterVersionAtLeast(Version.V_7_8_0);
                 XPackRestTestHelper.waitForTemplates(
                     client(),
                     XPackRestTestConstants.ML_POST_V7120_TEMPLATES,

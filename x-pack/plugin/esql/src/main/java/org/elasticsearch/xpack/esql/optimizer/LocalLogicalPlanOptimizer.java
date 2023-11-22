@@ -116,10 +116,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         }
     }
 
-    public abstract static class ParameterizedOptimizerRule<SubPlan extends LogicalPlan, P> extends ParameterizedRule<
-        SubPlan,
-        LogicalPlan,
-        P> {
+    abstract static class ParameterizedOptimizerRule<SubPlan extends LogicalPlan, P> extends ParameterizedRule<SubPlan, LogicalPlan, P> {
 
         public final LogicalPlan apply(LogicalPlan plan, P context) {
             return plan.transformUp(typeToken(), t -> rule(t, context));

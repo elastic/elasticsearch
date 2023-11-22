@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -37,80 +38,80 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   @Override
-  public Block eval(Page page) {
-    Block ipUncastBlock = ip.eval(page);
-    if (ipUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock ipBlock = (BytesRefBlock) ipUncastBlock;
-    BytesRefBlock[] cidrsBlocks = new BytesRefBlock[cidrs.length];
-    for (int i = 0; i < cidrsBlocks.length; i++) {
-      Block block = cidrs[i].eval(page);
-      if (block.areAllValuesNull()) {
-        return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref ipRef = ip.eval(page)) {
+      BytesRefBlock ipBlock = (BytesRefBlock) ipRef.block();
+      Block.Ref[] cidrsRefs = new Block.Ref[cidrs.length];
+      try (Releasable cidrsRelease = Releasables.wrap(cidrsRefs)) {
+        BytesRefBlock[] cidrsBlocks = new BytesRefBlock[cidrs.length];
+        for (int i = 0; i < cidrsBlocks.length; i++) {
+          cidrsRefs[i] = cidrs[i].eval(page);
+          cidrsBlocks[i] = (BytesRefBlock) cidrsRefs[i].block();
+        }
+        BytesRefVector ipVector = ipBlock.asVector();
+        if (ipVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), ipBlock, cidrsBlocks));
+        }
+        BytesRefVector[] cidrsVectors = new BytesRefVector[cidrs.length];
+        for (int i = 0; i < cidrsBlocks.length; i++) {
+          cidrsVectors[i] = cidrsBlocks[i].asVector();
+          if (cidrsVectors[i] == null) {
+            return Block.Ref.floating(eval(page.getPositionCount(), ipBlock, cidrsBlocks));
+          }
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), ipVector, cidrsVectors).asBlock());
       }
-      cidrsBlocks[i] = (BytesRefBlock) block;
     }
-    BytesRefVector ipVector = ipBlock.asVector();
-    if (ipVector == null) {
-      return eval(page.getPositionCount(), ipBlock, cidrsBlocks);
-    }
-    BytesRefVector[] cidrsVectors = new BytesRefVector[cidrs.length];
-    for (int i = 0; i < cidrsBlocks.length; i++) {
-      cidrsVectors[i] = cidrsBlocks[i].asVector();
-      if (cidrsVectors[i] == null) {
-        return eval(page.getPositionCount(), ipBlock, cidrsBlocks);
-      }
-    }
-    return eval(page.getPositionCount(), ipVector, cidrsVectors).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock ipBlock, BytesRefBlock[] cidrsBlocks) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    BytesRef ipScratch = new BytesRef();
-    BytesRef[] cidrsValues = new BytesRef[cidrs.length];
-    BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
-    for (int i = 0; i < cidrs.length; i++) {
-      cidrsScratch[i] = new BytesRef();
-    }
-    position: for (int p = 0; p < positionCount; p++) {
-      if (ipBlock.isNull(p) || ipBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef ipScratch = new BytesRef();
+      BytesRef[] cidrsValues = new BytesRef[cidrs.length];
+      BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
+      for (int i = 0; i < cidrs.length; i++) {
+        cidrsScratch[i] = new BytesRef();
       }
-      for (int i = 0; i < cidrsBlocks.length; i++) {
-        if (cidrsBlocks[i].isNull(p) || cidrsBlocks[i].getValueCount(p) != 1) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (ipBlock.isNull(p) || ipBlock.getValueCount(p) != 1) {
           result.appendNull();
           continue position;
         }
+        for (int i = 0; i < cidrsBlocks.length; i++) {
+          if (cidrsBlocks[i].isNull(p) || cidrsBlocks[i].getValueCount(p) != 1) {
+            result.appendNull();
+            continue position;
+          }
+        }
+        // unpack cidrsBlocks into cidrsValues
+        for (int i = 0; i < cidrsBlocks.length; i++) {
+          int o = cidrsBlocks[i].getFirstValueIndex(p);
+          cidrsValues[i] = cidrsBlocks[i].getBytesRef(o, cidrsScratch[i]);
+        }
+        result.appendBoolean(CIDRMatch.process(ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch), cidrsValues));
       }
-      // unpack cidrsBlocks into cidrsValues
-      for (int i = 0; i < cidrsBlocks.length; i++) {
-        int o = cidrsBlocks[i].getFirstValueIndex(p);
-        cidrsValues[i] = cidrsBlocks[i].getBytesRef(o, cidrsScratch[i]);
-      }
-      result.appendBoolean(CIDRMatch.process(ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch), cidrsValues));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector ipVector,
       BytesRefVector[] cidrsVectors) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    BytesRef ipScratch = new BytesRef();
-    BytesRef[] cidrsValues = new BytesRef[cidrs.length];
-    BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
-    for (int i = 0; i < cidrs.length; i++) {
-      cidrsScratch[i] = new BytesRef();
-    }
-    position: for (int p = 0; p < positionCount; p++) {
-      // unpack cidrsVectors into cidrsValues
-      for (int i = 0; i < cidrsVectors.length; i++) {
-        cidrsValues[i] = cidrsVectors[i].getBytesRef(p, cidrsScratch[i]);
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+      BytesRef ipScratch = new BytesRef();
+      BytesRef[] cidrsValues = new BytesRef[cidrs.length];
+      BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
+      for (int i = 0; i < cidrs.length; i++) {
+        cidrsScratch[i] = new BytesRef();
       }
-      result.appendBoolean(CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues));
+      position: for (int p = 0; p < positionCount; p++) {
+        // unpack cidrsVectors into cidrsValues
+        for (int i = 0; i < cidrsVectors.length; i++) {
+          cidrsValues[i] = cidrsVectors[i].getBytesRef(p, cidrsScratch[i]);
+        }
+        result.appendBoolean(CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -121,5 +122,28 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(ip, () -> Releasables.close(cidrs));
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory ip;
+
+    private final EvalOperator.ExpressionEvaluator.Factory[] cidrs;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory ip,
+        EvalOperator.ExpressionEvaluator.Factory[] cidrs) {
+      this.ip = ip;
+      this.cidrs = cidrs;
+    }
+
+    @Override
+    public CIDRMatchEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] cidrs = Arrays.stream(this.cidrs).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new CIDRMatchEvaluator(ip.get(context), cidrs, context);
+    }
+
+    @Override
+    public String toString() {
+      return "CIDRMatchEvaluator[" + "ip=" + ip + ", cidrs=" + Arrays.toString(cidrs) + "]";
+    }
   }
 }

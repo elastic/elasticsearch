@@ -162,7 +162,7 @@ final class FieldTypeLookup {
      */
     Set<String> getMatchingFieldNames(String pattern) {
         if (Regex.isMatchAllPattern(pattern)) {
-            return Collections.unmodifiableSet(fullNameToFieldType.keySet());
+            return fullNameToFieldType.keySet();
         }
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards

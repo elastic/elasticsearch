@@ -259,7 +259,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 aggregators,
                 () -> BlockHash.build(
                     List.of(new HashAggregationOperator.GroupSpec(groupByChannel, groupElementType)),
-                    bigArrays,
+                    driverContext,
                     pageSize,
                     false
                 ),
@@ -291,11 +291,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
         DocBlock docBlock = page.getBlock(0);
         IntVector docIndices = docBlock.asVector().docs();
-        Block loadedBlock = testData.getBlock(columnIndex);
-        int[] filteredPositions = new int[docIndices.getPositionCount()];
+        Block originalData = testData.getBlock(columnIndex);
+        Block.Builder builder = originalData.elementType().newBlockBuilder(docIndices.getPositionCount());
         for (int c = 0; c < docIndices.getPositionCount(); c++) {
-            filteredPositions[c] = docIndices.getInt(c);
+            int doc = docIndices.getInt(c);
+            builder.copyFrom(originalData, doc, doc + 1);
         }
-        return loadedBlock.filter(filteredPositions);
+        return builder.build();
     }
 }

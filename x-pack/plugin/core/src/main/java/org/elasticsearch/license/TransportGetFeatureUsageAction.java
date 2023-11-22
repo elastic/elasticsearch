@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -33,7 +34,7 @@ public class TransportGetFeatureUsageAction extends HandledTransportAction<GetFe
 
     @Inject
     public TransportGetFeatureUsageAction(TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState) {
-        super(TYPE.name(), transportService, actionFilters, GetFeatureUsageRequest::new);
+        super(TYPE.name(), transportService, actionFilters, GetFeatureUsageRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.licenseState = licenseState;
     }
 

@@ -12,11 +12,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptContextInfo;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -30,7 +29,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class GetScriptContextResponse extends ActionResponse implements StatusToXContentObject {
+public class GetScriptContextResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField CONTEXTS = new ParseField("contexts");
     final Map<String, ScriptContextInfo> contexts;
@@ -85,11 +84,6 @@ public class GetScriptContextResponse extends ActionResponse implements StatusTo
         for (ScriptContextInfo context : contexts.values()) {
             context.writeTo(out);
         }
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.OK;
     }
 
     @Override

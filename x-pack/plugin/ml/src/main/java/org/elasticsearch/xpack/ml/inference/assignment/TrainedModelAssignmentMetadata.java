@@ -309,7 +309,8 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
             return new TrainedModelAssignmentMetadata(
-                new TreeMap<>(modelRoutingEntries.apply(((TrainedModelAssignmentMetadata) part).deploymentRoutingEntries))
+                new TreeMap<>(modelRoutingEntries.apply(((TrainedModelAssignmentMetadata) part).deploymentRoutingEntries)),
+                writeableName
             );
         }
 

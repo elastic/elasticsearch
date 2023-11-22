@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -20,11 +19,11 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
             return new KeyExtractorForBytesRef.ForVector(encoder, nul, nonNul, v);
         }
         if (ascending) {
-            return block.mvOrdering() == Block.MvOrdering.ASCENDING
+            return block.mvSortedAscending()
                 ? new KeyExtractorForBytesRef.MinForAscending(encoder, nul, nonNul, block)
                 : new KeyExtractorForBytesRef.MinForUnordered(encoder, nul, nonNul, block);
         }
-        return block.mvOrdering() == Block.MvOrdering.ASCENDING
+        return block.mvSortedAscending()
             ? new KeyExtractorForBytesRef.MaxForAscending(encoder, nul, nonNul, block)
             : new KeyExtractorForBytesRef.MaxForUnordered(encoder, nul, nonNul, block);
     }

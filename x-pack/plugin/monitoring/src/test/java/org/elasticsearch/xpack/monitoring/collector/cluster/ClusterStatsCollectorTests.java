@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
@@ -266,7 +266,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getId(), nullValue());
 
         assertThat(document.getClusterName(), equalTo(clusterName));
-        assertThat(document.getVersion(), equalTo(Version.CURRENT.toString()));
+        assertThat(document.getVersion(), equalTo(Build.current().version()));
         assertThat(document.getLicense(), equalTo(license));
         assertThat(document.getStatus(), equalTo(clusterStatus));
 

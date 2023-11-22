@@ -10,8 +10,10 @@ package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.node.Node;
 
 import java.util.Map;
 import java.util.Objects;
@@ -126,6 +128,12 @@ public class DiscoveryNodeUtils {
         public Builder externalId(String externalId) {
             this.externalId = externalId;
             return this;
+        }
+
+        public Builder applySettings(Settings settings) {
+            return name(Node.NODE_NAME_SETTING.get(settings)).attributes(Node.NODE_ATTRIBUTES.getAsMap(settings))
+                .roles(DiscoveryNode.getRolesFromSettings(settings))
+                .externalId(Node.NODE_EXTERNAL_ID_SETTING.get(settings));
         }
 
         public DiscoveryNode build() {

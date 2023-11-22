@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -40,7 +39,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -60,7 +58,10 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 mock(Transport.class),
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+                boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                    .applySettings(settings)
+                    .address(boundAddress.publishAddress())
+                    .build(),
                 null,
                 Collections.emptySet()
             );
@@ -99,7 +100,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 client
             );
 
-            PlainActionFuture<MultiSearchResponse> future = newFuture();
+            PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
             action.execute(task, multiSearchRequest, future);
             future.get();
             assertEquals(numSearchRequests, counter.get());
@@ -119,7 +120,10 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .applySettings(settings)
+                .address(boundAddress.publishAddress())
+                .build(),
             null,
             Collections.emptySet()
         );

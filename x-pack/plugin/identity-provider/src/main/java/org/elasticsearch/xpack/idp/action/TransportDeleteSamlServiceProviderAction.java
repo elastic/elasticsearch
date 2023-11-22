@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -27,7 +28,7 @@ public class TransportDeleteSamlServiceProviderAction extends HandledTransportAc
     DeleteSamlServiceProviderRequest,
     DeleteSamlServiceProviderResponse> {
 
-    private final Logger logger = LogManager.getLogger(TransportDeleteSamlServiceProviderAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportDeleteSamlServiceProviderAction.class);
     private final SamlServiceProviderIndex index;
 
     @Inject
@@ -36,7 +37,13 @@ public class TransportDeleteSamlServiceProviderAction extends HandledTransportAc
         ActionFilters actionFilters,
         SamlServiceProviderIndex index
     ) {
-        super(DeleteSamlServiceProviderAction.NAME, transportService, actionFilters, DeleteSamlServiceProviderRequest::new);
+        super(
+            DeleteSamlServiceProviderAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteSamlServiceProviderRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.index = index;
     }
 

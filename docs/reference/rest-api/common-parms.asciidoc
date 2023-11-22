@@ -438,6 +438,8 @@ tag::ignore_throttled[]
 `ignore_throttled`::
 (Optional, Boolean) If `true`, concrete, expanded or aliased indices are
 ignored when frozen. Defaults to `true`.
++
+deprecated:[7.16.0]
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
@@ -688,6 +690,12 @@ tag::require-alias[]
 (Optional, Boolean) If `true`, the destination must be an <<aliases,index alias>>.
 Defaults to `false`.
 end::require-alias[]
+
+tag::bulk-list-executed-pipelines[]
+`list_executed_pipelines`::
+(Optional, Boolean) If `true`, the response will include the ingest pipelines that
+were executed. Defaults to `false`.
+end::bulk-list-executed-pipelines[]
 
 tag::bulk-dynamic-templates[]
 `dynamic_templates`::

@@ -88,8 +88,6 @@ public class DependencyLicensesTask extends DefaultTask {
 
     private final Logger logger = Logging.getLogger(getClass());
 
-    private static final String SHA_EXTENSION = ".sha1";
-
     // TODO: we should be able to default this to eg compile deps, but we need to move the licenses
     // check from distribution to core (ie this should only be run on java projects)
     /**

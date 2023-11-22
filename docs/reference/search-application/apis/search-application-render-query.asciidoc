@@ -8,9 +8,11 @@ preview::[]
 <titleabbrev>Render Search Application Query</titleabbrev>
 ++++
 
-Given specified query parameters, creates an Elasticsearch query to run. Any unspecified template parameters will be
-assigned their default values if applicable. Returns the specific Elasticsearch query that would be generated and
-run by calling <<search-application-search,search application search>>.
+Given specified query parameters, generates an {es} query using the search template associated with the search
+application or a default template if none is specified.
+Unspecified template parameters will be assigned their default values (if applicable).
+Returns the specific {es} query that would be generated and executed by calling
+<<search-application-search,search application search>>.
 
 [[search-application-render-query-request]]
 ==== {api-request-title}
@@ -27,10 +29,26 @@ Requires read privileges on the backing alias of the search application.
 
 `params`::
 (Optional, map of strings to objects)
-Query parameters specific to this request, which will override any defaults specified in the template.
+Query parameters used to generate the {es} query from the search template associated with the search application.
+If a parameter used in the search template is not specified in `params`, the parameter's default value will be used.
+
+[NOTE]
+====
+The search application can be configured to validate search template parameters.
+See the `dictionary` parameter in the <<put-search-application-dictionary-param, put search application>> API for more
+information.
+====
 
 [[search-application-render-query-response-codes]]
 ==== {api-response-codes-title}
+
+`400`::
+Invalid parameter passed to search template.
+Examples include:
+
+- Missing required parameter
+- Invalid parameter data type
+- Invalid parameter value
 
 `404`::
 Search Application `<name>` does not exist.
@@ -38,8 +56,8 @@ Search Application `<name>` does not exist.
 [[search-application-render-query-example]]
 ==== {api-examples-title}
 
-The following example renders a query for a search application called `my-app`. In this case, the `from` and `size`
-parameters are not specified, so default values are pulled from the search application template.
+The following example generates a query for a search application called `my-app` that uses the search template from
+the <<search-application-api-bm25-template, text search example>>:
 
 ////
 [source,console]
@@ -99,14 +117,8 @@ POST _application/search_application/my-app/_render_query
   "params": {
     "query_string": "my first query",
     "text_fields": [
-        {
-            "name": "title",
-            "boost": 10
-        },
-        {
-            "name": "text",
-            "boost": 1
-        }
+      {"name": "title", "boost": 5},
+      {"name": "description", "boost": 1}
     ]
   }
 }
@@ -117,19 +129,21 @@ A sample response:
 [source,console-result]
 ----
 {
-    "from": 0,
-    "size": 10,
-    "query": {
-        "multi_match": {
-            "query": "my first query",
-            "fields": [
-                "text^1.0",
-                "title^10.0"
-            ]
-        }
-    },
-    "explain": false
+  "from": 0,
+  "size": 10,
+  "query": {
+    "multi_match": {
+      "query": "my first query",
+      "fields": [
+        "description^1.0",
+        "title^5.0"
+      ]
+    }
+  },
+  "explain": false
 }
 ----
 // TEST[continued]
 
+In this case, the `from`, `size`, and `explain` parameters are not specified in the request, so the default values
+specified in the search template are used.

@@ -29,7 +29,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -49,7 +48,7 @@ class FieldCapabilitiesFetcher {
     FieldCapabilitiesIndexResponse fetch(
         CancellableTask task,
         ShardId shardId,
-        String[] fieldPatterns,
+        Predicate<String> fieldNameFilter,
         String[] filters,
         String[] fieldTypes,
         QueryBuilder indexFilter,
@@ -63,7 +62,7 @@ class FieldCapabilitiesFetcher {
             return doFetch(
                 task,
                 shardId,
-                fieldPatterns,
+                fieldNameFilter,
                 filters,
                 fieldTypes,
                 indexFilter,
@@ -78,7 +77,7 @@ class FieldCapabilitiesFetcher {
     private FieldCapabilitiesIndexResponse doFetch(
         CancellableTask task,
         ShardId shardId,
-        String[] fieldPatterns,
+        Predicate<String> fieldNameFilter,
         String[] filters,
         String[] fieldTypes,
         QueryBuilder indexFilter,
@@ -112,7 +111,7 @@ class FieldCapabilitiesFetcher {
         Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
         final Map<String, IndexFieldCapabilities> responseMap = retrieveFieldCaps(
             searchExecutionContext,
-            fieldPatterns,
+            fieldNameFilter,
             filters,
             fieldTypes,
             fieldPredicate
@@ -125,23 +124,20 @@ class FieldCapabilitiesFetcher {
 
     static Map<String, IndexFieldCapabilities> retrieveFieldCaps(
         SearchExecutionContext context,
-        String[] fieldPatterns,
+        Predicate<String> fieldNameFilter,
         String[] filters,
         String[] types,
         Predicate<String> indexFieldfilter
     ) {
-
-        Set<String> fieldNames = new HashSet<>();
-        for (String pattern : fieldPatterns) {
-            fieldNames.addAll(context.getMatchingFieldNames(pattern));
-        }
-
         boolean includeParentObjects = checkIncludeParents(filters);
 
         Predicate<MappedFieldType> filter = buildFilter(indexFieldfilter, filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
-        for (String field : fieldNames) {
+        for (String field : context.getAllFieldNames()) {
+            if (fieldNameFilter.test(field) == false) {
+                continue;
+            }
             MappedFieldType ft = context.getFieldType(field);
             if (filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
@@ -182,7 +178,7 @@ class FieldCapabilitiesFetcher {
                             false,
                             false,
                             null,
-                            Collections.emptyMap()
+                            Map.of()
                         );
                         responseMap.put(parentField, fieldCap);
                     }

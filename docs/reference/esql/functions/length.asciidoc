@@ -1,3 +1,4 @@
+[discrete]
 [[esql-length]]
 === `LENGTH`
 Returns the character length of a string.

@@ -16,7 +16,7 @@ import java.io.IOException;
  * Vector that stores int values.
  * This class is generated. Do not edit it.
  */
-public sealed interface IntVector extends Vector permits ConstantIntVector, FilterIntVector, IntArrayVector, IntBigArrayVector {
+public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, ConstantNullVector {
 
     int getInt(int position);
 
@@ -72,17 +72,18 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, Filt
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static IntVector of(StreamInput in) throws IOException {
+    static IntVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return new ConstantIntVector(in.readInt(), positions);
+            return blockFactory.newConstantIntVector(in.readInt(), positions);
         } else {
-            var builder = IntVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendInt(in.readInt());
+            try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.appendInt(in.readInt());
+                }
+                return builder.build();
             }
-            return builder.build();
         }
     }
 
@@ -100,30 +101,66 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, Filt
         }
     }
 
-    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    /**
+     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
+     * @deprecated use {@link BlockFactory#newIntVectorBuilder}
+     */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    @Deprecated
     static Builder newVectorBuilder(int estimatedSize) {
         return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
+     * if you know the size up front because it's faster.
+     * @deprecated use {@link BlockFactory#newIntVectorBuilder}
+     */
+    @Deprecated
     static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return blockFactory.newIntVectorBuilder(estimatedSize);
     }
 
+    /**
+     * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
+     * if you know the size up front because it's faster.
+     * @deprecated use {@link BlockFactory#newIntVectorFixedBuilder}
+     */
+    @Deprecated
+    static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
+        return blockFactory.newIntVectorFixedBuilder(size);
+    }
+
     /** Create a vector for a range of ints. */
-    static IntVector range(int startInclusive, int endExclusive) {
+    static IntVector range(int startInclusive, int endExclusive, BlockFactory blockFactory) {
         int[] values = new int[endExclusive - startInclusive];
         for (int i = 0; i < values.length; i++) {
             values[i] = startInclusive + i;
         }
-        return new IntArrayVector(values, values.length);
+        return blockFactory.newIntArrayVector(values, values.length);
     }
 
+    /**
+     * A builder that grows as needed.
+     */
     sealed interface Builder extends Vector.Builder permits IntVectorBuilder {
         /**
          * Appends a int to the current entry.
          */
         Builder appendInt(int value);
+
+        @Override
+        IntVector build();
+    }
+
+    /**
+     * A builder that never grows.
+     */
+    sealed interface FixedBuilder extends Vector.Builder permits IntVectorFixedBuilder {
+        /**
+         * Appends a int to the current entry.
+         */
+        FixedBuilder appendInt(int value);
 
         @Override
         IntVector build();

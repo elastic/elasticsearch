@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -25,8 +26,11 @@ import static org.elasticsearch.test.ESTestCase.between;
  * Inserts nulls into blocks
  */
 public class NullInsertingSourceOperator extends MappingSourceOperator {
-    public NullInsertingSourceOperator(SourceOperator delegate) {
+    final BlockFactory blockFactory;
+
+    public NullInsertingSourceOperator(SourceOperator delegate, BlockFactory blockFactory) {
         super(delegate);
+        this.blockFactory = blockFactory;
     }
 
     @Override
@@ -36,7 +40,7 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
         }
         Block.Builder[] builders = new Block.Builder[page.getBlockCount()];
         for (int b = 0; b < builders.length; b++) {
-            builders[b] = page.getBlock(b).elementType().newBlockBuilder(page.getPositionCount());
+            builders[b] = page.getBlock(b).elementType().newBlockBuilder(page.getPositionCount(), blockFactory);
         }
         for (int position = 0; position < page.getPositionCount(); position++) {
             for (int nulls = between(0, 3); nulls > 0; nulls--) {
@@ -48,7 +52,9 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
                 copyValues(page.getBlock(b), position, builders[b]);
             }
         }
-        return new Page(Arrays.stream(builders).map(Block.Builder::build).toArray(Block[]::new));
+        Page result = new Page(Arrays.stream(builders).map(Block.Builder::build).toArray(Block[]::new));
+        page.releaseBlocks();
+        return result;
     }
 
     protected void appendNull(ElementType elementType, Block.Builder builder, int blockId) {

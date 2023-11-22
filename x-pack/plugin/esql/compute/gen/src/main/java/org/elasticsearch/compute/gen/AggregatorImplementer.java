@@ -42,6 +42,7 @@ import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
@@ -193,6 +194,7 @@ public class AggregatorImplementer {
                 .initializer(initInterState())
                 .build()
         );
+        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(stateType, "state", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
 
@@ -218,14 +220,15 @@ public class AggregatorImplementer {
     private MethodSpec create() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
         builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
         for (VariableElement p : init.getParameters()) {
             builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
         }
         if (init.getParameters().isEmpty()) {
-            builder.addStatement("return new $T(channels, $L)", implementation, callInit());
+            builder.addStatement("return new $T(driverContext, channels, $L)", implementation, callInit());
         } else {
-            builder.addStatement("return new $T(channels, $L, $L)", implementation, callInit(), initParameters());
+            builder.addStatement("return new $T(driverContext, channels, $L, $L)", implementation, callInit(), initParameters());
         }
         return builder.build();
     }
@@ -259,8 +262,10 @@ public class AggregatorImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
         builder.addParameter(stateType, "state");
+        builder.addStatement("this.driverContext = driverContext");
         builder.addStatement("this.channels = channels");
         builder.addStatement("this.state = state");
 
@@ -288,9 +293,7 @@ public class AggregatorImplementer {
     private MethodSpec addRawInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
-        builder.addStatement("$T uncastBlock = page.getBlock(channels.get(0))", BLOCK);
-        builder.beginControlFlow("if (uncastBlock.areAllValuesNull())").addStatement("return").endControlFlow();
-        builder.addStatement("$T block = ($T) uncastBlock", valueBlockType(init, combine), valueBlockType(init, combine));
+        builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
         builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));
         builder.beginControlFlow("if (vector != null)").addStatement("addRawVector(vector)");
         builder.nextControlFlow("else").addStatement("addRawBlock(block)").endControlFlow();
@@ -396,6 +399,12 @@ public class AggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
         builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
+        builder.addStatement("Block uncastBlock = page.getBlock(channels.get(0))");
+        builder.beginControlFlow("if (uncastBlock.areAllValuesNull())");
+        {
+            builder.addStatement("return");
+            builder.endControlFlow();
+        }
         int count = 0;
         for (var interState : intermediateState) {
             builder.addStatement(
@@ -479,17 +488,18 @@ public class AggregatorImplementer {
         builder.addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
             .addParameter(BLOCK_ARRAY, "blocks")
-            .addParameter(TypeName.INT, "offset");
+            .addParameter(TypeName.INT, "offset")
+            .addParameter(DRIVER_CONTEXT, "driverContext");
         if (stateTypeHasSeen) {
             builder.beginControlFlow("if (state.seen() == false)");
-            builder.addStatement("blocks[offset] = $T.constantNullBlock(1)", BLOCK);
+            builder.addStatement("blocks[offset] = $T.constantNullBlock(1, driverContext.blockFactory())", BLOCK);
             builder.addStatement("return");
             builder.endControlFlow();
         }
         if (evaluateFinal == null) {
             primitiveStateToResult(builder);
         } else {
-            builder.addStatement("blocks[offset] = $T.evaluateFinal(state)", declarationType);
+            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, driverContext)", declarationType);
         }
         return builder.build();
     }
@@ -497,13 +507,22 @@ public class AggregatorImplementer {
     private void primitiveStateToResult(MethodSpec.Builder builder) {
         switch (stateType.toString()) {
             case "org.elasticsearch.compute.aggregation.IntState":
-                builder.addStatement("blocks[offset] = $T.newConstantBlockWith(state.intValue(), 1)", INT_BLOCK);
+                builder.addStatement(
+                    "blocks[offset] = $T.newConstantBlockWith(state.intValue(), 1, driverContext.blockFactory())",
+                    INT_BLOCK
+                );
                 return;
             case "org.elasticsearch.compute.aggregation.LongState":
-                builder.addStatement("blocks[offset] = $T.newConstantBlockWith(state.longValue(), 1)", LONG_BLOCK);
+                builder.addStatement(
+                    "blocks[offset] = $T.newConstantBlockWith(state.longValue(), 1, driverContext.blockFactory())",
+                    LONG_BLOCK
+                );
                 return;
             case "org.elasticsearch.compute.aggregation.DoubleState":
-                builder.addStatement("blocks[offset] = $T.newConstantBlockWith(state.doubleValue(), 1)", DOUBLE_BLOCK);
+                builder.addStatement(
+                    "blocks[offset] = $T.newConstantBlockWith(state.doubleValue(), 1, driverContext.blockFactory())",
+                    DOUBLE_BLOCK
+                );
                 return;
             default:
                 throw new IllegalArgumentException("don't know how to convert state to result: " + stateType);

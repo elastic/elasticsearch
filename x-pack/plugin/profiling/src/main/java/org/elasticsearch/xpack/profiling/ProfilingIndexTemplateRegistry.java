@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
+
 /**
  * Creates all index-templates and ILM policies that are required for using Elastic Universal Profiling.
  */
@@ -41,7 +43,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // history (please add a comment why you increased the version here)
     // version 1: initial
     // version 2: Added 'profiling.host.machine' keyword mapping to profiling-hosts
-    public static final int INDEX_TEMPLATE_VERSION = 2;
+    // version 3: Add optional component template 'profiling-ilm@custom' to all ILM-managed index templates
+    public static final int INDEX_TEMPLATE_VERSION = 3;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
     public static final int PROFILING_EVENTS_VERSION = 1;
@@ -54,6 +57,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final int PROFILING_RETURNPADS_PRIVATE_VERSION = 1;
     public static final int PROFILING_SQ_EXECUTABLES_VERSION = 1;
     public static final int PROFILING_SQ_LEAFFRAMES_VERSION = 1;
+    public static final int PROFILING_COSTS_VERSION = 1;
 
     public static final String PROFILING_TEMPLATE_VERSION_VARIABLE = "xpack.profiling.template.version";
 
@@ -231,6 +235,13 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),
         // templates for regular indices
+        new IndexTemplateConfig(
+            "profiling-costs",
+            "/profiling/index-template/profiling-costs.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("costs", PROFILING_COSTS_VERSION)
+        ),
         new IndexTemplateConfig(
             "profiling-returnpads-private",
             "/profiling/index-template/profiling-returnpads-private.json",

@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -44,7 +44,7 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testFetchFailuresAllShards() throws Exception {
         for (int i = 0; i < 10; i++) {
-            IndexResponse indexResponse = client().index(new IndexRequest("boom" + i).id("boom" + i).source("text", "value")).get();
+            DocWriteResponse indexResponse = client().index(new IndexRequest("boom" + i).id("boom" + i).source("text", "value")).get();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         client().admin().indices().refresh(new RefreshRequest()).get();
@@ -83,11 +83,11 @@ public class AsyncSearchSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testFetchFailuresOnlySomeShards() throws Exception {
         for (int i = 0; i < 5; i++) {
-            IndexResponse indexResponse = client().index(new IndexRequest("boom" + i).id("boom" + i).source("text", "value")).get();
+            DocWriteResponse indexResponse = client().index(new IndexRequest("boom" + i).id("boom" + i).source("text", "value")).get();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         for (int i = 0; i < 5; i++) {
-            IndexResponse indexResponse = client().index(new IndexRequest("index" + i).id("index" + i).source("text", "value")).get();
+            DocWriteResponse indexResponse = client().index(new IndexRequest("index" + i).id("index" + i).source("text", "value")).get();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         client().admin().indices().refresh(new RefreshRequest()).get();

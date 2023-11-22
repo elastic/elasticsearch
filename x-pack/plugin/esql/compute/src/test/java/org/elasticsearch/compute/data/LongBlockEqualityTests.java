@@ -11,7 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.BitSet;
 import java.util.List;
-import java.util.stream.IntStream;
 
 public class LongBlockEqualityTests extends ESTestCase {
 
@@ -191,10 +190,14 @@ public class LongBlockEqualityTests extends ESTestCase {
     public void testSimpleBlockWithManyNulls() {
         int positions = randomIntBetween(1, 256);
         boolean grow = randomBoolean();
-        var builder = LongBlock.newBlockBuilder(grow ? 0 : positions);
-        IntStream.range(0, positions).forEach(i -> builder.appendNull());
-        LongBlock block1 = builder.build();
-        LongBlock block2 = builder.build();
+        LongBlock.Builder builder1 = LongBlock.newBlockBuilder(grow ? 0 : positions);
+        LongBlock.Builder builder2 = LongBlock.newBlockBuilder(grow ? 0 : positions);
+        for (int p = 0; p < positions; p++) {
+            builder1.appendNull();
+            builder2.appendNull();
+        }
+        LongBlock block1 = builder1.build();
+        LongBlock block2 = builder2.build();
         assertEquals(positions, block1.getPositionCount());
         assertTrue(block1.mayHaveNulls());
         assertTrue(block1.isNull(0));
@@ -216,15 +219,27 @@ public class LongBlockEqualityTests extends ESTestCase {
     public void testSimpleBlockWithManyMultiValues() {
         int positions = randomIntBetween(1, 256);
         boolean grow = randomBoolean();
-        var builder = LongBlock.newBlockBuilder(grow ? 0 : positions);
+        LongBlock.Builder builder1 = LongBlock.newBlockBuilder(grow ? 0 : positions);
+        LongBlock.Builder builder2 = LongBlock.newBlockBuilder(grow ? 0 : positions);
+        LongBlock.Builder builder3 = LongBlock.newBlockBuilder(grow ? 0 : positions);
         for (int pos = 0; pos < positions; pos++) {
-            builder.beginPositionEntry();
-            int values = randomIntBetween(1, 16);
-            IntStream.range(0, values).forEach(i -> builder.appendLong(randomLong()));
+            builder1.beginPositionEntry();
+            builder2.beginPositionEntry();
+            builder3.beginPositionEntry();
+            int valueCount = randomIntBetween(1, 16);
+            for (int i = 0; i < valueCount; i++) {
+                long value = randomLong();
+                builder1.appendLong(value);
+                builder2.appendLong(value);
+                builder3.appendLong(value);
+            }
+            builder1.endPositionEntry();
+            builder2.endPositionEntry();
+            builder3.endPositionEntry();
         }
-        LongBlock block1 = builder.build();
-        LongBlock block2 = builder.build();
-        LongBlock block3 = builder.build();
+        LongBlock block1 = builder1.build();
+        LongBlock block2 = builder2.build();
+        LongBlock block3 = builder3.build();
 
         assertEquals(positions, block1.getPositionCount());
         assertAllEquals(List.of(block1, block2, block3));

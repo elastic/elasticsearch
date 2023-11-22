@@ -172,7 +172,11 @@ public final class InnerHitsContext {
                 }
             }
         } catch (CollectionTerminatedException e) {
-            // ignore and continue
+            // collection was terminated prematurely
+            // continue with the following leaf
         }
+        // Finish the leaf collection in preparation for the next.
+        // This includes any collection that was terminated early via `CollectionTerminatedException`
+        leafCollector.finish();
     }
 }

@@ -14,6 +14,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
@@ -23,7 +24,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -93,7 +93,7 @@ public class IdLoaderTests extends ESTestCase {
             new Doc(startTime - 2, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy"))),
             new Doc(startTime - 3, List.of(new Dimension("dim1", "bbb"), new Dimension("dim2", "yyy")))
         );
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = writer -> {
+        CheckedConsumer<IndexWriter, IOException> buildIndex = writer -> {
             for (Doc doc : docs1) {
                 indexDoc(routing, writer, doc);
             }
@@ -184,10 +184,7 @@ public class IdLoaderTests extends ESTestCase {
         assertThat(expectedIDs, empty());
     }
 
-    private static CheckedConsumer<RandomIndexWriter, IOException> indexAndForceMerge(
-        IndexRouting.ExtractFromSource routing,
-        List<Doc> docs
-    ) {
+    private static CheckedConsumer<IndexWriter, IOException> indexAndForceMerge(IndexRouting.ExtractFromSource routing, List<Doc> docs) {
         return writer -> {
             for (Doc doc : docs) {
                 indexDoc(routing, writer, doc);
@@ -197,7 +194,7 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     private void prepareIndexReader(
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        CheckedConsumer<IndexWriter, IOException> buildIndex,
         CheckedConsumer<IndexReader, IOException> verify,
         boolean noMergePolicy
     ) throws IOException {
@@ -205,13 +202,14 @@ public class IdLoaderTests extends ESTestCase {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
             if (noMergePolicy) {
                 config.setMergePolicy(NoMergePolicy.INSTANCE);
+                config.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
             }
             Sort sort = new Sort(
                 new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
                 new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
             );
             config.setIndexSort(sort);
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);
+            IndexWriter indexWriter = new IndexWriter(directory, config);
             buildIndex.accept(indexWriter);
             indexWriter.close();
 
@@ -221,7 +219,7 @@ public class IdLoaderTests extends ESTestCase {
         }
     }
 
-    private static void indexDoc(IndexRouting.ExtractFromSource routing, RandomIndexWriter iw, Doc doc) throws IOException {
+    private static void indexDoc(IndexRouting.ExtractFromSource routing, IndexWriter iw, Doc doc) throws IOException {
         final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routing.builder());
 
         final List<IndexableField> fields = new ArrayList<>();

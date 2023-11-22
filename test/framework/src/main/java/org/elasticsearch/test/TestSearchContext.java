@@ -218,11 +218,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFetchSourceContext() {
-        return false;
-    }
-
-    @Override
     public FetchSourceContext fetchSourceContext() {
         return null;
     }
@@ -455,16 +450,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
 
-    }
-
-    @Override
-    public int[] docIdsToLoad() {
-        return new int[0];
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        return null;
     }
 
     @Override

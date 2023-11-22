@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 
 class ResultBuilderForBoolean implements ResultBuilder {
@@ -20,10 +21,10 @@ class ResultBuilderForBoolean implements ResultBuilder {
      */
     private boolean key;
 
-    ResultBuilderForBoolean(TopNEncoder encoder, boolean inKey, int initialSize) {
+    ResultBuilderForBoolean(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
-        this.builder = BooleanBlock.newBlockBuilder(initialSize);
+        this.builder = BooleanBlock.newBlockBuilder(initialSize, blockFactory);
     }
 
     @Override
@@ -62,5 +63,10 @@ class ResultBuilderForBoolean implements ResultBuilder {
     @Override
     public String toString() {
         return "ResultBuilderForBoolean[inKey=" + inKey + "]";
+    }
+
+    @Override
+    public void close() {
+        builder.close();
     }
 }

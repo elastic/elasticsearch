@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -60,11 +61,11 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         final BlobContainer blobContainer = createBlobContainer(between(1, 5));
         final Exception exception = expectThrows(NoSuchFileException.class, () -> {
             if (randomBoolean()) {
-                blobContainer.readBlob("read_nonexistent_blob");
+                blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_nonexistent_blob");
             } else {
                 final long position = randomLongBetween(0, MAX_RANGE_VAL - 1L);
                 final long length = randomLongBetween(1, MAX_RANGE_VAL - position);
-                blobContainer.readBlob("read_nonexistent_blob", position, length);
+                blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_nonexistent_blob", position, length);
             }
         });
         assertThat(exception.toString(), exception.getMessage().toLowerCase(Locale.ROOT), containsString("not found"));
@@ -111,7 +112,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         });
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
-        try (InputStream inputStream = blobContainer.readBlob("read_blob_max_retries")) {
+        try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_blob_max_retries")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
             assertThat(countDownHead.isCountedDown(), is(true));
             assertThat(countDownGet.isCountedDown(), is(true));
@@ -159,7 +160,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(1, bytes.length - position);
-        try (InputStream inputStream = blobContainer.readBlob("read_range_blob_max_retries", position, length)) {
+        try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_range_blob_max_retries", position, length)) {
             final byte[] bytesRead = BytesReference.toBytes(Streams.readFully(inputStream));
             assertArrayEquals(Arrays.copyOfRange(bytes, position, Math.min(bytes.length, position + length)), bytesRead);
             assertThat(countDownGet.isCountedDown(), is(true));
@@ -202,7 +203,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-            blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
+            blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "write_blob_max_retries", stream, bytes.length, false);
         }
         assertThat(countDown.isCountedDown(), is(true));
     }
@@ -272,7 +273,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
 
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
-            blobContainer.writeBlob("write_large_blob", stream, data.length, false);
+            blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "write_large_blob", stream, data.length, false);
         }
 
         assertThat(countDownUploads.get(), equalTo(0));
@@ -340,7 +341,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         });
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
-        blobContainer.writeMetadataBlob("write_large_blob_streaming", false, randomBoolean(), out -> {
+        blobContainer.writeMetadataBlob(OperationPurpose.SNAPSHOT, "write_large_blob_streaming", false, randomBoolean(), out -> {
             int outstanding = data.length;
             while (outstanding > 0) {
                 if (randomBoolean()) {
@@ -390,7 +391,13 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         }) {
             final IOException ioe = expectThrows(
                 IOException.class,
-                () -> blobContainer.writeBlob("write_blob_max_retries", stream, randomIntBetween(1, 128), randomBoolean())
+                () -> blobContainer.writeBlob(
+                    OperationPurpose.SNAPSHOT,
+                    "write_blob_max_retries",
+                    stream,
+                    randomIntBetween(1, 128),
+                    randomBoolean()
+                )
             );
             assertThat(ioe.getMessage(), is("Unable to write blob write_blob_max_retries"));
             // The mock http server uses 1 thread to process the requests, it's possible that the
@@ -464,7 +471,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
         }
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries, secondaryHost, locationMode);
-        try (InputStream inputStream = blobContainer.readBlob("read_blob_from_secondary")) {
+        try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_blob_from_secondary")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
 
             // It does round robin, first tries on the primary, then on the secondary

@@ -82,6 +82,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1132,10 +1133,11 @@ public class TextFieldMapperTests extends MapperTestCase {
                     return new SyntheticSourceExample(
                         delegate.inputValue(),
                         delegate.result(),
+                        delegate.result(),
                         b -> b.field("type", "text").field("store", true)
                     );
                 }
-                return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
+                return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), delegate.blockLoaderResult(), b -> {
                     b.field("type", "text");
                     b.startObject("fields");
                     {
@@ -1179,6 +1181,11 @@ public class TextFieldMapperTests extends MapperTestCase {
                 );
             }
         };
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> ((BytesRef) v).utf8ToString();
     }
 
     @Override
@@ -1316,5 +1323,11 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertTrue(dv.advanceExact(2));
             assertFalse(dv.advanceExact(3));
         });
+    }
+
+    @Override
+    protected boolean supportsColumnAtATimeReader(MappedFieldType ft) {
+        TextFieldMapper.TextFieldType text = (TextFieldType) ft;
+        return text.syntheticSourceDelegate() != null && text.syntheticSourceDelegate().hasDocValues();
     }
 }

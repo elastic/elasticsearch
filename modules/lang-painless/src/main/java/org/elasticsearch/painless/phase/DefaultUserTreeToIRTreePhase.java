@@ -479,7 +479,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
      * @param irStoreNode The store node if this is a write.
      * @return The root node for this assignment.
      */
-    protected ExpressionNode buildLoadStore(
+    protected static ExpressionNode buildLoadStore(
         int accessDepth,
         Location location,
         boolean isNullSafe,

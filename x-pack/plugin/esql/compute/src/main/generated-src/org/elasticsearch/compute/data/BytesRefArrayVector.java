@@ -18,9 +18,11 @@ import org.elasticsearch.core.Releasables;
  */
 public final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayVector.class);
 
     private final BytesRefArray values;
+
+    private final BytesRefBlock block;
 
     public BytesRefArrayVector(BytesRefArray values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
@@ -29,11 +31,12 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
     public BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+        this.block = new BytesRefVectorBlock(this);
     }
 
     @Override
     public BytesRefBlock asBlock() {
-        return new BytesRefVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -53,7 +56,13 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
 
     @Override
     public BytesRefVector filter(int... positions) {
-        return new FilterBytesRefVector(this, positions);
+        final var scratch = new BytesRef();
+        try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendBytesRef(values.get(pos, scratch));
+            }
+            return builder.build();
+        }
     }
 
     public static long ramBytesEstimated(BytesRefArray values) {
@@ -85,7 +94,11 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
 
     @Override
     public void close() {
-        blockFactory.adjustBreaker(-BASE_RAM_BYTES_USED, true);
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
+        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     }
 }

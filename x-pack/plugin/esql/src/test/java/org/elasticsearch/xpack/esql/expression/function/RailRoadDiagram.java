@@ -20,7 +20,6 @@ import net.nextencia.rrdiagram.grammar.rrdiagram.RRElement;
 import net.nextencia.rrdiagram.grammar.rrdiagram.RRText;
 
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 
 import java.awt.Font;
@@ -48,7 +47,7 @@ public class RailRoadDiagram {
         expressions.add(new SpecialSequence(definition.name().toUpperCase(Locale.ROOT)));
         expressions.add(new Syntax("("));
         boolean first = true;
-        List<String> args = ShowFunctions.signature(definition);
+        List<String> args = EsqlFunctionRegistry.description(definition).argNames();
         for (String arg : args) {
             if (arg.endsWith("...")) {
                 expressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null));

@@ -17,6 +17,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -51,8 +52,8 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
         {
             IndexVersion version = IndexVersionUtils.randomVersionBetween(
                 random(),
-                IndexVersion.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersion.V_7_3_0)
+                IndexVersions.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
             );
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
@@ -65,8 +66,8 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
         {
             IndexVersion version = IndexVersionUtils.randomVersionBetween(
                 random(),
-                IndexVersion.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersion.V_7_3_0)
+                IndexVersions.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_7_3_0)
             );
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
@@ -90,8 +91,8 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
                 IndexAnalyzers indexAnalyzers = buildAnalyzers(
                     IndexVersionUtils.randomVersionBetween(
                         random(),
-                        IndexVersion.V_7_3_0,
-                        IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+                        IndexVersions.V_7_3_0,
+                        IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
                     ),
                     "edgeNGram"
                 )

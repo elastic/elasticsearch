@@ -8,9 +8,10 @@
 
 package org.elasticsearch.action.admin.indices.dangling.list;
 
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
@@ -19,11 +20,6 @@ public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingInd
      * Filter the response by index UUID. Leave as null to find all indices.
      */
     private final String indexUUID;
-
-    public ListDanglingIndicesRequest(StreamInput in) throws IOException {
-        super(in);
-        this.indexUUID = in.readOptionalString();
-    }
 
     public ListDanglingIndicesRequest() {
         super(Strings.EMPTY_ARRAY);
@@ -42,5 +38,10 @@ public class ListDanglingIndicesRequest extends BaseNodesRequest<ListDanglingInd
     @Override
     public String toString() {
         return "ListDanglingIndicesRequest{indexUUID='" + indexUUID + "'}";
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        TransportAction.localOnly();
     }
 }

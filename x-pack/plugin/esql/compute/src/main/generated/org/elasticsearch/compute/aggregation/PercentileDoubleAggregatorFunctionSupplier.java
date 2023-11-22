@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link PercentileDoubleAggregator}.
@@ -29,13 +30,14 @@ public final class PercentileDoubleAggregatorFunctionSupplier implements Aggrega
   }
 
   @Override
-  public PercentileDoubleAggregatorFunction aggregator() {
-    return PercentileDoubleAggregatorFunction.create(channels, percentile);
+  public PercentileDoubleAggregatorFunction aggregator(DriverContext driverContext) {
+    return PercentileDoubleAggregatorFunction.create(driverContext, channels, percentile);
   }
 
   @Override
-  public PercentileDoubleGroupingAggregatorFunction groupingAggregator() {
-    return PercentileDoubleGroupingAggregatorFunction.create(channels, bigArrays, percentile);
+  public PercentileDoubleGroupingAggregatorFunction groupingAggregator(
+      DriverContext driverContext) {
+    return PercentileDoubleGroupingAggregatorFunction.create(channels, driverContext, bigArrays, percentile);
   }
 
   @Override

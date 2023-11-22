@@ -11,7 +11,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.stream.IntStream;
 
 /**
  * Block implementation that stores an array of int.
@@ -51,7 +50,26 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
 
     @Override
     public IntBlock filter(int... positions) {
-        return new FilterIntBlock(this, positions);
+        try (var builder = blockFactory.newIntBlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.appendInt(getInt(getFirstValueIndex(pos)));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.appendInt(getInt(first + c));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.mvOrdering(mvOrdering()).build();
+        }
     }
 
     @Override
@@ -64,17 +82,26 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
         if (firstValueIndexes == null) {
             return this;
         }
-        int end = firstValueIndexes[getPositionCount()];
-        if (nullsMask == null) {
-            return new IntArrayVector(values, end).asBlock();
+        // TODO use reference counting to share the values
+        try (var builder = blockFactory.newIntBlockBuilder(firstValueIndexes[getPositionCount()])) {
+            for (int pos = 0; pos < getPositionCount(); pos++) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int first = getFirstValueIndex(pos);
+                int end = first + getValueCount(pos);
+                for (int i = first; i < end; i++) {
+                    builder.appendInt(getInt(i));
+                }
+            }
+            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
         }
-        int[] firstValues = IntStream.range(0, end + 1).toArray();
-        return new IntArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED, blockFactory);
     }
 
     public static long ramBytesEstimated(int[] values, int[] firstValueIndexes, BitSet nullsMask) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override
@@ -108,7 +135,7 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     }
 
     @Override
-    public void close() {
+    public void closeInternal() {
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

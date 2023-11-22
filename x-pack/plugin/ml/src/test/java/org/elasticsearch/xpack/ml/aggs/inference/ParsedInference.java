@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.core.ml.inference.results.SingleValueInfer
 
 /**
  * There isn't enough information in toXContent representation of the
- * {@link org.elasticsearch.xpack.core.ml.inference.results.InferenceResults}
+ * {@link org.elasticsearch.inference.InferenceResults}
  * objects to fully reconstruct them. In particular, depending on which
  * fields are written (result value, feature importance) it is not possible to
  * distinguish between a Regression result and a Classification result.

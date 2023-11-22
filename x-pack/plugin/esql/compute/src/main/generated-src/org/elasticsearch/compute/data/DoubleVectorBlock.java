@@ -17,6 +17,9 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
 
     private final DoubleVector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     DoubleVectorBlock(DoubleVector vector) {
         super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
@@ -44,7 +47,7 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
 
     @Override
     public DoubleBlock filter(int... positions) {
-        return new FilterDoubleVector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
     }
 
     @Override
@@ -71,7 +74,13 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
-    public void close() {
+    public boolean isReleased() {
+        return super.isReleased() || vector.isReleased();
+    }
+
+    @Override
+    public void closeInternal() {
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
     }
 }

@@ -184,7 +184,7 @@ class MatrixStatsResults implements Writeable {
         throw new IllegalArgumentException("Coefficient not computed between fields: " + fieldX + " and " + fieldY);
     }
 
-    private void checkField(String field, Map<String, ?> map) {
+    private static void checkField(String field, Map<String, ?> map) {
         if (field == null) {
             throw new IllegalArgumentException("field name cannot be null");
         }

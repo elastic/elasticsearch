@@ -65,6 +65,8 @@ import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.t
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenStore {
@@ -168,11 +170,11 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (false == frozenSecurityIndex.indexExists()) {
             listener.onResponse(List.of());
-        } else if (false == frozenSecurityIndex.isAvailable()) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (false == frozenSecurityIndex.isAvailable(SEARCH_SHARDS)) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final Supplier<ThreadContext.StoredContext> contextSupplier = client.threadPool()
@@ -204,11 +206,11 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     void deleteToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (false == frozenSecurityIndex.indexExists()) {
             listener.onResponse(false);
-        } else if (false == frozenSecurityIndex.isAvailable()) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (false == frozenSecurityIndex.isAvailable(PRIMARY_SHARDS)) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
             if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
@@ -251,7 +253,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         }
     }
 
-    private String docIdForToken(String qualifiedTokenName) {
+    private static String docIdForToken(String qualifiedTokenName) {
         return SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + qualifiedTokenName;
     }
 
@@ -295,7 +297,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         return builder;
     }
 
-    private TokenInfo extractTokenInfo(String docId, ServiceAccountId accountId) {
+    private static TokenInfo extractTokenInfo(String docId, ServiceAccountId accountId) {
         // Prefix is SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/"
         final int prefixLength = SERVICE_ACCOUNT_TOKEN_DOC_TYPE.length() + accountId.asPrincipal().length() + 2;
         return TokenInfo.indexToken(Strings.substring(docId, prefixLength, docId.length()));

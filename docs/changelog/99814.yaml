@@ -1,6 +1,0 @@
-pr: 99814
-summary: Fix cardinality agg for `const_keyword`
-area: Aggregations
-type: bug
-issues:
- - 99776

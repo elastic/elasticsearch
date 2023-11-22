@@ -8,12 +8,8 @@
 
 package org.elasticsearch.indices.state;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -29,8 +25,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SimpleIndexStateIT extends ESIntegTestCase {
-    private final Logger logger = LogManager.getLogger(SimpleIndexStateIT.class);
-
     public void testSimpleOpenClose() {
         logger.info("--> creating test index");
         createIndex("test");
@@ -67,8 +61,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         }
 
         logger.info("--> opening index...");
-        OpenIndexResponse openIndexResponse = indicesAdmin().prepareOpen("test").get();
-        assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
+        assertAcked(indicesAdmin().prepareOpen("test"));
 
         logger.info("--> waiting for green status");
         ensureGreen();
@@ -139,9 +132,6 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         }
 
         logger.info("--> creating test index with valid settings ");
-        CreateIndexResponse response = indicesAdmin().prepareCreate("test")
-            .setSettings(Settings.builder().put("number_of_shards", 1))
-            .get();
-        assertThat(response.isAcknowledged(), equalTo(true));
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1)));
     }
 }

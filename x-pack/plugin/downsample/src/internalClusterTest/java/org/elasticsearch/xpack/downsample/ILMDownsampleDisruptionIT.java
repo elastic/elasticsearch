@@ -19,7 +19,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -61,6 +60,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomInterval;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,7 +105,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
                 IndexSettings.TIME_SERIES_START_TIME.getKey(),
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(Instant.ofEpochMilli(startTime).toEpochMilli())
             )
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2022-01-08T23:40:53.384Z");
 
         if (randomBoolean()) {
             settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
@@ -147,7 +147,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             ensureGreen();
 
             final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            long startTime = LocalDateTime.parse("2020-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
+            long startTime = LocalDateTime.parse("1993-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
             setup(sourceIndex, 1, 0, startTime);
             final DownsampleConfig config = new DownsampleConfig(randomInterval());
             final SourceSupplier sourceSupplier = () -> {
@@ -239,13 +239,16 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             .getIndex(new GetIndexRequest().indices(targetIndex))
             .actionGet();
         assertEquals(1, getIndexResponse.indices().length);
-        final SearchResponse targetIndexSearch = cluster.client()
-            .prepareSearch(targetIndex)
-            .setQuery(new MatchAllQueryBuilder())
-            .setSize(Math.min(DOC_COUNT, indexedDocs))
-            .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
-            .get();
-        assertTrue(targetIndexSearch.getHits().getHits().length > 0);
+        assertResponse(
+            cluster.client()
+                .prepareSearch(targetIndex)
+                .setQuery(new MatchAllQueryBuilder())
+                .setSize(Math.min(DOC_COUNT, indexedDocs))
+                .setTrackTotalHitsUpTo(Integer.MAX_VALUE),
+            targetIndexSearch -> {
+                assertTrue(targetIndexSearch.getHits().getHits().length > 0);
+            }
+        );
     }
 
     private int bulkIndex(final String indexName, final SourceSupplier sourceSupplier, int docCount) throws IOException {

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
@@ -80,23 +81,27 @@ final class MergePositionsOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        final IntBlock positions = page.getBlock(positionChannel);
-        final int currentPosition = positions.getInt(0);
-        if (singleMode) {
-            fillNullUpToPosition(currentPosition);
-            for (int i = 0; i < mergingChannels.length; i++) {
-                int channel = mergingChannels[i];
-                outputBuilders[i].appendAllValuesToCurrentPosition(page.getBlock(channel));
+        try {
+            final IntBlock positions = page.getBlock(positionChannel);
+            final int currentPosition = positions.getInt(0);
+            if (singleMode) {
+                fillNullUpToPosition(currentPosition);
+                for (int i = 0; i < mergingChannels.length; i++) {
+                    int channel = mergingChannels[i];
+                    outputBuilders[i].appendAllValuesToCurrentPosition(page.getBlock(channel));
+                }
+                filledPositions++;
+            } else {
+                if (positionBuilder != null && positionBuilder.position != currentPosition) {
+                    flushPositionBuilder();
+                }
+                if (positionBuilder == null) {
+                    positionBuilder = new PositionBuilder(currentPosition, mergingTypes);
+                }
+                positionBuilder.combine(page, mergingChannels);
             }
-            filledPositions++;
-        } else {
-            if (positionBuilder != null && positionBuilder.position != currentPosition) {
-                flushPositionBuilder();
-            }
-            if (positionBuilder == null) {
-                positionBuilder = new PositionBuilder(currentPosition, mergingTypes);
-            }
-            positionBuilder.combine(page, mergingChannels);
+        } finally {
+            Releasables.closeExpectNoException(page::releaseBlocks);
         }
     }
 
@@ -147,10 +152,14 @@ final class MergePositionsOperator implements Operator {
             flushPositionBuilder();
         }
         fillNullUpToPosition(positionCount);
-        Block[] blocks = Arrays.stream(outputBuilders).map(Block.Builder::build).toArray(Block[]::new);
-        outputPage = new Page(blocks);
-        finished = true;
-        assert outputPage.getPositionCount() == positionCount;
+        try {
+            Block[] blocks = Arrays.stream(outputBuilders).map(Block.Builder::build).toArray(Block[]::new);
+            outputPage = new Page(blocks);
+            finished = true;
+            assert outputPage.getPositionCount() == positionCount;
+        } finally {
+            Releasables.closeExpectNoException(outputBuilders);
+        }
     }
 
     @Override

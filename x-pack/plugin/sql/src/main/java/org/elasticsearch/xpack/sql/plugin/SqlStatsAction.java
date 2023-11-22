@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class SqlStatsAction extends ActionType<SqlStatsResponse> {
 
@@ -15,6 +16,6 @@ public class SqlStatsAction extends ActionType<SqlStatsResponse> {
     public static final String NAME = "cluster:monitor/xpack/sql/stats/dist";
 
     private SqlStatsAction() {
-        super(NAME, SqlStatsResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

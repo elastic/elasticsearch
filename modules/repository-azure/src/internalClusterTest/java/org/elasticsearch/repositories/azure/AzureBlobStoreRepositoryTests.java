@@ -20,6 +20,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -234,11 +235,11 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             for (int i = 0; i < numberOfBlobs; i++) {
                 byte[] bytes = randomBytes(randomInt(100));
                 String blobName = randomAlphaOfLength(10);
-                container.writeBlob(blobName, new BytesArray(bytes), false);
+                container.writeBlob(OperationPurpose.SNAPSHOT, blobName, new BytesArray(bytes), false);
             }
 
-            container.delete();
-            assertThat(container.listBlobs(), is(anEmptyMap()));
+            container.delete(OperationPurpose.SNAPSHOT);
+            assertThat(container.listBlobs(OperationPurpose.SNAPSHOT), is(anEmptyMap()));
         }
     }
 
@@ -249,7 +250,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             for (int i = 0; i < 10; i++) {
                 byte[] bytes = randomBytes(randomInt(100));
                 String blobName = randomAlphaOfLength(10);
-                container.writeBlob(blobName, new BytesArray(bytes), false);
+                container.writeBlob(OperationPurpose.SNAPSHOT, blobName, new BytesArray(bytes), false);
                 blobsToDelete.add(blobName);
             }
 
@@ -259,15 +260,18 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             }
 
             Randomness.shuffle(blobsToDelete);
-            container.deleteBlobsIgnoringIfNotExists(blobsToDelete.iterator());
-            assertThat(container.listBlobs(), is(anEmptyMap()));
+            container.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, blobsToDelete.iterator());
+            assertThat(container.listBlobs(OperationPurpose.SNAPSHOT), is(anEmptyMap()));
         }
     }
 
     public void testNotFoundErrorMessageContainsFullKey() throws Exception {
         try (BlobStore store = newBlobStore()) {
             BlobContainer container = store.blobContainer(BlobPath.EMPTY.add("nested").add("dir"));
-            NoSuchFileException exception = expectThrows(NoSuchFileException.class, () -> container.readBlob("blob"));
+            NoSuchFileException exception = expectThrows(
+                NoSuchFileException.class,
+                () -> container.readBlob(OperationPurpose.SNAPSHOT, "blob")
+            );
             assertThat(exception.getMessage(), containsString("nested/dir/blob] not found"));
         }
     }
@@ -277,10 +281,10 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             BlobContainer container = store.blobContainer(BlobPath.EMPTY.add(UUIDs.randomBase64UUID()));
             var data = randomBytes(randomIntBetween(128, 512));
             String blobName = randomName();
-            container.writeBlob(blobName, new ByteArrayInputStream(data), data.length, true);
+            container.writeBlob(OperationPurpose.SNAPSHOT, blobName, new ByteArrayInputStream(data), data.length, true);
 
             var originalDataInputStream = new ByteArrayInputStream(data);
-            try (var azureInputStream = container.readBlob(blobName)) {
+            try (var azureInputStream = container.readBlob(OperationPurpose.SNAPSHOT, blobName)) {
                 for (int i = 0; i < data.length; i++) {
                     assertThat(originalDataInputStream.read(), is(equalTo(azureInputStream.read())));
                 }
@@ -288,7 +292,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 assertThat(azureInputStream.read(), is(equalTo(-1)));
                 assertThat(originalDataInputStream.read(), is(equalTo(-1)));
             }
-            container.delete();
+            container.delete(OperationPurpose.SNAPSHOT);
         }
     }
 }

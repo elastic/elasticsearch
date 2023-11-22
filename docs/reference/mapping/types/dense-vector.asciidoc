@@ -111,9 +111,6 @@ PUT my-index-2
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
 that sacrifices result accuracy for improved speed.
 
-Dense vector fields cannot be indexed if they are within
-<<nested, `nested`>> mappings.
-
 [role="child_attributes"]
 [[dense-vector-params]]
 ==== Parameters for dense vector fields
@@ -159,7 +156,7 @@ distance) between the vectors. The document `_score` is computed as
 `1 / (1 + l2_norm(query, vector)^2)`.
 
 `dot_product`:::
-Computes the dot product of two vectors. This option provides an optimized way
+Computes the dot product of two unit vectors. This option provides an optimized way
 to perform cosine similarity. The constraints and computed score are defined
 by `element_type`.
 +
@@ -181,6 +178,14 @@ original vectors and cannot normalize them in advance. The document `_score`
 is computed as `(1 + cosine(query, vector)) / 2`. The `cosine` similarity does
 not allow vectors with zero magnitude, since cosine is not defined in this
 case.
+
+`max_inner_product`:::
+Computes the maximum inner product of two vectors. This is similar to `dot_product`,
+but doesn't require vectors to be normalized. This means that each vector's magnitude
+can significantly effect the score. The document `_score` is adjusted to prevent negative
+values. For `max_inner_product` values `< 0`, the `_score` is
+`1 / (1 + -1 * max_inner_product(query, vector))`. For non-negative `max_inner_product` results
+the `_score` is calculated `max_inner_product(query, vector) + 1`.
 ====
 
 NOTE: Although they are conceptually related, the `similarity` parameter is
@@ -223,7 +228,7 @@ neighbors for each new node. Defaults to `100`.
 IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
 (indices that have `index.mode` set to `time_series`). For other indices
 synthetic `_source` is in technical preview. Features in technical preview may
-be changed or removed in a future release. Elastic will apply best effort to fix
+be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 

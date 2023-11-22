@@ -7,27 +7,32 @@
 
 package org.elasticsearch.xpack.profiling;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.countedkeyword.CountedKeywordMapperPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 import org.junit.After;
 import org.junit.Before;
 
-import java.time.Instant;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -37,11 +42,11 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
-            LocalStateCompositeXPackPlugin.class,
             DataStreamsPlugin.class,
-            ProfilingPlugin.class,
+            LocalStateProfilingXPackPlugin.class,
             IndexLifecycle.class,
             UnsignedLongMapperPlugin.class,
+            CountedKeywordMapperPlugin.class,
             VersionFieldPlugin.class,
             getTestTransportPlugin()
         );
@@ -58,6 +63,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             // .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // Disable ILM history index so that the tests don't have to clean it up
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false)
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .build();
     }
 
@@ -66,26 +72,24 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         return false; // enable http
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
+    protected final byte[] read(String resource) throws IOException {
+        return ProfilingTestCase.class.getClassLoader().getResourceAsStream(resource).readAllBytes();
     }
 
-    private void indexDoc(String index, String id, Map<String, Object> source) {
-        IndexResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
+    protected final void createIndex(String name, String bodyFileName) throws Exception {
+        CreateIndexResponse response = client().admin()
+            .indices()
+            .prepareCreate(name)
+            .setSource(read(bodyFileName), XContentType.JSON)
+            .execute()
+            .get();
+        assertTrue("Creation of [" + name + "] is not acknowledged.", response.isAcknowledged());
+        assertTrue("Shards for [" + name + "] are not acknowledged.", response.isShardsAcknowledged());
+    }
+
+    protected final void indexDoc(String index, String id, Map<String, Object> source) {
+        DocWriteResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-    }
-
-    /**
-     * Only the index "profiling-events-all" is always present. All other indices (e.g. "profiling-events-5pow02") are created on demand
-     * at a later point when there are enough samples. With this flag we simulate that data should be retrieved briefly after cluster
-     * start when only profiling-events-all is present. We expect that also in this case, available data is returned but we rely only
-     * on the single existing index.
-     *
-     * @return <code>true</code> iff this test should rely on only "profiling-events-all" being present.
-     */
-    protected boolean useOnlyAllEvents() {
-        return randomBoolean();
     }
 
     /**
@@ -95,18 +99,10 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         return true;
     }
 
-    protected void waitForIndices() throws Exception {
+    protected void waitForIndices(Collection<String> indices) throws Exception {
         assertBusy(() -> {
             ClusterState state = clusterAdmin().prepareState().get().getState();
-            assertTrue(
-                "Timed out waiting for the indices to be created",
-                state.metadata()
-                    .indices()
-                    .keySet()
-                    .containsAll(
-                        ProfilingIndexManager.PROFILING_INDICES.stream().map(ProfilingIndexManager.ProfilingIndex::toString).toList()
-                    )
-            );
+            assertTrue("Timed out waiting for indices to be created", state.metadata().indices().keySet().containsAll(indices));
         });
     }
 
@@ -117,37 +113,33 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         assertTrue("Update of profiling templates enabled setting is not acknowledged", response.isAcknowledged());
     }
 
+    protected final void bulkIndex(String file) throws Exception {
+        byte[] bulkData = read(file);
+        BulkResponse response = client().prepareBulk().add(bulkData, 0, bulkData.length, XContentType.JSON).execute().actionGet();
+        assertFalse(response.hasFailures());
+    }
+
     @Before
     public void setupData() throws Exception {
         if (requiresDataSetup() == false) {
             return;
         }
+        final String apmTestIndex = "apm-test-001";
         // only enable index management while setting up indices to avoid interfering with the rest of the test infrastructure
         updateProfilingTemplatesEnabled(true);
-        Collection<String> eventsIndices = useOnlyAllEvents() ? List.of(EventsIndex.FULL_INDEX.getName()) : EventsIndex.indexNames();
-        waitForIndices();
-        ensureGreen();
-
-        // ensure that we have this in every index, so we find an event
-        for (String idx : eventsIndices) {
-            indexDoc(
-                idx,
-                "QjoLteG7HX3VUUXr-J4kHQ",
-                Map.of("@timestamp", Instant.now().toEpochMilli(), "Stacktrace.id", "QjoLteG7HX3VUUXr-J4kHQ", "Stacktrace.count", 1)
-            );
-        }
-
-        indexDoc(
-            "profiling-stacktraces",
-            "QjoLteG7HX3VUUXr-J4kHQ",
-            Map.of("Stacktrace.frame.ids", "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf", "Stacktrace.frame.types", "AQI")
+        createIndex(apmTestIndex, "indices/apm-test.json");
+        List<String> allIndices = new ArrayList<>(
+            ProfilingIndexManager.PROFILING_INDICES.stream().map(ProfilingIndexManager.ProfilingIndex::toString).toList()
         );
-        indexDoc(
-            "profiling-stackframes",
-            "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf",
-            Map.of("Stackframe.function.name", List.of("_raw_spin_unlock_irqrestore", "inlined_frame_1", "inlined_frame_0"))
-        );
-        indexDoc("profiling-executables", "QCCDqjSg3bMK1C4YRK6Tiw", Map.of("Executable.file.name", "libc.so.6"));
+        allIndices.add(apmTestIndex);
+        waitForIndices(allIndices);
+        ensureGreen(allIndices.toArray(new String[0]));
+
+        bulkIndex("data/profiling-events-all.ndjson");
+        bulkIndex("data/profiling-stacktraces.ndjson");
+        bulkIndex("data/profiling-stackframes.ndjson");
+        bulkIndex("data/profiling-executables.ndjson");
+        bulkIndex("data/apm-test.ndjson");
 
         refresh();
     }

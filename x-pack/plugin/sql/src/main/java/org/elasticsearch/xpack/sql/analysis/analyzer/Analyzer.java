@@ -78,7 +78,7 @@ import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.maybeResolveAgai
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
-public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
+public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
 
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
@@ -114,7 +114,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private final Verifier verifier;
 
-    @SuppressWarnings("this-escape")
     public Analyzer(AnalyzerContext context, Verifier verifier) {
         super(context);
         context.analyzeWithoutVerify().set(this::execute);
@@ -202,7 +201,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return substituteCTE(plan.child(), plan.subQueries());
         }
 
-        private LogicalPlan substituteCTE(LogicalPlan p, Map<String, SubQueryAlias> subQueries) {
+        private static LogicalPlan substituteCTE(LogicalPlan p, Map<String, SubQueryAlias> subQueries) {
             if (p instanceof UnresolvedRelation ur) {
                 SubQueryAlias subQueryAlias = subQueries.get(ur.table().index());
                 if (subQueryAlias != null) {
@@ -344,7 +343,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
         }
 
-        private List<NamedExpression> expandProjections(List<? extends NamedExpression> projections, LogicalPlan child) {
+        private static List<NamedExpression> expandProjections(List<? extends NamedExpression> projections, LogicalPlan child) {
             List<NamedExpression> result = new ArrayList<>();
 
             List<Attribute> output = child.output();
@@ -366,7 +365,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return result;
         }
 
-        private List<NamedExpression> expandStar(UnresolvedStar us, List<Attribute> output) {
+        private static List<NamedExpression> expandStar(UnresolvedStar us, List<Attribute> output) {
             List<NamedExpression> expanded = new ArrayList<>();
 
             // a qualifier is specified - since this is a star, it should be a CompoundDataType
@@ -532,7 +531,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan;
         }
 
-        private Integer findOrdinal(Expression expression) {
+        private static Integer findOrdinal(Expression expression) {
             if (expression.foldable()) {
                 if (expression.dataType().isInteger()) {
                     Object v = Foldables.valueOf(expression);
@@ -789,7 +788,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan;
         }
 
-        private Expression replaceAliases(Expression condition, List<? extends NamedExpression> named) {
+        private static Expression replaceAliases(Expression condition, List<? extends NamedExpression> named) {
             List<Alias> aliases = new ArrayList<>();
             named.forEach(n -> {
                 if (n instanceof Alias) {
@@ -878,11 +877,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan;
         }
 
-        private boolean hasUnresolvedAliases(List<? extends NamedExpression> expressions) {
+        private static boolean hasUnresolvedAliases(List<? extends NamedExpression> expressions) {
             return expressions != null && Expressions.anyMatch(expressions, UnresolvedAlias.class::isInstance);
         }
 
-        private List<NamedExpression> assignAliases(List<? extends NamedExpression> exprs) {
+        private static List<NamedExpression> assignAliases(List<? extends NamedExpression> exprs) {
             List<NamedExpression> newExpr = new ArrayList<>(exprs.size());
             for (NamedExpression expr : exprs) {
                 NamedExpression transformed = (NamedExpression) expr.transformUp(UnresolvedAlias.class, ua -> {
@@ -1015,7 +1014,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return f;
         }
 
-        private Set<NamedExpression> findMissingAggregate(Aggregate target, Expression from) {
+        private static Set<NamedExpression> findMissingAggregate(Aggregate target, Expression from) {
             Set<NamedExpression> missing = new LinkedHashSet<>();
 
             for (Expression filterAgg : from.collect(Functions::isAggregate)) {
@@ -1106,10 +1105,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            return plan.transformExpressionsDown(this::implicitCast);
+            return plan.transformExpressionsDown(ImplicitCasting::implicitCast);
         }
 
-        private Expression implicitCast(Expression e) {
+        private static Expression implicitCast(Expression e) {
             if (e.childrenResolved() == false) {
                 return e;
             }
@@ -1209,7 +1208,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan.transformExpressionsOnly(Alias.class, a -> a.child());
         }
 
-        private List<NamedExpression> cleanChildrenAliases(List<? extends NamedExpression> args) {
+        private static List<NamedExpression> cleanChildrenAliases(List<? extends NamedExpression> args) {
             List<NamedExpression> cleaned = new ArrayList<>(args.size());
             for (NamedExpression ne : args) {
                 cleaned.add((NamedExpression) trimNonTopLevelAliases(ne));
@@ -1217,7 +1216,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return cleaned;
         }
 
-        private List<Expression> cleanAllAliases(List<Expression> args) {
+        private static List<Expression> cleanAllAliases(List<Expression> args) {
             List<Expression> cleaned = new ArrayList<>(args.size());
             for (Expression e : args) {
                 cleaned.add(trimAliases(e));

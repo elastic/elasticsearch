@@ -379,7 +379,18 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, GetEnrichPolicyAction.NAME);
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, PutEnrichPolicyAction.NAME);
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, "cluster:admin/xpack/enrich/brand_new_api");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_ENRICH, "cluster:monitor/xpack/enrich/esql/resolve_policy");
         verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_ENRICH, "cluster:admin/xpack/whatever");
+    }
+
+    public void testMonitorEnrichPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MONITOR_ENRICH, "cluster:monitor/xpack/enrich/esql/resolve_policy");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MONITOR_ENRICH, GetEnrichPolicyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MONITOR_ENRICH, "cluster:monitor/xpack/enrich/brand_new_api");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_ENRICH, PutEnrichPolicyAction.NAME);
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_ENRICH, ExecuteEnrichPolicyAction.NAME);
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_ENRICH, DeleteEnrichPolicyAction.NAME);
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_ENRICH, "cluster:admin/xpack/whatever");
     }
 
     public void testIlmPrivileges() {

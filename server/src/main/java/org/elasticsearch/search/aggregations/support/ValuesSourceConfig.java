@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -183,7 +184,7 @@ public class ValuesSourceConfig {
             missing,
             timeZone,
             docValueFormat,
-            context
+            context::nowInMillis
         );
         return config;
     }
@@ -257,14 +258,14 @@ public class ValuesSourceConfig {
     public static ValuesSourceConfig resolveFieldOnly(MappedFieldType fieldType, AggregationContext context) {
         FieldContext fieldContext = context.buildFieldContext(fieldType);
         ValuesSourceType vstype = fieldContext.indexFieldData().getValuesSourceType();
-        return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, null, context);
+        return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, null, context::nowInMillis);
     }
 
     /**
      * Convenience method for creating unmapped configs
      */
     public static ValuesSourceConfig resolveUnmapped(ValuesSourceType valuesSourceType, AggregationContext context) {
-        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, null, context);
+        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, null, context::nowInMillis);
     }
 
     private final ValuesSourceType valuesSourceType;
@@ -277,10 +278,6 @@ public class ValuesSourceConfig {
     private final ZoneId timeZone;
     private final ValuesSource valuesSource;
 
-    private ValuesSourceConfig() {
-        throw new UnsupportedOperationException();
-    }
-
     @SuppressWarnings("this-escape")
     public ValuesSourceConfig(
         ValuesSourceType valuesSourceType,
@@ -291,7 +288,7 @@ public class ValuesSourceConfig {
         Object missing,
         ZoneId timeZone,
         DocValueFormat format,
-        AggregationContext context
+        LongSupplier nowInMillis
     ) {
         if (unmapped && fieldContext != null) {
             throw new IllegalStateException("value source config is invalid; marked as unmapped but specified a mapped field");
@@ -311,10 +308,10 @@ public class ValuesSourceConfig {
                 "value source config is invalid; must have either a field context or a script or marked as unwrapped"
             );
         }
-        valuesSource = constructValuesSource(missing, format, context);
+        valuesSource = constructValuesSource(missing, format, nowInMillis);
     }
 
-    private ValuesSource constructValuesSource(Object missing, DocValueFormat format, AggregationContext context) {
+    private ValuesSource constructValuesSource(Object missing, DocValueFormat format, LongSupplier nowInMillis) {
         final ValuesSource vs;
         if (this.unmapped) {
             vs = valueSourceType().getEmpty();
@@ -329,7 +326,7 @@ public class ValuesSourceConfig {
         }
 
         if (missing() != null) {
-            return valueSourceType().replaceMissing(vs, missing, format, context);
+            return valueSourceType().replaceMissing(vs, missing, format, nowInMillis);
         } else {
             return vs;
         }

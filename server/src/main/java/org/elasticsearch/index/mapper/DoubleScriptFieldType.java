@@ -43,7 +43,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             DoubleFieldScript.Factory factory,
             Script script,
@@ -54,12 +54,14 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         }
 
         @Override
-        DoubleFieldScript.Factory getParseFromSourceFactory() {
+        protected DoubleFieldScript.Factory getParseFromSourceFactory() {
             return DoubleFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        DoubleFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected DoubleFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return DoubleFieldScript.leafAdapter(parentScriptFactory);
         }
     }
@@ -101,6 +103,11 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
             return DocValueFormat.RAW;
         }
         return new DocValueFormat.Decimal(format);
+    }
+
+    @Override
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(leafFactory(blContext.lookup()));
     }
 
     @Override

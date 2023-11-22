@@ -15,7 +15,7 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-@TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
 public class MixedClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public MixedClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {

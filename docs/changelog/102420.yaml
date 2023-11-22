@@ -1,0 +1,5 @@
+pr: 102420
+summary: Avoiding allocating duplicate byte arrays in bulk request
+area: Ingest Node
+type: enhancement
+issues: []

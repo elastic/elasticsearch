@@ -24,6 +24,14 @@ public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
     private final Boolean reduceWhitespace;
     private final Boolean runMlInference;
 
+    /**
+     * Constructs a new instance of ConnectorIngestPipeline.
+     *
+     * @param extractBinaryContent A Boolean flag indicating whether to extract binary content during ingestion.
+     * @param name                 The name of the ingest pipeline.
+     * @param reduceWhitespace     A Boolean flag indicating whether to reduce extraneous whitespace in the ingested content.
+     * @param runMlInference       A Boolean flag indicating whether to run machine learning inference on the ingested content.
+     */
     private ConnectorIngestPipeline(Boolean extractBinaryContent, String name, Boolean reduceWhitespace, Boolean runMlInference) {
         this.extractBinaryContent = Objects.requireNonNull(extractBinaryContent, EXTRACT_BINARY_CONTENT_FIELD.getPreferredName());
         this.name = Objects.requireNonNull(name, NAME_FIELD.getPreferredName());
@@ -38,10 +46,10 @@ public class ConnectorIngestPipeline implements Writeable, ToXContentObject {
         this.runMlInference = in.readBoolean();
     }
 
-    public static final ParseField EXTRACT_BINARY_CONTENT_FIELD = new ParseField("extract_binary_content");
-    public static final ParseField NAME_FIELD = new ParseField("name");
-    public static final ParseField REDUCE_WHITESPACE_FIELD = new ParseField("reduce_whitespace");
-    public static final ParseField RUN_ML_INFERENCE_FIELD = new ParseField("run_ml_inference");
+    private static final ParseField EXTRACT_BINARY_CONTENT_FIELD = new ParseField("extract_binary_content");
+    private static final ParseField NAME_FIELD = new ParseField("name");
+    private static final ParseField REDUCE_WHITESPACE_FIELD = new ParseField("reduce_whitespace");
+    private static final ParseField RUN_ML_INFERENCE_FIELD = new ParseField("run_ml_inference");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

@@ -24,22 +24,27 @@ import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
  */
 public class ConnectorIndexService {
 
-    private final Client client;
-
     private final Client clientWithOrigin;
 
     public static final String CONNECTOR_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
 
+    /**
+     * @param client A client for executing actions on the connector index
+     */
     public ConnectorIndexService(Client client) {
-        this.client = client;
         this.clientWithOrigin = new OriginSettingClient(client, CONNECTORS_ORIGIN);
     }
 
+    /**
+     * Creates or updates the {@link Connector} in the underlying index.
+     *
+     * @param connector The connector object.
+     * @param listener  The action listener to invoke on response/failure.
+     */
     public void putConnector(Connector connector, ActionListener<DocWriteResponse> listener) {
         try {
             final IndexRequest indexRequest = new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                 .id(connector.getConnectorId())
-                .opType(DocWriteRequest.OpType.INDEX)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(connector.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
             clientWithOrigin.index(indexRequest, listener);

@@ -28,6 +28,13 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
     private final String domain;
     private final FilteringRules draft;
 
+    /**
+     * Constructs a new ConnectorFiltering instance.
+     *
+     * @param active The active filtering rules.
+     * @param domain The domain associated with the filtering.
+     * @param draft  The draft filtering rules.
+     */
     public ConnectorFiltering(FilteringRules active, String domain, FilteringRules draft) {
         this.active = active;
         this.domain = domain;
@@ -107,6 +114,16 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         private final List<FilteringValidation> validationErrors;
         private final FilteringValidationState validationState;
 
+        /**
+         * Constructs a new FilteringRules instance.
+         *
+         * @param advancedSnippetCreatedAt The creation timestamp of the advanced snippet.
+         * @param advancedSnippetUpdatedAt The update timestamp of the advanced snippet.
+         * @param advancedSnippetValue The map of the advanced snippet.
+         * @param rules The list of {@link FilteringRule} objects
+         * @param validationErrors The list of {@link FilteringValidation} errors for the filtering rules.
+         * @param validationState The {@link FilteringValidationState} of the filtering rules.
+         */
         public FilteringRules(
             String advancedSnippetCreatedAt,
             String advancedSnippetUpdatedAt,
@@ -263,6 +280,18 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         private final String updatedAt;
         private final String value;
 
+        /**
+         * Constructs a new FilteringRule instance.
+         *
+         * @param createdAt The creation timestamp of the filtering rule.
+         * @param field The field associated with the filtering rule.
+         * @param id The identifier of the filtering rule.
+         * @param order The order of the filtering rule.
+         * @param policy The {@link FilteringPolicy} of the filtering rule.
+         * @param rule The specific {@link FilteringRuleRule}
+         * @param updatedAt The update timestamp of the filtering rule.
+         * @param value The value associated with the filtering rule.
+         */
         public FilteringRule(
             String createdAt,
             String field,
@@ -402,6 +431,12 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         private final List<String> ids;
         private final List<String> messages;
 
+        /**
+         * Constructs a new FilteringValidation instance.
+         *
+         * @param ids      The list of identifiers associated with the validation.
+         * @param messages The list of messages describing the validation results.
+         */
         public FilteringValidation(List<String> ids, List<String> messages) {
             this.ids = ids;
             this.messages = messages;

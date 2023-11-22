@@ -157,7 +157,7 @@ public final class ConnectorTestUtils {
             .setFeatures(randomBoolean() ? getRandomConnectorFeatures() : null)
             .setFiltering(randomBoolean() ? List.of(getRandomConnectorFiltering()) : null)
             .setIndexName(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
-            .setIsNative(randomFrom(new Boolean[] { null, randomBoolean() }))
+            .setIsNative(randomBoolean())
             .setLanguage(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setSyncInfo(randomBoolean() ? getRandomConnectorSyncInfo() : null)
             .setName(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
@@ -165,7 +165,7 @@ public final class ConnectorTestUtils {
             .setScheduling(randomBoolean() ? getRandomConnectorScheduling() : null)
             .setStatus(getRandomConnectorStatus())
             .setSyncCursor(randomFrom(new Object[] { null, randomAlphaOfLength(1) }))
-            .setSyncNow(randomFrom(new Boolean[] { null, randomBoolean() }))
+            .setSyncNow(randomBoolean())
             .build();
     }
 

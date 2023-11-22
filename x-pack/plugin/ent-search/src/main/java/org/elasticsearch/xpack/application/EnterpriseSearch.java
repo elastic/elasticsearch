@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportGetAnalytic
 import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
+import org.elasticsearch.xpack.application.connector.ConnectorAPIFeature;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -125,33 +127,42 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             return List.of(usageAction, infoAction);
         }
 
-        return List.of(
-            // Behavioral Analytics
-            new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
-            new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
-            new ActionHandler<>(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
-            new ActionHandler<>(PostAnalyticsEventAction.INSTANCE, TransportPostAnalyticsEventAction.class),
+        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actionHandlers = new ArrayList<>(
+            List.of(
+                // Behavioral Analytics
+                new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
+                new ActionHandler<>(GetAnalyticsCollectionAction.INSTANCE, TransportGetAnalyticsCollectionAction.class),
+                new ActionHandler<>(DeleteAnalyticsCollectionAction.INSTANCE, TransportDeleteAnalyticsCollectionAction.class),
+                new ActionHandler<>(PostAnalyticsEventAction.INSTANCE, TransportPostAnalyticsEventAction.class),
 
-            // Search Applications
-            new ActionHandler<>(DeleteSearchApplicationAction.INSTANCE, TransportDeleteSearchApplicationAction.class),
-            new ActionHandler<>(GetSearchApplicationAction.INSTANCE, TransportGetSearchApplicationAction.class),
-            new ActionHandler<>(ListSearchApplicationAction.INSTANCE, TransportListSearchApplicationAction.class),
-            new ActionHandler<>(PutSearchApplicationAction.INSTANCE, TransportPutSearchApplicationAction.class),
-            new ActionHandler<>(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class),
-            new ActionHandler<>(RenderSearchApplicationQueryAction.INSTANCE, TransportRenderSearchApplicationQueryAction.class),
+                // Search Applications
+                new ActionHandler<>(DeleteSearchApplicationAction.INSTANCE, TransportDeleteSearchApplicationAction.class),
+                new ActionHandler<>(GetSearchApplicationAction.INSTANCE, TransportGetSearchApplicationAction.class),
+                new ActionHandler<>(ListSearchApplicationAction.INSTANCE, TransportListSearchApplicationAction.class),
+                new ActionHandler<>(PutSearchApplicationAction.INSTANCE, TransportPutSearchApplicationAction.class),
+                new ActionHandler<>(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class),
+                new ActionHandler<>(RenderSearchApplicationQueryAction.INSTANCE, TransportRenderSearchApplicationQueryAction.class),
 
-            // Query rules
-            new ActionHandler<>(DeleteQueryRulesetAction.INSTANCE, TransportDeleteQueryRulesetAction.class),
-            new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
-            new ActionHandler<>(ListQueryRulesetsAction.INSTANCE, TransportListQueryRulesetsAction.class),
-            new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
+                // Query rules
+                new ActionHandler<>(DeleteQueryRulesetAction.INSTANCE, TransportDeleteQueryRulesetAction.class),
+                new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
+                new ActionHandler<>(ListQueryRulesetsAction.INSTANCE, TransportListQueryRulesetsAction.class),
+                new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
 
-            // Connectors
-            new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
-
-            usageAction,
-            infoAction
+                usageAction,
+                infoAction
+            )
         );
+
+        // Check if Connector API is enabled
+        if (ConnectorAPIFeature.isEnabled()) {
+            actionHandlers.add(
+                // Connectors
+                new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class)
+            );
+        }
+
+        return Collections.unmodifiableList(actionHandlers);
     }
 
     @Override
@@ -169,30 +180,39 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             return Collections.emptyList();
         }
 
-        return List.of(
-            // Behavioral Analytics
-            new RestPutAnalyticsCollectionAction(getLicenseState()),
-            new RestGetAnalyticsCollectionAction(getLicenseState()),
-            new RestDeleteAnalyticsCollectionAction(getLicenseState()),
-            new RestPostAnalyticsEventAction(getLicenseState()),
+        List<RestHandler> restHandlers = new ArrayList<>(
+            List.of(
+                // Behavioral Analytics
+                new RestPutAnalyticsCollectionAction(getLicenseState()),
+                new RestGetAnalyticsCollectionAction(getLicenseState()),
+                new RestDeleteAnalyticsCollectionAction(getLicenseState()),
+                new RestPostAnalyticsEventAction(getLicenseState()),
 
-            // Search Applications
-            new RestDeleteSearchApplicationAction(getLicenseState()),
-            new RestGetSearchApplicationAction(getLicenseState()),
-            new RestListSearchApplicationAction(getLicenseState()),
-            new RestPutSearchApplicationAction(getLicenseState()),
-            new RestQuerySearchApplicationAction(getLicenseState()),
-            new RestRenderSearchApplicationQueryAction(getLicenseState()),
+                // Search Applications
+                new RestDeleteSearchApplicationAction(getLicenseState()),
+                new RestGetSearchApplicationAction(getLicenseState()),
+                new RestListSearchApplicationAction(getLicenseState()),
+                new RestPutSearchApplicationAction(getLicenseState()),
+                new RestQuerySearchApplicationAction(getLicenseState()),
+                new RestRenderSearchApplicationQueryAction(getLicenseState()),
 
-            // Query rules
-            new RestDeleteQueryRulesetAction(getLicenseState()),
-            new RestGetQueryRulesetAction(getLicenseState()),
-            new RestListQueryRulesetsAction(getLicenseState()),
-            new RestPutQueryRulesetAction(getLicenseState()),
-
-            // Connectors
-            new RestPutConnectorAction()
+                // Query rules
+                new RestDeleteQueryRulesetAction(getLicenseState()),
+                new RestGetQueryRulesetAction(getLicenseState()),
+                new RestListQueryRulesetsAction(getLicenseState()),
+                new RestPutQueryRulesetAction(getLicenseState())
+            )
         );
+
+        // Check if Connector API is enabled
+        if (ConnectorAPIFeature.isEnabled()) {
+            restHandlers.add(
+                // Connectors
+                new RestPutConnectorAction()
+            );
+        }
+
+        return Collections.unmodifiableList(restHandlers);
     }
 
     @Override

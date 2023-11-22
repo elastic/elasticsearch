@@ -37,6 +37,16 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
     @Nullable
     private final Boolean syncRulesBasicEnabled;
 
+    /**
+     * Constructs a new instance of ConnectorFeatures.
+     *
+     * @param documentLevelSecurityEnabled A flag indicating whether document-level security is enabled.
+     * @param filteringAdvancedConfig      A flag indicating whether advanced filtering configuration is enabled.
+     * @param filteringRules               A flag indicating whether filtering rules are enabled.
+     * @param incrementalSyncEnabled       A flag indicating whether incremental synchronization is enabled.
+     * @param syncRulesAdvancedEnabled     A flag indicating whether advanced synchronization rules are enabled.
+     * @param syncRulesBasicEnabled        A flag indicating whether basic synchronization rules are enabled.
+     */
     private ConnectorFeatures(
         Boolean documentLevelSecurityEnabled,
         Boolean filteringAdvancedConfig,
@@ -62,12 +72,12 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         this.syncRulesBasicEnabled = in.readOptionalBoolean();
     }
 
-    public static final ParseField DOCUMENT_LEVEL_SECURITY_ENABLED_FIELD = new ParseField("document_level_security_enabled");
-    public static final ParseField FILTERING_ADVANCED_CONFIG_ENABLED_FIELD = new ParseField("filtering_advanced_config_enabled");
-    public static final ParseField FILTERING_RULES_ENABLED_FIELD = new ParseField("filtering_rules_enabled");
-    public static final ParseField INCREMENTAL_SYNC_ENABLED_FIELD = new ParseField("incremental_sync_enabled");
-    public static final ParseField SYNC_RULES_ADVANCED_ENABLED_FIELD = new ParseField("sync_rules_advanced_enabled");
-    public static final ParseField SYNC_RULES_BASIC_ENABLED_FIELD = new ParseField("sync_rules_basic_enabled");
+    private static final ParseField DOCUMENT_LEVEL_SECURITY_ENABLED_FIELD = new ParseField("document_level_security");
+    private static final ParseField FILTERING_ADVANCED_CONFIG_ENABLED_FIELD = new ParseField("filtering_advanced_config");
+    private static final ParseField FILTERING_RULES_ENABLED_FIELD = new ParseField("filtering_rules");
+    private static final ParseField INCREMENTAL_SYNC_ENABLED_FIELD = new ParseField("incremental_sync");
+    private static final ParseField SYNC_RULES_ADVANCED_ENABLED_FIELD = new ParseField("advanced_sync_rules");
+    private static final ParseField SYNC_RULES_BASIC_ENABLED_FIELD = new ParseField("basic_sync_rules");
 
     private static final ConstructingObjectParser<ConnectorFeatures, Void> PARSER = new ConstructingObjectParser<>(
         "connector_features",
@@ -99,20 +109,20 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         builder.startObject();
         {
             if (documentLevelSecurityEnabled != null) {
-                builder.startObject("document_level_security");
+                builder.startObject(DOCUMENT_LEVEL_SECURITY_ENABLED_FIELD.getPreferredName());
                 {
                     builder.field("enabled", documentLevelSecurityEnabled);
                 }
                 builder.endObject();
             }
             if (filteringAdvancedConfigEnabled != null) {
-                builder.field("filtering_advanced_config", filteringAdvancedConfigEnabled);
+                builder.field(FILTERING_ADVANCED_CONFIG_ENABLED_FIELD.getPreferredName(), filteringAdvancedConfigEnabled);
             }
             if (filteringRulesEnabled != null) {
-                builder.field("filtering_rules", filteringRulesEnabled);
+                builder.field(FILTERING_RULES_ENABLED_FIELD.getPreferredName(), filteringRulesEnabled);
             }
             if (incrementalSyncEnabled != null) {
-                builder.startObject("incremental_sync");
+                builder.startObject(INCREMENTAL_SYNC_ENABLED_FIELD.getPreferredName());
                 {
                     builder.field("enabled", incrementalSyncEnabled);
                 }

@@ -24,8 +24,8 @@ import java.io.IOException;
  */
 public class ConnectorListItem implements Writeable, ToXContentObject {
 
-    public static final ParseField CONNECTOR_ID_FIELD = new ParseField("connector_id");
-    public static final ParseField NAME_FIELD = new ParseField("name");
+    private static final ParseField CONNECTOR_ID_FIELD = new ParseField("connector_id");
+    private static final ParseField NAME_FIELD = new ParseField("name");
 
     private final String connectorId;
 
@@ -45,7 +45,9 @@ public class ConnectorListItem implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field(CONNECTOR_ID_FIELD.getPreferredName(), connectorId);
-        builder.field(NAME_FIELD.getPreferredName(), name);
+        if (name != null) {
+            builder.field(NAME_FIELD.getPreferredName(), name);
+        }
         builder.endObject();
         return builder;
     }

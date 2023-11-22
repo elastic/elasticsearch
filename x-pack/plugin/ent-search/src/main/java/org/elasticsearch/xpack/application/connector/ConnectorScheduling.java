@@ -33,10 +33,15 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
     private final ScheduleConfig full;
     private final ScheduleConfig incremental;
 
-    public static final ParseField ACCESS_CONTROL_FIELD = new ParseField("access_control");
-    public static final ParseField FULL_FIELD = new ParseField("full");
-    public static final ParseField INCREMENTAL_FIELD = new ParseField("incremental");
+    private static final ParseField ACCESS_CONTROL_FIELD = new ParseField("access_control");
+    private static final ParseField FULL_FIELD = new ParseField("full");
+    private static final ParseField INCREMENTAL_FIELD = new ParseField("incremental");
 
+    /**
+     * @param accessControl connector access control sync schedule represented as {@link ScheduleConfig}
+     * @param full          connector full sync schedule represented as {@link ScheduleConfig}
+     * @param incremental   connector incremental sync schedule represented as {@link ScheduleConfig}
+     */
     private ConnectorScheduling(ScheduleConfig accessControl, ScheduleConfig full, ScheduleConfig incremental) {
         this.accessControl = Objects.requireNonNull(accessControl, ACCESS_CONTROL_FIELD.getPreferredName());
         this.full = Objects.requireNonNull(full, FULL_FIELD.getPreferredName());
@@ -145,9 +150,13 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         private final boolean enabled;
         private final String interval;
 
-        public static final ParseField ENABLED_FIELD = new ParseField("enabled");
-        public static final ParseField INTERVAL_FIELD = new ParseField("interval");
+        private static final ParseField ENABLED_FIELD = new ParseField("enabled");
+        private static final ParseField INTERVAL_FIELD = new ParseField("interval");
 
+        /**
+         * @param enabled  flag to disable/enable scheduling
+         * @param interval CRON expression representing the sync schedule
+         */
         private ScheduleConfig(boolean enabled, String interval) {
             this.enabled = enabled;
             this.interval = Objects.requireNonNull(interval, INTERVAL_FIELD.getPreferredName());

@@ -28,7 +28,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
 
     private final ConfigurationOverrides configurationOverrides;
-    private final Boolean enabled;
+    private final boolean enabled;
     private final String interval;
     @Nullable
     private final String lastSynced;
@@ -45,13 +45,13 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
      */
     private ConnectorCustomSchedule(
         ConfigurationOverrides configurationOverrides,
-        Boolean enabled,
+        boolean enabled,
         String interval,
         String lastSynced,
         String name
     ) {
         this.configurationOverrides = Objects.requireNonNull(configurationOverrides, CONFIG_OVERRIDES_FIELD.getPreferredName());
-        this.enabled = Objects.requireNonNull(enabled, ENABLED_FIELD.getPreferredName());
+        this.enabled = enabled;
         this.interval = Objects.requireNonNull(interval, INTERVAL_FIELD.getPreferredName());
         this.lastSynced = lastSynced;
         this.name = Objects.requireNonNull(interval, NAME_FIELD.getPreferredName());
@@ -65,12 +65,12 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         this.name = in.readString();
     }
 
-    public static final ParseField CONFIG_OVERRIDES_FIELD = new ParseField("configuration_overrides");
-    public static final ParseField ENABLED_FIELD = new ParseField("enabled");
-    public static final ParseField INTERVAL_FIELD = new ParseField("interval");
-    public static final ParseField LAST_SYNCED_FIELD = new ParseField("last_synced");
+    private static final ParseField CONFIG_OVERRIDES_FIELD = new ParseField("configuration_overrides");
+    private static final ParseField ENABLED_FIELD = new ParseField("enabled");
+    private static final ParseField INTERVAL_FIELD = new ParseField("interval");
+    private static final ParseField LAST_SYNCED_FIELD = new ParseField("last_synced");
 
-    public static final ParseField NAME_FIELD = new ParseField("name");
+    private static final ParseField NAME_FIELD = new ParseField("name");
 
     private static final ConstructingObjectParser<ConnectorCustomSchedule, Void> PARSER = new ConstructingObjectParser<>(
         "connector_custom_schedule",
@@ -107,7 +107,9 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
             builder.field(CONFIG_OVERRIDES_FIELD.getPreferredName(), configurationOverrides);
             builder.field(ENABLED_FIELD.getPreferredName(), enabled);
             builder.field(INTERVAL_FIELD.getPreferredName(), interval);
-            builder.field(LAST_SYNCED_FIELD.getPreferredName(), lastSynced);
+            if (lastSynced != null) {
+                builder.field(LAST_SYNCED_FIELD.getPreferredName(), lastSynced);
+            }
             builder.field(NAME_FIELD.getPreferredName(), name);
         }
         builder.endObject();
@@ -128,8 +130,8 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ConnectorCustomSchedule that = (ConnectorCustomSchedule) o;
-        return Objects.equals(configurationOverrides, that.configurationOverrides)
-            && Objects.equals(enabled, that.enabled)
+        return enabled == that.enabled
+            && Objects.equals(configurationOverrides, that.configurationOverrides)
             && Objects.equals(interval, that.interval)
             && Objects.equals(lastSynced, that.lastSynced)
             && Objects.equals(name, that.name);
@@ -143,7 +145,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
     public static class Builder {
 
         private ConfigurationOverrides configurationOverrides;
-        private Boolean enabled;
+        private boolean enabled;
         private String interval;
         private String lastSynced;
         private String name;
@@ -153,7 +155,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setEnabled(Boolean enabled) {
+        public Builder setEnabled(boolean enabled) {
             this.enabled = enabled;
             return this;
         }
@@ -212,11 +214,11 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
             this.seedUrls = in.readOptionalStringCollectionAsList();
         }
 
-        public static final ParseField MAX_CRAWL_DEPTH_FIELD = new ParseField("max_crawl_depth");
-        public static final ParseField SITEMAP_DISCOVERY_DISABLED_FIELD = new ParseField("sitemap_discovery_disabled");
-        public static final ParseField DOMAIN_ALLOWLIST_FIELD = new ParseField("domain_allowlist");
-        public static final ParseField SITEMAP_URLS_FIELD = new ParseField("sitemap_urls");
-        public static final ParseField SEED_URLS_FIELD = new ParseField("seed_urls");
+        private static final ParseField MAX_CRAWL_DEPTH_FIELD = new ParseField("max_crawl_depth");
+        private static final ParseField SITEMAP_DISCOVERY_DISABLED_FIELD = new ParseField("sitemap_discovery_disabled");
+        private static final ParseField DOMAIN_ALLOWLIST_FIELD = new ParseField("domain_allowlist");
+        private static final ParseField SITEMAP_URLS_FIELD = new ParseField("sitemap_urls");
+        private static final ParseField SEED_URLS_FIELD = new ParseField("seed_urls");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<ConfigurationOverrides, Void> PARSER = new ConstructingObjectParser<>(

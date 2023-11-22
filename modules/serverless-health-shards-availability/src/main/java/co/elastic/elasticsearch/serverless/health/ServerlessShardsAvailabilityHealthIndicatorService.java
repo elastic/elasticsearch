@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.serverless.health;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
@@ -104,13 +105,14 @@ public class ServerlessShardsAvailabilityHealthIndicatorService extends ShardsAv
     }
 
     @Override
-    public List<Diagnosis.Definition> checkDataTierRelatedIssues(
+    public List<Diagnosis.Definition> checkNodeRoleRelatedIssues(
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> nodeAllocationResults,
-        ClusterState clusterState
+        ClusterState clusterState,
+        ShardRouting shardRouting
     ) {
         // TODO: Change this so that we don't return a red herring about
         // "oh, add more data_hot nodes" on Serverless, which doesn't make sense anyway.
-        return super.checkDataTierRelatedIssues(indexMetadata, nodeAllocationResults, clusterState);
+        return super.checkNodeRoleRelatedIssues(indexMetadata, nodeAllocationResults, clusterState, shardRouting);
     }
 }

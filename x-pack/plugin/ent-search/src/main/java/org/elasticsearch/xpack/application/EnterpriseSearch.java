@@ -192,6 +192,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         // Behavioral analytics components
         final AnalyticsTemplateRegistry analyticsTemplateRegistry = new AnalyticsTemplateRegistry(
             services.clusterService(),
+            services.featureService(),
             services.threadPool(),
             services.client(),
             services.xContentRegistry()

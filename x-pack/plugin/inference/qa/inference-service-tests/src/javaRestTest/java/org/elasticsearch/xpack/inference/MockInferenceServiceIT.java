@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -97,7 +96,7 @@ public class MockInferenceServiceIT extends ESRestTestCase {
             List.of(randomAlphaOfLength(5), randomAlphaOfLength(10), randomAlphaOfLength(15))
         );
 
-        var tokens = (List<Map<String, Object>>)inference.get("inference_results");
+        var tokens = (List<Map<String, Object>>) inference.get("inference_results");
         assertThat(tokens, hasSize(3));
         assertNonEmptyInferenceResults(inference, TaskType.SPARSE_EMBEDDING);
     }
@@ -139,11 +138,11 @@ public class MockInferenceServiceIT extends ESRestTestCase {
         var request = new Request("POST", endpoint);
 
         var bodyBuilder = new StringBuilder("{\"input\": [");
-        for (var in : input){
+        for (var in : input) {
             bodyBuilder.append('"').append(in).append('"').append(',');
         }
         // remove last comma
-        bodyBuilder.deleteCharAt(bodyBuilder.length() -1);
+        bodyBuilder.deleteCharAt(bodyBuilder.length() - 1);
         bodyBuilder.append("]}");
 
         System.out.println("body_request:" + bodyBuilder);
@@ -156,10 +155,8 @@ public class MockInferenceServiceIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, TaskType taskType) {
         if (taskType == TaskType.SPARSE_EMBEDDING) {
-            var tokens = (List<Map<String, Object>>)resultMap.get("inference_results");
-            tokens.forEach(result -> {
-                assertThat(result.keySet(), not(empty()));
-            });
+            var tokens = (List<Map<String, Object>>) resultMap.get("inference_results");
+            tokens.forEach(result -> { assertThat(result.keySet(), not(empty())); });
         } else {
             fail("test with task type [" + taskType + "] are not supported yet");
         }

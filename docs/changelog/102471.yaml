@@ -1,0 +1,5 @@
+pr: 102471
+summary: Don't wrap `ElasticsearchExceptions` when loading in the Cache
+area: Aggregations
+type: bug
+issues: []

@@ -308,10 +308,22 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
     }
 
+    public void updateRemoteClusterCredentials(Settings settings) {
+        var updatedClusters = remoteClusterCredentialsManager.updateClusterCredentials(settings);
+        for (var clusterAlias : updatedClusters) {
+            logger.info("Credentials changed for cluster [{}], updating cluster", clusterAlias);
+            updateRemoteCluster(clusterAlias, settings, true);
+        }
+    }
+
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
+        updateRemoteCluster(clusterAlias, settings, false);
+    }
+
+    void updateRemoteCluster(String clusterAlias, Settings settings, boolean forceRebuildConnection) {
         CountDownLatch latch = new CountDownLatch(1);
-        updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<>() {
+        updateRemoteCluster(clusterAlias, settings, forceRebuildConnection, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(Void o) {
                 logger.debug("connected to new remote cluster [{}]", clusterAlias);
@@ -335,14 +347,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
     }
 
-    /**
-     * This method updates the list of remote clusters. It's intended to be used as an update consumer on the settings infrastructure
-     *
-     * @param clusterAlias a cluster alias to discovery node mapping representing the remote clusters seeds nodes
-     * @param newSettings the updated settings for the remote connection
-     * @param listener a listener invoked once every configured cluster has been connected to
-     */
-    synchronized void updateRemoteCluster(String clusterAlias, Settings newSettings, ActionListener<Void> listener) {
+    synchronized void updateRemoteCluster(
+        String clusterAlias,
+        Settings newSettings,
+        boolean forceRebuildConnection,
+        ActionListener<Void> listener
+    ) {
         if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
@@ -365,7 +375,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService, remoteClusterCredentialsManager);
             remoteClusters.put(clusterAlias, remote);
             remote.ensureConnected(listener);
-        } else if (remote.shouldRebuildConnection(newSettings)) {
+            // TODO hack hack hack and not quite right
+        } else if (forceRebuildConnection || remote.shouldRebuildConnection(newSettings)) {
             // Changes to connection configuration. Must tear down existing connection
             try {
                 IOUtils.close(remote);
@@ -381,6 +392,17 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             // No changes to connection configuration.
             listener.onResponse(null);
         }
+    }
+
+    /**
+     * This method updates the list of remote clusters. It's intended to be used as an update consumer on the settings infrastructure
+     *
+     * @param clusterAlias a cluster alias to discovery node mapping representing the remote clusters seeds nodes
+     * @param newSettings the updated settings for the remote connection
+     * @param listener a listener invoked once every configured cluster has been connected to
+     */
+    synchronized void updateRemoteCluster(String clusterAlias, Settings newSettings, ActionListener<Void> listener) {
+        updateRemoteCluster(clusterAlias, newSettings, false, listener);
     }
 
     /**

@@ -12,8 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS;
 
@@ -27,9 +29,13 @@ public class RemoteClusterCredentialsManager {
         updateClusterCredentials(settings);
     }
 
-    public void updateClusterCredentials(Settings settings) {
-        clusterCredentials = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings);
+    public Set<String> updateClusterCredentials(Settings settings) {
+        var newCredentials = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings);
+        // TODO this is not exactly accurate
+        var updated = Sets.difference(newCredentials.keySet(), clusterCredentials.keySet());
+        clusterCredentials = newCredentials;
         logger.info("Read remote cluster credentials: {}", clusterCredentials);
+        return updated;
     }
 
     public SecureString resolveCredentials(String clusterAlias) {

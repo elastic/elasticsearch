@@ -136,7 +136,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             });
             ExceptionsHelper.rethrowAndSuppress(exceptions);
 
-            transportService.getRemoteClusterService().getRemoteClusterCredentialsManager().updateClusterCredentials(settingsWithKeystore);
+            transportService.getRemoteClusterService().updateRemoteClusterCredentials(settingsWithKeystore);
 
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), null);
         } catch (final Exception e) {

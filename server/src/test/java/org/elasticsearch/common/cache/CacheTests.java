@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.cache;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class CacheTests extends ESTestCase {
@@ -792,6 +794,14 @@ public class CacheTests extends ESTestCase {
         safeAwait(barrier);
         // wait for all threads to finish
         safeAwait(barrier);
+    }
+
+    public void testElasticSearchExceptionNotWrappedWhileAddingEntry() {
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> cache.computeIfAbsent(0, i -> {
+            throw new ElasticsearchException("fail");
+        }));
+        assertThat(ex.getMessage(), equalTo("fail"));
     }
 
     public void testExceptionThrownDuringConcurrentComputeIfAbsent() {

@@ -370,7 +370,7 @@ class S3Service implements Closeable {
                 // https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
                 stsRegion = systemEnvironment.getEnv(SDKGlobalConfiguration.AWS_REGION_ENV_VAR);
                 if (stsRegion != null) {
-                    stsClientBuilder.withRegion(stsRegion);
+                    SocketAccess.doPrivilegedVoid(() -> stsClientBuilder.withRegion(stsRegion));
                 } else {
                     LOGGER.warn("Unable to use regional STS endpoints because the AWS_REGION environment variable is not set");
                 }

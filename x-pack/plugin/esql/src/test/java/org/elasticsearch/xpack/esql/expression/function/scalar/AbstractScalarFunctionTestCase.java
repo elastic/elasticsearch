@@ -77,13 +77,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     /**
-     * All string types (keyword, text, match_only_text, etc). For passing to {@link #required} or {@link #optional}.
-     */
-    protected static DataType[] strings() {
-        return EsqlDataTypes.types().stream().filter(DataTypes::isString).toArray(DataType[]::new);
-    }
-
-    /**
      * All integer types (long, int, short, byte). For passing to {@link #required} or {@link #optional}.
      */
     protected static DataType[] integers() {

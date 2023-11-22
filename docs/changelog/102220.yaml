@@ -1,0 +1,5 @@
+pr: 102220
+summary: Upgrade xmlsec to 2.3.4
+area: Security
+type: enhancement
+issues: []

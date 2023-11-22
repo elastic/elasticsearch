@@ -840,7 +840,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             RangeMissingHandler writer,
             int region
         ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Integer> readFuture = PlainActionFuture.newFuture();
+            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
             final CacheFileRegion fileRegion = get(cacheKey, length, region);
             final long regionStart = getRegionStart(region);
             fileRegion.populateAndRead(

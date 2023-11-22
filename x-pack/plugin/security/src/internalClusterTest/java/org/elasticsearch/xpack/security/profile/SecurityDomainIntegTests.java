@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
@@ -200,7 +201,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         var refreshTokenResponse = client().filterWithHeader(
             Map.of(
                 JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_1,
+                JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_1,
                 JwtRealm.HEADER_END_USER_AUTHENTICATION,
                 JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME + " " + HEADER_JWT_REALM_1
             )
@@ -211,7 +212,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         createTokenResponse = client().filterWithHeader(
             Map.of(
                 JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_1,
+                JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_1,
                 JwtRealm.HEADER_END_USER_AUTHENTICATION,
                 JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME + " " + HEADER_JWT_REALM_1
             )
@@ -292,7 +293,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             () -> client().filterWithHeader(
                 Map.of(
                     JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                    JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_2,
+                    JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_2,
                     JwtRealm.HEADER_END_USER_AUTHENTICATION,
                     JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME + " " + HEADER_JWT_REALM_2
                 )

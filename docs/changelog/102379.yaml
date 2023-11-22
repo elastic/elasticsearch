@@ -1,0 +1,6 @@
+pr: 102379
+summary: Pass source query to `_field_caps` (as `index_filter`) when deducing destination index mappings for better
+  performance
+area: Transform
+type: enhancement
+issues: []

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.stack;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
@@ -17,6 +16,8 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -38,11 +39,11 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
 
     // Current version of the registry requires all nodes to be at least 8.9.0.
-    public static final Version MIN_NODE_VERSION = Version.V_8_9_0;
+    public static final NodeFeature STACK_TEMPLATES_FEATURE = new NodeFeature("stack.templates_supported");
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
-    public static final int REGISTRY_VERSION = 3;
+    public static final int REGISTRY_VERSION = 4;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
@@ -53,9 +54,10 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     );
 
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private volatile boolean stackTemplateEnabled;
 
-    private static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "false");
+    public static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "false");
 
     // General mappings conventions for any data that ends up in a data stream
     public static final String DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "data-streams@mappings";
@@ -107,10 +109,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
     }
 
@@ -325,7 +329,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         // Ensure current version of the components are installed only once all nodes are updated to 8.9.0.
         // This is necessary to prevent an error caused nby the usage of the ignore_missing_pipeline property
         // in the pipeline processor, which has been introduced only in 8.9.0
-        Version minNodeVersion = event.state().nodes().getMinNodeVersion();
-        return minNodeVersion.onOrAfter(MIN_NODE_VERSION);
+        return featureService.clusterHasFeature(event.state(), STACK_TEMPLATES_FEATURE);
     }
 }

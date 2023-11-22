@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.ml.dataframe.steps.DataFrameAnalyticsStep;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -178,7 +179,8 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(
                 DataFrameAnalyticsState.FAILED,
                 getAllocationId(),
-                reason
+                reason,
+                Instant.now()
             );
             updatePersistentTaskState(newTaskState, ActionListener.wrap(updatedTask -> {
                 String message = Messages.getMessage(

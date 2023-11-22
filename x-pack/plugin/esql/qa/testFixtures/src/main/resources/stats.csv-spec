@@ -682,14 +682,14 @@ c:l |  job_positions:s
 4   |Tech Lead    
 ;
 
-duplicateAggregationsWithoutGrouping
+duplicateAggregationsWithoutGrouping#[skip:-8.11.99]
 from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salary), c1 = count(1);
 
 c:l | m:i | m1:i | c1:l
 100 | 25324 | 25324  | 100
 ;
 
-duplicateAggregationsWithGrouping
+duplicateAggregationsWithGrouping#[skip:-8.11.99]
 from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salary), c1 = count(1) by gender | sort gender;
 
 c:l| m:i   | m1:i  | c1:l| gender:s

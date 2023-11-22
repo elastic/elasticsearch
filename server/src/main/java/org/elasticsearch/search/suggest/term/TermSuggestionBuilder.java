@@ -434,7 +434,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     @Override
-    public SuggestionContext build(SearchExecutionContext context) throws IOException {
+    public SuggestionContext build(SearchExecutionContext context) {
         TermSuggestionContext suggestionContext = new TermSuggestionContext(context);
         // copy over common settings to each suggestion builder
         populateCommonFields(context, suggestionContext);

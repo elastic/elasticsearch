@@ -196,9 +196,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static void assertFileCount(Path dir, int expectedCount) throws IOException {
+        final List<Path> found = getAllFilesInDirectoryAndDescendants(dir);
+        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
+    }
+
+    protected static List<Path> getAllFilesInDirectoryAndDescendants(Path dir) throws IOException {
         final List<Path> found = new ArrayList<>();
         forEachFileRecursively(dir, ((path, basicFileAttributes) -> found.add(path)));
-        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
+        return found;
     }
 
     protected void stopNode(final String node) throws IOException {

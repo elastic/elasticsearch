@@ -11,7 +11,6 @@ package org.elasticsearch.search.simple;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -47,7 +46,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -210,12 +210,12 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertHitCountAndNoFailures(prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("1000")), 3L);
 
         // a numeric value of 1000 should be parsed as 1000 millis since epoch and return only docs after 1970
-        SearchResponse searchResponse = prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt(1000)).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 2L);
-        String[] expectedIds = new String[] { "1", "2" };
-        assertThat(searchResponse.getHits().getHits()[0].getId(), is(oneOf(expectedIds)));
-        assertThat(searchResponse.getHits().getHits()[1].getId(), is(oneOf(expectedIds)));
+        assertNoFailuresAndResponse(prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt(1000)), response -> {
+            assertHitCount(response, 2L);
+            String[] expectedIds = new String[] { "1", "2" };
+            assertThat(response.getHits().getHits()[0].getId(), is(oneOf(expectedIds)));
+            assertThat(response.getHits().getHits()[1].getId(), is(oneOf(expectedIds)));
+        });
     }
 
     public void testRangeQueryKeyword() throws Exception {
@@ -255,17 +255,23 @@ public class SimpleSearchIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        SearchResponse searchResponse;
         for (int i = 1; i < max; i++) {
-            searchResponse = prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max)).setTerminateAfter(i).get();
-            assertHitCount(searchResponse, i);
-            assertTrue(searchResponse.isTerminatedEarly());
+            final int finalI = i;
+            assertResponse(
+                prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max)).setTerminateAfter(i),
+                response -> {
+                    assertHitCount(response, finalI);
+                    assertTrue(response.isTerminatedEarly());
+                }
+            );
         }
-
-        searchResponse = prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max)).setTerminateAfter(2 * max).get();
-
-        assertHitCount(searchResponse, max);
-        assertFalse(searchResponse.isTerminatedEarly());
+        assertResponse(
+            prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max)).setTerminateAfter(2 * max),
+            response -> {
+                assertHitCount(response, max);
+                assertFalse(response.isTerminatedEarly());
+            }
+        );
     }
 
     public void testSimpleIndexSortEarlyTerminate() throws Exception {
@@ -283,17 +289,17 @@ public class SimpleSearchIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        SearchResponse searchResponse;
         for (int i = 1; i < max; i++) {
-            searchResponse = prepareSearch("test").addDocValueField("rank")
-                .setTrackTotalHits(false)
-                .addSort("rank", SortOrder.ASC)
-                .setSize(i)
-                .get();
-            assertNull(searchResponse.getHits().getTotalHits());
-            for (int j = 0; j < i; j++) {
-                assertThat(searchResponse.getHits().getAt(j).field("rank").getValue(), equalTo((long) j));
-            }
+            final int finalI = i;
+            assertResponse(
+                prepareSearch("test").addDocValueField("rank").setTrackTotalHits(false).addSort("rank", SortOrder.ASC).setSize(i),
+                response -> {
+                    assertNull(response.getHits().getTotalHits());
+                    for (int j = 0; j < finalI; j++) {
+                        assertThat(response.getHits().getAt(j).field("rank").getValue(), equalTo((long) j));
+                    }
+                }
+            );
         }
     }
 

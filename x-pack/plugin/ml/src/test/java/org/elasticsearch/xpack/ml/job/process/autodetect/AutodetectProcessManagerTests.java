@@ -268,7 +268,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
         assertEquals(1, manager.numberOfOpenJobs());
         assertTrue(manager.jobHasActiveAutodetectProcess(jobTask));
-        verify(jobTask).updatePersistentTaskState(eq(new JobTaskState(JobState.OPENED, 1L, null)), any());
+        ArgumentCaptor<JobTaskState> captor = ArgumentCaptor.forClass(JobTaskState.class);
+        verify(jobTask).updatePersistentTaskState(captor.capture(), any());
+        JobTaskState state = captor.getValue();
+        assertThat(state.getState(), equalTo(JobState.OPENED));
+        assertThat(state.getAllocationId(), equalTo(1L));
+        assertNull(state.getReason());
     }
 
     public void testOpenJob_withoutVersion() {

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
@@ -19,11 +21,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.junit.Assert.assertEquals;
 
 public class ContinuousComputationTests extends ESTestCase {
 
@@ -46,7 +48,7 @@ public class ContinuousComputationTests extends ESTestCase {
     public void testConcurrency() throws Exception {
 
         final var result = new AtomicReference<Integer>();
-        final var computation = new ContinuousComputation<Integer>(threadPool) {
+        final var computation = new ContinuousComputation<Integer>(threadPool.generic()) {
 
             public final Semaphore executePermit = new Semaphore(1);
 
@@ -94,7 +96,7 @@ public class ContinuousComputationTests extends ESTestCase {
         final var finalInput = new Object();
 
         final var result = new AtomicReference<Object>();
-        final var computation = new ContinuousComputation<Object>(threadPool) {
+        final var computation = new ContinuousComputation<Object>(threadPool.generic()) {
             @Override
             protected void processInput(Object input) {
                 assertNotEquals(input, skippedInput);
@@ -133,5 +135,60 @@ public class ContinuousComputationTests extends ESTestCase {
         assertThat(result.get(), equalTo(finalInput));
         await.run();
         assertBusy(() -> assertFalse(computation.isActive()));
+    }
+
+    public void testFailureHandling() {
+        final var input1 = new Object();
+        final var input2 = new Object();
+
+        final var successCount = new AtomicInteger();
+        final var failureCount = new AtomicInteger();
+
+        final var computation = new ContinuousComputation<>(r -> {
+            try {
+                r.run();
+                successCount.incrementAndGet();
+            } catch (AssertionError e) {
+                assertEquals("simulated", asInstanceOf(RuntimeException.class, e.getCause()).getMessage());
+                failureCount.incrementAndGet();
+            }
+        }) {
+            @Override
+            protected void processInput(Object input) {
+                if (input == input1) {
+                    onNewInput(input2);
+                    throw new RuntimeException("simulated");
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "test computation";
+            }
+        };
+
+        MockLogAppender.assertThatLogger(
+            () -> computation.onNewInput(input1),
+            ContinuousComputation.class,
+            new MockLogAppender.SeenEventExpectation(
+                "error log",
+                ContinuousComputation.class.getCanonicalName(),
+                Level.ERROR,
+                "unexpected error processing [test computation]"
+            )
+        );
+
+        // check that both inputs were processed
+        assertEquals(1, failureCount.get());
+        assertEquals(1, successCount.get());
+
+        // check that the computation still accepts and processes new inputs
+        computation.onNewInput(input2);
+        assertEquals(1, failureCount.get());
+        assertEquals(2, successCount.get());
+
+        computation.onNewInput(input1);
+        assertEquals(2, failureCount.get());
+        assertEquals(3, successCount.get());
     }
 }

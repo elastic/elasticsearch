@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.plugin.noop.NoopPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -32,7 +33,7 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
     @Inject
     public TransportNoopSearchAction(TransportService transportService, ActionFilters actionFilters) {
         super(
-            NoopSearchAction.NAME,
+            NoopPlugin.NOOP_SEARCH_ACTION.name(),
             transportService,
             actionFilters,
             (Writeable.Reader<SearchRequest>) SearchRequest::new,

@@ -42,9 +42,10 @@ public class GetStackTracesResponseTests extends AbstractWireSerializingTestCase
             )
         );
         Map<String, String> executables = randomNullable(Map.of("QCCDqjSg3bMK1C4YRK6Tiw", "libc.so.6"));
-        Map<String, Integer> stackTraceEvents = randomNullable(Map.of(randomAlphaOfLength(12), randomIntBetween(1, 200)));
+        long totalSamples = randomLongBetween(1L, 200L);
+        Map<String, Long> stackTraceEvents = randomNullable(Map.of(randomAlphaOfLength(12), totalSamples));
 
-        return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, 1.0);
+        return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, 1.0, totalSamples);
     }
 
     @Override

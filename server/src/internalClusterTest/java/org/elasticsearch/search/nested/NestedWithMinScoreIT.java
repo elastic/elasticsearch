@@ -9,8 +9,6 @@
 package org.elasticsearch.search.nested;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -113,8 +111,6 @@ public class NestedWithMinScoreIT extends ESIntegTestCase {
         if (randomBoolean()) {
             source.trackTotalHitsUpTo(randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(1, 1000));
         }
-        SearchRequest searchRequest = new SearchRequest("test").source(source);
-        final SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        ElasticsearchAssertions.assertSearchHits(searchResponse, "d1");
+        ElasticsearchAssertions.assertSearchHits(prepareSearch("test").setSource(source), "d1");
     }
 }

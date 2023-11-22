@@ -132,12 +132,12 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var strSupplier = toEvaluator.apply(str);
-        var startSupplier = toEvaluator.apply(start);
+        var strFactory = toEvaluator.apply(str);
+        var startFactory = toEvaluator.apply(start);
         if (length == null) {
-            return dvrCtx -> new SubstringNoLengthEvaluator(strSupplier.get(dvrCtx), startSupplier.get(dvrCtx), dvrCtx);
+            return new SubstringNoLengthEvaluator.Factory(strFactory, startFactory);
         }
-        var lengthSupplier = toEvaluator.apply(length);
-        return dvrCtx -> new SubstringEvaluator(strSupplier.get(dvrCtx), startSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
+        var lengthFactory = toEvaluator.apply(length);
+        return new SubstringEvaluator.Factory(strFactory, startFactory, lengthFactory);
     }
 }

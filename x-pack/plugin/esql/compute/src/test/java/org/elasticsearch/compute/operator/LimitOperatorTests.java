@@ -24,11 +24,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
-
-    @Override
     protected LimitOperator.Factory simple(BigArrays bigArrays) {
         return new LimitOperator.Factory(100);
     }

@@ -2,6 +2,8 @@
 [[put-inference-api]]
 === Create {infer} API
 
+experimental[]
+
 Creates a model to perform an {infer} task.
 
 
@@ -22,8 +24,8 @@ Creates a model to perform an {infer} task.
 [[put-inference-api-desc]]
 ==== {api-description-title}
 
-The create {infer} API enables you to create and configure an {infer} model to 
-perform a specific {infer} task. 
+The create {infer} API enables you to create and configure an {infer} model to
+perform a specific {infer} task.
 
 
 [discrete]
@@ -50,17 +52,16 @@ The type of the {infer} task that the model will perform. Available task types:
 (Required, string)
 The type of service supported for the specified task type.
 Available services:
-* `elser`,
-* `elser_mlnode`.
+* `elser`
 
 `service_settings`::
 (Required, object)
-Settings used to install the {infer} model. These settings are specific to the 
+Settings used to install the {infer} model. These settings are specific to the
 `service` you specified.
 
 `task_settings`::
 (Optional, object)
-Settings to configure the {infer} task. These settings are specific to the 
+Settings to configure the {infer} task. These settings are specific to the
 `<task_type>` you specified.
 
 
@@ -68,14 +69,14 @@ Settings to configure the {infer} task. These settings are specific to the
 [[put-inference-api-example]]
 ==== {api-examples-title}
 
-The following example shows how to create an {infer} model called 
+The following example shows how to create an {infer} model called
 `my-elser-model` to perform a `sparse_embedding` task type.
 
 [source,console]
 ------------------------------------------------------------
 PUT _inference/sparse_embedding/my-elser-model
 {
-  "service": "elser_mlnode",
+  "service": "elser",
   "service_settings": {
     "num_allocations": 1,
     "num_threads": 1
@@ -93,7 +94,7 @@ Example response:
 {
   "model_id": "my-elser-model",
   "task_type": "sparse_embedding",
-  "service": "elser_mlnode",
+  "service": "elser",
   "service_settings": {
     "num_allocations": 1,
     "num_threads": 1

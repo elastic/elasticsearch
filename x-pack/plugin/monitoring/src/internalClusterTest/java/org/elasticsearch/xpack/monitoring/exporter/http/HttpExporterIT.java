@@ -128,11 +128,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         }
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     private Settings.Builder secureSettings(String password) {
         mockSecureSettings.setString("xpack.monitoring.exporters._http.auth.secure_password", password);
         return baseSettings().setSecureSettings(mockSecureSettings);
@@ -172,7 +167,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         Settings settings = secureSettings(securePassword1).build();
         PluginsService pluginsService = internalCluster().getInstances(PluginsService.class).iterator().next();
-        LocalStateMonitoring localStateMonitoring = pluginsService.filterPlugins(LocalStateMonitoring.class).iterator().next();
+        LocalStateMonitoring localStateMonitoring = pluginsService.filterPlugins(LocalStateMonitoring.class).findFirst().get();
         localStateMonitoring.getMonitoring().reload(settings);
 
         enqueueGetClusterVersionResponse(Version.CURRENT);

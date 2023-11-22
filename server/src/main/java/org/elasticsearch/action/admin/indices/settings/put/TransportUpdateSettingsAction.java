@@ -126,6 +126,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         )
             .settings(requestSettings)
             .setPreserveExisting(request.isPreserveExisting())
+            .reopenShards(request.reopen())
             .ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout());
 

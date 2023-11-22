@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
+import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
@@ -164,7 +164,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 "monitoring_user",
                 new RoleDescriptor(
                     "monitoring_user",
-                    new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", RemoteInfoAction.NAME },
+                    new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", TransportRemoteInfoAction.TYPE.name() },
                     new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices(".monitoring-*")

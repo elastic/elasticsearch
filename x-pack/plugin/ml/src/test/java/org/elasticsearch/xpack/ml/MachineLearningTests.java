@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -31,6 +32,8 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
+import org.elasticsearch.xpack.ml.autoscaling.NodeRealAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
@@ -331,6 +334,11 @@ public class MachineLearningTests extends ESTestCase {
         @Override
         public String[] getAnalyticsDestIndexAllowedSettings() {
             return ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
+        }
+
+        @Override
+        public AbstractNodeAvailabilityZoneMapper getNodeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings) {
+            return new NodeRealAvailabilityZoneMapper(settings, clusterSettings);
         }
     }
 

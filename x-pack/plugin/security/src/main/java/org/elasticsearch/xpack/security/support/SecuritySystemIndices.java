@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -41,7 +42,7 @@ public class SecuritySystemIndices {
     private static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
     private static final int INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
-    private static final int INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT = 1;
+    private static final int INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT = 2;
 
     public static final String SECURITY_MAIN_ALIAS = ".security";
     private static final String MAIN_INDEX_CONCRETE_NAME = ".security-7";
@@ -51,8 +52,9 @@ public class SecuritySystemIndices {
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
     public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
+    public static final NodeFeature SECURITY_PROFILE_ORIGIN_FEATURE = new NodeFeature("security.security_profile_origin");
 
-    private final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
+    private static final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
 
     private final SystemIndexDescriptor mainDescriptor;
     private final SystemIndexDescriptor tokenDescriptor;
@@ -787,7 +789,7 @@ public class SecuritySystemIndices {
             .setIndexPattern(".security-profile-[0-9]+*")
             .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
             .setDescription("Contains user profile documents")
-            .setMappings(getProfileIndexMappings())
+            .setMappings(getProfileIndexMappings(INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT))
             .setSettings(getProfileIndexSettings(settings))
             .setAliasName(SECURITY_PROFILE_ALIAS)
             .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
@@ -801,7 +803,7 @@ public class SecuritySystemIndices {
                         .setIndexPattern(".security-profile-[0-9]+*")
                         .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
                         .setDescription("Contains user profile documents")
-                        .setMappings(getProfileIndexMappings())
+                        .setMappings(getProfileIndexMappings(INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT - 1))
                         .setSettings(getProfileIndexSettings(settings))
                         .setAliasName(SECURITY_PROFILE_ALIAS)
                         .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
@@ -836,14 +838,14 @@ public class SecuritySystemIndices {
         return settingsBuilder.build();
     }
 
-    private XContentBuilder getProfileIndexMappings() {
+    private XContentBuilder getProfileIndexMappings(int mappingsVersion) {
         try {
             final XContentBuilder builder = jsonBuilder();
             builder.startObject();
             {
                 builder.startObject("_meta");
                 builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
-                builder.field(SystemIndexDescriptor.VERSION_META_KEY, INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, mappingsVersion);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");

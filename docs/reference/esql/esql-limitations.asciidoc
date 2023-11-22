@@ -1,0 +1,171 @@
+[[esql-limitations]]
+== {esql} limitations
+
+++++
+<titleabbrev>Limitations</titleabbrev>
+++++
+
+[discrete]
+[[esql-max-rows]]
+=== Result set size limit
+
+By default, an {esql} query returns up to 500 rows. You can increase the number
+of rows up to 10,000 using the <<esql-limit>> command.
+include::processing-commands/limit.asciidoc[tag=limitation]
+
+[discrete]
+[[esql-supported-types]]
+=== Field types
+
+[discrete]
+==== Supported types
+
+{esql} currently supports the following <<mapping-types,field types>>:
+
+* `alias`
+* `boolean`
+* `date`
+* `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
+* `ip`
+* `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
+* `int` (`short` and `byte` are represented as `int`)
+* `long`
+* `null`
+* `text`
+* `unsigned_long`
+* `version`
+
+[discrete]
+==== Unsupported types
+
+{esql} does not yet support the following field types:
+
+* TSDB metrics
+** `counter`
+** `position`
+** `aggregate_metric_double`
+* Geo/spatial
+** `geo_point`
+** `geo_shape`
+** `point`
+** `shape`
+* Date/time
+** `date_nanos`
+** `date_range`
+* Other types
+** `binary`
+** `completion`
+** `dense_vector`
+** `double_range`
+** `flattened`
+** `float_range`
+** `histogram`
+** `integer_range`
+** `ip_range`
+** `long_range`
+** `nested`
+** `rank_feature`
+** `rank_features`
+** `search_as_you_type`
+
+Querying a column with an unsupported type returns an error. If a column with an
+unsupported type is not explicitly used in a query, it is returned with `null`
+values, with the exception of nested fields. Nested fields are not returned at
+all.
+
+[discrete]
+[[esql-limitations-text-fields]]
+=== `text` fields behave like `keyword` fields
+
+While {esql} supports <<text,`text`>> fields, {esql} does not treat these fields
+like the Search API does. {esql} queries do not query or aggregate the
+<<analysis,analyzed string>>. Instead, an {esql} query will try to get a `text`
+field's subfield of the <<keyword,keyword family type>> and query/aggregate
+that. If it's not possible to retrieve a `keyword` subfield, {esql} will get the
+string from a document's `_source`. If the `_source` cannot be retrieved, for
+example when using synthetic source, `null` is returned.
+
+Note that {esql}'s retrieval of `keyword` subfields may have unexpected
+consequences. An {esql} query on a `text` field is case-sensitive. Furthermore,
+a subfield may have been mapped with a <<normalizer,normalizer>>, which can
+transform the original string. Or it may have been mapped with <<ignore-above>>,
+which can truncate the string. None of these mapping operations are applied to
+an {esql} query, which may lead to false positives or negatives. 
+
+To avoid these issues, a best practice is to be explicit about the field that
+you query, and query `keyword` sub-fields instead of `text` fields.
+
+[discrete]
+[[esql-tsdb]]
+=== Time series data streams are not supported
+
+{esql} does not support querying time series data streams (TSDS).
+
+[discrete]
+[[esql-limitations-ccs]]
+=== {ccs-cap} is not supported
+
+{esql} does not support {ccs}.
+
+[discrete]
+[[esql-limitations-date-math]]
+=== Date math limitations
+
+Date math expressions work well when the leftmost expression is a datetime, for
+example:
+[source,txt]
+----
+now() + 1 year - 2hour + ...
+----
+
+But using parentheses or putting the datetime to the right is not always supported yet. For example, the following expressions fail:
+[source,txt]
+----
+1year + 2hour + now()
+now() + (1year + 2hour)
+----
+
+Date math does not allow subtracting two datetimes, for example:
+[source,txt]
+----
+now() - 2023-10-26
+----
+
+[discrete]
+[[esql-limitations-enrich]]
+=== Enrich limitations
+
+include::esql-enrich-data.asciidoc[tag=limitations]
+
+[discrete]
+[[esql-limitations-dissect]]
+=== Dissect limitations
+
+include::esql-process-data-with-dissect-grok.asciidoc[tag=dissect-limitations]
+
+[discrete]
+[[esql-limitations-grok]]
+=== Grok limitations
+
+include::esql-process-data-with-dissect-grok.asciidoc[tag=grok-limitations]
+
+[discrete]
+[[esql-limitations-mv]]
+=== Multivalue limitations
+
+{esql} <<esql-multivalued-fields,supports multivalued fields>>, but functions
+return `null` when applied to a multivalued field, unless documented otherwise.
+Work around this limitation by converting the field to single value with one of
+the <<esql-mv-functions,multivalue functions>>.
+
+[discrete]
+[[esql-limitations-timezone]]
+=== Timezone support
+
+{esql} only supports the UTC timezone.
+
+[discrete]
+[[esql-limitations-kibana]]
+=== Kibana limitations
+
+include::esql-kibana.asciidoc[tag=limitations]

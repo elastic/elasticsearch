@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,10 +28,12 @@ import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
 import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,6 +68,11 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         public String name() {
             return NAME;
         }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
     }
 
     public static class TestInferenceServiceClusterService extends TestInferenceServiceBase {
@@ -82,6 +90,11 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         @Override
         public String name() {
             return NAME;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
         }
     }
 
@@ -144,9 +157,21 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         }
 
         @Override
-        public void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener) {
+        public void infer(
+            Model model,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            ActionListener<List<? extends InferenceResults>> listener
+        ) {
             switch (model.getConfigurations().getTaskType()) {
-                case SPARSE_EMBEDDING -> listener.onResponse(TextExpansionResultsTests.createRandomResults(1, 10));
+                case SPARSE_EMBEDDING -> {
+                    var results = new ArrayList<TextExpansionResults>();
+                    input.forEach(i -> {
+                        int numTokensInResult = Strings.tokenizeToStringArray(i, " ").length;
+                        results.add(TextExpansionResultsTests.createRandomResults(numTokensInResult, numTokensInResult));
+                    });
+                    listener.onResponse(results);
+                }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -161,6 +186,9 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         public void start(Model model, ActionListener<Boolean> listener) {
             listener.onResponse(true);
         }
+
+        @Override
+        public void close() throws IOException {}
     }
 
     public static class TestServiceModel extends Model {

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-cos]]
 === `COS`
 [.text-center]

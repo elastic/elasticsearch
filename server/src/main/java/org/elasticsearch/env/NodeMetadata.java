@@ -10,8 +10,10 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -113,7 +115,7 @@ public final class NodeMetadata {
         assert (nodeVersion.equals(Version.V_EMPTY) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
             : "version is required in the node metadata from v9 onwards";
 
-        if (NodeMetadata.isNodeVersionWireCompatible(nodeVersion.toString()) == false) {
+        if (nodeVersion.before(Version.CURRENT.minimumCompatibilityVersion())) {
             throw new IllegalStateException(
                 "cannot upgrade a node from version ["
                     + nodeVersion
@@ -161,20 +163,20 @@ public final class NodeMetadata {
             this.oldestIndexVersion = IndexVersion.fromId(oldestIndexVersion);
         }
 
+        private Version getVersionOrFallbackToEmpty() {
+            return Objects.requireNonNullElse(this.nodeVersion, Version.V_EMPTY);
+        }
+
         public NodeMetadata build() {
-            final Version nodeVersion;
+            @UpdateForV9 // version is required in the node metadata from v9 onwards
+            final Version nodeVersion = getVersionOrFallbackToEmpty();
             final IndexVersion oldestIndexVersion;
-            if (this.nodeVersion == null) {
-                assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "version is required in the node metadata from v9 onwards";
-                nodeVersion = Version.V_EMPTY;
-            } else {
-                nodeVersion = this.nodeVersion;
-            }
+
             if (this.previousNodeVersion == null) {
                 previousNodeVersion = nodeVersion;
             }
             if (this.oldestIndexVersion == null) {
-                oldestIndexVersion = IndexVersion.ZERO;
+                oldestIndexVersion = IndexVersions.ZERO;
             } else {
                 oldestIndexVersion = this.oldestIndexVersion;
             }
@@ -220,21 +222,5 @@ public final class NodeMetadata {
     }
 
     public static final MetadataStateFormat<NodeMetadata> FORMAT = new NodeMetadataStateFormat(false);
-
-    /**
-     * Check whether a node version is compatible with the current minimum transport version.
-     * @param version A version identifier as a string
-     * @throws IllegalArgumentException if version is not a valid transport version identifier
-     * @return true if the version is compatible, false otherwise
-     */
-    // visible for testing
-    static boolean isNodeVersionWireCompatible(String version) {
-        try {
-            Version esVersion = Version.fromString(version);
-            return esVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Cannot parse [" + version + "] as a transport version identifier", e);
-        }
-    }
 
 }

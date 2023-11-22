@@ -66,6 +66,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                 Orientation.RIGHT,
                 null,
                 null,
+                null,
                 Map.of()
             );
             try (IndexReader reader = w.getReader()) {
@@ -92,6 +93,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     Orientation.RIGHT,
                     null,
                     null,
+                    null,
                     Map.of()
                 );
                 InternalGeoCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
@@ -103,6 +105,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     true,
                     randomBoolean(),
                     Orientation.RIGHT,
+                    null,
                     null,
                     null,
                     Map.of()
@@ -132,6 +135,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     true,
                     randomBoolean(),
                     Orientation.RIGHT,
+                    null,
                     null,
                     null,
                     Map.of()
@@ -207,6 +211,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             true,
             randomBoolean(),
             Orientation.RIGHT,
+            null,
             null,
             null,
             Map.of()

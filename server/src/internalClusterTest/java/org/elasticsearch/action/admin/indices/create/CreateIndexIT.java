@@ -13,7 +13,6 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -41,6 +40,7 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -206,7 +206,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96578")
     public void testCreateAndDeleteIndexConcurrently() throws InterruptedException {
         createIndex("test");
         final AtomicInteger indexVersion = new AtomicInteger(0);
@@ -270,13 +269,14 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         // we only really assert that we never reuse segments of old indices or anything like this here and that nothing fails with
         // crazy exceptions
-        SearchResponse expected = client().prepareSearch("test")
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true))
-            .get();
-        SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
-        logger.info("total: {}", expected.getHits().getTotalHits().value);
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)),
+            expected -> assertNoFailuresAndResponse(prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()), all -> {
+                assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
+                logger.info("total: {}", expected.getHits().getTotalHits().value);
+            })
+        );
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {

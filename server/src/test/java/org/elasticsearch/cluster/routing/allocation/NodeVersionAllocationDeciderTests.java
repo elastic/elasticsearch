@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -47,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
@@ -76,8 +75,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
 public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
-
-    private final Logger logger = LogManager.getLogger(NodeVersionAllocationDeciderTests.class);
 
     public void testDoNotAllocateFromPrimary() {
         AllocationService strategy = createAllocationService(
@@ -324,11 +321,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final DiscoveryNode newNode = DiscoveryNodeUtils.builder("newNode").roles(MASTER_DATA_ROLES).build();
         final DiscoveryNode oldNode1 = DiscoveryNodeUtils.builder("oldNode1")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
             .build();
         final DiscoveryNode oldNode2 = DiscoveryNodeUtils.builder("oldNode2")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
             .build();
         AllocationId allocationId1P = AllocationId.newInitializing();
         AllocationId allocationId1R = AllocationId.newInitializing();
@@ -429,11 +426,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final DiscoveryNode newNode = DiscoveryNodeUtils.builder("newNode").roles(MASTER_DATA_ROLES).build();
         final DiscoveryNode oldNode1 = DiscoveryNodeUtils.builder("oldNode1")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
             .build();
         final DiscoveryNode oldNode2 = DiscoveryNodeUtils.builder("oldNode2")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
             .build();
 
         final Snapshot snapshot = new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID()));

@@ -273,3 +273,17 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10086          | Somnath            | Foote
 10088          | Jungsoon           | Syrzycki
 ;
+
+
+likeWithPath
+row x = "C:\\foo\\bar.exe" | mv_expand x | where x LIKE "C:\\\\*";
+
+x:keyword
+C:\foo\bar.exe
+;
+
+likeWithPathNoMatch
+row x = "C:\\foo\\bar.exe" | mv_expand x | where x LIKE "C:\\\\\\\\*";
+
+x:keyword
+;

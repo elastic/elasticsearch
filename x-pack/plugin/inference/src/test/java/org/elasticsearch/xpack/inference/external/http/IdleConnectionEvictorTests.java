@@ -12,9 +12,7 @@ import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
 import org.apache.http.nio.reactor.IOReactorException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -22,7 +20,7 @@ import org.junit.Before;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
@@ -38,17 +36,7 @@ public class IdleConnectionEvictorTests extends ESTestCase {
 
     @Before
     public void init() {
-        threadPool = new TestThreadPool(
-            getTestName(),
-            new ScalingExecutorBuilder(
-                UTILITY_THREAD_POOL_NAME,
-                1,
-                4,
-                TimeValue.timeValueMinutes(10),
-                false,
-                "xpack.inference.utility_thread_pool"
-            )
-        );
+        threadPool = createThreadPool(inferenceUtilityPool());
     }
 
     @After
@@ -61,16 +49,18 @@ public class IdleConnectionEvictorTests extends ESTestCase {
 
         when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
 
-        var evictor = new IdleConnectionEvictor(
-            mockThreadPool,
-            createConnectionManager(),
-            new TimeValue(1, TimeUnit.NANOSECONDS),
-            new TimeValue(1, TimeUnit.NANOSECONDS)
-        );
+        try (
+            var evictor = new IdleConnectionEvictor(
+                mockThreadPool,
+                createConnectionManager(),
+                new TimeValue(1, TimeUnit.NANOSECONDS),
+                new TimeValue(1, TimeUnit.NANOSECONDS)
+            )
+        ) {
+            evictor.start();
 
-        evictor.start();
-
-        verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), any(), any());
+            verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), any(), any());
+        }
     }
 
     public void testStart_OnlyCallsSubmitOnce() throws IOReactorException {
@@ -78,17 +68,19 @@ public class IdleConnectionEvictorTests extends ESTestCase {
 
         when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
 
-        var evictor = new IdleConnectionEvictor(
-            mockThreadPool,
-            createConnectionManager(),
-            new TimeValue(1, TimeUnit.NANOSECONDS),
-            new TimeValue(1, TimeUnit.NANOSECONDS)
-        );
+        try (
+            var evictor = new IdleConnectionEvictor(
+                mockThreadPool,
+                createConnectionManager(),
+                new TimeValue(1, TimeUnit.NANOSECONDS),
+                new TimeValue(1, TimeUnit.NANOSECONDS)
+            )
+        ) {
+            evictor.start();
+            evictor.start();
 
-        evictor.start();
-        evictor.start();
-
-        verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), any(), any());
+            verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), any(), any());
+        }
     }
 
     public void testCloseExpiredConnections_IsCalled() throws InterruptedException {
@@ -103,7 +95,7 @@ public class IdleConnectionEvictorTests extends ESTestCase {
 
         CountDownLatch runLatch = new CountDownLatch(1);
         doAnswer(invocation -> {
-            evictor.stop();
+            evictor.close();
             runLatch.countDown();
             return Void.TYPE;
         }).when(manager).closeExpiredConnections();
@@ -126,7 +118,7 @@ public class IdleConnectionEvictorTests extends ESTestCase {
 
         CountDownLatch runLatch = new CountDownLatch(1);
         doAnswer(invocation -> {
-            evictor.stop();
+            evictor.close();
             runLatch.countDown();
             return Void.TYPE;
         }).when(manager).closeIdleConnections(anyLong(), any());
@@ -147,7 +139,7 @@ public class IdleConnectionEvictorTests extends ESTestCase {
 
         evictor.start();
         assertTrue(evictor.isRunning());
-        evictor.stop();
+        evictor.close();
     }
 
     public void testIsRunning_ReturnsFalse() throws IOReactorException {
@@ -161,7 +153,7 @@ public class IdleConnectionEvictorTests extends ESTestCase {
         evictor.start();
         assertTrue(evictor.isRunning());
 
-        evictor.stop();
+        evictor.close();
         assertFalse(evictor.isRunning());
     }
 

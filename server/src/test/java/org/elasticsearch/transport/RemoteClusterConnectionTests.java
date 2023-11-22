@@ -192,7 +192,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             );
             if (RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(s)) {
                 newService.registerRequestHandler(
-                    RemoteClusterNodesAction.NAME,
+                    RemoteClusterNodesAction.TYPE.name(),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     RemoteClusterNodesAction.Request::new,
                     (request, channel, task) -> channel.sendResponse(new RemoteClusterNodesAction.Response(knownNodes))
@@ -640,7 +640,10 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 service.addSendBehavior((connection, requestId, action, request, options) -> {
                     if (hasClusterCredentials) {
-                        assertThat(action, oneOf(RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME, RemoteClusterNodesAction.NAME));
+                        assertThat(
+                            action,
+                            oneOf(RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME, RemoteClusterNodesAction.TYPE.name())
+                        );
                     } else {
                         assertThat(action, oneOf(TransportService.HANDSHAKE_ACTION_NAME, ClusterStateAction.NAME));
                     }

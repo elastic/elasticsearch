@@ -43,6 +43,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -116,8 +117,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         refresh();
 
         int total = 0;
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setSearchType(DFS_QUERY_THEN_FETCH)
+        SearchResponse searchResponse = prepareSearch("test").setSearchType(DFS_QUERY_THEN_FETCH)
             .setQuery(termQuery("multi", "test"))
             .setSize(60)
             .setExplain(true)
@@ -157,8 +157,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         prepareData();
 
         int total = 0;
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setSearchType(DFS_QUERY_THEN_FETCH)
+        SearchResponse searchResponse = prepareSearch("test").setSearchType(DFS_QUERY_THEN_FETCH)
             .setQuery(termQuery("multi", "test"))
             .setSize(60)
             .setExplain(true)
@@ -195,8 +194,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         prepareData();
 
         int total = 0;
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setSearchType(QUERY_THEN_FETCH)
+        SearchResponse searchResponse = prepareSearch("test").setSearchType(QUERY_THEN_FETCH)
             .setQuery(termQuery("multi", "test"))
             .setSize(60)
             .setExplain(true)
@@ -255,8 +253,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         prepareData();
 
         int total = 0;
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(termQuery("multi", "test"))
+        SearchResponse searchResponse = prepareSearch("test").setQuery(termQuery("multi", "test"))
             .setSize(60)
             .setExplain(true)
             .addSort("age", SortOrder.ASC)
@@ -291,15 +288,15 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             .aggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.filter("all", termQuery("multi", "test"))))
             .aggregation(AggregationBuilders.filter("test1", termQuery("name", "test1")));
 
-        SearchResponse searchResponse = client().search(new SearchRequest("test").source(sourceBuilder)).actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+        assertNoFailuresAndResponse(client().search(new SearchRequest("test").source(sourceBuilder)), response -> {
+            assertThat(response.getHits().getTotalHits().value, equalTo(100L));
 
-        Global global = searchResponse.getAggregations().get("global");
-        Filter all = global.getAggregations().get("all");
-        Filter test1 = searchResponse.getAggregations().get("test1");
-        assertThat(test1.getDocCount(), equalTo(1L));
-        assertThat(all.getDocCount(), equalTo(100L));
+            Global global = response.getAggregations().get("global");
+            Filter all = global.getAggregations().get("all");
+            Filter test1 = response.getAggregations().get("test1");
+            assertThat(test1.getDocCount(), equalTo(1L));
+            assertThat(all.getDocCount(), equalTo(100L));
+        });
     }
 
     public void testFailedSearchWithWrongQuery() throws Exception {
@@ -357,9 +354,9 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         logger.info("Start Testing failed multi search with a wrong query");
 
         MultiSearchResponse response = client().prepareMultiSearch()
-            .add(client().prepareSearch("test").setQuery(new MatchQueryBuilder("foo", "biz")))
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+            .add(prepareSearch("test").setQuery(new MatchQueryBuilder("foo", "biz")))
+            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
+            .add(prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
             .get();
         assertThat(response.getResponses().length, equalTo(3));
         assertThat(response.getResponses()[0].getFailureMessage(), notNullValue());
@@ -381,16 +378,15 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         MultiSearchResponse response = client().prepareMultiSearch()
             // Add custom score query with bogus script
             .add(
-                client().prepareSearch("test")
-                    .setQuery(
-                        QueryBuilders.functionScoreQuery(
-                            QueryBuilders.termQuery("nid", 1),
-                            new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, "bar", "foo", Collections.emptyMap()))
-                        )
+                prepareSearch("test").setQuery(
+                    QueryBuilders.functionScoreQuery(
+                        QueryBuilders.termQuery("nid", 1),
+                        new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, "bar", "foo", Collections.emptyMap()))
                     )
+                )
             )
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
+            .add(prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
             .get();
         assertThat(response.getResponses().length, equalTo(3));
         assertThat(response.getResponses()[0].getFailureMessage(), notNullValue());

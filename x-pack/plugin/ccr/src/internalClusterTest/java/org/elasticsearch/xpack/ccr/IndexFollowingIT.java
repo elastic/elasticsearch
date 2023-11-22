@@ -109,7 +109,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -609,7 +608,6 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 .prepareCreate("test-follower")
                 .setSource(indexSettings, XContentType.JSON)
                 .setMasterNodeTimeout(TimeValue.MAX_VALUE)
-                .get()
         );
         ensureLeaderGreen("test-leader");
         ensureFollowerGreen("test-follower");
@@ -1754,14 +1752,14 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         return settings;
     }
 
-    private void putFollowerTemplate(String setting, String settingValue) throws InterruptedException, ExecutionException {
+    private void putFollowerTemplate(String setting, String settingValue) {
         Template template = new Template(Settings.builder().put(setting, settingValue).build(), null, null);
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(List.of("follower"), template, null, null, null, null);
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder().indexPatterns(List.of("follower")).template(template).build();
         assertAcked(
             followerClient().execute(
                 PutComposableIndexTemplateAction.INSTANCE,
                 new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit)
-            ).get()
+            )
         );
     }
 

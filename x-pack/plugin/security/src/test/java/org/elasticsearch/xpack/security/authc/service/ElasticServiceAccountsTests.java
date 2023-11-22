@@ -211,7 +211,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
 
         final IndexAbstraction profilingIndex = mockIndexAbstraction("profiling-" + randomAlphaOfLengthBetween(1, 20));
         assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(profilingIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(profilingIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(profilingIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(profilingIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(profilingIndex), is(false));
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(profilingIndex), is(true));

@@ -17,16 +17,19 @@ import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.logging.LogLevel;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JvmVendorSpec;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-
-import static org.elasticsearch.gradle.internal.util.JavaUtil.getJavaHome;
 
 /**
  * By registering bwc tasks via this extension we can support declaring custom bwc tasks from the build script
@@ -37,16 +40,22 @@ public class BwcSetupExtension {
     private static final String MINIMUM_COMPILER_VERSION_PATH = "src/main/resources/minimumCompilerVersion";
     private static final Version BUILD_TOOL_MINIMUM_VERSION = Version.fromString("7.14.0");
     private final Project project;
+    private final ObjectFactory objectFactory;
+    private final JavaToolchainService toolChainService;
     private final Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
 
     private Provider<File> checkoutDir;
 
     public BwcSetupExtension(
         Project project,
+        ObjectFactory objectFactory,
+        JavaToolchainService toolChainService,
         Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
         Provider<File> checkoutDir
     ) {
         this.project = project;
+        this.objectFactory = objectFactory;
+        this.toolChainService = toolChainService;
         this.unreleasedVersionInfo = unreleasedVersionInfo;
         this.checkoutDir = checkoutDir;
     }
@@ -73,6 +82,11 @@ public class BwcSetupExtension {
                 String minimumCompilerVersion = readFromFile(new File(checkoutDir, minimumCompilerVersionPath(version.version())));
                 return getJavaHome(Integer.parseInt(minimumCompilerVersion));
             }));
+
+            // temporally workaround for reworked gradle enterprise setup
+            // removed when PR https://github.com/elastic/elasticsearch/pull/102180 backported
+            // to all BWC branches
+            loggedExec.getEnvironment().put("BUILDKITE", "false");
 
             if (BuildParams.isCi() && OS.current() != OS.WINDOWS) {
                 // TODO: Disabled for now until we can figure out why files are getting corrupted
@@ -137,4 +151,14 @@ public class BwcSetupExtension {
             throw new GradleException("Cannot read java properties file.", ioException);
         }
     }
+
+    /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
+    public String getJavaHome(final int version) {
+        Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
+        return toolChainService.launcherFor(javaToolchainSpec -> {
+            javaToolchainSpec.getLanguageVersion().value(value);
+            javaToolchainSpec.getVendor().set(JvmVendorSpec.ORACLE);
+        }).get().getMetadata().getInstallationPath().getAsFile().getAbsolutePath();
+    }
+
 }

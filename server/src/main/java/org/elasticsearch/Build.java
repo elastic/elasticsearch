@@ -13,15 +13,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.io.IOException;
 import java.net.URL;
 import java.security.CodeSource;
+import java.util.Locale;
 import java.util.ServiceLoader;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
+import java.util.regex.Pattern;
 
 /**
  * Information about a build of Elasticsearch.
@@ -31,8 +34,9 @@ public record Build(
     Type type,
     String hash,
     String date,
-    boolean isSnapshot,
     String version,
+    String qualifier,
+    boolean isSnapshot,
     String minWireCompatVersion,
     String minIndexCompatVersion,
     String displayString
@@ -48,6 +52,8 @@ public record Build(
         }
     }
 
+    private static final Pattern qualfiedVersionRegex = Pattern.compile("([^-]+)(?:-((:?alpha|beta|rc)[0-9]+))?(?:-SNAPSHOT)?");
+
     /**
      * Finds build info scanned from the server jar.
      */
@@ -56,6 +62,7 @@ public record Build(
         final String hash;
         final String date;
         final boolean isSnapshot;
+        final String qualifier;
         final String version;
 
         // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
@@ -71,7 +78,13 @@ public record Build(
                 hash = manifest.getMainAttributes().getValue("Change");
                 date = manifest.getMainAttributes().getValue("Build-Date");
                 isSnapshot = "true".equals(manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Snapshot"));
-                version = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
+                String rawVersion = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
+                var versionMatcher = qualfiedVersionRegex.matcher(rawVersion);
+                if (versionMatcher.matches() == false) {
+                    throw new IllegalStateException(String.format(Locale.ROOT, "Malformed elasticsearch compile version: %s", rawVersion));
+                }
+                version = versionMatcher.group(1);
+                qualifier = versionMatcher.group(2);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -92,6 +105,7 @@ public record Build(
             } else {
                 isSnapshot = true;
             }
+            qualifier = System.getProperty("build.version_qualifier");
         }
         if (hash == null) {
             throw new IllegalStateException(
@@ -114,14 +128,14 @@ public record Build(
 
         final String flavor = "default";
         String minWireCompat = Version.CURRENT.minimumCompatibilityVersion().toString();
-        String minIndexCompat = minimumCompatString(IndexVersion.MINIMUM_COMPATIBLE);
-        String displayString = defaultDisplayString(type, hash, date, version);
+        String minIndexCompat = minimumCompatString(IndexVersions.MINIMUM_COMPATIBLE);
+        String displayString = defaultDisplayString(type, hash, date, qualifiedVersionString(version, qualifier, isSnapshot));
 
-        return new Build(flavor, type, hash, date, isSnapshot, version, minWireCompat, minIndexCompat, displayString);
+        return new Build(flavor, type, hash, date, version, qualifier, isSnapshot, minWireCompat, minIndexCompat, displayString);
     }
 
     public static String minimumCompatString(IndexVersion minimumCompatible) {
-        if (minimumCompatible.before(IndexVersion.FIRST_DETACHED_INDEX_VERSION)) {
+        if (minimumCompatible.before(IndexVersions.FIRST_DETACHED_INDEX_VERSION)) {
             // use Version for compatibility
             return Version.fromId(minimumCompatible.id()).toString();
         } else {
@@ -199,11 +213,27 @@ public record Build(
         final Type type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
         String date = in.readString();
-        boolean snapshot = in.readBoolean();
-        final String version = in.readString();
+        final String version;
+        final String qualifier;
+        final boolean snapshot;
         final String minWireVersion;
         final String minIndexVersion;
         final String displayString;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.BUILD_QUALIFIER_SEPARATED)) {
+            version = in.readString();
+            qualifier = in.readOptionalString();
+            snapshot = in.readBoolean();
+        } else {
+            snapshot = in.readBoolean();
+            String rawVersion = in.readString();
+            // need to separate out qualifiers from older nodes
+            var versionMatcher = qualfiedVersionRegex.matcher(rawVersion);
+            if (versionMatcher.matches() == false) {
+                throw new IllegalStateException(String.format(Locale.ROOT, "Malformed elasticsearch compile version: %s", rawVersion));
+            }
+            version = versionMatcher.group(1);
+            qualifier = versionMatcher.group(2);
+        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_041)) {
             minWireVersion = in.readString();
             minIndexVersion = in.readString();
@@ -214,9 +244,9 @@ public record Build(
             var versionConstant = Version.fromString(dashNdx == -1 ? version : version.substring(0, dashNdx));
             minWireVersion = versionConstant.minimumCompatibilityVersion().toString();
             minIndexVersion = minimumCompatString(IndexVersion.getMinimumCompatibleIndexVersion(versionConstant.id()));
-            displayString = defaultDisplayString(type, hash, date, version);
+            displayString = defaultDisplayString(type, hash, date, qualifiedVersionString(version, qualifier, snapshot));
         }
-        return new Build(flavor, type, hash, date, snapshot, version, minWireVersion, minIndexVersion, displayString);
+        return new Build(flavor, type, hash, date, version, qualifier, snapshot, minWireVersion, minIndexVersion, displayString);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
@@ -227,8 +257,14 @@ public record Build(
         out.writeString(build.type().displayName());
         out.writeString(build.hash());
         out.writeString(build.date());
-        out.writeBoolean(build.isSnapshot());
-        out.writeString(build.qualifiedVersion());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.BUILD_QUALIFIER_SEPARATED)) {
+            out.writeString(build.version());
+            out.writeOptionalString(build.qualifier());
+            out.writeBoolean(build.isSnapshot());
+        } else {
+            out.writeBoolean(build.isSnapshot());
+            out.writeString(build.qualifiedVersion());
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_041)) {
             out.writeString(build.minWireCompatVersion());
             out.writeString(build.minIndexCompatVersion());
@@ -246,11 +282,22 @@ public record Build(
      * @return the fully qualified build
      */
     public String qualifiedVersion() {
-        return version;
+        return qualifiedVersionString(version, qualifier, isSnapshot);
+    }
+
+    private static String qualifiedVersionString(String version, String qualifier, boolean isSnapshot) {
+        String versionString = version;
+        if (qualifier != null) {
+            versionString += "-" + qualifier;
+        }
+        if (isSnapshot) {
+            versionString += "-SNAPSHOT";
+        }
+        return versionString;
     }
 
     public boolean isProductionRelease() {
-        return isSnapshot() == false && version.matches(".*(-alpha\\d+)|(-beta\\d+)|(-rc\\d+)") == false;
+        return isSnapshot == false && qualifier == null;
     }
 
     public static String defaultDisplayString(Type type, String hash, String date, String version) {

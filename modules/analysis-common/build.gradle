@@ -7,8 +7,8 @@
  */
 import org.elasticsearch.gradle.Version
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -23,13 +23,10 @@ restResources {
   }
 }
 
-testClusters.configureEach {
-  module ':modules:reindex'
-  module ':modules:mapper-extras'
-}
-
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
+  clusterModules project(':modules:reindex')
+  clusterModules project(':modules:mapper-extras')
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->

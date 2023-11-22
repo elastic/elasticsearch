@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.dangling.list;
 
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,10 +36,6 @@ import java.util.Objects;
  * in the cluster failed to answer, the details are presented under the "_nodes.failures" key.
  */
 public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDanglingIndicesResponse> implements ToXContentObject {
-
-    public ListDanglingIndicesResponse(StreamInput in) throws IOException {
-        super(in);
-    }
 
     public ListDanglingIndicesResponse(
         ClusterName clusterName,
@@ -93,12 +90,12 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
 
     @Override
     protected List<NodeListDanglingIndicesResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readCollectionAsList(NodeListDanglingIndicesResponse::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeListDanglingIndicesResponse> nodes) throws IOException {
-        out.writeCollection(nodes);
+        TransportAction.localOnly();
     }
 
     // visible for testing

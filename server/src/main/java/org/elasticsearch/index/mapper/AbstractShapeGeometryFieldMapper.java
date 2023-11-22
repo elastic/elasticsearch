@@ -83,6 +83,21 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         this.orientation = orientation;
     }
 
+    protected AbstractShapeGeometryFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        Explicit<Boolean> coerce,
+        Explicit<Orientation> orientation,
+        CopyTo copyTo,
+        Parser<T> parser,
+        OnScriptError onScriptError
+    ) {
+        super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
+        this.coerce = coerce;
+        this.orientation = orientation;
+    }
+
     public boolean coerce() {
         return coerce.value();
     }

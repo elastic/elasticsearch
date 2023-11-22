@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Randomness;
@@ -40,7 +41,7 @@ import java.util.Set;
 /**
  * Trained model assignment object that contains assignment options and the assignment routing table
  */
-public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssignment>, ToXContentObject {
+public final class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssignment>, ToXContentObject {
 
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField ASSIGNMENT_STATE = new ParseField("assignment_state");
@@ -96,6 +97,10 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
     private final Instant startTime;
     private final int maxAssignedAllocations;
 
+    public static boolean useNewMemoryFields(TransportVersion minClusterVersion) {
+        return minClusterVersion.onOrAfter(TransportVersions.V_8_500_064);
+    }
+
     public static TrainedModelAssignment fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
@@ -137,7 +142,6 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             : Math.max(maxAssignedAllocations, totalCurrentAllocations());
     }
 
-    @SuppressWarnings("this-escape")
     public TrainedModelAssignment(StreamInput in) throws IOException {
         this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(in);
         this.nodeRoutingTable = in.readOrderedMap(StreamInput::readString, RoutingInfo::new);

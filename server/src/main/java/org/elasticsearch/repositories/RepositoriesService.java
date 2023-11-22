@@ -37,6 +37,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -182,7 +183,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             verifyStep.addListener(
                 listener.delegateFailureAndWrap(
                     (l, ignored) -> threadPool.generic()
-                        .execute(ActionRunnable.wrap(getRepositoryDataStep, ll -> repository(request.name()).getRepositoryData(ll)))
+                        .execute(
+                            ActionRunnable.wrap(
+                                getRepositoryDataStep,
+                                ll -> repository(request.name()).getRepositoryData(
+                                    EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading, do we need to fork, see #101445?
+                                    ll
+                                )
+                            )
+                        )
                 )
             );
 
@@ -630,7 +639,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         try {
             Repository repository = repository(repositoryName);
             assert repository != null; // should only be called once we've validated the repository exists
-            repository.getRepositoryData(listener);
+            repository.getRepositoryData(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
+                listener
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }

@@ -132,8 +132,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
     }
 
     public void testBasic() {
-        SearchResponse searchResponse = client().prepareSearch("books")
-            .addFetchField("author")
+        SearchResponse searchResponse = prepareSearch("books").addFetchField("author")
             .addFetchField("title")
             .addSort("published_date", SortOrder.DESC)
             .setSize(3)
@@ -169,18 +168,17 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
     }
 
     public void testLookupMultipleIndices() throws IOException {
-        SearchResponse searchResponse = client().prepareSearch("books")
-            .setRuntimeMappings(parseMapping("""
-                {
-                    "publisher": {
-                        "type": "lookup",
-                        "target_index": "publishers",
-                        "input_field": "publisher_id",
-                        "target_field": "_id",
-                        "fetch_fields": ["name", "city"]
-                    }
+        SearchResponse searchResponse = prepareSearch("books").setRuntimeMappings(parseMapping("""
+            {
+                "publisher": {
+                    "type": "lookup",
+                    "target_index": "publishers",
+                    "input_field": "publisher_id",
+                    "target_field": "_id",
+                    "fetch_fields": ["name", "city"]
                 }
-                """))
+            }
+            """))
             .setFetchSource(false)
             .addFetchField("title")
             .addFetchField("author")
@@ -217,7 +215,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
     }
 
     public void testFetchField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("books").setRuntimeMappings(parseMapping("""
+        SearchResponse searchResponse = prepareSearch("books").setRuntimeMappings(parseMapping("""
             {
                 "author": {
                     "type": "lookup",

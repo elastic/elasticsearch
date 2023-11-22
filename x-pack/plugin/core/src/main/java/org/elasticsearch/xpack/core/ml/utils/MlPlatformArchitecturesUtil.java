@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -41,7 +41,7 @@ public class MlPlatformArchitecturesUtil {
         );
 
         NodesInfoRequest request = MlPlatformArchitecturesUtil.getNodesInfoBuilderWithMlNodeArchitectureInfo(client).request();
-        executeAsyncWithOrigin(client, ML_ORIGIN, NodesInfoAction.INSTANCE, request, listener);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportNodesInfoAction.TYPE, request, listener);
     }
 
     static ActionListener<NodesInfoResponse> getArchitecturesSetFromNodesInfoResponseListener(

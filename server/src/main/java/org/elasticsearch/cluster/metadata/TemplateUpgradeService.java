@@ -19,7 +19,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -64,7 +63,6 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
     private Map<String, IndexTemplateMetadata> lastTemplateMetadata;
 
-    @SuppressWarnings("this-escape")
     public TemplateUpgradeService(
         Client client,
         ClusterService clusterService,
@@ -81,9 +79,6 @@ public class TemplateUpgradeService implements ClusterStateListener {
             }
             return upgradedTemplates;
         };
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
-            clusterService.addListener(this);
-        }
     }
 
     @Override

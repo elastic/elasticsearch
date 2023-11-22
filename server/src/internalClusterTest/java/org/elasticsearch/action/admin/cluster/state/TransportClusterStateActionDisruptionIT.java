@@ -193,12 +193,9 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
         assertingThread.start();
         updatingThread.start();
 
-        final MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            masterName
-        );
+        final var masterTransportService = MockTransportService.getInstance(masterName);
 
-        for (MockTransportService mockTransportService : mockTransportServices) {
+        for (final var mockTransportService : mockTransportServices) {
             if (masterTransportService != mockTransportService) {
                 masterTransportService.addFailToSendNoConnectRule(mockTransportService);
                 mockTransportService.addFailToSendNoConnectRule(masterTransportService);

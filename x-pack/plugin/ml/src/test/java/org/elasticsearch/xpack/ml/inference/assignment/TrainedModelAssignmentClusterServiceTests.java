@@ -61,6 +61,8 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
+import org.elasticsearch.xpack.ml.autoscaling.NodeFakeAvailabilityZoneMapper;
+import org.elasticsearch.xpack.ml.autoscaling.NodeRealAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
@@ -200,7 +202,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     public void testClusterChanged_GivenNodesAdded_ThenLogMlNodeHeterogeneityCalled() {
-        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        nodeAvailabilityZoneMapper = randomFrom(mock(NodeRealAvailabilityZoneMapper.class), mock(NodeFakeAvailabilityZoneMapper.class));
         TrainedModelAssignmentClusterService serviceSpy = spy(createClusterService(randomInt(5)));
         doNothing().when(serviceSpy).logMlNodeHeterogeneity();
         doReturn(false).when(serviceSpy).eventStateHasGlobalBlockStateNotRecoveredBlock(any());
@@ -222,7 +224,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     public void testStopPlatformSpecificModelsInHeterogeneousClusters_GivenMultipleMlNodeArchitectures_ThenCallSetToStopping() {
-        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        nodeAvailabilityZoneMapper = randomFrom(mock(NodeRealAvailabilityZoneMapper.class), mock(NodeFakeAvailabilityZoneMapper.class));
         TrainedModelAssignmentClusterService serviceSpy = spy(createClusterService(randomInt(5)));
 
         Set<String> architecturesSet = new HashSet<>(randomList(2, 5, () -> randomAlphaOfLength(10)));
@@ -436,7 +438,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
-        nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+        nodeAvailabilityZoneMapper = randomFrom(
+            new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
+            new NodeFakeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes)
+        );
 
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
@@ -477,8 +482,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
             .build();
-        nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
-
+        nodeAvailabilityZoneMapper = randomFrom(
+            new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
+            new NodeFakeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes)
+        );
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)
             .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down")))
@@ -505,7 +512,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
             .add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 8))
             .build();
-        nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+        nodeAvailabilityZoneMapper = randomFrom(
+            new NodeRealAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes),
+            new NodeFakeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes)
+        );
 
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
             .nodes(discoveryNodes)

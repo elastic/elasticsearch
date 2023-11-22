@@ -294,7 +294,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                       "processors": [
                         {
                           "pipeline" : {
-                            "name": "logs@json-message",
+                            "name": "logs@json-pipeline",
                             "description": "A pipeline that automatically parses JSON log events into top-level fields if they are such"
                           }
                         }
@@ -452,7 +452,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                   "priority": 200,
                   "data_stream": {},
                   "index_patterns": ["logs-*-*"],
-                  "composed_of": ["logs-test-subobjects-mappings", "ecs@dynamic_templates"]
+                  "composed_of": ["logs-test-subobjects-mappings", "ecs@mappings"]
                 }
                 """);
             assertOK(client.performRequest(request));

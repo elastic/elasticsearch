@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
+import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.nio.reactor.ConnectingIOReactor;
 import org.apache.http.nio.reactor.IOReactorException;
 import org.apache.logging.log4j.LogManager;
@@ -19,10 +20,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class HttpClientManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(HttpClientManager.class);
@@ -31,18 +35,17 @@ public class HttpClientManager implements Closeable {
      *
      * https://stackoverflow.com/questions/30989637/how-to-decide-optimal-settings-for-setmaxtotal-and-setdefaultmaxperroute
      */
-    static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
+    public static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
         "xpack.inference.http.max_connections",
         // TODO pick a reasonable values here
-        20,
-        1,
-        1000,
+        20, // default
+        1, // min
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    private static final TimeValue DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME = TimeValue.timeValueSeconds(10);
-    static final Setting<TimeValue> CONNECTION_EVICTION_THREAD_INTERVAL_SETTING = Setting.timeSetting(
+    private static final TimeValue DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME = TimeValue.timeValueMinutes(1);
+    public static final Setting<TimeValue> CONNECTION_EVICTION_THREAD_INTERVAL_SETTING = Setting.timeSetting(
         "xpack.inference.http.connection_eviction_interval",
         DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME,
         Setting.Property.NodeScope,
@@ -50,7 +53,7 @@ public class HttpClientManager implements Closeable {
     );
 
     private static final TimeValue DEFAULT_CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING = DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME;
-    static final Setting<TimeValue> CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING = Setting.timeSetting(
         "xpack.inference.http.connection_eviction_max_idle_time",
         DEFAULT_CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING,
         Setting.Property.NodeScope,
@@ -63,9 +66,14 @@ public class HttpClientManager implements Closeable {
     private IdleConnectionEvictor connectionEvictor;
     private final HttpClient httpClient;
 
-    public static HttpClientManager create(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
+    public static HttpClientManager create(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ThrottlerManager throttlerManager
+    ) {
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager();
-        return new HttpClientManager(settings, connectionManager, threadPool, clusterService);
+        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
     }
 
     // Default for testing
@@ -73,14 +81,15 @@ public class HttpClientManager implements Closeable {
         Settings settings,
         PoolingNHttpClientConnectionManager connectionManager,
         ThreadPool threadPool,
-        ClusterService clusterService
+        ClusterService clusterService,
+        ThrottlerManager throttlerManager
     ) {
         this.threadPool = threadPool;
 
         this.connectionManager = connectionManager;
         setMaxConnections(MAX_CONNECTIONS.get(settings));
 
-        this.httpClient = HttpClient.create(new HttpSettings(settings, clusterService), threadPool, connectionManager);
+        this.httpClient = HttpClient.create(new HttpSettings(settings, clusterService), threadPool, connectionManager, throttlerManager);
 
         evictorSettings = new EvictorSettings(settings);
         connectionEvictor = createConnectionEvictor();
@@ -91,7 +100,8 @@ public class HttpClientManager implements Closeable {
     private static PoolingNHttpClientConnectionManager createConnectionManager() {
         ConnectingIOReactor ioReactor;
         try {
-            ioReactor = new DefaultConnectingIOReactor();
+            var configBuilder = IOReactorConfig.custom().setSoKeepAlive(true);
+            ioReactor = new DefaultConnectingIOReactor(configBuilder.build());
         } catch (IOReactorException e) {
             var message = "Failed to initialize the inference http client manager";
             logger.error(message, e);
@@ -128,7 +138,7 @@ public class HttpClientManager implements Closeable {
     @Override
     public void close() throws IOException {
         httpClient.close();
-        connectionEvictor.stop();
+        connectionEvictor.close();
     }
 
     private void setMaxConnections(int maxConnections) {
@@ -136,21 +146,26 @@ public class HttpClientManager implements Closeable {
         connectionManager.setDefaultMaxPerRoute(maxConnections);
     }
 
+    // This is only used for testing
+    boolean isEvictionThreadRunning() {
+        return connectionEvictor.isRunning();
+    }
+
     // default for testing
     void setEvictionInterval(TimeValue evictionInterval) {
+        logger.debug(() -> format("Eviction thread's interval time updated to [%s]", evictionInterval));
+
         evictorSettings = new EvictorSettings(evictionInterval, evictorSettings.evictionMaxIdle);
 
-        connectionEvictor.stop();
+        connectionEvictor.close();
         connectionEvictor = createConnectionEvictor();
         connectionEvictor.start();
     }
 
     void setEvictionMaxIdle(TimeValue evictionMaxIdle) {
+        logger.debug(() -> format("Eviction thread's max idle time updated to [%s]", evictionMaxIdle));
         evictorSettings = new EvictorSettings(evictorSettings.evictionInterval, evictionMaxIdle);
-
-        connectionEvictor.stop();
-        connectionEvictor = createConnectionEvictor();
-        connectionEvictor.start();
+        connectionEvictor.setMaxIdleTime(evictionMaxIdle);
     }
 
     private static class EvictorSettings {

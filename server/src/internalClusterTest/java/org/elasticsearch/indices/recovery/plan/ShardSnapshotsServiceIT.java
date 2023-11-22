@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -104,12 +105,12 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
             if (failGetRepositoryData) {
                 listener.onFailure(new IOException("Failure getting repository data"));
                 return;
             }
-            super.getRepositoryData(listener);
+            super.getRepositoryData(responseExecutor, listener);
         }
 
         @Override
@@ -289,7 +290,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             }
         };
 
-        PlainActionFuture<Optional<ShardSnapshot>> latestSnapshots = PlainActionFuture.newFuture();
+        PlainActionFuture<Optional<ShardSnapshot>> latestSnapshots = new PlainActionFuture<>();
         shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, latestSnapshots);
         assertThat(latestSnapshots.actionGet().isPresent(), is(equalTo(false)));
     }
@@ -297,7 +298,7 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     private Optional<ShardSnapshot> getLatestShardSnapshot(ShardId shardId) throws Exception {
         ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
 
-        PlainActionFuture<Optional<ShardSnapshot>> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Optional<ShardSnapshot>> future = new PlainActionFuture<>();
         shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, future);
         return future.get();
     }

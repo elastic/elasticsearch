@@ -49,7 +49,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -215,7 +215,9 @@ public final class SourceConfirmedTextQuery extends Query {
             return in.createWeight(searcher, scoreMode, boost);
         }
 
-        final Set<Term> terms = new HashSet<>();
+        // We use a LinkedHashSet here to preserve the ordering of terms to ensure that
+        // later summing of float scores per term is consistent
+        final Set<Term> terms = new LinkedHashSet<>();
         in.visit(QueryVisitor.termCollector(terms));
         if (terms.isEmpty()) {
             throw new IllegalStateException("Query " + in + " doesn't have any term");

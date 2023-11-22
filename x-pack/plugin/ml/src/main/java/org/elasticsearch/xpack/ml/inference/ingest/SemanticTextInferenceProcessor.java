@@ -14,6 +14,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.WrappingProcessor;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.ml.mapper.SemanticTextInferenceResultFieldMapper;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.List;
@@ -57,7 +58,7 @@ public class SemanticTextInferenceProcessor extends AbstractProcessor implements
 
     private InferenceProcessor createInferenceProcessor(String modelId, Set<String> fields) {
         List<InferenceProcessor.Factory.InputConfig> inputConfigs = fields.stream()
-            .map(f -> new InferenceProcessor.Factory.InputConfig(f, "ml.inference", f, Map.of()))
+            .map(f -> new InferenceProcessor.Factory.InputConfig(f, SemanticTextInferenceResultFieldMapper.NAME, f, Map.of()))
             .toList();
 
         return InferenceProcessor.fromInputFieldConfiguration(

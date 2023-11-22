@@ -86,7 +86,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);
-        InstanceTypeService instanceTypeService = createCostsService();
+        InstanceTypeService instanceTypeService = createInstanceTypeService();
         if (enabled) {
             registry.get().initialize();
             indexManager.get().initialize();
@@ -100,7 +100,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         return new ProfilingLicenseChecker(XPackPlugin::getSharedLicenseState);
     }
 
-    protected InstanceTypeService createCostsService() {
+    protected InstanceTypeService createInstanceTypeService() {
         return new InstanceTypeService();
     }
 

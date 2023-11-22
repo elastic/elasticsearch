@@ -213,11 +213,21 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 );
             }
         }
-        if (requestedDuration == null) {
-            validationException = addValidationError(
-                "[" + REQUESTED_DURATION_FIELD.getPreferredName() + "] is mandatory",
-                validationException
-            );
+        if (requestedDuration != null) {
+            if (requestedDuration <= 0.0d) {
+                validationException = addValidationError(
+                    "[" + REQUESTED_DURATION_FIELD.getPreferredName() + "] must be greater than 0, got: " + requestedDuration,
+                    validationException
+                );
+            }
+        }
+        if (customCostFactor != null) {
+            if (customCostFactor <= 0.0d) {
+                validationException = addValidationError(
+                    "[" + CUSTOM_COST_FACTOR_FIELD.getPreferredName() + "] must be greater than 0, got: " + customCostFactor,
+                    validationException
+                );
+            }
         }
         return validationException;
     }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -26,8 +25,8 @@ public class HostMetadataTests extends ESTestCase {
             Map.of(
                 "host.id", hostID,
                 "profiling.host.machine", machine,
-                "profiling.host.tags", new ArrayList<>(Arrays.asList(
-                    "cloud_provider:"+provider, "cloud_environment:qa", "cloud_region:"+region)),
+                "profiling.host.tags", Arrays.asList(
+                    "cloud_provider:"+provider, "cloud_environment:qa", "cloud_region:"+region),
                 "ec2.instance_type", instanceType
             )
         );

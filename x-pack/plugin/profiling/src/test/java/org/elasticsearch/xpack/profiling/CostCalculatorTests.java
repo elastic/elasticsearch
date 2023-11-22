@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.AbstractMap;
 import java.util.Map;
 
 public class CostCalculatorTests extends ESTestCase {
@@ -22,7 +21,7 @@ public class CostCalculatorTests extends ESTestCase {
 
         // tag::noformat
         Map<String, HostMetadata> hostsTable = Map.ofEntries(
-            new AbstractMap.SimpleEntry<>(HOST_ID_A,
+            Map.entry(HOST_ID_A,
                 // known datacenter
                 new HostMetadata(HOST_ID_A,
                     new InstanceType(
@@ -33,7 +32,7 @@ public class CostCalculatorTests extends ESTestCase {
                     "" // Doesn't matter for cost calculation.
                 )
             ),
-            new AbstractMap.SimpleEntry<>(HOST_ID_B,
+            Map.entry(HOST_ID_B,
                 new HostMetadata(HOST_ID_B,
                     // unknown datacenter
                     new InstanceType(

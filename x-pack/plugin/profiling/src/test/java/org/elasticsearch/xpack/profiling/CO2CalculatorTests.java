@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.AbstractMap;
 import java.util.Map;
 
 public class CO2CalculatorTests extends ESTestCase {
@@ -24,7 +23,7 @@ public class CO2CalculatorTests extends ESTestCase {
 
         // tag::noformat
         Map<String, HostMetadata> hostsTable = Map.ofEntries(
-            new AbstractMap.SimpleEntry<>(HOST_ID_A,
+            Map.entry(HOST_ID_A,
                 // known datacenter and instance type
                 new HostMetadata(HOST_ID_A,
                     new InstanceType(
@@ -35,7 +34,7 @@ public class CO2CalculatorTests extends ESTestCase {
                     "" // Doesn't matter if datacenter is known.
                 )
             ),
-            new AbstractMap.SimpleEntry<>(HOST_ID_B,
+            Map.entry(HOST_ID_B,
                 new HostMetadata(HOST_ID_B,
                     // unknown datacenter, known provider and region, x86_64
                     new InstanceType(
@@ -46,7 +45,7 @@ public class CO2CalculatorTests extends ESTestCase {
                     "x86_64"
                 )
             ),
-            new AbstractMap.SimpleEntry<>(HOST_ID_C,
+            Map.entry(HOST_ID_C,
                 new HostMetadata(HOST_ID_C,
                     // unknown datacenter, known provider and region, aarch64
                     new InstanceType(
@@ -57,7 +56,7 @@ public class CO2CalculatorTests extends ESTestCase {
                     "aarch64"
                 )
             ),
-            new AbstractMap.SimpleEntry<>(HOST_ID_D,
+            Map.entry(HOST_ID_D,
                 new HostMetadata(HOST_ID_D,
                     // unknown datacenter, unknown provider and region, aarch64
                     new InstanceType(

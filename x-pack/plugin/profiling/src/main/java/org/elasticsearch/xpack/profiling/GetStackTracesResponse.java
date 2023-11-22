@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.profiling;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -220,7 +218,4 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     public String toString() {
         return Strings.toString(this, true, true);
     }
-
-    private static final Logger log = LogManager.getLogger(TransportGetStackTracesAction.class);
-
 }

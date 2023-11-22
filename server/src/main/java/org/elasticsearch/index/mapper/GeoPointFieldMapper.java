@@ -485,10 +485,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return BlockDocValuesReader.longs(name());
+                return new BlockDocValuesReader.LongsBlockLoader(name());
             }
             // TODO: Currently we use longs in the compute engine and render to WKT in ESQL
-            return BlockSourceReader.longs(valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT));
+            return new BlockSourceReader.LongsBlockLoader(
+                valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKT)
+            );
         }
 
         @Override

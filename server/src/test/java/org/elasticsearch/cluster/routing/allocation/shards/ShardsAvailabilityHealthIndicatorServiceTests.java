@@ -60,7 +60,6 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
@@ -115,6 +114,7 @@ import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -832,16 +832,16 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
 
-        assertThat(result.status(), Matchers.is(HealthStatus.RED));
-        assertThat(result.diagnosisList().size(), Matchers.is(1));
+        assertThat(result.status(), is(HealthStatus.RED));
+        assertThat(result.diagnosisList().size(), is(1));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
-        assertThat("expecting we report a resource of type INDEX and one of type FEATURE_STATE", affectedResources.size(), Matchers.is(2));
+        assertThat("expecting we report a resource of type INDEX and one of type FEATURE_STATE", affectedResources.size(), is(2));
         for (Diagnosis.Resource resource : affectedResources) {
             if (resource.getType() == INDEX) {
                 assertThat(resource.getValues(), hasItems("regular-index"));
             } else {
-                assertThat(resource.getType(), Matchers.is(FEATURE_STATE));
+                assertThat(resource.getType(), is(FEATURE_STATE));
                 assertThat(resource.getValues(), hasItems("feature-with-system-data-stream", "feature-with-system-index"));
             }
         }
@@ -881,12 +881,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 10
             );
 
-            assertThat(affectedResources.size(), Matchers.is(2));
+            assertThat(affectedResources.size(), is(2));
             for (Diagnosis.Resource resource : affectedResources) {
                 if (resource.getType() == INDEX) {
                     assertThat(resource.getValues(), hasItems("regular-index"));
                 } else {
-                    assertThat(resource.getType(), Matchers.is(FEATURE_STATE));
+                    assertThat(resource.getType(), is(FEATURE_STATE));
                     assertThat(resource.getValues(), hasItems("feature-with-system-data-stream", "feature-with-system-index"));
                 }
             }
@@ -900,12 +900,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 0
             );
 
-            assertThat(affectedResources.size(), Matchers.is(2));
+            assertThat(affectedResources.size(), is(2));
             for (Diagnosis.Resource resource : affectedResources) {
                 if (resource.getType() == INDEX) {
                     assertThat(resource.getValues(), emptyCollectionOf(String.class));
                 } else {
-                    assertThat(resource.getType(), Matchers.is(FEATURE_STATE));
+                    assertThat(resource.getType(), is(FEATURE_STATE));
                     assertThat(resource.getValues(), emptyCollectionOf(String.class));
                 }
             }

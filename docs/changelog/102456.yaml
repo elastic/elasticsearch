@@ -1,0 +1,6 @@
+pr: 102456
+summary: Switch default logs template to use
+area: Data streams
+type: enhancement
+issues:
+ - 99872

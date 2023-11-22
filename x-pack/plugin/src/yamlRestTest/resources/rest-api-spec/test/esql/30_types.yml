@@ -739,6 +739,7 @@ _source disabled:
   - length: { values: 1 }
   - match: { values.0.0: null }
 
+---
 geo_point:
   - do:
       indices.create:
@@ -762,7 +763,7 @@ geo_point:
         - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
-        query: 'from test'
+          query: 'from test'
   - match: { columns.0.name: location }
   - match: { columns.0.type: geo_point }
   - length: { values: 1 }

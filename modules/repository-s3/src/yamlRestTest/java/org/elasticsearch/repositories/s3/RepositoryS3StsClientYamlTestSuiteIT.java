@@ -14,20 +14,17 @@ import fixture.s3.S3HttpFixtureWithSTS;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 public class RepositoryS3StsClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
-    static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE);
-    private static final S3HttpFixtureWithSTS s3Sts = new S3HttpFixtureWithSTS(USE_FIXTURE);
+    public static final S3HttpFixture s3Fixture = new S3HttpFixture();
+    private static final S3HttpFixtureWithSTS s3Sts = new S3HttpFixtureWithSTS();
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
@@ -43,11 +40,6 @@ public class RepositoryS3StsClientYamlTestSuiteIT extends AbstractRepositoryS3Cl
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(s3Sts).around(cluster);
-
-    @BeforeClass
-    public static void onlyWhenRunWithTestFixture() {
-        assumeTrue("Only run with fixture enabled", USE_FIXTURE);
-    }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {

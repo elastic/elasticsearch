@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -54,9 +55,10 @@ import static org.hamcrest.Matchers.not;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
+    static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 
     @ClassRule
-    public static MinioTestContainer minio = new MinioTestContainer(true);
+    public static MinioTestContainer minio = new MinioTestContainer(USE_FIXTURE);
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -100,7 +102,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         Settings.Builder settings = Settings.builder()
             .put("bucket", System.getProperty("test.s3.bucket"))
             .put("base_path", System.getProperty("test.s3.base", "testpath"));
-        final String endpoint = minio.getAddress();
+        final String endpoint = USE_FIXTURE ? minio.getAddress() : System.getProperty("test.s3.endpoint");
         if (endpoint != null) {
             settings.put("endpoint", endpoint);
         } else {

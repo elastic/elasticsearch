@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
 public class TestInferenceServicePlugin extends Plugin implements InferenceServicePlugin {
 
     @Override
@@ -159,9 +158,7 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             switch (model.getConfigurations().getTaskType()) {
                 case SPARSE_EMBEDDING -> {
                     var results = new ArrayList<TestResults>();
-                    input.forEach(i -> {
-                        results.add(new TestResults("bar"));
-                    });
+                    input.forEach(i -> { results.add(new TestResults("bar")); });
                     listener.onResponse(results);
                 }
                 default -> listener.onFailure(
@@ -222,9 +219,7 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             String model = (String) map.remove("model");
 
             if (model == null) {
-                validationException.addValidationError(
-                    "missing model"
-                );
+                validationException.addValidationError("missing model");
             }
 
             if (validationException.validationErrors().isEmpty() == false) {

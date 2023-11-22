@@ -1,0 +1,5 @@
+pr: 102492
+summary: Respect `ChunkedDataExtractor's` query in the wrapped `ScrollDataExtractor`
+area: Machine Learning
+type: bug
+issues: []

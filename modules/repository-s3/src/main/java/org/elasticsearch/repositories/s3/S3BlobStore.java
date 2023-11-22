@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -52,7 +53,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.repositories.RepositoriesModule.HTTP_REQUEST_TIME_IN_MICROS_COUNT;
+import static org.elasticsearch.repositories.RepositoriesModule.HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesModule.METRIC_REQUESTS_COUNT;
 
 class S3BlobStore implements BlobStore {
@@ -85,7 +86,7 @@ class S3BlobStore implements BlobStore {
     private final Executor snapshotExecutor;
     private final MeterRegistry meterRegistry;
     private final LongCounter requestCounter;
-    private final LongCounter httpRequestTimeInMicrosCounter;
+    private final LongHistogram httpRequestTimeInMicroHistogram;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
 
@@ -117,7 +118,7 @@ class S3BlobStore implements BlobStore {
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.meterRegistry = meterRegistry;
         this.requestCounter = this.meterRegistry.getLongCounter(METRIC_REQUESTS_COUNT); // here
-        this.httpRequestTimeInMicrosCounter = this.meterRegistry.getLongCounter(HTTP_REQUEST_TIME_IN_MICROS_COUNT);
+        this.httpRequestTimeInMicroHistogram = this.meterRegistry.getLongHistogram(HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM);
         s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
         threadPool.scheduleWithFixedDelay(() -> {
             var priorRetryStats = s3RequestRetryStats;
@@ -177,7 +178,7 @@ class S3BlobStore implements BlobStore {
                 assert assertConsistencyBetweenHttpRequestAndOperation(request, operation);
                 counter.add(getRequestCount(request));
                 requestCounter.incrementBy(getRequestCount(request), attributes);
-                httpRequestTimeInMicrosCounter.incrementBy(getHttpRequestTimeInMicros(request), attributes);
+                httpRequestTimeInMicroHistogram.record(getHttpRequestTimeInMicros(request), attributes);
             }
         }
 

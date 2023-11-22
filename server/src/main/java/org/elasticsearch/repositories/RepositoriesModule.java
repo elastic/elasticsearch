@@ -36,7 +36,7 @@ import java.util.function.BiConsumer;
 public final class RepositoriesModule {
 
     public static final String METRIC_REQUESTS_COUNT = "repositories.requests.count";
-    public static final String HTTP_REQUEST_TIME_IN_MICROS_COUNT = "repositories.requests.httpRequestTimeInMicros.count";
+    public static final String HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM = "repositories.requests.httpRequestTimeInMicros.histogram";
     private final RepositoriesService repositoriesService;
 
     public RepositoriesModule(
@@ -52,7 +52,7 @@ public final class RepositoriesModule {
         // TODO: refactor APM metrics into their own class, passed in as a dependancy.
         telemetryProvider.getMeterRegistry().registerLongCounter(METRIC_REQUESTS_COUNT, "repository request counter", "unit");
         telemetryProvider.getMeterRegistry()
-            .registerLongCounter(HTTP_REQUEST_TIME_IN_MICROS_COUNT, "HttpRequestTime in microseconds expressed as as a count", "micros");
+            .registerLongCounter(HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM, "HttpRequestTime in microseconds expressed as as a histogram", "micros");
 
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(

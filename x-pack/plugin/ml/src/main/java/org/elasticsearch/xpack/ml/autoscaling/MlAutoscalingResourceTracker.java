@@ -373,25 +373,30 @@ public final class MlAutoscalingResourceTracker {
             return false;
         }
 
-        Optional<MlJobRequirements> leastLodedNodeRequirements = Optional.ofNullable(perNodeJobRequirements.entrySet()
-            .stream()
-            .map(
-                entry -> tuple(
-                    entry.getKey(),
-                    entry.getValue()
-                        .stream()
-                        .reduce(
-                            MlJobRequirements.of(0L, 0, 0),
-                            (subtotal, element) -> MlJobRequirements.of(
-                                subtotal.memory + element.memory,
-                                subtotal.processors + element.processors,
-                                subtotal.jobs + element.jobs
+        Optional<MlJobRequirements> leastLodedNodeRequirements = Optional.ofNullable(
+            perNodeJobRequirements.entrySet()
+                .stream()
+                .map(
+                    entry -> tuple(
+                        entry.getKey(),
+                        entry.getValue()
+                            .stream()
+                            .reduce(
+                                MlJobRequirements.of(0L, 0, 0),
+                                (subtotal, element) -> MlJobRequirements.of(
+                                    subtotal.memory + element.memory,
+                                    subtotal.processors + element.processors,
+                                    subtotal.jobs + element.jobs
+                                )
                             )
-                        )
+                    )
                 )
-            ).min(Comparator.comparingLong(tuple -> tuple.v2().memory)).get().v2());
+                .min(Comparator.comparingLong(tuple -> tuple.v2().memory))
+                .get()
+                .v2()
+        );
 
-        assert(leastLodedNodeRequirements.isPresent());
+        assert (leastLodedNodeRequirements.isPresent());
         assert leastLodedNodeRequirements.get().memory >= 0L;
         assert leastLodedNodeRequirements.get().processors >= 0;
 

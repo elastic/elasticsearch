@@ -180,7 +180,7 @@ public class ChunkedDataExtractor implements DataExtractor {
     private void advanceTime() {
         currentStart = currentEnd;
         currentEnd = Math.min(currentStart + chunkSpan, context.end);
-        currentExtractor = dataExtractorFactory.newExtractor(currentStart, currentEnd);
+        currentExtractor = dataExtractorFactory.newExtractor(currentStart, currentEnd, context.query);
         LOGGER.trace("[{}] advances time to [{}, {})", context.jobId, currentStart, currentEnd);
     }
 

@@ -76,7 +76,7 @@ public interface DataExtractorFactory {
                 // TODO Rollup V2 will support runtime fields
                 listener.onFailure(
                     new IllegalArgumentException(
-                        "The datafeed has runtime_mappings defined, " + "runtime fields are not supported in rollup searches"
+                        "The datafeed has runtime_mappings defined, runtime fields are not supported in rollup searches"
                     )
                 );
                 return;

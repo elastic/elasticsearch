@@ -409,18 +409,18 @@ public abstract class TransportReplicationAction<
                     actualTerm
                 );
             }
-
-            acquirePrimaryOperationPermit(
-                indexShard,
-                primaryRequest.getRequest(),
-                ActionListener.wrap(releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)), e -> {
-                    if (e instanceof ShardNotInPrimaryModeException) {
-                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e));
-                    } else {
-                        onFailure(e);
-                    }
-                })
-            );
+            // primaryRequest.incRef(); // TODO: I think we don't actually need this b/c we're still in the same thread here
+            acquirePrimaryOperationPermit(indexShard, primaryRequest.getRequest(), ActionListener.wrap(releasable -> {
+                runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable));
+                // primaryRequest.decRef();
+            }, e -> {
+                // primaryRequest.decRef();
+                if (e instanceof ShardNotInPrimaryModeException) {
+                    onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e));
+                } else {
+                    onFailure(e);
+                }
+            }));
         }
 
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
@@ -592,9 +592,10 @@ public abstract class TransportReplicationAction<
         final Task task
     ) {
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
+        replicaRequest.incRef();
         ActionListener<ReplicaResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), () -> {
             releasable.close();
-            replicaRequest.close();
+            replicaRequest.decRef();
         });
         try {
             new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
@@ -1301,8 +1302,7 @@ public abstract class TransportReplicationAction<
     /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/
     public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest
         implements
-            RawIndexingDataTransportRequest,
-            Releasable {
+            RawIndexingDataTransportRequest {
 
         /** {@link AllocationId#getId()} of the shard this request is sent to **/
         private final String targetAllocationID;
@@ -1423,12 +1423,27 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void close() {
-            request.decRef();
+        public void incRef() {
+            request.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return request.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return request.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return request.hasReferences();
         }
     }
 
-    protected static final class ConcreteReplicaRequest<R extends TransportRequest> extends ConcreteShardRequest<R> implements Releasable {
+    protected static final class ConcreteReplicaRequest<R extends TransportRequest> extends ConcreteShardRequest<R> {
 
         private final long globalCheckpoint;
         private final long maxSeqNoOfUpdatesOrDeletes;

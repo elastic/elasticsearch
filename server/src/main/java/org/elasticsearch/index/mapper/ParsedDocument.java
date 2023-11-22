@@ -35,7 +35,7 @@ public class ParsedDocument implements Releasable {
 
     private final List<LuceneDocument> documents;
 
-    private ReleasableBytesReference source;
+    private BytesReference source;
     private XContentType xContentType;
 
     private Mapping dynamicMappingsUpdate;
@@ -59,7 +59,7 @@ public class ParsedDocument implements Releasable {
             "",
             null,
             Collections.singletonList(document),
-            ReleasableBytesReference.wrap(new BytesArray("{}")),
+            new BytesArray("{}"),
             XContentType.JSON,
             null
         );
@@ -83,7 +83,7 @@ public class ParsedDocument implements Releasable {
             id,
             null,
             Collections.singletonList(document),
-            ReleasableBytesReference.wrap(new BytesArray("{}")),
+            new BytesArray("{}"),
             XContentType.JSON,
             null
         );
@@ -99,20 +99,9 @@ public class ParsedDocument implements Releasable {
         XContentType xContentType,
         Mapping dynamicMappingsUpdate
     ) {
-        this(version, seqID, id, routing, documents, ReleasableBytesReference.wrap(source), xContentType, dynamicMappingsUpdate);
-    }
-
-    public ParsedDocument(
-        Field version,
-        SeqNoFieldMapper.SequenceIDFields seqID,
-        String id,
-        String routing,
-        List<LuceneDocument> documents,
-        ReleasableBytesReference source,
-        XContentType xContentType,
-        Mapping dynamicMappingsUpdate
-    ) {
-        source.incRef();
+        if (source instanceof ReleasableBytesReference releasableSource) {
+            releasableSource.incRef();
+        }
         this.version = version;
         this.seqID = seqID;
         this.id = id;
@@ -191,6 +180,8 @@ public class ParsedDocument implements Releasable {
 
     @Override
     public void close() {
-        source.decRef();
+        if (source instanceof ReleasableBytesReference releasableSource) {
+            releasableSource.decRef();
+        }
     }
 }

@@ -32,7 +32,6 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
     private final BulkItemRequest[] items;
-    private boolean closed = false;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
@@ -167,23 +166,18 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     public boolean tryIncRef() {
         boolean incremented = false;
         for (BulkItemRequest item : items) {
-            incremented = incremented || item.tryIncRef();
+            incremented = item.tryIncRef() || incremented;
         }
         return incremented;
     }
 
     @Override
     public boolean decRef() {
-        if (closed == false) {
-            boolean decremented = false;
-            for (BulkItemRequest item : items) {
-                decremented = decremented || item.decRef();
-            }
-            closed = true;
-            return decremented;
-        } else {
-            return true;
+        boolean decremented = false;
+        for (BulkItemRequest item : items) {
+            decremented = item.decRef() || decremented;
         }
+        return decremented;
     }
 
     @Override

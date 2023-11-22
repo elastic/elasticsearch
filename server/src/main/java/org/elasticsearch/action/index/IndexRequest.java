@@ -92,7 +92,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Nullable
     private String routing;
 
-    private ReleasableBytesReference source;
+    private BytesReference source;
 
     private OpType opType = OpType.INDEX;
 
@@ -379,7 +379,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * The source of the document to index, recopied to a new array if it is unsafe.
      */
-    public ReleasableBytesReference source() {
+    public BytesReference source() {
         return source;
     }
 
@@ -490,7 +490,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the document to index in bytes form.
      */
     public IndexRequest source(BytesReference source, XContentType xContentType) {
-        this.source = ReleasableBytesReference.wrap(Objects.requireNonNull(source));
+        this.source = Objects.requireNonNull(source);
         this.contentType = Objects.requireNonNull(xContentType);
         return this;
     }
@@ -879,22 +879,33 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public void incRef() {
-        source.tryIncRef();
+        if (source instanceof ReleasableBytesReference releasableSource) {
+            releasableSource.tryIncRef();
+        }
     }
 
     @Override
     public boolean tryIncRef() {
-        return source.tryIncRef();
+        if (source instanceof ReleasableBytesReference releasableSource) {
+            return releasableSource.tryIncRef();
+        }
+        return true;
     }
 
     @Override
     public boolean decRef() {
-        return source.decRef();
+        if (source instanceof ReleasableBytesReference releasableSource) {
+            return releasableSource.decRef();
+        }
+        return true;
     }
 
     @Override
     public boolean hasReferences() {
-        return source.hasReferences();
+        if (source instanceof ReleasableBytesReference releasableSource) {
+            return releasableSource.hasReferences();
+        }
+        return false;
     }
 
 }

@@ -19,7 +19,7 @@ import java.util.Objects;
 
 public class SourceToParse implements Releasable {
 
-    private final ReleasableBytesReference source;
+    private final BytesReference source;
 
     private final String id;
 
@@ -45,7 +45,7 @@ public class SourceToParse implements Releasable {
         if (source instanceof ReleasableBytesReference releasableSource) {
             this.source = releasableSource.retain();
         } else {
-            this.source = ReleasableBytesReference.wrap(source);
+            this.source = source;
         }
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
@@ -65,7 +65,7 @@ public class SourceToParse implements Releasable {
         return toBeReported;
     }
 
-    public ReleasableBytesReference source() {
+    public BytesReference source() {
         return this.source;
     }
 
@@ -101,6 +101,8 @@ public class SourceToParse implements Releasable {
 
     @Override
     public void close() {
-        this.source.decRef();
+        if (source instanceof ReleasableBytesReference releasableSource) {
+            releasableSource.decRef();
+        }
     }
 }

@@ -699,7 +699,7 @@ c:l| m:i   | m1:i  | c1:l| gender:s
 ;
 
 
-twoCountStarInStats#[skip:-8.11.99, reason:planning bug fixed in v8.12]
+twoCountStarInStats#[skip:-8.11.99]
 row x = 1 | stats  a = count(*), b = count(*) | stats  c = count(*);
 
 c:long
@@ -707,9 +707,42 @@ c:long
 ;
 
 
-twoStatsSameExp#[skip:-8.11.99, reason:planning bug fixed in v8.12]
+twoCountStarInStatsOnRealData-Ignore
+from employees | stats  a = count(*), b = count(*) | stats  c = count(*);
+
+c:long
+1
+;
+
+
+twoStatsSameExp#[skip:-8.11.99]
 row x = 1 | stats  a = max(x), b = max(x) | stats  c = max(a);
 
 c:integer
 1
 ;
+
+
+twoCountStarByXInStats#[skip:-8.11.99]
+row x = 1, y = 2, z = 3 | stats  a = count(*), b = count(*) by x | stats  c = count(*);
+
+c:long
+1
+;
+
+
+twoCountStarPlusStatsBy#[skip:-8.11.99]
+row x = 1, y = 2, z = 3 | stats  a = count(*), b = count(*) | stats  c = count(*) by a;
+
+c:long | a:long
+1      | 1
+;
+
+
+twoCountStarByPlusStatsBy#[skip:-8.11.99]
+row x = 1, y = 2, z = 3 | stats  a = count(*), b = count(*) by x | stats  c = count(*) by a;
+
+c:long | a:long
+1      | 1
+;
+

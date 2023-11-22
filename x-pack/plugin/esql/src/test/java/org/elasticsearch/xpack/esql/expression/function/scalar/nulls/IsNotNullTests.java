@@ -10,45 +10,64 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IsNotNullTests extends AbstractScalarFunctionTestCase {
+public class IsNotNullTests extends AbstractFunctionTestCase {
     public IsNotNullTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Keyword Not Null", () -> {
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(new BytesRef("cat"), DataTypes.KEYWORD, "exp")),
-                "IsNotNullEvaluator[field=Attribute[channel=0]]",
-                DataTypes.BOOLEAN,
-                equalTo(true)
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (DataType type : EsqlDataTypes.types()) {
+            if (false == EsqlDataTypes.isRepresentable(type)) {
+                continue;
+            }
+            if (type != DataTypes.NULL) {
+                suppliers.add(
+                    new TestCaseSupplier(
+                        "non-null " + type.typeName(),
+                        List.of(type),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(new TestCaseSupplier.TypedData(randomLiteral(type).value(), type, "v")),
+                            "IsNotNullEvaluator[field=Attribute[channel=0]]",
+                            DataTypes.BOOLEAN,
+                            equalTo(true)
+                        )
+                    )
+                );
+            }
+            suppliers.add(
+                new TestCaseSupplier(
+                    "null " + type.typeName(),
+                    List.of(type),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(new TestCaseSupplier.TypedData(null, type, "v")),
+                        "IsNotNullEvaluator[field=Attribute[channel=0]]",
+                        DataTypes.BOOLEAN,
+                        equalTo(false)
+                    )
+                )
             );
-        })));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.BOOLEAN;
+        }
+        return parameterSuppliersFromTypedData(failureForCasesWithoutExamples(suppliers));
     }
 
     @Override
@@ -57,24 +76,8 @@ public class IsNotNullTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(EsqlDataTypes.types().toArray(DataType[]::new)));
-    }
-
-    @Override
     protected Expression build(Source source, List<Expression> args) {
         return new IsNotNull(Source.EMPTY, args.get(0));
-    }
-
-    public void testAllTypes() {
-        for (DataType type : EsqlDataTypes.types()) {
-            if (DataTypes.isPrimitive(type) == false) {
-                continue;
-            }
-            Literal lit = randomLiteral(EsqlDataTypes.widenSmallNumericTypes(type));
-            assertThat(new IsNotNull(Source.EMPTY, lit).fold(), equalTo(lit.value() != null));
-            assertThat(new IsNotNull(Source.EMPTY, new Literal(Source.EMPTY, null, type)).fold(), equalTo(false));
-        }
     }
 
     @Override

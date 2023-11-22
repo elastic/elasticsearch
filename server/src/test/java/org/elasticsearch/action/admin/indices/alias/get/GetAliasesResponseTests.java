@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
+@UpdateForV9 // no need to round-trip these objects over the wire any more, we only need a checkEqualsAndHashCode test
 public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<GetAliasesResponse> {
 
     @Override
@@ -33,9 +35,8 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
 
     /**
      * NB prior to 8.12 get-aliases was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses so that
-     * older nodes can read them until we no longer need to support {@link org.elasticsearch.TransportVersions#CLUSTER_FEATURES_ADDED} and
-     * earlier. The reader implementation below is the production implementation from earlier versions, but moved here because it is unused
-     * in production now.
+     * older nodes can read them until we no longer need to support calling this action remotely. The reader implementation below is the
+     * production implementation from earlier versions, but moved here because it is unused in production now.
      */
     @Override
     protected Writeable.Reader<GetAliasesResponse> instanceReader() {

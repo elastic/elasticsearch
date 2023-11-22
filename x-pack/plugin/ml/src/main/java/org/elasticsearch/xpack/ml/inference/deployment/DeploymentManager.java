@@ -131,7 +131,7 @@ public class DeploymentManager {
     }
 
     public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
-        logger.info("[{}] Starting model deployment", task.getDeploymentId());
+        logger.info("[{}] Starting model deployment of model [{}]", task.getDeploymentId(), task.getModelId());
 
         if (processContextByAllocation.size() >= maxProcesses) {
             finalListener.onFailure(

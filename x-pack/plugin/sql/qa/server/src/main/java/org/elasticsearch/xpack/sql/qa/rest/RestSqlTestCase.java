@@ -1434,7 +1434,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(0, getNumberOfSearchContexts(provisioningClient(), "test"));
     }
 
-    private static void bulkLoadTestData(int count) throws IOException {
+    private void bulkLoadTestData(int count) throws IOException {
         Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
@@ -1801,7 +1801,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         expectDataStreamInShowTables(dataStreamName, "SHOW TABLES \\\"" + dataStreamName + "*\\\"");
     }
 
-    private static void expectDataStreamInShowTables(String dataStreamName, String sql) throws IOException {
+    private void expectDataStreamInShowTables(String dataStreamName, String sql) throws IOException {
         try {
             createDataStream(dataStreamName);
 

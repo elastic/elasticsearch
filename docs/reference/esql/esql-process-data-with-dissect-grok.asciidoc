@@ -164,13 +164,39 @@ matches a log line of this format:
 1.2.3.4 [2023-01-23T12:15:00.000Z] Connected
 ----
 
-and results in adding the following columns to the input table:
+Putting it together as an {esql} query:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=grokWithEscape]
+----
+
+`GROK` adds the following columns to the input table:
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 @timestamp:keyword | ip:keyword | status:keyword
 2023-01-23T12:15:00.000Z | 1.2.3.4 | Connected
 |===
+
+[NOTE]
+====
+
+Special regex characters in grok patterns, like `[` and `]` need to be escaped
+with a `\`. For example, in the earlier pattern:
+[source,txt]
+----
+%{IP:ip} \[%{TIMESTAMP_ISO8601:@timestamp}\] %{GREEDYDATA:status}
+----
+
+In {esql} queries, the backslash character itself is a special character that
+needs to be escaped with another `\`. For this example, the corresponding {esql}
+query becomes:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=grokWithEscape]
+----
+====
 
 [[esql-grok-patterns]]
 ===== Grok patterns
@@ -204,24 +230,6 @@ Grok is based on regular expressions. Any regular expressions are valid in grok
 as well. Grok uses the Oniguruma regular expression library. Refer to
 https://github.com/kkos/oniguruma/blob/master/doc/RE[the Oniguruma GitHub
 repository] for the full supported regexp syntax.
-
-[NOTE]
-====
-Special regex characters like `[` and `]` need to be escaped with a `\`. For 
-example, in the earlier pattern:
-[source,txt]
-----
-%{IP:ip} \[%{TIMESTAMP_ISO8601:@timestamp}\] %{GREEDYDATA:status}
-----
-
-In {esql} queries, the backslash character itself is a special character that
-needs to be escaped with another `\`. For this example, the corresponding {esql}
-query becomes:
-[source.merge.styled,esql]
-----
-include::{esql-specs}/docs.csv-spec[tag=grokWithEscape]
-----
-====
 
 [[esql-custom-patterns]]
 ===== Custom patterns

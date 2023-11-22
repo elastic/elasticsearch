@@ -33,7 +33,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -66,6 +65,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                 spec.getParameters().getUploadFile().set(targetFile);
                 spec.getParameters().getProjectDir().set(projectDir);
                 spec.getParameters().getFilteredFiles().addAll(getFlowProviders().getBuildWorkResult().map((result) -> {
+                    System.out.println("Build Finished Action: Collecting archive files...");
                     List<File> files = new ArrayList<>();
                     files.addAll(resolveProjectLogs(projectDir));
                     if (files.isEmpty() == false) {
@@ -188,14 +188,15 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                 TarArchiveOutputStream tOut = new TarArchiveOutputStream(bzOut)
             ) {
                 Path projectPath = projectDir.toPath();
-                tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
-                for (Path path : files.stream().map(File::toPath).collect(Collectors.toList())) {
+                tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
+                tOut.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_STAR);
+                for (Path path : files.stream().map(File::toPath).toList()) {
                     if (!Files.isRegularFile(path)) {
                         throw new IOException("Support only file!");
                     }
 
                     TarArchiveEntry tarEntry = new TarArchiveEntry(path.toFile(), calculateArchivePath(path, projectPath));
-
+                    tarEntry.setSize(Files.size(path));
                     tOut.putArchiveEntry(tarEntry);
 
                     // copy file to TarArchiveOutputStream

@@ -1404,7 +1404,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyNotClosed();
         final long time = System.nanoTime();
         // TODO: Transition this method to async to support async flush
-        PlainActionFuture<Engine.FlushResult> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
         getEngine().flush(force, waitIfOngoing, future);
         Engine.FlushResult flushResult = future.actionGet();
         flushMetric.inc(System.nanoTime() - time);
@@ -2006,7 +2006,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
-            final Engine newEngine = engineFactory.newReadWriteEngine(config);
+            final Engine newEngine = createEngine(config);
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
             // We set active because we are now writing operations to the engine; this way,
@@ -2019,6 +2019,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertSequenceNumbersInCommit();
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
         checkAndCallWaitForEngineOrClosedShardListeners();
+    }
+
+    // awful hack to work around problem in CloseFollowerIndexIT
+    static boolean suppressCreateEngineErrors;
+
+    private Engine createEngine(EngineConfig config) {
+        if (suppressCreateEngineErrors) {
+            try {
+                return engineFactory.newReadWriteEngine(config);
+            } catch (Error e) {
+                ExceptionsHelper.maybeDieOnAnotherThread(e);
+                throw new RuntimeException("rethrowing suppressed error", e);
+            }
+        } else {
+            return engineFactory.newReadWriteEngine(config);
+        }
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {
@@ -3823,16 +3839,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // lets skip this refresh since we are search idle and
                     // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
                     // cause the next schedule to refresh.
+                    logger.trace("scheduledRefresh: search-idle, skipping refresh");
                     engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
                     setRefreshPending(engine);
                     l.onResponse(false);
                     return;
                 } else {
-                    logger.trace("refresh with source [schedule]");
+                    logger.trace("scheduledRefresh: refresh with source [schedule]");
                     engine.maybeRefresh("schedule", l.map(Engine.RefreshResult::refreshed));
                     return;
                 }
             }
+            logger.trace("scheduledRefresh: no refresh needed");
             engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
             l.onResponse(false);
         });
@@ -3928,7 +3946,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // a refresh can be a costly operation, so we should fork to a refresh thread to be safe:
                 threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
                     if (location == pendingRefreshLocation.get()) {
-                        getEngine().maybeRefresh("ensure-shard-search-active", PlainActionFuture.newFuture());
+                        getEngine().maybeRefresh("ensure-shard-search-active", new PlainActionFuture<>());
                     }
                 });
             }

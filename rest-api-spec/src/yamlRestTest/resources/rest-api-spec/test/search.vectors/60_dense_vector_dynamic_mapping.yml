@@ -572,7 +572,11 @@ setup:
 
 ---
 "Fields mapped as dense_vector without dims or docs have correct cluster stats values":
-
+  # replace with 8.11.1 when the bug fix is backported to 8.11.2
+  - skip:
+      version: ' - 8.11.2'
+      reason: 'Bug fix was added in 8.11.2'
+      
   - do:
       indices.create:
         index: test-mapped-index
@@ -600,6 +604,10 @@ setup:
 
 ---
 "Fields mapped as dense_vector have correct cluster stats min max values":
+  # replace with 8.11.1 when the bug fix is backported to 8.11.2
+  - skip:
+      version: ' - 8.11.2'
+      reason: 'Bug fix was added in 8.11.2'
 
   - do:
       index:

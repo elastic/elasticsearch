@@ -361,7 +361,7 @@ public abstract class AbstractClient implements Client {
         ActionType<Response> action,
         Request request
     ) {
-        PlainActionFuture<Response> actionFuture = new PlainActionFuture<>();
+        PlainActionFuture<Response> actionFuture = new PlainActionFuture.ForRefCounted<>();
         execute(action, request, actionFuture);
         return actionFuture;
     }

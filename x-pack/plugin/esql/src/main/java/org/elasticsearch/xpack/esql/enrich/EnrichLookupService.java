@@ -272,7 +272,14 @@ public class EnrichLookupService {
                 fields.add(new ValuesSourceReaderOperator.FieldInfo(extractField.name(), loaders));
             }
             intermediateOperators.add(
-                new ValuesSourceReaderOperator(blockFactory, fields, List.of(searchContext.searcher().getIndexReader()), 0)
+                new ValuesSourceReaderOperator(
+                    blockFactory,
+                    fields,
+                    List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.searcher().getIndexReader(), () -> {
+                        throw new UnsupportedOperationException("can't load _source as part of enrich");
+                    })),
+                    0
+                )
             );
 
             // drop docs block

@@ -48,6 +48,7 @@ public class NodeMetrics {
     private LongUpDownCounter indicesTranslogUncommittedSize;
     private LongCounter indicesTranslogEarliestLastModifiedAge;
     private LongUpDownCounter httpCurrentOpen;
+    private LongCounter fsIOTotalTime;
 
     /**
      * Constructs a new NodeMetrics instance.
@@ -221,6 +222,13 @@ public class NodeMetrics {
             "bytes"
         );
         memPoolsOldUsed.incrementBy(bytesUsedByGCGen(stats.getJvm().getMem(), GcNames.OLD));
+
+        fsIOTotalTime = registry.registerLongCounter(
+            "es.node.stats.fs.io_stats.total.io_time",
+            "The total time in millis spent performing I/O operations across all devices used by Elasticsearch.",
+            "milliseconds"
+        );
+        fsIOTotalTime.incrementBy(stats.getFs().getIoStats().getTotalIOTimeMillis());
     }
 
     /**
@@ -311,6 +319,11 @@ public class NodeMetrics {
             oldStats.getIndices().getTranslog().getUncommittedSizeInBytes()
         );
         updateUpAndDownCounter(httpCurrentOpen, newStats.getHttp().getServerOpen(), oldStats.getHttp().getServerOpen());
+        incrementIfDeltaGreaterThanZero(
+            fsIOTotalTime,
+            newStats.getFs().getIoStats().getTotalIOTimeMillis(),
+            oldStats.getFs().getIoStats().getTotalIOTimeMillis()
+        );
     }
 
     /**

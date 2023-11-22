@@ -96,7 +96,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             // make sure that background merges won't happen; otherwise, IndexWriter#hasUncommittedChanges can become true again
             forceMerge(false, 1, false, UUIDs.randomBase64UUID());
             assertNotNull(indexWriter);
-            try (ReleasableLock ignored = writeLock.acquire()) {
+            try (ReleasableLock ignored = readLock.acquire()) {
                 assertThat(getTranslogStats().getUncommittedOperations(), equalTo(0));
                 Map<String, String> userData = new HashMap<>(getLastCommittedSegmentInfos().userData);
                 SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());

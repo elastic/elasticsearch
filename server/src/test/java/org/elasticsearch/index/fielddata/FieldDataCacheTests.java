@@ -86,20 +86,20 @@ public class FieldDataCacheTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         IndexWriter iw = new IndexWriter(dir, iwc);
-        long numDocs = randomIntBetween(8192, 2 * 8192);
+        long numDocs = randomIntBetween(66000, 70000);
 
         for (int i = 1; i <= numDocs; i++) {
             Document doc = new Document();
             doc.add(new SortedSetDocValuesField("field1", new BytesRef(String.valueOf(i))));
             iw.addDocument(doc);
-            if (i % 24 == 0) {
+            if (i % 10000 == 0) {
                 iw.commit();
             }
         }
         iw.close();
         DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("_index", "_na_", 0));
 
-        boolean[] called = new boolean[1];
+        int[] timesCalled = new int[1];
         SortedSetOrdinalsIndexFieldData sortedSetOrdinalsIndexFieldData = new SortedSetOrdinalsIndexFieldData(
             new DummyAccountingFieldDataCache(),
             "field1",
@@ -113,7 +113,7 @@ public class FieldDataCacheTests extends ESTestCase {
                         public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
                             assertThat(label, equalTo("Global Ordinals"));
                             assertThat(bytes, equalTo(0L));
-                            called[0] = true;
+                            timesCalled[0]++;
                         }
                     };
                 }
@@ -121,7 +121,7 @@ public class FieldDataCacheTests extends ESTestCase {
             MOCK_TO_SCRIPT_FIELD
         );
         sortedSetOrdinalsIndexFieldData.loadGlobal(ir);
-        assertThat(called[0], equalTo(true));
+        assertThat(timesCalled[0], equalTo(2));
 
         ir.close();
         dir.close();

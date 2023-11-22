@@ -54,13 +54,14 @@ public enum GlobalOrdinalsBuilder {
         }
         final TermsEnum[] termsEnums = new TermsEnum[subs.length];
         final long[] weights = new long[subs.length];
+        // we assume that TermsEnum are visited sequentially, so we can share the counter between them
         final long[] counter = new long[1];
         for (int i = 0; i < subs.length; ++i) {
             termsEnums[i] = new FilterLeafReader.FilterTermsEnum(subs[i].termsEnum()) {
                 @Override
                 public BytesRef next() throws IOException {
-                    // check parent circuit breaker every 8192 calls
-                    if ((++counter[0] & 0x1FFF) == 0x1FFF) {
+                    // check parent circuit breaker every 65536 calls
+                    if ((counter[0]++ & 0xFFFF) == 0) {
                         breaker.addEstimateBytesAndMaybeBreak(0L, "Global Ordinals");
                     }
                     return in.next();

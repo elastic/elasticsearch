@@ -56,7 +56,7 @@ public class FeatureService {
                     );
                 }
 
-                if (hfe.getValue().onOrAfter(CLUSTER_FEATURES_ADDED_VERSION)) {
+                if (hfe.getValue().after(CLUSTER_FEATURES_ADDED_VERSION)) {
                     throw new IllegalArgumentException(
                         Strings.format(
                             "Historical feature [%s] declared by [%s] for version [%s] is not a historical version",

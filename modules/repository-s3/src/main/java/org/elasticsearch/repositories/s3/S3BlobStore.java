@@ -117,7 +117,7 @@ class S3BlobStore implements BlobStore {
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.meterRegistry = meterRegistry;
-        this.requestCounter = this.meterRegistry.getLongCounter(METRIC_REQUESTS_COUNT); // here
+        this.requestCounter = this.meterRegistry.getLongCounter(METRIC_REQUESTS_COUNT);
         this.httpRequestTimeInMicroHistogram = this.meterRegistry.getLongHistogram(HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM);
         s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
         threadPool.scheduleWithFixedDelay(() -> {

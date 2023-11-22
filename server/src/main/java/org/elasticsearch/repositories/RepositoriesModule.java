@@ -36,7 +36,7 @@ import java.util.function.BiConsumer;
 public final class RepositoriesModule {
 
     public static final String METRIC_REQUESTS_COUNT = "repositories.requests.count";
-    public static final String HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM = "repositories.requests.httpRequestTimeInMicros.histogram";
+    public static final String HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM = "repositories.requests.http_request_time.histogram";
     private final RepositoriesService repositoriesService;
 
     public RepositoriesModule(
@@ -49,7 +49,7 @@ public final class RepositoriesModule {
         RecoverySettings recoverySettings,
         TelemetryProvider telemetryProvider
     ) {
-        // TODO: refactor APM metrics into their own class, passed in as a dependancy.
+        // TODO: refactor APM metrics into their own class, passed in as a dependency (e.g. see BlobCacheMetrics as an example).
         telemetryProvider.getMeterRegistry().registerLongCounter(METRIC_REQUESTS_COUNT, "repository request counter", "unit");
         telemetryProvider.getMeterRegistry()
             .registerLongCounter(

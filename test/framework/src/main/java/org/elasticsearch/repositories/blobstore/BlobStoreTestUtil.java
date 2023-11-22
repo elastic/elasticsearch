@@ -99,7 +99,7 @@ public final class BlobStoreTestUtil {
      * Same as {@link #assertConsistency(BlobStoreRepository)} but async so it can be used in tests that don't allow blocking.
      */
     public static PlainActionFuture<AssertionError> assertConsistencyAsync(BlobStoreRepository repository) {
-        final PlainActionFuture<AssertionError> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<AssertionError> future = new PlainActionFuture<>();
         repository.threadPool().generic().execute(ActionRunnable.wrap(future, listener -> {
             try {
                 final BlobContainer blobContainer = repository.blobContainer();
@@ -372,7 +372,7 @@ public final class BlobStoreTestUtil {
     }
 
     public static void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetadata> blobs) {
-        final PlainActionFuture<Map<String, BlobMetadata>> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Map<String, BlobMetadata>> future = new PlainActionFuture<>();
         repository.threadPool()
             .generic()
             .execute(

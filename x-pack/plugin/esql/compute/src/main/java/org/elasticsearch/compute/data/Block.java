@@ -11,6 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -23,12 +24,19 @@ import java.util.List;
  * position.
  *
  * <p> Blocks can represent various shapes of underlying data. A Block can represent either sparse
- * or dense data. A Block can represent either single or multi valued data. A Block that represents
+ * or dense data. A Block can represent either single or multivalued data. A Block that represents
  * dense single-valued data can be viewed as a {@link Vector}.
  *
- * <p> Block are immutable and can be passed between threads.
+ * <p> Blocks are reference counted; to make a shallow copy of a block (e.g. if a {@link Page} contains
+ * the same column twice), use {@link Block#incRef()}. Before a block is garbage collected,
+ * {@link Block#close()} must be called to release a block's resources; it must also be called one
+ * additional time for each time {@link Block#incRef()} was called. Calls to {@link Block#decRef()} and
+ * {@link Block#close()} are equivalent.
+ *
+ * <p> Block are immutable and can be passed between threads as long as no two threads hold a reference to
+ * the same block at the same time.
  */
-public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, Releasable {
+public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, RefCounted, Releasable {
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -57,14 +65,15 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     /** The block factory associated with this block. */
     BlockFactory blockFactory();
 
-    /** Tells if this block has been released. A block is released by calling its {@link Block#close()} method. */
+    /**
+     * Tells if this block has been released. A block is released by calling its {@link Block#close()} or {@link Block#decRef()} methods.
+     * @return true iff the block's reference count is zero.
+     * */
     boolean isReleased();
 
     /**
-     * Returns true if the value stored at the given position is null, false otherwise.
-     *
      * @param position the position
-     * @return true or false
+     * @return true if the value stored at the given position is null, false otherwise
      */
     boolean isNull(int position);
 
@@ -91,6 +100,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
 
     /**
      * Creates a new block that only exposes the positions provided. Materialization of the selected positions is avoided.
+     * The new block may hold a reference to this block, increasing this block's reference count.
      * @param positions the positions to retain
      * @return a filtered block
      */
@@ -137,6 +147,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
      * Expand multivalued fields into one row per value. Returns the
      * block if there aren't any multivalued fields to expand.
      */
+    // TODO: We should use refcounting instead of either deep copies or returning the same identical block.
     Block expand();
 
     /**
@@ -231,7 +242,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
 
     /**
      * A reference to a {@link Block}. This is {@link Releasable} and
-     * {@link Ref#close closing} it will {@link Block#close release}
+     * {@link Ref#close closing} it will {@link Block#close() release}
      * the underlying {@link Block} if it wasn't borrowed from a {@link Page}.
      *
      * The usual way to use this is:
@@ -248,6 +259,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
      * @param block the block referenced
      * @param containedIn the page containing it or null, if it is "free floating".
      */
+    // We probably want to remove this; instead, we could incRef and decRef consistently in the EvalOperator.
     record Ref(Block block, @Nullable Page containedIn) implements Releasable {
         /**
          * Create a "free floating" {@link Ref}.

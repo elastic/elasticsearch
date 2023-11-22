@@ -21,6 +21,7 @@ import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin;
 import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
@@ -35,6 +36,7 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.DependencySet;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
@@ -74,6 +76,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String PLUGINS_CONFIGURATION = "clusterPlugins";
     private static final String EXTRACTED_PLUGINS_CONFIGURATION = "extractedPlugins";
     private static final Attribute<String> CONFIGURATION_ATTRIBUTE = Attribute.of("test-cluster-artifacts", String.class);
+    private static final String FEATURES_METADATA_CONFIGURATION = "featuresMetadataDeps";
+    private static final String DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION = "defaultDistrofeaturesMetadataDeps";
+    private static final String TESTS_FEATURES_METADATA_PATH = "tests.features.metadata.path";
 
     private final ProviderFactory providerFactory;
 
@@ -107,6 +112,36 @@ public class RestTestBasePlugin implements Plugin<Project> {
         extractedPluginsConfiguration.extendsFrom(pluginsConfiguration);
         configureArtifactTransforms(project);
 
+        // Create configuration for aggregating historical feature metadata
+        FileCollection featureMetadataConfig = project.getConfigurations().create(FEATURES_METADATA_CONFIGURATION, c -> {
+            c.setCanBeConsumed(false);
+            c.setCanBeResolved(true);
+            c.attributes(
+                a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
+            );
+            c.defaultDependencies(d -> d.add(project.getDependencies().project(Map.of("path", ":server"))));
+            c.withDependencies(dependencies -> {
+                // We can't just use Configuration#extendsFrom() here as we'd inherit the wrong project configuration
+                copyDependencies(project, dependencies, modulesConfiguration);
+                copyDependencies(project, dependencies, pluginsConfiguration);
+            });
+        });
+
+        FileCollection defaultDistroFeatureMetadataConfig = project.getConfigurations()
+            .create(DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION, c -> {
+                c.setCanBeConsumed(false);
+                c.setCanBeResolved(true);
+                c.attributes(
+                    a -> a.attribute(
+                        ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE,
+                        HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE
+                    )
+                );
+                c.defaultDependencies(
+                    d -> d.add(project.getDependencies().project(Map.of("path", ":distribution", "configuration", "featuresMetadata")))
+                );
+            });
+
         // For plugin and module projects, register the current project plugin bundle as a dependency
         project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
@@ -123,6 +158,10 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
             task.dependsOn(integTestDistro, modulesConfiguration);
             registerDistributionInputs(task, integTestDistro);
+
+            // Pass feature metadata on to tests
+            task.getInputs().files(featureMetadataConfig).withPathSensitivity(PathSensitivity.NONE);
+            nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, () -> featureMetadataConfig.getAsPath());
 
             // Enable parallel execution for these tests since each test gets its own cluster
             task.setMaxParallelForks(task.getProject().getGradle().getStartParameter().getMaxWorkerCount() / 2);
@@ -163,6 +202,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         DEFAULT_DISTRIBUTION_SYSPROP,
                         providerFactory.provider(() -> defaultDistro.getExtracted().getSingleFile().getPath())
                     );
+
+                    // If we are using the default distribution we need to register all module feature metadata
+                    task.getInputs().files(defaultDistroFeatureMetadataConfig).withPathSensitivity(PathSensitivity.NONE);
+                    nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, defaultDistroFeatureMetadataConfig::getAsPath);
+
                     return null;
                 }
             });
@@ -196,6 +240,14 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 }
             });
         });
+    }
+
+    private void copyDependencies(Project project, DependencySet dependencies, Configuration configuration) {
+        configuration.getDependencies()
+            .stream()
+            .filter(d -> d instanceof ProjectDependency)
+            .map(d -> project.getDependencies().project(Map.of("path", ((ProjectDependency) d).getDependencyProject().getPath())))
+            .forEach(dependencies::add);
     }
 
     private ElasticsearchDistribution createDistribution(Project project, String name, String version) {

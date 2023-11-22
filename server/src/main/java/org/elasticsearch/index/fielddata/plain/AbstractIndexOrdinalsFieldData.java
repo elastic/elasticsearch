@@ -17,6 +17,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
@@ -136,7 +137,13 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
 
     @Override
     public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, toScriptFieldFactory);
+        return GlobalOrdinalsBuilder.build(
+            indexReader,
+            this,
+            breakerService.getBreaker(CircuitBreaker.FIELDDATA),
+            logger,
+            toScriptFieldFactory
+        );
     }
 
     @Override

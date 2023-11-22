@@ -62,7 +62,7 @@ public class BlockSourceReaderTests extends ESTestCase {
         assertThat(loader.rowStrideStoredFieldSpec(), equalTo(StoredFieldsSpec.NEEDS_SOURCE));
         BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
             StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
-            true
+            loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null
         );
         BlockLoader.Builder builder = loader.builder(TestBlock.FACTORY, 1);
         storedFields.advanceTo(0);

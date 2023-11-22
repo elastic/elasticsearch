@@ -520,7 +520,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 HierarchyCircuitBreakerService::realMemoryUsage,
                 createYoungGcCountSupplier(),
                 System::currentTimeMillis,
-                5000,
+                500,
                 lockTimeout
             );
         } else {
@@ -561,6 +561,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         private long blackHole;
         private final ReleasableLock lock = new ReleasableLock(new ReentrantLock());
+        // used to throttle logging
+        private int attemptNo;
 
         G1OverLimitStrategy(
             JvmInfo jvmInfo,
@@ -607,9 +609,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             boolean leader = false;
             int allocationIndex = 0;
             long allocationDuration = 0;
+            long begin = 0;
+            int attemptNoCopy = 0;
             try (ReleasableLock locked = lock.tryAcquire(lockTimeout)) {
                 if (locked != null) {
-                    long begin = timeSupplier.getAsLong();
+                    attemptNoCopy = ++this.attemptNo;
+                    begin = timeSupplier.getAsLong();
                     leader = begin >= lastCheckTime + minimumInterval;
                     overLimitTriggered(leader);
                     if (leader) {
@@ -641,9 +646,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         long now = timeSupplier.getAsLong();
                         this.lastCheckTime = now;
                         allocationDuration = now - begin;
+                        this.attemptNo = 0;
                     }
                 }
             } catch (InterruptedException e) {
+                logger.info("could not acquire lock when attempting to trigger G1GC due to high heap usage");
                 Thread.currentThread().interrupt();
                 // fallthrough
             }
@@ -657,6 +664,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         current,
                         allocationIndex,
                         allocationDuration
+                    );
+                } else if (attemptNoCopy < 10 || Long.bitCount(attemptNoCopy) == 1) {
+                    logger.info(
+                        "memory usage down after [{}], before [{}], after [{}]",
+                        begin - lastCheckTime,
+                        memoryUsed.baseUsage,
+                        current
                     );
                 }
                 return new MemoryUsage(
@@ -673,6 +687,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         current,
                         allocationIndex,
                         allocationDuration
+                    );
+                } else if (attemptNoCopy < 10 || Long.bitCount(attemptNoCopy) == 1) {
+                    logger.info(
+                        "memory usage not down after [{}], before [{}], after [{}]",
+                        begin - lastCheckTime,
+                        memoryUsed.baseUsage,
+                        current
                     );
                 }
                 // prefer original measurement when reporting if heap usage was not brought down.

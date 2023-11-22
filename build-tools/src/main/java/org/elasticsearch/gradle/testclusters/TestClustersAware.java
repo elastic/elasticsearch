@@ -46,11 +46,14 @@ public interface TestClustersAware extends Task {
 
     default void enableDebug() {
         int debugPort = 5007;
+        int cliDebugPort = 5107;
         for (ElasticsearchCluster cluster : getClusters()) {
             for (ElasticsearchNode node : cluster.getNodes()) {
-                getLogger().lifecycle("Running elasticsearch in debug mode, {} expecting running debug server on port {}", node, debugPort);
+                getLogger().lifecycle("Running elasticsearch in debug mode, {} expecting running debug server on port {}, cli expecting running debug server on port {}", node, debugPort, cliDebugPort);
                 node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
+                node.cliJvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + cliDebugPort);
                 debugPort += 1;
+                cliDebugPort += 1;
             }
         }
     }

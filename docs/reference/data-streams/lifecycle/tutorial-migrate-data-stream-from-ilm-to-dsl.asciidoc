@@ -21,7 +21,7 @@ two steps:
 
 1. Update the index template that's backing the data stream to set <<index-lifecycle-prefer-ilm, prefer_ilm>> 
 to `false`, and to configure data stream lifecycle. 
-2. Configure the data stream lifecycle for the _existing_ data streams using
+2. Configure the data stream lifecycle for the _existing_ data stream using
 the <<data-streams-put-lifecycle, lifecycle API>>.
 
 For more details see the <<migrate-from-ilm-to-dsl, migrate to data stream lifecycle>> section.

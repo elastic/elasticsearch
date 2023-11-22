@@ -82,7 +82,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
     @After
     public void stopSecondCluster() throws IOException {
-        IOUtils.close(secondCluster);
+        IOUtils.close(secondCluster::close);
     }
 
     @Override

@@ -33,6 +33,10 @@ public class S3HttpFixtureWithECS extends S3HttpFixtureWithEC2 {
         super(inetSocketAddress, strings);
     }
 
+    public S3HttpFixtureWithECS() {
+        this(true);
+    }
+
     @Override
     protected HttpHandler createHandler(final String[] args) {
         final String ecsAccessKey = Objects.requireNonNull(args[2]);

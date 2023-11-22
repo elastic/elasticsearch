@@ -175,7 +175,7 @@ in the index template).
 To migrate the `dsl-data-stream` to data stream lifecycle we'll have to execute
 two steps:
 
-1. Update the index template that's backing the data stream to configure <<index-lifecycle-prefer-ilm, prefer_ilm>> 
+1. Update the index template that's backing the data stream to set <<index-lifecycle-prefer-ilm, prefer_ilm>> 
 to `false`, and to configure data stream lifecycle. 
 2. Configure the data stream lifecycle for the _existing_ `dsl-data-stream` using
 the <<data-streams-put-lifecycle, lifecycle API>>.

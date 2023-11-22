@@ -28,13 +28,13 @@ public final class MultivalueDedupe {
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public static Block.Ref dedupeToBlockAdaptive(Block.Ref ref, BlockFactory blockFactory) {
-        return switch (ref.block().elementType()) {
-            case BOOLEAN -> new MultivalueDedupeBoolean(ref).dedupeToBlock(blockFactory);
-            case BYTES_REF -> new MultivalueDedupeBytesRef(ref).dedupeToBlockAdaptive(blockFactory);
-            case INT -> new MultivalueDedupeInt(ref).dedupeToBlockAdaptive(blockFactory);
-            case LONG -> new MultivalueDedupeLong(ref).dedupeToBlockAdaptive(blockFactory);
-            case DOUBLE -> new MultivalueDedupeDouble(ref).dedupeToBlockAdaptive(blockFactory);
+    public static Block dedupeToBlockAdaptive(Block block, BlockFactory blockFactory) {
+        return switch (block.elementType()) {
+            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block).dedupeToBlock(blockFactory);
+            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block).dedupeToBlockAdaptive(blockFactory);
+            case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockAdaptive(blockFactory);
+            case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockAdaptive(blockFactory);
+            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockAdaptive(blockFactory);
             default -> throw new IllegalArgumentException();
         };
     }
@@ -45,13 +45,13 @@ public final class MultivalueDedupe {
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public static Block.Ref dedupeToBlockUsingCopyMissing(Block.Ref ref, BlockFactory blockFactory) {
-        return switch (ref.block().elementType()) {
-            case BOOLEAN -> new MultivalueDedupeBoolean(ref).dedupeToBlock(blockFactory);
-            case BYTES_REF -> new MultivalueDedupeBytesRef(ref).dedupeToBlockUsingCopyMissing(blockFactory);
-            case INT -> new MultivalueDedupeInt(ref).dedupeToBlockUsingCopyMissing(blockFactory);
-            case LONG -> new MultivalueDedupeLong(ref).dedupeToBlockUsingCopyMissing(blockFactory);
-            case DOUBLE -> new MultivalueDedupeDouble(ref).dedupeToBlockUsingCopyMissing(blockFactory);
+    public static Block dedupeToBlockUsingCopyMissing(Block block, BlockFactory blockFactory) {
+        return switch (block.elementType()) {
+            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block).dedupeToBlock(blockFactory);
+            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
+            case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
+            case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
+            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
             default -> throw new IllegalArgumentException();
         };
     }
@@ -64,13 +64,13 @@ public final class MultivalueDedupe {
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public static Block.Ref dedupeToBlockUsingCopyAndSort(Block.Ref ref, BlockFactory blockFactory) {
-        return switch (ref.block().elementType()) {
-            case BOOLEAN -> new MultivalueDedupeBoolean(ref).dedupeToBlock(blockFactory);
-            case BYTES_REF -> new MultivalueDedupeBytesRef(ref).dedupeToBlockUsingCopyAndSort(blockFactory);
-            case INT -> new MultivalueDedupeInt(ref).dedupeToBlockUsingCopyAndSort(blockFactory);
-            case LONG -> new MultivalueDedupeLong(ref).dedupeToBlockUsingCopyAndSort(blockFactory);
-            case DOUBLE -> new MultivalueDedupeDouble(ref).dedupeToBlockUsingCopyAndSort(blockFactory);
+    public static Block dedupeToBlockUsingCopyAndSort(Block block, BlockFactory blockFactory) {
+        return switch (block.elementType()) {
+            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block).dedupeToBlock(blockFactory);
+            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
+            case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
+            case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
+            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
             default -> throw new IllegalArgumentException();
         };
     }
@@ -81,26 +81,33 @@ public final class MultivalueDedupe {
      */
     public static ExpressionEvaluator.Factory evaluator(ElementType elementType, ExpressionEvaluator.Factory field) {
         return switch (elementType) {
-            case BOOLEAN -> new EvaluatorFactory(
-                field,
-                (blockFactory, ref) -> new MultivalueDedupeBoolean(ref).dedupeToBlock(blockFactory)
-            );
-            case BYTES_REF -> new EvaluatorFactory(
-                field,
-                (blockFactory, ref) -> new MultivalueDedupeBytesRef(ref).dedupeToBlockAdaptive(blockFactory)
-            );
-            case INT -> new EvaluatorFactory(
-                field,
-                (blockFactory, ref) -> new MultivalueDedupeInt(ref).dedupeToBlockAdaptive(blockFactory)
-            );
-            case LONG -> new EvaluatorFactory(
-                field,
-                (blockFactory, ref) -> new MultivalueDedupeLong(ref).dedupeToBlockAdaptive(blockFactory)
-            );
-            case DOUBLE -> new EvaluatorFactory(
-                field,
-                (blockFactory, ref) -> new MultivalueDedupeDouble(ref).dedupeToBlockAdaptive(blockFactory)
-            );
+            case BOOLEAN -> new EvaluatorFactory(field, (blockFactory, ref) -> {
+                try (ref) {
+                    return Block.Ref.floating(new MultivalueDedupeBoolean((BooleanBlock) ref.block()).dedupeToBlock(blockFactory));
+                }
+            });
+            case BYTES_REF -> new EvaluatorFactory(field, (blockFactory, ref) -> {
+                try (ref) {
+                    return Block.Ref.floating(
+                        new MultivalueDedupeBytesRef((BytesRefBlock) ref.block()).dedupeToBlockAdaptive(blockFactory)
+                    );
+                }
+            });
+            case INT -> new EvaluatorFactory(field, (blockFactory, ref) -> {
+                try (ref) {
+                    return Block.Ref.floating(new MultivalueDedupeInt((IntBlock) ref.block()).dedupeToBlockAdaptive(blockFactory));
+                }
+            });
+            case LONG -> new EvaluatorFactory(field, (blockFactory, ref) -> {
+                try (ref) {
+                    return Block.Ref.floating(new MultivalueDedupeLong((LongBlock) ref.block()).dedupeToBlockAdaptive(blockFactory));
+                }
+            });
+            case DOUBLE -> new EvaluatorFactory(field, (blockFactory, ref) -> {
+                try (ref) {
+                    return Block.Ref.floating(new MultivalueDedupeDouble((DoubleBlock) ref.block()).dedupeToBlockAdaptive(blockFactory));
+                }
+            });
             case NULL -> field; // The page is all nulls and when you dedupe that it's still all nulls
             default -> throw new IllegalArgumentException("unsupported type [" + elementType + "]");
         };
@@ -121,8 +128,8 @@ public final class MultivalueDedupe {
             return new BatchEncoder.DirectNulls(ref.block());
         }
         var elementType = ref.block().elementType();
+        var block = ref.block();
         if (allowDirectEncoder && ref.block().mvDeduplicated()) {
-            var block = ref.block();
             return switch (elementType) {
                 case BOOLEAN -> new BatchEncoder.DirectBooleans((BooleanBlock) block);
                 case BYTES_REF -> new BatchEncoder.DirectBytesRefs((BytesRefBlock) block);
@@ -133,11 +140,11 @@ public final class MultivalueDedupe {
             };
         } else {
             return switch (elementType) {
-                case BOOLEAN -> new MultivalueDedupeBoolean(ref).batchEncoder(batchSize);
-                case BYTES_REF -> new MultivalueDedupeBytesRef(ref).batchEncoder(batchSize);
-                case INT -> new MultivalueDedupeInt(ref).batchEncoder(batchSize);
-                case LONG -> new MultivalueDedupeLong(ref).batchEncoder(batchSize);
-                case DOUBLE -> new MultivalueDedupeDouble(ref).batchEncoder(batchSize);
+                case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block).batchEncoder(batchSize);
+                case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block).batchEncoder(batchSize);
+                case INT -> new MultivalueDedupeInt((IntBlock) block).batchEncoder(batchSize);
+                case LONG -> new MultivalueDedupeLong((LongBlock) block).batchEncoder(batchSize);
+                case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).batchEncoder(batchSize);
                 default -> throw new IllegalArgumentException();
             };
         }

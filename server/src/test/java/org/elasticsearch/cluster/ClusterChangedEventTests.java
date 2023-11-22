@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.ClusterChangedEventUtils;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -549,7 +550,7 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
         final ClusterState newState = nextState(previousState, changeClusterUUID, addedIndices, delIndices, 0);
         ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, previousState);
-        final List<String> addsFromEvent = indicesCreated(event);
+        final List<String> addsFromEvent = ClusterChangedEventUtils.indicesCreated(event);
         List<Index> delsFromEvent = event.indicesDeleted();
         assertThat(new HashSet<>(addsFromEvent), equalTo(addedIndices.stream().map(Index::getName).collect(Collectors.toSet())));
         assertThat(new HashSet<>(delsFromEvent), equalTo(new HashSet<>(delIndices)));
@@ -558,28 +559,6 @@ public class ClusterChangedEventTests extends ESTestCase {
         final IndexGraveyard oldGraveyard = event.previousState().metadata().indexGraveyard();
         assertThat(((IndexGraveyard.IndexGraveyardDiff) newGraveyard.diff(oldGraveyard)).getAdded().size(), equalTo(delIndices.size()));
         return newState;
-    }
-
-    private static List<String> indicesCreated(final ClusterChangedEvent event) {
-        if (event.metadataChanged() == false) {
-            return Collections.emptyList();
-        }
-        final ClusterState state = event.state();
-        final ClusterState previousState = event.previousState();
-        final List<String> created = new ArrayList<>();
-        for (Map.Entry<String, IndexMetadata> cursor : state.metadata().indices().entrySet()) {
-            final String index = cursor.getKey();
-            if (previousState.metadata().hasIndex(index)) {
-                final IndexMetadata currIndexMetadata = cursor.getValue();
-                final IndexMetadata prevIndexMetadata = previousState.metadata().index(index);
-                if (currIndexMetadata.getIndexUUID().equals(prevIndexMetadata.getIndexUUID()) == false) {
-                    created.add(index);
-                }
-            } else {
-                created.add(index);
-            }
-        }
-        return Collections.unmodifiableList(created);
     }
 
     private enum TombstoneDeletionQuantity {

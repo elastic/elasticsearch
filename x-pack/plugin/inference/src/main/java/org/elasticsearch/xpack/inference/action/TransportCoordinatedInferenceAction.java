@@ -19,16 +19,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
@@ -46,7 +44,6 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
 
     @Inject
     public TransportCoordinatedInferenceAction(
-        String actionName,
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
@@ -54,7 +51,13 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry
     ) {
-        super(actionName, transportService, actionFilters, CoordinatedInferenceAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            CoordinatedInferenceAction.NAME,
+            transportService,
+            actionFilters,
+            CoordinatedInferenceAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
@@ -70,7 +73,7 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
         if (request.hasInferenceConfig() || request.hasObjects()) {
             tryInClusterModel(request, listener);
         } else {
-            tryInferenceServiceModel(request,listener);
+            tryInferenceServiceModel(request, listener);
         }
     }
 
@@ -84,40 +87,40 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
                 client,
                 INFERENCE_ORIGIN,
                 InferenceAction.INSTANCE,
-                new InferenceAction.Request(
-                    unparsedModel.taskType(),
-                    request.getModelId(),
-                    request.getInputs().get(0),
-                    request.getTaskSettings()
-                ),
-                ActionListener.wrap(r -> translateInferenceResponse(r.getResult(), listener),
-                    e -> handleInferenceServiceModelFailure(e, request, listener))
+                new InferenceAction.Request(unparsedModel.taskType(), request.getModelId(), request.getInputs(), request.getTaskSettings()),
+                ActionListener.wrap(
+                    r -> translateInferenceResponse(r.getResults(), listener),
+                    e -> handleInferenceServiceModelFailure(e, request, listener)
+                )
             );
         }, listener::onFailure);
 
-        modelRegistry.getModel(request.getModelId(), modelMapListener);
+        modelRegistry.getUnparsedModelMap(request.getModelId(), modelMapListener);
     }
 
-    private void tryInClusterModel(CoordinatedInferenceAction.Request request, ActionListener<CoordinatedInferenceAction.Response> listener) {
-        var inferModelRequest = request.hasObjects() ? InferModelAction.Request.forIngestDocs(
-            request.getModelId(),
-            request.getObjectsToInfer(),
-            request.getInferenceConfigUpdate(),
-            request.getPreviouslyLicensed()
-        ) :
-            InferModelAction.Request.forTextInput(request.getModelId(), request.getInferenceConfigUpdate(), request.getInputs());
-
-
-        executeAsyncWithOrigin(
-            client,
-            ML_ORIGIN,
-            InferModelAction.INSTANCE,
-            inferModelRequest,
-            ActionListener.wrap(
-                r -> { listener.onResponse(new CoordinatedInferenceAction.Response(r.getInferenceResults().get(0))); },
-                e -> handleDfaModelError(e, request, listener)
+    private void tryInClusterModel(
+        CoordinatedInferenceAction.Request request,
+        ActionListener<CoordinatedInferenceAction.Response> listener
+    ) {
+        var inferModelRequest = request.hasObjects()
+            ? InferModelAction.Request.forIngestDocs(
+                request.getModelId(),
+                request.getObjectsToInfer(),
+                request.getInferenceConfigUpdate(),
+                request.getPreviouslyLicensed(),
+                request.getInferenceTimeout() // TODO is this timeout right
             )
-        );
+            : InferModelAction.Request.forTextInput(
+                request.getModelId(),
+                request.getInferenceConfigUpdate(),
+                request.getInputs(),
+                true,
+                request.getInferenceTimeout()
+            );
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, InferModelAction.INSTANCE, inferModelRequest, ActionListener.wrap(r -> {
+            listener.onResponse(new CoordinatedInferenceAction.Response(r.getInferenceResults()));
+        }, e -> handleDfaModelError(e, request, listener)));
     }
 
     private void handleInferenceServiceModelFailure(
@@ -160,13 +163,11 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
     }
 
     private void lookForInferenceServiceModelWithId(String modelId, ActionListener<Optional<ModelRegistry.ModelConfigMap>> listener) {
-        modelRegistry.getModel(modelId, ActionListener.wrap(r -> listener.onResponse(Optional.of(r)), e -> Optional.empty()));
+        modelRegistry.getUnparsedModelMap(modelId, ActionListener.wrap(r -> listener.onResponse(Optional.of(r)), e -> Optional.empty()));
     }
 
-
-
     static void translateInferenceResponse(
-        InferenceResults inferenceResults,
+        List<? extends InferenceResults> inferenceResults,
         ActionListener<CoordinatedInferenceAction.Response> listener
     ) {
         listener.onResponse(new CoordinatedInferenceAction.Response(inferenceResults));

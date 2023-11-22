@@ -247,20 +247,20 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
 
     public static class Response extends ActionResponse {
 
-        private final InferenceResults inferenceResult;
+        private final List<? extends InferenceResults> inferenceResults;
 
-        public Response(InferenceResults inferenceResult) {
-            this.inferenceResult = inferenceResult;
+        public Response(List<? extends InferenceResults> inferenceResults) {
+            this.inferenceResults = inferenceResults;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            inferenceResult = in.readOptionalNamedWriteable(InferenceResults.class);
+            inferenceResults = in.readNamedWriteableCollectionAsList(InferenceResults.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalNamedWriteable(inferenceResult);
+            out.writeNamedWriteableCollection(inferenceResults);
         }
 
         @Override
@@ -268,12 +268,12 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return Objects.equals(inferenceResult, response.inferenceResult);
+            return Objects.equals(inferenceResults, response.inferenceResults);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceResult);
+            return Objects.hash(inferenceResults);
         }
     }
 }

@@ -1,7 +1,7 @@
 {
   "inference.delete_model":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-inference-api.html",
+      "url":"in",
       "description":"Delete model in the Inference API"
     },
     "stability":"experimental",

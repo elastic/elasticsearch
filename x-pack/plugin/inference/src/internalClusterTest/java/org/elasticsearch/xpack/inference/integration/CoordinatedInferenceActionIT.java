@@ -7,25 +7,39 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class CoordinatedInferenceActionIT extends ESIntegTestCase {
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        // entries.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        return new NamedXContentRegistry(entries);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -46,14 +60,22 @@ public class CoordinatedInferenceActionIT extends ESIntegTestCase {
         return client -> client.filterWithHeader(headers);
     }
 
-    private void creatDfaModel(String modelId) {
-        PyTorchModelIT
-//        Request request = new Request("PUT", "_ml/trained_models/" + modelId);
-//        request.setJsonEntity(REGRESSION_CONFIG);
-//        client().execute(PutTrainedModelAction.Request);
-//        this.cli
+    public void testMultipleModels() throws IOException {
+        // createDfaModel("dfa_regression");
+        // createInferenceServiceModel("inference_service_model");
     }
 
+    private void createDfaModel(String modelId) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, REGRESSION_CONFIG)) {
+            var dfaModelConfig = PutTrainedModelAction.Request.parseRequest(modelId, false, false, parser);
+            var putResponse = client().execute(PutTrainedModelAction.INSTANCE, dfaModelConfig).actionGet();
+            assertThat(putResponse.getResponse(), notNullValue());
+        }
+    }
+
+    private void createInferenceServiceModel(String modelId) {
+        MockInferenceServiceIT.putMockService(client(), modelId, "mock_service", TaskType.SPARSE_EMBEDDING);
+    }
 
     // Copied from {@link org.elasticsearch.xpack.ml.integration.InferenceIT}
     // TODO it should be possible to share this code rather than copying it

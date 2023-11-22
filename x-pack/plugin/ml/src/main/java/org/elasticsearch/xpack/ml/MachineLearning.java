@@ -656,15 +656,18 @@ public class MachineLearning extends Plugin
         Property.NodeScope
     );
 
-    // Serverless only - trigger scale up if necessary
+    // The next two settings currently only have an effect in serverless. They can be set as overrides to
+    // trigger a scale up of the ML tier so that it could accommodate the dummy entity in addition to
+    // whatever the standard autoscaling formula thinks is necessary.
     public static final Setting<ByteSizeValue> DUMMY_ENTITY_MEMORY = Setting.memorySizeSetting(
         "xpack.ml.dummy_entity_memory",
-        ByteSizeValue.ofBytes(0),
+        ByteSizeValue.ZERO,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     public static final Setting<Integer> DUMMY_ENTITY_PROCESSORS = Setting.intSetting(
         "xpack.ml.dummy_entity_processors",
+        0,
         0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

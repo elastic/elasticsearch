@@ -204,7 +204,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(2, stats.nodes());
                 assertEquals(1, stats.minNodes());
                 assertEquals(0, stats.extraProcessors());
-                assertEquals(0, stats.modelMemoryInBytesSum());
+                assertEquals(memory / 4, stats.modelMemoryInBytesSum());
                 assertEquals(0, stats.processorsSum());
                 assertEquals(0, stats.extraSingleNodeProcessors());
                 assertEquals(memory / 4, stats.extraSingleNodeModelMemoryInBytes());
@@ -230,8 +230,8 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(2, stats.nodes());
                 assertEquals(1, stats.minNodes());
                 assertEquals(0, stats.extraProcessors());
-                assertEquals(0, stats.modelMemoryInBytesSum());
-                assertEquals(0, stats.processorsSum());
+                assertEquals(memory / 4, stats.modelMemoryInBytesSum());
+                assertEquals(1, stats.processorsSum());
                 assertEquals(0, stats.extraSingleNodeProcessors());
                 assertEquals(memory / 4, stats.extraSingleNodeModelMemoryInBytes());
                 assertEquals(memory / 4, stats.extraModelMemoryInBytes());

@@ -94,7 +94,8 @@ public final class MlAutoscalingResourceTracker {
             : 0;
 
         MlDummyAutoscalingEntity mlDummyAutoscalingEntity = new MlDummyAutoscalingEntity(
-            DUMMY_ENTITY_MEMORY.get(settings).getBytes(),
+            // Treat a ByteSizeValue of -1 as 0, since 0 is the default dummy entity size
+            Math.max(0L, DUMMY_ENTITY_MEMORY.get(settings).getBytes()),
             DUMMY_ENTITY_PROCESSORS.get(settings)
         );
 
@@ -278,19 +279,7 @@ public final class MlAutoscalingResourceTracker {
         }
 
         // dummy autoscaling entity
-        //
-        // Is there enough capacity to accommodate the dummy entity?
-        // If there exists a node that can accommodate the dummy entity then return true (nothing to do),
-        // else return false and increment the memory and processor counts accordingly.
-        //
-        // We perform the calculation by identifying the least loaded node in terms of memory
-        // and determining if the addition of the dummy entity's memory & processor requirements could
-        // be accommodated on it.
-        //
-        // If the calculation returns false then treat the case as for a single trained model job
-        // that is already assigned, i.e. increment modelMemoryBytesSum and processorsSum appropriately.
-        //
-        if (checkIfDummyEntityCanBeAccommodatedOnLeastLoadedNode(
+        if (dummyEntityFitsOnLeastLoadedNode(
             perNodeModelMemoryInBytes,
             perNodeAvailableModelMemoryInBytes,
             perNodeAvailableProcessors,
@@ -353,13 +342,23 @@ public final class MlAutoscalingResourceTracker {
      * Check if the dummy autoscaling entity task can be added by placing
      * the task on the least loaded node.
      *
+     * If there exists a node that can accommodate the dummy entity then return true (nothing to do),
+     * else return false and increment the memory and processor counts accordingly.
+     *
+     * We perform the calculation by identifying the least loaded node in terms of memory
+     * and determining if the addition of the dummy entity's memory and processor requirements could
+     * be accommodated on it.
+     *
+     * If the calculation returns false then treat the case as for a single trained model job
+     * that is already assigned, i.e. increment modelMemoryBytesSum and processorsSum appropriately.
+     *
      * @param perNodeJobRequirements per Node lists of requirements
      * @param perNodeMemoryInBytes total model memory available on every node
      * @param perNodeProcessors total processors on every node
      * @param dummyAutoscalingEntity "dummy" entity requirements used to potentially trigger a scaling event
      * @return true if the dummy entity can be accommodated, false if not
      */
-    static boolean checkIfDummyEntityCanBeAccommodatedOnLeastLoadedNode(
+    static boolean dummyEntityFitsOnLeastLoadedNode(
         Map<String, List<MlJobRequirements>> perNodeJobRequirements, // total up requirements...
         long perNodeMemoryInBytes,
         int perNodeProcessors,
@@ -370,11 +369,11 @@ public final class MlAutoscalingResourceTracker {
             return true;
         }
 
-        if (perNodeJobRequirements.size() <= 1) {
-            return true;
+        if (perNodeJobRequirements.size() < 1) {
+            return false;
         }
 
-        Map<String, MlJobRequirements> perNodeMlJobRequirementSum = perNodeJobRequirements.entrySet()
+        Optional<MlJobRequirements> leastLodedNodeRequirements = Optional.ofNullable(perNodeJobRequirements.entrySet()
             .stream()
             .map(
                 entry -> tuple(
@@ -390,26 +389,19 @@ public final class MlAutoscalingResourceTracker {
                             )
                         )
                 )
-            )
-            .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+            ).min(Comparator.comparingLong(tuple -> tuple.v2().memory)).get().v2());
 
-        // check least loaded based on memory...
-        Optional<Map.Entry<String, MlJobRequirements>> leastLoadedNodeAndMemoryUsage = perNodeMlJobRequirementSum.entrySet()
-            .stream()
-            .min(Comparator.comparingLong(entry -> entry.getValue().memory));
+        assert(leastLodedNodeRequirements.isPresent());
+        assert leastLodedNodeRequirements.get().memory >= 0L;
+        assert leastLodedNodeRequirements.get().processors >= 0;
 
-        if (leastLoadedNodeAndMemoryUsage.isPresent()) {
-            // Check if the dummy entity could be accommodated
-            assert leastLoadedNodeAndMemoryUsage.get().getValue().memory >= 0L;
-            assert leastLoadedNodeAndMemoryUsage.get().getValue().processors >= 0;
+        // Check if the dummy entity could be accommodated
+        if (leastLodedNodeRequirements.get().memory + dummyAutoscalingEntity.memory > perNodeMemoryInBytes) {
+            return false;
+        }
 
-            if (leastLoadedNodeAndMemoryUsage.get().getValue().memory + dummyAutoscalingEntity.memory > perNodeMemoryInBytes) {
-                return false;
-            }
-
-            if (leastLoadedNodeAndMemoryUsage.get().getValue().processors + dummyAutoscalingEntity.processors > perNodeProcessors) {
-                return false;
-            }
+        if (leastLodedNodeRequirements.get().processors + dummyAutoscalingEntity.processors > perNodeProcessors) {
+            return false;
         }
 
         return true;

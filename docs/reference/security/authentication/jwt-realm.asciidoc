@@ -123,8 +123,9 @@ Instructs the realm to treat and validate incoming JWTs as ID Tokens (`id_token`
 Specifies the client authentication type as `shared_secret`, which means that
 the client is authenticated using an HTTP request header that must match a
 pre-configured secret value. The client must provide this shared secret with
-every request in the `ES-Client-Authentication` header. The header value must be a
-case-sensitive match to the realm's `client_authentication.shared_secret`.
+every request in the `ES-Client-Authentication` header and using the
+`SharedSecret` scheme. The header value must be a case-sensitive match
+to the realm's `client_authentication.shared_secret`.
 
 `allowed_issuer`::
 Sets a verifiable identifier for your JWT issuer. This value is typically a
@@ -519,6 +520,7 @@ After mapping the roles, you can make an
 <<security-api-authenticate,authenticated call>> to {es} using a JWT and include
 the `ES-Client-Authentication` header:
 
+[[jwt-auth-shared-secret-scheme-example]]
 [source,sh]
 ----
 curl -s -X GET -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhdWQiOlsiZXMwMSIsImVzMDIiLCJlczAzIl0sInN1YiI6InVzZXIyIiwiaXNzIjoibXktaXNzdWVyIiwiZXhwIjo0MDcwOTA4ODAwLCJpYXQiOjk0NjY4NDgwMCwiZW1haWwiOiJ1c2VyMkBzb21ldGhpbmcuZXhhbXBsZS5jb20ifQ.UgO_9w--EoRyUKcWM5xh9SimTfMzl1aVu6ZBsRWhxQA" -H "ES-Client-Authentication: sharedsecret test-secret" https://localhost:9200/_security/_authenticate

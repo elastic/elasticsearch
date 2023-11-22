@@ -3536,7 +3536,11 @@ public class IndexShardTests extends IndexShardTestCase {
                 IndexShardRecoveryException.class,
                 () -> newStartedShard(p -> corruptedShard, true)
             );
-            assertThat(indexShardRecoveryException.getMessage(), equalTo("failed recovery"));
+            assertThat(indexShardRecoveryException.getMessage(), equalTo("failed to recover from gateway"));
+            assertThat(
+                asInstanceOf(RecoveryFailedException.class, indexShardRecoveryException.getCause()).getMessage(),
+                containsString("Recovery failed")
+            );
 
             appender.assertAllExpectationsMatched();
         } finally {

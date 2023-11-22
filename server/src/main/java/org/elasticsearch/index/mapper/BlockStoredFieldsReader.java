@@ -9,10 +9,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader.BytesRefBuilder;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,86 +28,101 @@ import java.util.Set;
  * doc values because, for now, ESQL only knows how to load things in a doc values
  * order.
  */
-public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
-    public static BlockLoader bytesRefsFromBytesRefs(String field) {
-        StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(field));
-        return context -> new Bytes(loader.getLoader(context, null), field) {
-            @Override
-            protected BytesRef toBytesRef(Object v) {
-                return (BytesRef) v;
-            }
-        };
-    }
-
-    public static BlockLoader bytesRefsFromStrings(String field) {
-        StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(field));
-        return context -> new Bytes(loader.getLoader(context, null), field) {
-            private final BytesRef scratch = new BytesRef();
-
-            @Override
-            protected BytesRef toBytesRef(Object v) {
-                return toBytesRef(scratch, (String) v);
-            }
-        };
-    }
-
-    public static BlockLoader id() {
-        StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(IdFieldMapper.NAME));
-        return context -> new Id(loader.getLoader(context, null));
-    }
-
-    private final LeafStoredFieldLoader loader;
-    private int docID = -1;
-
-    protected BlockStoredFieldsReader(LeafStoredFieldLoader loader) {
-        this.loader = loader;
-    }
-
+public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideReader {
     @Override
-    public final BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) throws IOException {
-        try (BlockLoader.Builder builder = builder(factory, docs.count())) {
-            for (int i = 0; i < docs.count(); i++) {
-                readValuesFromSingleDoc(docs.get(i), builder);
-            }
-            return builder.build();
+    public boolean canReuse(int startingDocID) {
+        return true;
+    }
+
+    private abstract static class StoredFieldsBlockLoader implements BlockLoader {
+        protected final String field;
+
+        StoredFieldsBlockLoader(String field) {
+            this.field = field;
+        }
+
+        @Override
+        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
+            return null;
+        }
+
+        @Override
+        public final StoredFieldsSpec rowStrideStoredFieldSpec() {
+            return new StoredFieldsSpec(false, false, Set.of(field));
+        }
+
+        @Override
+        public final boolean supportsOrdinals() {
+            return false;
+        }
+
+        @Override
+        public final SortedSetDocValues ordinals(LeafReaderContext context) {
+            throw new UnsupportedOperationException();
         }
     }
 
-    @Override
-    public final void readValuesFromSingleDoc(int docId, BlockLoader.Builder builder) throws IOException {
-        if (docId < this.docID) {
-            throw new IllegalStateException("docs within same block must be in order");
+    /**
+     * Load {@link BytesRef} blocks from stored {@link BytesRef}s.
+     */
+    public static class BytesFromBytesRefsBlockLoader extends StoredFieldsBlockLoader {
+        public BytesFromBytesRefsBlockLoader(String field) {
+            super(field);
         }
-        this.docID = docId;
-        loader.advanceTo(docId);
-        read(loader, builder);
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+            return new Bytes(field) {
+                @Override
+                protected BytesRef toBytesRef(Object v) {
+                    return (BytesRef) v;
+                }
+            };
+        }
     }
 
-    protected abstract void read(LeafStoredFieldLoader loader, BlockLoader.Builder builder) throws IOException;
+    /**
+     * Load {@link BytesRef} blocks from stored {@link String}s.
+     */
+    public static class BytesFromStringsBlockLoader extends StoredFieldsBlockLoader {
+        public BytesFromStringsBlockLoader(String field) {
+            super(field);
+        }
 
-    @Override
-    public final int docID() {
-        return docID;
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+            return new Bytes(field) {
+                private final BytesRef scratch = new BytesRef();
+
+                @Override
+                protected BytesRef toBytesRef(Object v) {
+                    return BlockSourceReader.toBytesRef(scratch, (String) v);
+                }
+            };
+        }
     }
 
     private abstract static class Bytes extends BlockStoredFieldsReader {
         private final String field;
 
-        Bytes(LeafStoredFieldLoader loader, String field) {
-            super(loader);
+        Bytes(String field) {
             this.field = field;
-        }
-
-        @Override
-        public BytesRefBuilder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
-            return factory.bytesRefs(expectedCount);
         }
 
         protected abstract BytesRef toBytesRef(Object v);
 
         @Override
-        protected void read(LeafStoredFieldLoader loader, BlockLoader.Builder builder) throws IOException {
-            List<Object> values = loader.storedFields().get(field);
+        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+            List<Object> values = storedFields.storedFields().get(field);
             if (values == null) {
                 builder.appendNull();
                 return;
@@ -128,21 +144,31 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
         }
     }
 
-    private static class Id extends BlockStoredFieldsReader {
-        private final BytesRef scratch = new BytesRef();
-
-        Id(LeafStoredFieldLoader loader) {
-            super(loader);
+    /**
+     * Load {@link BytesRef} blocks from stored {@link String}s.
+     */
+    public static class IdBlockLoader extends StoredFieldsBlockLoader {
+        public IdBlockLoader() {
+            super(IdFieldMapper.NAME);
         }
 
         @Override
-        public BlockLoader.BytesRefBuilder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+        public Builder builder(BlockFactory factory, int expectedCount) {
             return factory.bytesRefs(expectedCount);
         }
 
         @Override
-        protected void read(LeafStoredFieldLoader loader, BlockLoader.Builder builder) throws IOException {
-            ((BytesRefBuilder) builder).appendBytesRef(toBytesRef(scratch, loader.id()));
+        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+            return new Id();
+        }
+    }
+
+    private static class Id extends BlockStoredFieldsReader {
+        private final BytesRef scratch = new BytesRef();
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+            ((BytesRefBuilder) builder).appendBytesRef(BlockSourceReader.toBytesRef(scratch, storedFields.id()));
         }
 
         @Override

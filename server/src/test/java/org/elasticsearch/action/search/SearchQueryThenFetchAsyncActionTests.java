@@ -203,59 +203,63 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             shardsIter.size(),
             exc -> {}
         );
-        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
-            logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", AliasFilter.EMPTY),
-            Collections.emptyMap(),
-            EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            resultConsumer,
-            searchRequest,
-            null,
-            shardsIter,
-            timeProvider,
-            new ClusterState.Builder(new ClusterName("test")).build(),
-            task,
-            SearchResponse.Clusters.EMPTY
-        ) {
-            @Override
-            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-                return new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        latch.countDown();
-                    }
-                };
-            }
-        };
-        action.start();
-        latch.await();
-        assertThat(successfulOps.get(), equalTo(numShards));
-        if (withScroll) {
-            assertFalse(canReturnNullResponse.get());
-            assertThat(numWithTopDocs.get(), equalTo(0));
-        } else {
-            assertTrue(canReturnNullResponse.get());
-            if (withCollapse) {
+        try {
+            SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(
+                logger,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                Collections.singletonMap("_na_", AliasFilter.EMPTY),
+                Collections.emptyMap(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                resultConsumer,
+                searchRequest,
+                null,
+                shardsIter,
+                timeProvider,
+                new ClusterState.Builder(new ClusterName("test")).build(),
+                task,
+                SearchResponse.Clusters.EMPTY
+            ) {
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                    return new SearchPhase("test") {
+                        @Override
+                        public void run() {
+                            latch.countDown();
+                        }
+                    };
+                }
+            };
+            action.start();
+            latch.await();
+            assertThat(successfulOps.get(), equalTo(numShards));
+            if (withScroll) {
+                assertFalse(canReturnNullResponse.get());
                 assertThat(numWithTopDocs.get(), equalTo(0));
             } else {
-                assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
+                assertTrue(canReturnNullResponse.get());
+                if (withCollapse) {
+                    assertThat(numWithTopDocs.get(), equalTo(0));
+                } else {
+                    assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
+                }
             }
+            SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
+            assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
+            if (withScroll) {
+                assertThat(phase.totalHits().value, equalTo((long) numShards));
+                assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            } else {
+                assertThat(phase.totalHits().value, equalTo(2L));
+                assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+            }
+            assertThat(phase.sortedTopDocs().scoreDocs().length, equalTo(1));
+            assertThat(phase.sortedTopDocs().scoreDocs()[0], instanceOf(FieldDoc.class));
+            assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields.length, equalTo(1));
+            assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields[0], equalTo(0));
+        } finally {
+            resultConsumer.decRef();
         }
-        SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
-        assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
-        if (withScroll) {
-            assertThat(phase.totalHits().value, equalTo((long) numShards));
-            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
-        } else {
-            assertThat(phase.totalHits().value, equalTo(2L));
-            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
-        }
-        assertThat(phase.sortedTopDocs().scoreDocs().length, equalTo(1));
-        assertThat(phase.sortedTopDocs().scoreDocs()[0], instanceOf(FieldDoc.class));
-        assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields.length, equalTo(1));
-        assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields[0], equalTo(0));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101932")

@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import de.thetaphi.forbiddenapis.Checker;
 import de.thetaphi.forbiddenapis.Constants;
+import de.thetaphi.forbiddenapis.ForbiddenApiException;
 import de.thetaphi.forbiddenapis.Logger;
 import de.thetaphi.forbiddenapis.ParseException;
 import groovy.lang.Closure;
@@ -43,6 +44,7 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.VerificationException;
 import org.gradle.api.tasks.VerificationTask;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
@@ -469,6 +471,8 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
                 }
                 checker.run();
                 writeMarker(getParameters().getSuccessMarker().getAsFile().get());
+            } catch (ForbiddenApiException e) {
+                throw new VerificationException("Forbidden API verification failed", e);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             } finally {

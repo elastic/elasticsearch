@@ -1,0 +1,5 @@
+pr: 102462
+summary: Check the real memory circuit breaker when building global ordinals
+area: Aggregations
+type: enhancement
+issues: []

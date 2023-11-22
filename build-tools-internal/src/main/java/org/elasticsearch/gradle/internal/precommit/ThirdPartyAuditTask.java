@@ -218,7 +218,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             if (bogousExcludesCount != 0 && bogousExcludesCount == missingClassExcludes.size() + violationsExcludes.size()) {
                 logForbiddenAPIsOutput(forbiddenApisOutput);
                 throw new IllegalStateException(
-                    "All excluded classes seem to have no issues. This is sometimes an indication that the check silently failed"
+                    "All excluded classes seem to have no issues. This is sometimes an indication that the check silently failed "
+                        + "or that exclusions are configured unnecessarily"
                 );
             }
             assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);

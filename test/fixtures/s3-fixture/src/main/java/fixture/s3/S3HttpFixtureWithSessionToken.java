@@ -11,6 +11,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.rest.RestStatus;
 
+import java.net.InetSocketAddress;
 import java.util.Objects;
 
 import static fixture.s3.S3HttpHandler.sendError;
@@ -21,9 +22,21 @@ public class S3HttpFixtureWithSessionToken extends S3HttpFixture {
         super(args);
     }
 
+    public S3HttpFixtureWithSessionToken(boolean enabled) {
+        this(enabled, "session_token_bucket", "session_token_base_path_integration_tests", "session_token_access_key", "session_token");
+    }
+
+    public S3HttpFixtureWithSessionToken(boolean enabled, String... args) {
+        super(enabled, args);
+    }
+
+    public S3HttpFixtureWithSessionToken(InetSocketAddress inetSocketAddress, String[] args) {
+        super(inetSocketAddress, args);
+    }
+
     @Override
     protected HttpHandler createHandler(final String[] args) {
-        final String sessionToken = Objects.requireNonNull(args[5], "session token is missing");
+        final String sessionToken = Objects.requireNonNull(args[3], "session token is missing");
         final HttpHandler delegate = super.createHandler(args);
         return exchange -> {
             final String securityToken = exchange.getRequestHeaders().getFirst("x-amz-security-token");
@@ -46,6 +59,6 @@ public class S3HttpFixtureWithSessionToken extends S3HttpFixture {
             );
         }
         final S3HttpFixtureWithSessionToken fixture = new S3HttpFixtureWithSessionToken(args);
-        fixture.start();
+        fixture.startWithWait();
     }
 }

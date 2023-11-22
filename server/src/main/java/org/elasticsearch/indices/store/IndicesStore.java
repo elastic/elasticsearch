@@ -64,7 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class IndicesStore implements ClusterStateListener, Closeable {
+public final class IndicesStore implements ClusterStateListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesStore.class);
 
@@ -88,7 +88,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
     private final TimeValue deleteShardTimeout;
 
-    @SuppressWarnings("this-escape")
     @Inject
     public IndicesStore(
         Settings settings,

@@ -32,7 +32,6 @@ import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -53,7 +52,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("mapper-extras").module("wildcard").build();
 
     // The dynamic templates we test against
-    public static final String ECS_DYNAMIC_TEMPLATES_FILE = "ecs-dynamic-mappings.json";
+    public static final String ECS_DYNAMIC_TEMPLATES_FILE = "ecs@mappings.json";
 
     // The current ECS state (branch main) containing all fields in flattened form
     private static final String ECS_FLAT_FILE_URL = "https://raw.githubusercontent.com/elastic/ecs/main/generated/ecs/ecs_flat.yml";
@@ -77,7 +76,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             "/" + ECS_DYNAMIC_TEMPLATES_FILE,
             Integer.toString(1),
             StackTemplateRegistry.TEMPLATE_VERSION_VARIABLE,
-            Collections.emptyMap()
+            StackTemplateRegistry.ADDITIONAL_TEMPLATE_VARIABLES
         );
         Map<String, Object> ecsDynamicTemplatesRaw;
         try (

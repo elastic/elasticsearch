@@ -13,9 +13,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 
-public class ObjectMapperMergeTests extends ESTestCase {
+public final class ObjectMapperMergeTests extends ESTestCase {
 
-    @SuppressWarnings("this-escape")
     private final RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
 
     private RootObjectMapper createMapping(

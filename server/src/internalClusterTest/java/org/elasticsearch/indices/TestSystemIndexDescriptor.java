@@ -52,7 +52,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             0,
             "version",
             "stack",
-            Version.fromString(Build.current().minWireCompatVersion()),
+            null,
             Type.INTERNAL_MANAGED,
             List.of(),
             List.of(),

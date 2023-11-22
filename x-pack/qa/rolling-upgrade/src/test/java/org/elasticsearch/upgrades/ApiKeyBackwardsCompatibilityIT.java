@@ -54,7 +54,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testCreatingAndUpdatingApiKeys() throws Exception {
         assumeTrue(
             "The remote_indices for API Keys are not supported before version " + API_KEY_SUPPORT_REMOTE_INDICES_VERSION,
-            UPGRADE_FROM_VERSION.before(API_KEY_SUPPORT_REMOTE_INDICES_VERSION)
+            isOriginalClusterVersionAtLeast(API_KEY_SUPPORT_REMOTE_INDICES_VERSION) == false
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -183,7 +183,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "role_descriptors": %s
             }""", name, roles);
         // Grant API did not exist before 7.7.0
-        final boolean grantApiKey = randomBoolean() && UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_7_0);
+        final boolean grantApiKey = randomBoolean() && isOriginalClusterVersionAtLeast(Version.V_7_7_0);
         if (grantApiKey) {
             createApiKeyRequest = new Request("POST", "/_security/api_key/grant");
             createApiKeyRequest.setJsonEntity(org.elasticsearch.common.Strings.format("""
@@ -220,16 +220,16 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private boolean isUpdateApiSupported(RestClient client) {
         return switch (CLUSTER_TYPE) {
-            case OLD -> UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_4_0); // Update API was introduced in 8.4.0.
-            case MIXED -> UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_4_0) || client == newVersionClient;
+            case OLD -> isOriginalClusterVersionAtLeast(Version.V_8_4_0); // Update API was introduced in 8.4.0.
+            case MIXED -> isOriginalClusterVersionAtLeast(Version.V_8_4_0) || client == newVersionClient;
             case UPGRADED -> true;
         };
     }
 
     private boolean isBulkUpdateApiSupported(RestClient client) {
         return switch (CLUSTER_TYPE) {
-            case OLD -> UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_5_0); // Bulk update API was introduced in 8.5.0.
-            case MIXED -> UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_5_0) || client == newVersionClient;
+            case OLD -> isOriginalClusterVersionAtLeast(Version.V_8_5_0); // Bulk update API was introduced in 8.5.0.
+            case MIXED -> isOriginalClusterVersionAtLeast(Version.V_8_5_0) || client == newVersionClient;
             case UPGRADED -> true;
         };
     }
@@ -303,11 +303,18 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
+    boolean nodeSupportApiKeyRemoteIndices(Map<String, Object> nodeDetails) {
+        // TODO[lor]: the method can be kept, but we need to replace version check with features checks
+        String versionString = (String) nodeDetails.get("version");
+        Version version = Version.fromString(versionString.replace("-SNAPSHOT", ""));
+        return version.onOrAfter(API_KEY_SUPPORT_REMOTE_INDICES_VERSION);
+    }
+
     private void createClientsByVersion() throws IOException {
-        Map<Version, RestClient> clientsByVersion = getRestClientByVersion();
-        if (clientsByVersion.size() == 2) {
-            for (Map.Entry<Version, RestClient> client : clientsByVersion.entrySet()) {
-                if (client.getKey().before(API_KEY_SUPPORT_REMOTE_INDICES_VERSION)) {
+        var clientsByCapability = getRestClientByCapability();
+        if (clientsByCapability.size() == 2) {
+            for (Map.Entry<Boolean, RestClient> client : clientsByCapability.entrySet()) {
+                if (client.getKey() == false) {
                     oldVersionClient = client.getValue();
                 } else {
                     newVersionClient = client.getValue();
@@ -316,7 +323,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertThat(oldVersionClient, notNullValue());
             assertThat(newVersionClient, notNullValue());
         } else {
-            fail("expected 2 versions during rolling upgrade but got: " + clientsByVersion.size());
+            fail("expected 2 versions during rolling upgrade but got: " + clientsByCapability.size());
         }
     }
 
@@ -332,23 +339,24 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<Version, RestClient> getRestClientByVersion() throws IOException {
+    private Map<Boolean, RestClient> getRestClientByCapability() throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         assertOK(response);
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        Map<Version, List<HttpHost>> hostsByVersion = new HashMap<>();
+        Map<Boolean, List<HttpHost>> hostsByCapability = new HashMap<>();
         for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
             Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
-            Version version = Version.fromString((String) nodeDetails.get("version"));
+            var capabilitySupported = nodeSupportApiKeyRemoteIndices(nodeDetails);
             Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
-            hostsByVersion.computeIfAbsent(version, k -> new ArrayList<>()).add(HttpHost.create((String) httpInfo.get("publish_address")));
+            hostsByCapability.computeIfAbsent(capabilitySupported, k -> new ArrayList<>())
+                .add(HttpHost.create((String) httpInfo.get("publish_address")));
         }
-        Map<Version, RestClient> clientsByVersion = new HashMap<>();
-        for (Map.Entry<Version, List<HttpHost>> entry : hostsByVersion.entrySet()) {
-            clientsByVersion.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
+        Map<Boolean, RestClient> clientsByCapability = new HashMap<>();
+        for (var entry : hostsByCapability.entrySet()) {
+            clientsByCapability.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
         }
-        return clientsByVersion;
+        return clientsByCapability;
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteIndices) {

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -28,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -48,7 +47,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FailedShardsRoutingTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(FailedShardsRoutingTests.class);
 
     public void testFailedShardPrimaryRelocatingToAndFrom() {
         AllocationService allocation = createAllocationService(
@@ -725,14 +723,14 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                         newNode(
                             "node3-old",
                             VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), null),
-                            IndexVersionUtils.randomVersionBetween(random(), IndexVersion.MINIMUM_COMPATIBLE, null)
+                            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, null)
                         )
                     )
                     .add(
                         newNode(
                             "node4-old",
                             VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), null),
-                            IndexVersionUtils.randomVersionBetween(random(), IndexVersion.MINIMUM_COMPATIBLE, null)
+                            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, null)
                         )
                     )
             )

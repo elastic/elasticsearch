@@ -112,6 +112,16 @@ public class FileSettingsServiceTests extends ESTestCase {
         threadpool.shutdownNow();
     }
 
+    public void testStartStop() {
+        fileSettingsService.start();
+        assertFalse(fileSettingsService.watching());
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+        assertTrue(fileSettingsService.watching());
+        fileSettingsService.stop();
+        assertFalse(fileSettingsService.watching());
+        fileSettingsService.close();
+    }
+
     public void testOperatorDirName() {
         Path operatorPath = fileSettingsService.watchedFileDir();
         assertTrue(operatorPath.startsWith(env.configFile()));

@@ -10,9 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -45,9 +45,11 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
+import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
@@ -183,7 +185,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                NodesStatsAction.INSTANCE,
+                TransportNodesStatsAction.TYPE,
                 nodeStatsRequest(clusterService.state(), parentTaskId),
                 nodesStatsListener
             );
@@ -296,29 +298,23 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 for (TrainedModelConfig model : models) {
                     if (model.getModelType() == TrainedModelType.PYTORCH) {
                         long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
+                        // We ensure that in the mixed cluster state trained model stats uses the same values for memory estimation
+                        // as the rebalancer.
+                        boolean useNewMemoryFields = TrainedModelAssignment.useNewMemoryFields(
+                            TransportVersionUtils.getMinTransportVersion(clusterService.state())
+                        );
                         long estimatedMemoryUsageBytes = totalDefinitionLength > 0L
                             ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
                                 model.getModelId(),
                                 totalDefinitionLength,
-                                model.getPerDeploymentMemoryBytes(),
-                                model.getPerAllocationMemoryBytes(),
+                                useNewMemoryFields ? model.getPerDeploymentMemoryBytes() : 0,
+                                useNewMemoryFields ? model.getPerAllocationMemoryBytes() : 0,
                                 numberOfAllocations
                             )
                             : 0L;
                         modelSizeStatsByModelId.put(
                             model.getModelId(),
-                            new TrainedModelSizeStats(
-                                totalDefinitionLength,
-                                totalDefinitionLength > 0L
-                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                                        model.getModelId(),
-                                        totalDefinitionLength,
-                                        model.getPerDeploymentMemoryBytes(),
-                                        model.getPerAllocationMemoryBytes(),
-                                        numberOfAllocations
-                                    )
-                                    : 0L
-                            )
+                            new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes)
                         );
                     } else {
                         modelSizeStatsByModelId.put(model.getModelId(), new TrainedModelSizeStats(model.getModelSize(), 0));

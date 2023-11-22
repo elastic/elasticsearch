@@ -8,6 +8,9 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -16,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -32,6 +34,7 @@ import java.util.function.LongSupplier;
 
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportMultiSearchAction.class);
     private final int allocatedProcessors;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -47,13 +50,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         ActionFilters actionFilters,
         NodeClient client
     ) {
-        super(
-            MultiSearchAction.NAME,
-            transportService,
-            actionFilters,
-            (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocatedProcessors = EsExecutors.allocatedProcessors(settings);
@@ -70,13 +67,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         LongSupplier relativeTimeProvider,
         NodeClient client
     ) {
-        super(
-            MultiSearchAction.NAME,
-            transportService,
-            actionFilters,
-            (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocatedProcessors = allocatedProcessors;
@@ -168,6 +159,9 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
             @Override
             public void onFailure(final Exception e) {
+                if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false) {
+                    logger.warn("TransportMultiSearchAction failure", e);
+                }
                 handleResponse(request.responseSlot, new MultiSearchResponse.Item(null, e));
             }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 
@@ -339,5 +340,10 @@ public class VerifierTests extends ESTestCase {
         String pattern = "\nline ";
         int index = message.indexOf(pattern);
         return message.substring(index + pattern.length());
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

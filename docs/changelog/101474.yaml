@@ -1,0 +1,5 @@
+pr: 101474
+summary: "[Search Applications] Return 400 response when template rendering produces invalid JSON"
+area: Application
+type: bug
+issues: []

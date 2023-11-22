@@ -1,0 +1,24 @@
+[[esql-date-time-functions]]
+==== {esql} date-time functions
+
+++++
+<titleabbrev>Date-time functions</titleabbrev>
+++++
+
+{esql} supports these date-time functions:
+
+// tag::date_list[]
+* <<esql-auto_bucket>>
+* <<esql-date_extract>>
+* <<esql-date_format>>
+* <<esql-date_parse>>
+* <<esql-date_trunc>>
+* <<esql-now>>
+// end::date_list[]
+
+include::auto_bucket.asciidoc[]
+include::date_extract.asciidoc[]
+include::date_format.asciidoc[]
+include::date_parse.asciidoc[]
+include::date_trunc.asciidoc[]
+include::now.asciidoc[]

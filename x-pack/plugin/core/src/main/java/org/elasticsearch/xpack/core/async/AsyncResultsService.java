@@ -28,7 +28,7 @@ import static org.elasticsearch.core.Strings.format;
  * is still running and AsyncTaskIndexService if task results already stored there.
  */
 public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncResponse<Response>> {
-    private final Logger logger = LogManager.getLogger(AsyncResultsService.class);
+    private static final Logger logger = LogManager.getLogger(AsyncResultsService.class);
     private final Class<? extends Task> asyncTaskClass;
     private final TaskManager taskManager;
     private final ClusterService clusterService;

@@ -1323,13 +1323,11 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertTrue(searchResponseAfterCancellation.isRunning());
             assertFalse(searchResponseAfterCancellation.getSearchResponse().isTimedOut());
             assertThat(searchResponseAfterCancellation.getSearchResponse().getClusters().getTotal(), equalTo(2));
-            assertThat(searchResponseAfterCancellation.getSearchResponse().getFailedShards(), equalTo(0));
 
             AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
             assertTrue(statusResponse.isPartial());
             assertTrue(statusResponse.isRunning());
             assertThat(statusResponse.getClusters().getTotal(), equalTo(2));
-            assertThat(statusResponse.getFailedShards(), equalTo(0));
             assertNull(statusResponse.getCompletionStatus());
 
         } finally {
@@ -1344,7 +1342,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertTrue(statusResponseAfterCompletion.isPartial());
         assertFalse(statusResponseAfterCompletion.isRunning());
         assertThat(statusResponseAfterCompletion.getClusters().getTotal(), equalTo(2));
-        assertThat(statusResponseAfterCompletion.getFailedShards(), greaterThan(0));
         assertThat(statusResponseAfterCompletion.getCompletionStatus(), equalTo(RestStatus.BAD_REQUEST));
 
         AsyncSearchResponse searchResponseAfterCompletion = getAsyncSearch(response.getId());
@@ -1352,11 +1349,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertFalse(searchResponseAfterCompletion.isRunning());
         assertFalse(searchResponseAfterCompletion.getSearchResponse().isTimedOut());
         assertThat(searchResponseAfterCompletion.getSearchResponse().getClusters().getTotal(), equalTo(2));
-        assertThat(searchResponseAfterCompletion.getSearchResponse().getFailedShards(), greaterThan(0));
         Throwable cause = ExceptionsHelper.unwrap(searchResponseAfterCompletion.getFailure(), TaskCancelledException.class);
         assertNotNull("TaskCancelledException should be in the causal chain", cause);
-        ShardSearchFailure[] shardFailures = searchResponseAfterCompletion.getSearchResponse().getShardFailures();
-        assertThat(shardFailures.length, greaterThan(0));
         String json = Strings.toString(
             ChunkedToXContent.wrapAsToXContent(searchResponseAfterCompletion)
                 .toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
@@ -1364,6 +1358,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertThat(json, matchesRegex(".*task (was)?\s*cancelled.*"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102450")
     public void testCancelViaAsyncSearchDelete() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");

@@ -110,8 +110,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                   ],
                   "privileges": [
                     "read",
-                    "write",
-                    "auto_configure"
+                    "write"
                   ],
                   "allow_restricted_indices": false
                 },

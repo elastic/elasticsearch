@@ -20,9 +20,9 @@ import java.util.TreeSet;
 /**
  * A request to get node (cluster) level information.
  */
-public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
+public final class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
-    private NodesInfoMetrics nodesInfoMetrics;
+    private final NodesInfoMetrics nodesInfoMetrics;
 
     /**
      * Create a new NodeInfoRequest from a {@link StreamInput} object.
@@ -39,7 +39,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Get information from nodes based on the nodes ids specified. If none are passed, information
      * for all nodes will be returned.
      */
-    @SuppressWarnings("this-escape")
     public NodesInfoRequest(String... nodesIds) {
         super(nodesIds);
         nodesInfoMetrics = new NodesInfoMetrics();
@@ -116,20 +115,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         nodesInfoMetrics.writeTo(out);
-    }
-
-    /**
-     * Helper method for creating NodesInfoRequests with desired metrics
-     * @param metrics the metrics to include in the request
-     * @return
-     */
-    public static NodesInfoRequest requestWithMetrics(NodesInfoMetrics.Metric... metrics) {
-        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-        nodesInfoRequest.clear();
-        for (var metric : metrics) {
-            nodesInfoRequest.addMetric(metric.metricName());
-        }
-        return nodesInfoRequest;
     }
 
     public NodesInfoMetrics getNodesInfoMetrics() {

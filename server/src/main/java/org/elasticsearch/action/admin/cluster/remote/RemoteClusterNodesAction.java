@@ -13,10 +13,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.client.internal.Client;
@@ -34,14 +35,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesAction.Response> {
+public class RemoteClusterNodesAction {
 
-    public static final RemoteClusterNodesAction INSTANCE = new RemoteClusterNodesAction();
     public static final String NAME = "cluster:internal/remote_cluster/nodes";
-
-    public RemoteClusterNodesAction() {
-        super(NAME, RemoteClusterNodesAction.Response::new);
-    }
+    public static final ActionType<RemoteClusterNodesAction.Response> TYPE = new ActionType<>(NAME, RemoteClusterNodesAction.Response::new);
 
     public static class Request extends ActionRequest {
         public static final Request ALL_NODES = new Request(false);
@@ -97,19 +94,27 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-            super(RemoteClusterNodesAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(TYPE.name(), transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.client = client;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             final ThreadContext threadContext = client.threadPool().getThreadContext();
+            executeWithSystemContext(
+                request,
+                threadContext,
+                ContextPreservingActionListener.wrapPreservingContext(listener, threadContext)
+            );
+        }
+
+        private void executeWithSystemContext(Request request, ThreadContext threadContext, ActionListener<Response> listener) {
             try (var ignore = threadContext.stashContext()) {
                 threadContext.markAsSystemContext();
                 if (request.remoteClusterServer) {
                     final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().clear()
                         .addMetrics(NodesInfoMetrics.Metric.REMOTE_CLUSTER_SERVER.metricName());
-                    client.execute(NodesInfoAction.INSTANCE, nodesInfoRequest, listener.delegateFailureAndWrap((l, response) -> {
+                    client.execute(TransportNodesInfoAction.TYPE, nodesInfoRequest, listener.delegateFailureAndWrap((l, response) -> {
                         l.onResponse(new Response(response.getNodes().stream().map(nodeInfo -> {
                             final RemoteClusterServerInfo remoteClusterServerInfo = nodeInfo.getInfo(RemoteClusterServerInfo.class);
                             if (remoteClusterServerInfo == null) {
@@ -121,7 +126,7 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
                 } else {
                     final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().clear();
                     client.execute(
-                        NodesInfoAction.INSTANCE,
+                        TransportNodesInfoAction.TYPE,
                         nodesInfoRequest,
                         listener.delegateFailureAndWrap(
                             (l, response) -> l.onResponse(

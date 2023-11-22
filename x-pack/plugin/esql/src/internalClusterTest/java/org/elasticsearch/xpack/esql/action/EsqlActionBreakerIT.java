@@ -19,18 +19,19 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class EsqlActionBreakerIT extends EsqlActionIT {
 
     public static class InternalTransportSettingPlugin extends Plugin {
@@ -70,24 +71,6 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             // allow reading pages from network can trip the circuit breaker
             .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true)
             .build();
-    }
-
-    private void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
-        if (limit != null) {
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit).build()
-                    )
-            );
-        } else {
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()).build()
-                    )
-            );
-        }
     }
 
     @Override

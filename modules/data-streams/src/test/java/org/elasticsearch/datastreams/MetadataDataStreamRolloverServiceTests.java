@@ -29,6 +29,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -70,7 +71,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             IndexMode.TIME_SERIES
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -175,7 +177,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             dsIndexMode
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -261,7 +264,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             IndexMode.TIME_SERIES
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -476,7 +480,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             null
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -491,7 +496,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 .put("index.mode", "time_series")
                 .put("index.routing_path", "uid");
             if (includeVersion) {
-                settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.V_8_9_0);
+                settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_8_9_0);
             }
             builder.put(IndexMetadata.builder(backingIndex.getName()).settings(settings).numberOfShards(1).numberOfReplicas(0));
         }

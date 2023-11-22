@@ -74,6 +74,7 @@ public class RestBulkAction extends BaseRestHandler {
         String defaultRouting = request.param("routing");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         String defaultPipeline = request.param("pipeline");
+        boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
             bulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
@@ -88,6 +89,7 @@ public class RestBulkAction extends BaseRestHandler {
             defaultFetchSourceContext,
             defaultPipeline,
             defaultRequireAlias,
+            defaultListExecutedPipelines,
             allowExplicitIndex,
             request.getXContentType(),
             request.getRestApiVersion()

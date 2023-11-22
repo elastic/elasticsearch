@@ -12,21 +12,19 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.lucene.BlockReaderFactories;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
-import org.elasticsearch.compute.lucene.ValueSourceInfo;
-import org.elasticsearch.compute.lucene.ValueSources;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -45,13 +43,11 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
-    private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);
 
     private final List<SearchContext> searchContexts;
 
@@ -66,31 +62,23 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     @Override
     public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
         Layout.Builder layout = source.layout.builder();
-
         var sourceAttr = fieldExtractExec.sourceAttribute();
-
-        PhysicalOperation op = source;
+        List<ValuesSourceReaderOperator.ShardContext> readers = searchContexts.stream()
+            .map(s -> new ValuesSourceReaderOperator.ShardContext(s.searcher().getIndexReader(), s::newSourceLoader))
+            .toList();
+        List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
+        int docChannel = source.layout.get(sourceAttr.id()).channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             if (attr instanceof FieldAttribute fa && fa.getExactInfo().hasExact()) {
                 attr = fa.exactAttribute();
             }
             layout.append(attr);
-            Layout previousLayout = op.layout;
-
             DataType dataType = attr.dataType();
             String fieldName = attr.name();
-            Supplier<List<ValueSourceInfo>> sources = () -> ValueSources.sources(
-                searchContexts,
-                fieldName,
-                EsqlDataTypes.isUnsupported(dataType),
-                LocalExecutionPlanner.toElementType(dataType)
-            );
-
-            int docChannel = previousLayout.get(sourceAttr.id()).channel();
-
-            op = op.with(new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(sources, docChannel, fieldName), layout.build());
+            List<BlockLoader> loaders = BlockReaderFactories.loaders(searchContexts, fieldName, EsqlDataTypes.isUnsupported(dataType));
+            fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, loaders));
         }
-        return op;
+        return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
     }
 
     public static Function<SearchContext, Query> querySupplier(QueryBuilder queryBuilder) {
@@ -138,8 +126,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 searchContexts,
                 querySupplier,
-                context.dataPartitioning(),
-                context.taskConcurrency(),
+                context.queryPragmas().dataPartitioning(),
+                context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
                 fieldSorts
@@ -148,8 +136,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneSourceOperator.Factory(
                 searchContexts,
                 querySupplier,
-                context.dataPartitioning(),
-                context.taskConcurrency(),
+                context.queryPragmas().dataPartitioning(),
+                context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit
             );
@@ -172,15 +160,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         var sourceAttribute = FieldExtractExec.extractSourceAttributesFrom(aggregateExec.child());
         int docChannel = source.layout.get(sourceAttribute.id()).channel();
+        List<ValuesSourceReaderOperator.ShardContext> shardContexts = searchContexts.stream()
+            .map(s -> new ValuesSourceReaderOperator.ShardContext(s.searcher().getIndexReader(), s::newSourceLoader))
+            .toList();
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            () -> ValueSources.sources(
-                searchContexts,
-                attrSource.name(),
-                EsqlDataTypes.isUnsupported(attrSource.dataType()),
-                LocalExecutionPlanner.toElementType(attrSource.dataType())
-            ),
+            BlockReaderFactories.loaders(searchContexts, attrSource.name(), EsqlDataTypes.isUnsupported(attrSource.dataType())),
+            shardContexts,
+            groupElementType,
             docChannel,
             attrSource.name(),
             aggregatorFactories,

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.dangling.find;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Represents a request to find a particular dangling index by UUID.
@@ -19,6 +20,6 @@ public class FindDanglingIndexAction extends ActionType<FindDanglingIndexRespons
     public static final String NAME = "cluster:admin/indices/dangling/find";
 
     private FindDanglingIndexAction() {
-        super(NAME, FindDanglingIndexResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

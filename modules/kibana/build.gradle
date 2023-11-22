@@ -5,14 +5,13 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   description 'Plugin exposing APIs for Kibana system indices'
   classname 'org.elasticsearch.kibana.KibanaPlugin'
 }
 
-testClusters.configureEach {
-  module ':modules:reindex'
+dependencies {
+  clusterModules project(':modules:reindex')
 }
-

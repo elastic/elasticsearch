@@ -66,8 +66,6 @@ setup:
   - skip:
       version: " - 7.8.99"
       reason:  fixed in 7.9.0
-      features: node_selector
-
   - do:
       indices.create:
           index: lookup
@@ -91,8 +89,6 @@ setup:
           { "num": [4] }
 
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         index: test
         preference: hit-same-shard-copy
@@ -145,8 +141,6 @@ setup:
 
   # The second request should hit the cache
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         index: test
         preference: hit-same-shard-copy

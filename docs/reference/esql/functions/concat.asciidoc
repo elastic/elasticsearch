@@ -1,3 +1,4 @@
+[discrete]
 [[esql-concat]]
 === `CONCAT`
 Concatenates two or more strings.

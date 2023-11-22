@@ -50,7 +50,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     private final Condition condition;
     private final Consumer<T> cleaner;
     private final AtomicReference<Subscription> subscription = new AtomicReference<>();
-    private final Logger logger = LogManager.getLogger(CancellableRateLimitedFluxIterator.class);
+    private static final Logger logger = LogManager.getLogger(CancellableRateLimitedFluxIterator.class);
     private volatile Throwable error;
     private volatile boolean done;
     private int emittedElements;

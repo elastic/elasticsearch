@@ -12,8 +12,9 @@ import org.elasticsearch.xpack.sql.qa.geo.GeoSqlSpecTestCase;
 import org.junit.ClassRule;
 
 public class GeoJdbcSqlSpecIT extends GeoSqlSpecTestCase {
+    // TODO: separate out tests that really require frozen indexes
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(true);
 
     @Override
     protected String getTestRestCluster() {

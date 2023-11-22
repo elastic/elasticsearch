@@ -11,8 +11,9 @@ import org.elasticsearch.xpack.sql.qa.jdbc.SqlSpecTestCase;
 import org.junit.ClassRule;
 
 public class JdbcSqlSpecIT extends SqlSpecTestCase {
+    // TODO: separate out tests that really require frozen indexes
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(true);
 
     @Override
     protected String getTestRestCluster() {

@@ -12,10 +12,15 @@ import org.junit.ClassRule;
 
 public class JdbcDatabaseMetaDataIT extends DatabaseMetaDataTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected String clusterName() {
+        return "javaRestTest";
     }
 }

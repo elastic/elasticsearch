@@ -53,6 +53,12 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
      * Override to add security configuration to the cli.
      */
     protected SecurityConfig securityConfig() {
+        if (System.getProperty("tests.rest.cluster.username") != null) {
+            String username = System.getProperty("tests.rest.cluster.username");
+            String password = System.getProperty("tests.rest.cluster.password");
+
+            return new SecurityConfig(false, username, password, null, null);
+        }
         return null;
     }
 

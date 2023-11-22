@@ -11,15 +11,19 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
 public class SqlTestCluster {
-    public static ElasticsearchCluster getCluster() {
-        return ElasticsearchCluster.local()
+    public static ElasticsearchCluster getCluster(boolean enableFreezing) {
+        var settings = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .name("javaRestTest")
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.watcher.enabled", "false")
             .setting("xpack.security.enabled", "false")
-            .setting("xpack.license.self_generated.type", "trial")
-            .plugin(":x-pack:qa:freeze-plugin")
-            .build();
+            .setting("xpack.license.self_generated.type", "trial");
+
+        if (enableFreezing) {
+            settings = settings.plugin(":x-pack:qa:freeze-plugin");
+        }
+
+        return settings.build();
     }
 }

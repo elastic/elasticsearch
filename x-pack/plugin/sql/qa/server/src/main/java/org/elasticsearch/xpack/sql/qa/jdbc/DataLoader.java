@@ -62,6 +62,7 @@ public class DataLoader {
         client.performRequest(request);
     }
 
+    // TODO make it possible to exclude frozen index
     protected static void loadEmpDatasetIntoEs(RestClient client) throws Exception {
         loadEmpDatasetIntoEs(client, "test_emp", "employees");
         loadEmpDatasetWithExtraIntoEs(client, "test_emp_copy", "employees");
@@ -90,6 +91,7 @@ public class DataLoader {
         client.performRequest(request);
     }
 
+    // TODO make it possible to exclude frozen index
     public static void loadDocsDatasetIntoEs(RestClient client) throws Exception {
         loadEmpDatasetIntoEs(client, "emp", "employees");
         loadLibDatasetIntoEs(client, "library");

@@ -41,8 +41,9 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.executeCsvQuery;
  * at this stage and, to not keep things stalling, started with this approach.
  */
 public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
+    // TODO: separate out tests that really require frozen indexes
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(true);
 
     @Override
     protected String getTestRestCluster() {

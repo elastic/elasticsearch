@@ -20,8 +20,9 @@ import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 
 public class GeoJdbcCsvSpecIT extends GeoCsvSpecTestCase {
+    // TODO: separate out tests that really require frozen indexes
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(true);
 
     @Override
     protected String getTestRestCluster() {

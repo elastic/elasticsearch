@@ -95,7 +95,9 @@ public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        return secureRemoteClientSettings();
+        Settings remoteClientSettings = secureRemoteClientSettings();
+
+        return remoteClientSettings.equals(Settings.EMPTY) ? super.restClientSettings() : remoteClientSettings;
     }
 
     protected static Settings secureRemoteClientSettings() {

@@ -629,7 +629,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     }
 
     public void testNoDefaultField() throws Exception {
-        String dataStreamName = "logs-generic-default";
+        final String dataStreamName = "logs-generic-default";
         createDataStream(client, dataStreamName);
 
         // index a doc with "message" field and an additional one that will be mapped to a "match_only_text" type
@@ -641,8 +641,9 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             }
             """);
 
-        // verify that both fields are searchable when not querying specific fields
-        List<Object> results = searchDocs(client, dataStreamName, """
+        assertBusy(() -> {
+            // verify that both fields are searchable when not querying specific fields
+            List<Object> results = searchDocs(client, dataStreamName, """
             {
               "query": {
                 "simple_query_string": {
@@ -651,9 +652,10 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
               }
             }
             """);
-        assertEquals(1, results.size());
+            assertEquals(1, results.size());
+        });
 
-        results = searchDocs(client, dataStreamName, """
+        List<Object> results = searchDocs(client, dataStreamName, """
             {
               "query": {
                 "simple_query_string": {

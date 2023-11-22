@@ -257,9 +257,9 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return BlockDocValuesReader.booleans(name());
+                return new BlockDocValuesReader.BooleansBlockLoader(name());
             }
-            return BlockSourceReader.booleans(sourceValueFetcher(blContext.sourcePaths(name())));
+            return new BlockSourceReader.BooleansBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

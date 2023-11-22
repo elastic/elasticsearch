@@ -15,12 +15,6 @@ buildScan {
   URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
   String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? System.getenv('BUILDKITE_BUILD_URL') : null
 
-  // Automatically publish scans from Elasticsearch CI
-  if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev') || System.getenv('BUILDKITE') == 'true') {
-    publishAlways()
-    buildScan.server = 'https://gradle-enterprise.elastic.co'
-  }
-
   background {
     tag OS.current().name()
     tag Architecture.current().name()
@@ -132,6 +126,7 @@ buildScan {
       }
 
       buildFinished { result ->
+
         buildScanPublished { scan ->
           // Attach build scan link as build metadata
           // See: https://buildkite.com/docs/pipelines/build-meta-data

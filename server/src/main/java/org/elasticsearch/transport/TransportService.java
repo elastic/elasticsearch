@@ -1013,7 +1013,7 @@ public class TransportService extends AbstractLifecycleComponent
                 }
             } else {
                 boolean success = false;
-                request.incRef();
+                request.mustIncRef();
                 try {
                     executor.execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
                         @Override

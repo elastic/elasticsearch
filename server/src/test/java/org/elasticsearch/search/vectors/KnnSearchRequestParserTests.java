@@ -30,7 +30,11 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;

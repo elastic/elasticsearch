@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.action.index;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.support.PlainActionFuture;

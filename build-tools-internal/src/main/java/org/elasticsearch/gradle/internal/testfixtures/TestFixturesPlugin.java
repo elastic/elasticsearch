@@ -172,7 +172,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 (name, host) -> task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class).systemProperty(name, host)
             );
         }));
-
     }
 
     private void maybeSkipTasks(TaskContainer tasks, Provider<DockerSupportService> dockerSupport, Class<? extends DefaultTask> taskClass) {

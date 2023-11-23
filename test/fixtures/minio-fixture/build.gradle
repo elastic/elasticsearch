@@ -28,5 +28,4 @@ dependencies {
   runtimeOnly "com.github.docker-java:docker-java-core:${versions.dockerJava}"
   runtimeOnly "org.apache.commons:commons-compress:${versions.commonsCompress}"
   runtimeOnly "org.rnorth.duct-tape:duct-tape:${versions.ductTape}"
-  runtimeOnly "org.rnorth.duct-tape:duct-tape:${versions.ductTape}"
 }

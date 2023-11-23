@@ -337,6 +337,24 @@ a:integer | b:integer | c:integer
 ;
 
 
+multipleLimitSortMultipleMvExpand#[skip:-8.11.99]
+row a = [1, 2, 3, 4, 5], b = 2, c = 3 |  sort a | mv_expand a | limit 2 | mv_expand b | mv_expand c | limit 3;
+
+a:integer | b:integer | c:integer
+1         | 2         | 3
+2         | 2         | 3
+;
+
+
+multipleLimitSortMultipleMvExpand2#[skip:-8.11.99]
+row a = [1, 2, 3, 4, 5], b = 2, c = 3 |  sort a | mv_expand a | limit 3 | mv_expand b | mv_expand c | limit 2;
+
+a:integer | b:integer | c:integer
+1         | 2         | 3
+2         | 2         | 3
+;
+
+
 //see https://github.com/elastic/elasticsearch/issues/102084
 whereMvExpand#[skip:-8.11.99]
 row  a = 1, b = -15 | where b > 3   | mv_expand b;

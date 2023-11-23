@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.ql.analyzer.TableInfo;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
@@ -185,12 +187,8 @@ public class EsqlSession {
         } else if (preAnalysis.indices.size() == 1) {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
-            var fieldNames = fieldNames(parsed);
+            var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
 
-            if (enrichPolicyMatchFields.isEmpty() == false && fieldNames != IndexResolver.ALL_FIELDS) {
-                fieldNames.addAll(enrichPolicyMatchFields);
-                fieldNames.addAll(subfields(enrichPolicyMatchFields));
-            }
             indexResolver.resolveAsMergedMapping(
                 table.index(),
                 fieldNames,
@@ -213,7 +211,7 @@ public class EsqlSession {
         }
     }
 
-    static Set<String> fieldNames(LogicalPlan parsed) {
+    static Set<String> fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields) {
         if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
             // no explicit columns selection, for example "from employees"
             return IndexResolver.ALL_FIELDS;
@@ -245,6 +243,12 @@ public class EsqlSession {
                 for (Attribute extracted : re.extractedFields()) {
                     references.removeIf(attr -> matchByName(attr, extracted.qualifiedName(), false));
                 }
+            } else if (p instanceof Enrich) {
+                AttributeSet enrichRefs = p.references();
+                // Enrich adds an EmptyAttribute if no match field is specified
+                // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
+                enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
+                references.addAll(enrichRefs);
             } else {
                 references.addAll(p.references());
                 if (p instanceof Keep) {
@@ -269,11 +273,13 @@ public class EsqlSession {
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
         references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.qualifiedName()));
         Set<String> fieldNames = references.names();
-        if (fieldNames.isEmpty()) {
+        if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return IndexResolver.INDEX_METADATA_FIELD;
         } else {
             fieldNames.addAll(subfields(fieldNames));
+            fieldNames.addAll(enrichPolicyMatchFields);
+            fieldNames.addAll(subfields(enrichPolicyMatchFields));
             return fieldNames;
         }
     }

@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.plan.logical.EmptyEsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -57,6 +56,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
@@ -85,8 +85,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        // assertEquals(new EsRelation(EMPTY, idx, false), limit.child());
-        assertEquals(new EmptyEsRelation(idx), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS), limit.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -104,7 +103,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EmptyEsRelation(idx), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS), limit.child());
     }
 
     public void testAttributeResolution() {
@@ -1150,7 +1149,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(limit.limit().fold(), equalTo(0));
         var orderBy = as(limit.child(), OrderBy.class);
         var agg = as(orderBy.child(), Aggregate.class);
-        var esRelation = as(agg.child(), EmptyEsRelation.class);
+        assertEmptyEsRelation(agg.child());
     }
 
     public void testEmptyEsRelationOnConstantEvalAndKeep() throws IOException {
@@ -1165,7 +1164,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(limit.limit().fold(), equalTo(2));
         var project = as(limit.child(), EsqlProject.class);
         var eval = as(project.child(), Eval.class);
-        var esRelation = as(eval.child(), EmptyEsRelation.class);
+        assertEmptyEsRelation(eval.child());
     }
 
     public void testEmptyEsRelationOnConstantEvalAndStats() throws IOException {
@@ -1180,7 +1179,7 @@ public class AnalyzerTests extends ESTestCase {
         var eval = as(agg.child(), Eval.class);
         limit = as(eval.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(10));
-        var esRelation = as(limit.child(), EmptyEsRelation.class);
+        assertEmptyEsRelation(limit.child());
     }
 
     public void testEmptyEsRelationOnCountStar() throws IOException {
@@ -1190,7 +1189,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzeWithEmptyFieldCapsResponse(query);
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
-        var esRelation = as(agg.child(), EmptyEsRelation.class);
+        assertEmptyEsRelation(agg.child());
     }
 
     public void testUnsupportedFieldsInStats() {
@@ -1452,5 +1451,12 @@ public class AnalyzerTests extends ESTestCase {
         BytesReference ref = Streams.readFully(stream);
         XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, ref, XContentType.JSON);
         return FieldCapabilitiesResponse.fromXContent(parser);
+    }
+
+    private void assertEmptyEsRelation(LogicalPlan plan) {
+        assertThat(plan, instanceOf(EsRelation.class));
+        EsRelation esRelation = (EsRelation) plan;
+        assertThat(esRelation.output(), equalTo(NO_FIELDS));
+        assertTrue(esRelation.index().mapping().isEmpty());
     }
 }

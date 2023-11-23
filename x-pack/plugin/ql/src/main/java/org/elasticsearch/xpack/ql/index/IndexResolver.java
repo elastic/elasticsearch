@@ -712,7 +712,7 @@ public class IndexResolver {
         final Map<String, Map<String, FieldCapabilities>> fieldCaps = fieldCapsResponse.get();
         for (Entry<String, Map<String, FieldCapabilities>> entry : fieldCaps.entrySet()) {
             String fieldName = entry.getKey();
-            // skip metadata field!
+            // skip specific metadata fields
             if ((allowedMetadataFields != null && allowedMetadataFields.contains(fieldName))
                 || fieldCapsResponse.isMetadataField(fieldName) == false) {
                 sortedFields.put(fieldName, entry.getValue());
@@ -728,7 +728,7 @@ public class IndexResolver {
             // For ESQL there are scenarios where there is no field asked from field_caps and the field_caps response only contains
             // the list of indices. To be able to still have an "indices" list properly built (even if empty), the metadata fields are
             // accepted but not actually added to each index hierarchy.
-            var isMetadataField = allowedMetadataFields != null && allowedMetadataFields.contains(fieldName);
+            boolean isMetadataField = allowedMetadataFields != null && allowedMetadataFields.contains(fieldName);
 
             // check each type
             for (Entry<String, FieldCapabilities> typeEntry : types.entrySet()) {

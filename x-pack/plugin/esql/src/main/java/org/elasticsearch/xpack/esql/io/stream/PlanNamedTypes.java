@@ -109,7 +109,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect.Parser;
-import org.elasticsearch.xpack.esql.plan.logical.EmptyEsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -255,7 +254,6 @@ public final class PlanNamedTypes {
             // Logical Plan Nodes - a subset of plans that end up being actually serialized
             of(LogicalPlan.class, Aggregate.class, PlanNamedTypes::writeAggregate, PlanNamedTypes::readAggregate),
             of(LogicalPlan.class, Dissect.class, PlanNamedTypes::writeDissect, PlanNamedTypes::readDissect),
-            of(LogicalPlan.class, EmptyEsRelation.class, PlanNamedTypes::writeEmptyEsRelation, PlanNamedTypes::readEmptyEsRelation),
             of(LogicalPlan.class, EsRelation.class, PlanNamedTypes::writeEsRelation, PlanNamedTypes::readEsRelation),
             of(LogicalPlan.class, Eval.class, PlanNamedTypes::writeEval, PlanNamedTypes::readEval),
             of(LogicalPlan.class, Enrich.class, PlanNamedTypes::writeEnrich, PlanNamedTypes::readEnrich),
@@ -687,15 +685,6 @@ public final class PlanNamedTypes {
         out.writeExpression(dissect.input());
         writeDissectParser(out, dissect.parser());
         writeAttributes(out, dissect.extractedFields());
-    }
-
-    static EmptyEsRelation readEmptyEsRelation(PlanStreamInput in) throws IOException {
-        return new EmptyEsRelation(readEsIndex(in));
-    }
-
-    static void writeEmptyEsRelation(PlanStreamOutput out, EmptyEsRelation relation) throws IOException {
-        assert relation.children().size() == 0;
-        writeEsIndex(out, relation.index());
     }
 
     static EsRelation readEsRelation(PlanStreamInput in) throws IOException {

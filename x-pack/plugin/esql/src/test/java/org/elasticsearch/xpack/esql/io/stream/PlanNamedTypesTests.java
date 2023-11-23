@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
-import org.elasticsearch.xpack.esql.plan.logical.EmptyEsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -160,7 +159,6 @@ public class PlanNamedTypesTests extends ESTestCase {
     public static final List<Class<? extends LogicalPlan>> LOGICAL_PLAN_NODE_CLS = List.of(
         Aggregate.class,
         Dissect.class,
-        EmptyEsRelation.class,
         Enrich.class,
         EsRelation.class,
         EsqlProject.class,
@@ -472,15 +470,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeEsRelation(out, orig);
         var deser = PlanNamedTypes.readEsRelation(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testEmptyEsRelation() throws IOException {
-        var orig = new EmptyEsRelation(randomEmptyEsIndex());
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
-        PlanNamedTypes.writeEmptyEsRelation(out, orig);
-        var deser = PlanNamedTypes.readEmptyEsRelation(planStreamInput(bso));
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 

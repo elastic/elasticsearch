@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
+import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.ql.index.IndexResolver.ALL_FIELDS;
@@ -1163,8 +1164,23 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, INDEX_METADATA_FIELD);
     }
 
+    public void testEnrichOnDefaultFieldWithKeep() {
+        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+            from employees
+            | enrich languages_policy
+            | keep emp_no"""), Set.of("language_name"));
+        assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "language_name", "language_name.*")));
+    }
+
+    public void testEnrichOnDefaultField() {
+        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+            from employees
+            | enrich languages_policy"""), Set.of("language_name"));
+        assertThat(fieldNames, equalTo(ALL_FIELDS));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement(query));
+        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement(query), Collections.emptySet());
         assertThat(fieldNames, equalTo(expected));
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -124,7 +125,7 @@ public class AutoscalingNodeInfoService {
         };
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(
             missingNodes.stream().map(DiscoveryNode::getId).toArray(String[]::new)
-        ).clear().addMetric(NodesStatsRequest.Metric.OS.metricName()).timeout(fetchTimeout);
+        ).clear().addMetric(NodesStatsRequestParameters.Metric.OS.metricName()).timeout(fetchTimeout);
         nodesStatsRequest.setIncludeShardsStats(false);
         client.admin()
             .cluster()

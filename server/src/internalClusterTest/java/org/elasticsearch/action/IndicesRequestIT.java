@@ -55,7 +55,6 @@ import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
@@ -102,7 +101,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -560,9 +559,10 @@ public class IndicesRequestIT extends ESIntegTestCase {
         refresh();
 
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_THEN_FETCH);
-        SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().search(searchRequest).actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        assertNoFailuresAndResponse(
+            internalCluster().coordOnlyNodeClient().search(searchRequest),
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L))
+        );
 
         clearInterceptedActions();
         assertIndicesSubset(
@@ -589,9 +589,10 @@ public class IndicesRequestIT extends ESIntegTestCase {
         refresh();
 
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.DFS_QUERY_THEN_FETCH);
-        SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().search(searchRequest).actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        assertNoFailuresAndResponse(
+            internalCluster().coordOnlyNodeClient().search(searchRequest),
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L))
+        );
 
         clearInterceptedActions();
         assertIndicesSubset(
@@ -696,7 +697,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         for (PluginsService pluginsService : pluginsServices) {
             Set<Map.Entry<String, List<TransportRequest>>> entries = pluginsService.filterPlugins(
                 InterceptingTransportService.TestPlugin.class
-            ).stream().findFirst().get().instance.requests.entrySet();
+            ).findFirst().get().instance.requests.entrySet();
             assertThat(entries, emptyIterable());
 
         }
@@ -705,7 +706,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     private static void clearInterceptedActions() {
         Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
         for (PluginsService pluginsService : pluginsServices) {
-            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get().instance
+            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).findFirst().get().instance
                 .clearInterceptedActions();
         }
     }
@@ -713,7 +714,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     private static void interceptTransportActions(String... actions) {
         Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
         for (PluginsService pluginsService : pluginsServices) {
-            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get().instance
+            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).findFirst().get().instance
                 .interceptTransportActions(actions);
         }
     }
@@ -724,7 +725,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
         Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
         for (PluginsService pluginsService : pluginsServices) {
             List<TransportRequest> transportRequests = pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class)
-                .stream()
                 .findFirst()
                 .get().instance.consumeRequests(action);
             if (transportRequests != null) {

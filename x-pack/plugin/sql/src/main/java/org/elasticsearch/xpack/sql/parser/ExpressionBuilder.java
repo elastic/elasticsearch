@@ -13,6 +13,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -706,7 +707,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         try {
             return new Literal(tuple.v1(), Double.valueOf(StringUtils.parseDouble(tuple.v2())), DataTypes.DOUBLE);
-        } catch (QlIllegalArgumentException siae) {
+        } catch (InvalidArgumentException siae) {
             throw new ParsingException(tuple.v1(), siae.getMessage());
         }
     }
@@ -717,7 +718,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         try {
             Number value = StringUtils.parseIntegral(tuple.v2());
             return new Literal(tuple.v1(), value, DataTypes.fromJava(value));
-        } catch (QlIllegalArgumentException siae) {
+        } catch (InvalidArgumentException siae) {
             throw new ParsingException(tuple.v1(), siae.getMessage());
         }
     }

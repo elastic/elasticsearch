@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +24,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Collection;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -39,20 +39,20 @@ public class HdfsTests extends ESSingleNodeTestCase {
     public void testSimpleWorkflow() {
         Client client = client();
 
-        AcknowledgedResponse putRepositoryResponse = client.admin()
-            .cluster()
-            .preparePutRepository("test-repo")
-            .setType("hdfs")
-            .setSettings(
-                Settings.builder()
-                    .put("uri", "hdfs:///")
-                    .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
-                    .put("path", "foo")
-                    .put("chunk_size", randomIntBetween(100, 1000) + "k")
-                    .put("compress", randomBoolean())
-            )
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertAcked(
+            client.admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(
+                    Settings.builder()
+                        .put("uri", "hdfs:///")
+                        .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
+                        .put("path", "foo")
+                        .put("chunk_size", randomIntBetween(100, 1000) + "k")
+                        .put("compress", randomBoolean())
+                )
+        );
 
         createIndex("test-idx-1");
         createIndex("test-idx-2");
@@ -111,8 +111,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
             .cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();
@@ -129,8 +128,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
             .prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true)
             .setIndices("test-idx-*", "-test-idx-2")
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
         assertThat(count(client, "test-idx-1"), equalTo(100L));

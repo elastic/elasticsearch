@@ -122,8 +122,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
 
         ApplicationPrivilegeDescriptor[] privileges = new GetPrivilegesRequestBuilder(client).application("app-2")
             .privileges("write")
-            .execute()
-            .actionGet()
+            .get()
             .privileges();
 
         assertEquals(1, privileges.length);
@@ -138,18 +137,17 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
                 .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-2:write"))
                 .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-2:admin"))
                 .setRefreshPolicy(IMMEDIATE)
-                .execute()
-                .actionGet()
+                .get()
                 .hasFailures()
         );
 
         // We can still get the privileges because it is cached
-        privileges = new GetPrivilegesRequestBuilder(client).application("app-2").privileges("read").execute().actionGet().privileges();
+        privileges = new GetPrivilegesRequestBuilder(client).application("app-2").privileges("read").get().privileges();
 
         assertEquals(1, privileges.length);
 
         // We can get all app-2 privileges because cache is keyed by application
-        privileges = new GetPrivilegesRequestBuilder(client).application("app-2").execute().actionGet().privileges();
+        privileges = new GetPrivilegesRequestBuilder(client).application("app-2").get().privileges();
 
         assertEquals(3, privileges.length);
 
@@ -161,14 +159,14 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         assertFalse(clearPrivilegesCacheResponse.hasFailures());
 
         // app-2 is no longer found
-        privileges = new GetPrivilegesRequestBuilder(client).application("app-2").privileges("read").execute().actionGet().privileges();
+        privileges = new GetPrivilegesRequestBuilder(client).application("app-2").privileges("read").get().privileges();
         assertEquals(0, privileges.length);
     }
 
     public void testPopulationOfCacheWhenLoadingPrivilegesForAllApplications() {
         final Client client = client();
 
-        ApplicationPrivilegeDescriptor[] privileges = new GetPrivilegesRequestBuilder(client).execute().actionGet().privileges();
+        ApplicationPrivilegeDescriptor[] privileges = new GetPrivilegesRequestBuilder(client).get().privileges();
 
         assertEquals(6, privileges.length);
 
@@ -176,18 +174,15 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         deleteApplicationPrivilege("app-2", "read");
 
         // A direct read should also get nothing
-        assertEquals(
-            0,
-            new GetPrivilegesRequestBuilder(client).application("app-2").privileges("read").execute().actionGet().privileges().length
-        );
+        assertEquals(0, new GetPrivilegesRequestBuilder(client).application("app-2").privileges("read").get().privileges().length);
 
         // The wildcard expression expansion should be invalidated
-        assertEquals(5, new GetPrivilegesRequestBuilder(client).execute().actionGet().privileges().length);
+        assertEquals(5, new GetPrivilegesRequestBuilder(client).get().privileges().length);
 
         // Now put it back and wild expression expansion should be invalidated again
         addApplicationPrivilege("app-2", "read", "r:e:f:g", "r:t:u:v");
 
-        assertEquals(6, new GetPrivilegesRequestBuilder(client).execute().actionGet().privileges().length);
+        assertEquals(6, new GetPrivilegesRequestBuilder(client).get().privileges().length);
 
         // Delete the privilege again which invalidate the wildcard expansion
         deleteApplicationPrivilege("app-2", "read");
@@ -199,45 +194,31 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
                 .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-1:write"))
                 .add(new DeleteRequest(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-2:write"))
                 .setRefreshPolicy(IMMEDIATE)
-                .execute()
-                .actionGet()
+                .get()
                 .hasFailures()
         );
 
         // app-2 write privilege will not be found since cache is invalidated and backing document is gone
-        assertEquals(
-            0,
-            new GetPrivilegesRequestBuilder(client).application("app-2").privileges("write").execute().actionGet().privileges().length
-        );
+        assertEquals(0, new GetPrivilegesRequestBuilder(client).application("app-2").privileges("write").get().privileges().length);
 
         // app-1 write privilege is still found since it is cached even when the backing document is gone
-        assertEquals(
-            1,
-            new GetPrivilegesRequestBuilder(client).application("app-1").privileges("write").execute().actionGet().privileges().length
-        );
+        assertEquals(1, new GetPrivilegesRequestBuilder(client).application("app-1").privileges("write").get().privileges().length);
     }
 
     public void testSuffixWildcard() {
         final Client client = client();
 
         // Populate the cache with suffix wildcard
-        assertEquals(6, new GetPrivilegesRequestBuilder(client).application("app-*").execute().actionGet().privileges().length);
+        assertEquals(6, new GetPrivilegesRequestBuilder(client).application("app-*").get().privileges().length);
 
         // Delete a backing document
         assertEquals(
             RestStatus.OK,
-            client.prepareDelete(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-1:read")
-                .setRefreshPolicy(IMMEDIATE)
-                .execute()
-                .actionGet()
-                .status()
+            client.prepareDelete(SECURITY_MAIN_ALIAS, DOC_TYPE_VALUE + "_app-1:read").setRefreshPolicy(IMMEDIATE).get().status()
         );
 
         // A direct get privilege with no wildcard should still hit the cache without needing it to be in the names cache
-        assertEquals(
-            1,
-            new GetPrivilegesRequestBuilder(client).application("app-1").privileges("read").execute().actionGet().privileges().length
-        );
+        assertEquals(1, new GetPrivilegesRequestBuilder(client).application("app-1").privileges("read").get().privileges().length);
     }
 
     public void testHasPrivileges() {
@@ -383,8 +364,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
             singleton(privilegeName),
             new DeletePrivilegesRequestBuilder(client()).application(applicationName)
                 .privileges(new String[] { privilegeName })
-                .execute()
-                .actionGet()
+                .get()
                 .found()
         );
     }

@@ -26,6 +26,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
@@ -245,7 +246,15 @@ public class InferenceProcessor extends AbstractProcessor {
                     }
                 }
             }
-            return InferModelAction.Request.forTextInput(modelId, inferenceConfig, requestInputs);
+            var request = InferModelAction.Request.forTextInput(
+                modelId,
+                inferenceConfig,
+                requestInputs,
+                previouslyLicensed,
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+            );
+            request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
+            return request;
         } else {
             Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
             // Add ingestMetadata as previous processors might have added metadata from which we are predicting (see: foreach processor)
@@ -254,7 +263,15 @@ public class InferenceProcessor extends AbstractProcessor {
             }
 
             LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-            return InferModelAction.Request.forIngestDocs(modelId, List.of(fields), inferenceConfig, previouslyLicensed);
+            var request = InferModelAction.Request.forIngestDocs(
+                modelId,
+                List.of(fields),
+                inferenceConfig,
+                previouslyLicensed,
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+            );
+            request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
+            return request;
         }
     }
 

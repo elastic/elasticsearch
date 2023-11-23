@@ -202,7 +202,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
         private final BigArrays bigArrays;
-        private final int precision;
         // array for holding the runlens.
         private ByteArray runLens;
 
@@ -210,7 +209,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             super(precision);
             this.runLens = bigArrays.newByteArray(initialBucketCount << precision);
             this.bigArrays = bigArrays;
-            this.precision = precision;
         }
 
         public long maxOrd() {
@@ -246,7 +244,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
         private final HyperLogLog hll;
         int pos;
-        long start;
+        final long start;
         private byte value;
 
         HyperLogLogIterator(HyperLogLog hll, long bucket) {

@@ -64,14 +64,12 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
             logger.info("--> [iteration {}] relocating from {} to {} ", i, relocationSource.getName(), relocationTarget.getName());
             clusterAdmin().prepareReroute()
                 .add(new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()))
-                .execute()
-                .actionGet();
+                .get();
             ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
                 .setTimeout(TimeValue.timeValueSeconds(60))
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNoRelocatingShards(true)
-                .execute()
-                .actionGet();
+                .get();
             if (clusterHealthResponse.isTimedOut()) {
                 final String hotThreads = clusterAdmin().prepareNodesHotThreads()
                     .setIgnoreIdleThreads(false)

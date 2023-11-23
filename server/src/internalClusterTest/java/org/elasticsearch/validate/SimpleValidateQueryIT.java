@@ -65,56 +65,42 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         refresh();
 
         assertThat(
             indicesAdmin().prepareValidateQuery("test")
                 .setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8)))
-                .execute()
-                .actionGet()
+                .get()
                 .isValid(),
             equalTo(false)
         );
         assertThat(
-            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_id:1")).execute().actionGet().isValid(),
+            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_id:1")).get().isValid(),
             equalTo(true)
         );
         assertThat(
-            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_i:d:1")).execute().actionGet().isValid(),
+            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_i:d:1")).get().isValid(),
             equalTo(false)
         );
 
         assertThat(
-            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1")).execute().actionGet().isValid(),
+            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1")).get().isValid(),
             equalTo(true)
         );
         assertThat(
-            indicesAdmin().prepareValidateQuery("test")
-                .setQuery(QueryBuilders.queryStringQuery("bar:hey").lenient(false))
-                .execute()
-                .actionGet()
-                .isValid(),
+            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("bar:hey").lenient(false)).get().isValid(),
             equalTo(false)
         );
 
         assertThat(
-            indicesAdmin().prepareValidateQuery("test")
-                .setQuery(QueryBuilders.queryStringQuery("nonexistent:hello"))
-                .execute()
-                .actionGet()
-                .isValid(),
+            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("nonexistent:hello")).get().isValid(),
             equalTo(true)
         );
 
         assertThat(
-            indicesAdmin().prepareValidateQuery("test")
-                .setQuery(QueryBuilders.queryStringQuery("foo:1 AND"))
-                .execute()
-                .actionGet()
-                .isValid(),
+            indicesAdmin().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("foo:1 AND")).get().isValid(),
             equalTo(false)
         );
     }
@@ -149,11 +135,10 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         for (int i = 0; i < 10; i++) {
-            prepareIndex("test").setSource("foo", "text", "bar", i, "baz", "blort").setId(Integer.toString(i)).execute().actionGet();
+            prepareIndex("test").setSource("foo", "text", "bar", i, "baz", "blort").setId(Integer.toString(i)).get();
         }
         refresh();
 
@@ -163,8 +148,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 .prepareValidateQuery("test")
                 .setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8)))
                 .setExplain(true)
-                .execute()
-                .actionGet();
+                .get();
             assertThat(response.isValid(), equalTo(false));
             assertThat(response.getQueryExplanation().size(), equalTo(1));
             assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to derive xcontent"));
@@ -178,8 +162,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 .prepareValidateQuery("test")
                 .setQuery(QueryBuilders.queryStringQuery("foo"))
                 .setExplain(true)
-                .execute()
-                .actionGet();
+                .get();
             assertThat(response.isValid(), equalTo(true));
             assertThat(response.getQueryExplanation().size(), equalTo(1));
             assertThat(
@@ -353,8 +336,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             .setQuery(queryBuilder)
             .setExplain(true)
             .setRewrite(withRewrite)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(response.getQueryExplanation().size(), equalTo(1));
         assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
         assertThat(response.getQueryExplanation().get(0).getExplanation(), matcher);
@@ -372,8 +354,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             .setExplain(true)
             .setRewrite(withRewrite)
             .setAllShards(allShards)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(response.getQueryExplanation().size(), equalTo(matchers.size()));
         for (int i = 0; i < matchers.size(); i++) {
             assertThat(response.getQueryExplanation().get(i).getError(), nullValue());
@@ -391,11 +372,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         refresh();
 
         TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "1", "followers"));
-        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery("twitter")
-            .setQuery(termsLookupQuery)
-            .setExplain(true)
-            .execute()
-            .actionGet();
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery("twitter").setQuery(termsLookupQuery).setExplain(true).get();
         assertThat(response.isValid(), is(true));
     }
 }

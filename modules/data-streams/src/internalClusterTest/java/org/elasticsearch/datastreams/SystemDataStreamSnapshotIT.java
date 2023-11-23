@@ -164,15 +164,13 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         DocWriteResponse indexToDataStreamResponse = prepareIndex(SYSTEM_DATA_STREAM_NAME).setId("42")
             .setSource("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(indexToDataStreamResponse.status().getStatus(), oneOf(200, 201));
 
         // Index a doc so that a concrete backing index will be created
         DocWriteResponse indexResponse = prepareIndex("my-index").setId("42")
             .setSource("{ \"name\": \"my-name\" }", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
-            .execute()
             .get();
         assertThat(indexResponse.status().getStatus(), oneOf(200, 201));
 
@@ -235,15 +233,10 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
                     SYSTEM_DATA_STREAM_NAME,
                     "a system data stream for testing",
                     SystemDataStreamDescriptor.Type.EXTERNAL,
-                    new ComposableIndexTemplate(
-                        List.of(".system-data-stream"),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new ComposableIndexTemplate.DataStreamTemplate()
-                    ),
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(".system-data-stream"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build(),
                     Map.of(),
                     Collections.singletonList("test"),
                     new ExecutorNames(ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE)

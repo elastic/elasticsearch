@@ -12,7 +12,6 @@ import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -31,6 +30,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
@@ -82,10 +82,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     public void testMultipleValues() throws Exception {
@@ -125,10 +126,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // will be ignored
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "1", "2");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "1", "2");
+        });
 
         // same thing, using different sort mode that will use a for both docs
         request = new SearchRequest().indices(index)
@@ -140,10 +142,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // will NOT be ignored and will determine order
             );
 
-        response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     /*
@@ -185,10 +188,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     /*
@@ -229,10 +233,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     /*
@@ -274,10 +279,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     /*
@@ -320,10 +326,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.ASC)
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 3L);
-        assertOrderedSearchHits(response, "3", "1", "2");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 3L);
+            assertOrderedSearchHits(response, "3", "1", "2");
+        });
     }
 
     /*
@@ -353,10 +360,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         SearchRequest request = new SearchRequest().indices(index)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC));
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     /*
@@ -392,10 +400,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         SearchRequest request = new SearchRequest().indices(index)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC).sort("id", SortOrder.DESC));
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 4L);
-        assertOrderedSearchHits(response, "3", "1", "4", "2");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 4L);
+            assertOrderedSearchHits(response, "3", "1", "4", "2");
+        });
     }
 
     /*
@@ -428,10 +437,11 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         SearchRequest request = new SearchRequest().indices(index)
             .source(new SearchSourceBuilder().fetchSource(false).sort("collate", SortOrder.ASC));
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 
     /*
@@ -481,9 +491,10 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                     .sort("id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
-        SearchResponse response = client().search(request).actionGet();
-        assertNoFailures(response);
-        assertHitCount(response, 2L);
-        assertOrderedSearchHits(response, "2", "1");
+        assertResponse(client().search(request), response -> {
+            assertNoFailures(response);
+            assertHitCount(response, 2L);
+            assertOrderedSearchHits(response, "2", "1");
+        });
     }
 }

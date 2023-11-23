@@ -179,7 +179,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
+                    fail(e);
                 }
             });
 
@@ -214,7 +214,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
+                    fail(e);
                 }
             });
 

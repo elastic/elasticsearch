@@ -86,15 +86,14 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNodes(2);
 
         assertAcked(
-            indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 1).put("index.global_checkpoint_sync.interval", "1s")).get()
+            indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 1).put("index.global_checkpoint_sync.interval", "1s"))
         );
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
             .add(prepareIndex("test").setId("1").setSource("field1", "value1"))
             .add(client().prepareUpdate().setIndex("test").setId("1").setDoc("field2", "value2"))
-            .execute()
-            .actionGet();
+            .get();
 
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(2));
@@ -399,9 +398,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(
-            indicesAdmin().prepareCreate("test")
-                .setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
-                .get()
+            indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
         );
         String replicaNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         ensureGreen("test");
@@ -430,9 +427,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(
-            indicesAdmin().prepareCreate("test")
-                .setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
-                .get()
+            indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
         );
         String replicaNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         ensureGreen("test");

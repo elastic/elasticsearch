@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MissingValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.CartesianShapeIndexFieldData;
 
 import java.io.IOException;
+import java.util.function.LongSupplier;
 
 public class CartesianShapeValuesSourceType extends ShapeValuesSourceType {
 
@@ -61,7 +61,7 @@ public class CartesianShapeValuesSourceType extends ShapeValuesSourceType {
         ValuesSource valuesSource,
         Object rawMissing,
         DocValueFormat docValueFormat,
-        AggregationContext context
+        LongSupplier nowInMillis
     ) {
         CartesianShapeValuesSource shapeValuesSource = (CartesianShapeValuesSource) valuesSource;
         final CartesianShapeValues.CartesianShapeValue missing = CartesianShapeValues.EMPTY.missing(rawMissing.toString());

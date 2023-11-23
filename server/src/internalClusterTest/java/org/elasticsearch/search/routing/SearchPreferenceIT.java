@@ -11,7 +11,6 @@ package org.elasticsearch.search.routing;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,6 +31,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -67,21 +67,25 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             "_prefer_nodes:somenode,server2" };
         for (String pref : preferences) {
             logger.info("--> Testing out preference={}", pref);
-            SearchResponse searchResponse = prepareSearch().setSize(0).setPreference(pref).get();
-            assertThat(RestStatus.OK, equalTo(searchResponse.status()));
-            assertThat(pref, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
-            searchResponse = prepareSearch().setPreference(pref).get();
-            assertThat(RestStatus.OK, equalTo(searchResponse.status()));
-            assertThat(pref, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
+            assertResponse(prepareSearch().setSize(0).setPreference(pref), response -> {
+                assertThat(RestStatus.OK, equalTo(response.status()));
+                assertThat(pref, response.getFailedShards(), greaterThanOrEqualTo(0));
+            });
+            assertResponse(prepareSearch().setPreference(pref), response -> {
+                assertThat(RestStatus.OK, equalTo(response.status()));
+                assertThat(pref, response.getFailedShards(), greaterThanOrEqualTo(0));
+            });
         }
 
         // _only_local is a stricter preference, we need to send the request to a data node
-        SearchResponse searchResponse = dataNodeClient().prepareSearch().setSize(0).setPreference("_only_local").get();
-        assertThat(RestStatus.OK, equalTo(searchResponse.status()));
-        assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
-        searchResponse = dataNodeClient().prepareSearch().setPreference("_only_local").get();
-        assertThat(RestStatus.OK, equalTo(searchResponse.status()));
-        assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
+        assertResponse(dataNodeClient().prepareSearch().setSize(0).setPreference("_only_local"), response -> {
+            assertThat(RestStatus.OK, equalTo(response.status()));
+            assertThat("_only_local", response.getFailedShards(), greaterThanOrEqualTo(0));
+        });
+        assertResponse(dataNodeClient().prepareSearch().setPreference("_only_local"), response -> {
+            assertThat(RestStatus.OK, equalTo(response.status()));
+            assertThat("_only_local", response.getFailedShards(), greaterThanOrEqualTo(0));
+        });
     }
 
     public void testNoPreferenceRandom() {
@@ -97,12 +101,16 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         refresh();
 
         final Client client = internalCluster().smartClient();
-        SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).get();
-        String firstNodeId = searchResponse.getHits().getAt(0).getShard().getNodeId();
-        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).get();
-        String secondNodeId = searchResponse.getHits().getAt(0).getShard().getNodeId();
-
-        assertThat(firstNodeId, not(equalTo(secondNodeId)));
+        assertResponse(
+            client.prepareSearch("test").setQuery(matchAllQuery()),
+            fist -> assertResponse(
+                client.prepareSearch("test").setQuery(matchAllQuery()),
+                second -> assertThat(
+                    fist.getHits().getAt(0).getShard().getNodeId(),
+                    not(equalTo(second.getHits().getAt(0).getShard().getNodeId()))
+                )
+            )
+        );
     }
 
     public void testSimplePreference() {
@@ -112,14 +120,20 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
-        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery()),
+            response -> assertThat(response.getHits().getTotalHits().value, equalTo(1L))
+        );
 
-        searchResponse = prepareSearch().setQuery(matchAllQuery()).setPreference("_local").get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery()).setPreference("_local"),
+            response -> assertThat(response.getHits().getTotalHits().value, equalTo(1L))
+        );
 
-        searchResponse = prepareSearch().setQuery(matchAllQuery()).setPreference("1234").get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery()).setPreference("1234"),
+            response -> assertThat(response.getHits().getTotalHits().value, equalTo(1L))
+        );
     }
 
     public void testThatSpecifyingNonExistingNodesReturnsUsefulError() {
@@ -188,9 +202,10 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     private void assertSearchOnRandomNodes(SearchRequestBuilder request) {
         Set<String> hitNodes = new HashSet<>();
         for (int i = 0; i < 2; i++) {
-            SearchResponse searchResponse = request.get();
-            assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
-            hitNodes.add(searchResponse.getHits().getAt(0).getShard().getNodeId());
+            assertResponse(request, response -> {
+                assertThat(response.getHits().getHits().length, greaterThan(0));
+                hitNodes.add(response.getHits().getAt(0).getShard().getNodeId());
+            });
         }
         assertThat(hitNodes.size(), greaterThan(1));
     }
@@ -259,8 +274,9 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     }
 
     private static void assertSearchesSpecificNode(String index, String customPreference, String nodeId) {
-        final SearchResponse searchResponse = prepareSearch(index).setQuery(matchAllQuery()).setPreference(customPreference).get();
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getShard().getNodeId(), equalTo(nodeId));
+        assertResponse(prepareSearch(index).setQuery(matchAllQuery()).setPreference(customPreference), response -> {
+            assertThat(response.getHits().getHits().length, equalTo(1));
+            assertThat(response.getHits().getAt(0).getShard().getNodeId(), equalTo(nodeId));
+        });
     }
 }

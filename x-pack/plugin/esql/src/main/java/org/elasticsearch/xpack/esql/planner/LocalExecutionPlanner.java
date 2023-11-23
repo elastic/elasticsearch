@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
@@ -47,6 +46,8 @@ import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -76,6 +77,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -111,6 +113,7 @@ import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperator
  * drivers that are used to execute the given plan.
  */
 public class LocalExecutionPlanner {
+    private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
 
     private final String sessionId;
     private final CancellableTask parentTask;
@@ -151,9 +154,7 @@ public class LocalExecutionPlanner {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
-            configuration.pragmas().taskConcurrency(),
-            configuration.pragmas().dataPartitioning(),
-            configuration.pragmas().pageSize(),
+            configuration.pragmas(),
             bigArrays,
             blockFactory
         );
@@ -256,8 +257,8 @@ public class LocalExecutionPlanner {
         final LuceneOperator.Factory luceneFactory = new LuceneCountOperator.Factory(
             esProvider.searchContexts(),
             querySupplier,
-            context.dataPartitioning(),
-            context.taskConcurrency(),
+            context.queryPragmas.dataPartitioning(),
+            context.queryPragmas.taskConcurrency(),
             limit
         );
 
@@ -289,6 +290,7 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.KEYWORD
             || dataType == DataTypes.TEXT
             || dataType == DataTypes.IP
+            || dataType == DataTypes.SOURCE
             || dataType == DataTypes.VERSION
             || dataType == DataTypes.UNSUPPORTED) {
             return ElementType.BYTES_REF;
@@ -334,8 +336,10 @@ public class LocalExecutionPlanner {
             var blocks = new Block[mappedPosition.length];
             for (int i = 0; i < blocks.length; i++) {
                 blocks[i] = p.getBlock(mappedPosition[i]);
+                blocks[i].incRef();
             }
-            return p.newPageAndRelease(blocks);
+            p.releaseBlocks();
+            return new Page(blocks);
         } : Function.identity();
 
         return transformer;
@@ -359,11 +363,10 @@ public class LocalExecutionPlanner {
                 // the outputs are going to be similar except for the bool "seen" flags which are added in below
                 List<Block> blocks = new ArrayList<>(asList(localExec.supplier().get()));
                 if (blocks.size() > 0) {
-                    Block boolBlock = BooleanBlock.newConstantBlockWith(true, 1);
                     for (int i = 0, s = output.size(); i < s; i++) {
                         var out = output.get(i);
                         if (out.dataType() == DataTypes.BOOLEAN) {
-                            blocks.add(i, boolBlock);
+                            blocks.add(i, BooleanBlock.newConstantBlockWith(true, 1));
                         }
                     }
                 }
@@ -529,7 +532,7 @@ public class LocalExecutionPlanner {
             new EnrichLookupOperator.Factory(
                 sessionId,
                 parentTask,
-                1, // TODO: Add a concurrent setting for enrich - also support unordered mode
+                context.queryPragmas().enrichMaxWorkers(),
                 source.layout.get(enrich.matchField().id()).channel(),
                 enrichLookupService,
                 enrichIndex,
@@ -583,16 +586,17 @@ public class LocalExecutionPlanner {
                 inputId = ne.id();
             }
             Layout.ChannelAndType input = source.layout.get(inputId);
-            Layout.ChannelSet channelSet = inputChannelToOutputIds.computeIfAbsent(
-                input.channel(),
-                ignore -> new Layout.ChannelSet(new HashSet<>(), input.type())
-            );
+            Layout.ChannelSet channelSet = inputChannelToOutputIds.get(input.channel());
+            if (channelSet == null) {
+                channelSet = new Layout.ChannelSet(new HashSet<>(), input.type());
+                channelSet.nameIds().add(ne.id());
+                layout.append(channelSet);
+            } else {
+                channelSet.nameIds().add(ne.id());
+            }
             if (channelSet.type() != input.type()) {
                 throw new IllegalArgumentException("type mismatch for aliases");
             }
-            channelSet.nameIds().add(ne.id());
-
-            layout.append(channelSet);
             projectionList.add(input.channel());
         }
 
@@ -612,8 +616,24 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
+        List<Attribute> childOutput = mvExpandExec.child().output();
         int blockSize = 5000;// TODO estimate row size and use context.pageSize()
-        return source.with(new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize), source.layout);
+
+        Layout.Builder layout = new Layout.Builder();
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        var expandedName = mvExpandExec.expanded().name();
+        for (int index = 0; index < inverse.size(); index++) {
+            if (childOutput.get(index).name().equals(expandedName)) {
+                layout.append(mvExpandExec.expanded());
+            } else {
+                layout.append(inverse.get(index));
+            }
+        }
+
+        return source.with(
+            new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
+            layout.build()
+        );
     }
 
     /**
@@ -715,9 +735,7 @@ public class LocalExecutionPlanner {
     public record LocalExecutionPlannerContext(
         List<DriverFactory> driverFactories,
         Holder<DriverParallelism> driverParallelism,
-        int taskConcurrency,
-        DataPartitioning dataPartitioning,
-        int configuredPageSize,
+        QueryPragmas queryPragmas,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
@@ -736,8 +754,8 @@ public class LocalExecutionPlanner {
             if (estimatedRowSize == 0) {
                 throw new IllegalStateException("estimated row size can't be 0");
             }
-            if (configuredPageSize != 0) {
-                return configuredPageSize;
+            if (queryPragmas.pageSize() != 0) {
+                return queryPragmas.pageSize();
             }
             return Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize);
         }
@@ -801,6 +819,7 @@ public class LocalExecutionPlanner {
             try {
                 for (DriverFactory df : driverFactories) {
                     for (int i = 0; i < df.driverParallelism.instanceCount; i++) {
+                        logger.trace("building {} {}", i, df);
                         drivers.add(df.driverSupplier.apply(sessionId));
                     }
                 }
@@ -808,7 +827,7 @@ public class LocalExecutionPlanner {
                 return drivers;
             } finally {
                 if (success == false) {
-                    Releasables.close(() -> Releasables.close(drivers));
+                    Releasables.close(Releasables.wrap(drivers));
                 }
             }
         }

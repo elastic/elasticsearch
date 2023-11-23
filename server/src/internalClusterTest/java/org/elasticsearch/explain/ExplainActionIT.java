@@ -293,7 +293,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         refresh();
 
         TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "2", "followers"));
-        ExplainResponse response = client().prepareExplain("twitter", "1").setQuery(termsLookupQuery).execute().actionGet();
+        ExplainResponse response = client().prepareExplain("twitter", "1").setQuery(termsLookupQuery).get();
 
         Explanation explanation = response.getExplanation();
         assertNotNull(explanation);

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -213,7 +214,9 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                             ActionRunnable.supply(l, () -> shardOperation(request, shardId)).run();
                         } else {
                             assert r.segmentGeneration() > -1L;
-                            indexShard.waitForSegmentGeneration(
+                            assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
+                            indexShard.waitForPrimaryTermAndGeneration(
+                                r.primaryTerm(),
                                 r.segmentGeneration(),
                                 listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll))
                             );

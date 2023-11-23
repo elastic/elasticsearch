@@ -57,7 +57,8 @@ Controls the amount of time to wait for {infer} results. Defaults to 10 seconds.
 (Required, array)
 An array of objects to pass to the model for inference. The objects should
 contain the fields matching your configured trained model input. Typically for
-NLP models, the field name is `text_field`.
+NLP models, the field name is `text_field`. Each {infer} input field specified 
+in this property must be single strings not arrays of strings.
 
 //Begin inference_config
 `inference_config`::

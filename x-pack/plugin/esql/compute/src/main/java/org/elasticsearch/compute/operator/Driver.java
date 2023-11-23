@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -56,6 +58,10 @@ public class Driver implements Releasable, Describable {
 
     private final AtomicReference<String> cancelReason = new AtomicReference<>();
     private final AtomicReference<SubscribableListener<Void>> blocked = new AtomicReference<>();
+
+    private final AtomicBoolean started = new AtomicBoolean();
+    private final CompletionListener completionListener;
+
     /**
      * Status reported to the tasks API. We write the status at most once every
      * {@link #statusNanos}, as soon as loop has finished and after {@link #statusNanos}
@@ -92,6 +98,7 @@ public class Driver implements Releasable, Describable {
         this.activeOperators.add(sink);
         this.statusNanos = statusInterval.nanos();
         this.releasable = releasable;
+        this.completionListener = new CompletionListener(driverContext);
         this.status = new AtomicReference<>(new DriverStatus(sessionId, System.currentTimeMillis(), DriverStatus.Status.QUEUED, List.of()));
     }
 
@@ -149,7 +156,7 @@ public class Driver implements Releasable, Describable {
         if (isFinished()) {
             status.set(updateStatus(DriverStatus.Status.DONE));
             driverContext.finish();
-            releasable.close();
+            Releasables.close(releasable, driverContext.getSnapshot());
         } else {
             status.set(updateStatus(DriverStatus.Status.WAITING));
         }
@@ -159,13 +166,26 @@ public class Driver implements Releasable, Describable {
     /**
      * Whether the driver has run the chain of operators to completion.
      */
-    public boolean isFinished() {
+    private boolean isFinished() {
         return activeOperators.isEmpty();
     }
 
     @Override
     public void close() {
         drainAndCloseOperators(null);
+    }
+
+    /**
+     * Abort the driver and wait for it to finish
+     */
+    public void abort(Exception reason, ActionListener<Void> listener) {
+        completionListener.addListener(listener);
+        if (started.compareAndSet(false, true)) {
+            drainAndCloseOperators(reason);
+            completionListener.onFailure(reason);
+        } else {
+            cancel(reason.getMessage());
+        }
     }
 
     private SubscribableListener<Void> runSingleLoopIteration() {
@@ -261,8 +281,11 @@ public class Driver implements Releasable, Describable {
         int maxIterations,
         ActionListener<Void> listener
     ) {
-        driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));
-        schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, listener);
+        driver.completionListener.addListener(listener);
+        if (driver.started.compareAndSet(false, true)) {
+            driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));
+            schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, driver.completionListener);
+        }
     }
 
     // Drains all active operators and closes them.
@@ -279,7 +302,7 @@ public class Driver implements Releasable, Describable {
             itr.remove();
         }
         driverContext.finish();
-        Releasables.closeWhileHandlingException(releasable);
+        Releasables.closeWhileHandlingException(releasable, driverContext.getSnapshot());
     }
 
     private static void schedule(
@@ -371,5 +394,35 @@ public class Driver implements Releasable, Describable {
             status,
             activeOperators.stream().map(o -> new DriverStatus.OperatorStatus(o.toString(), o.status())).toList()
         );
+    }
+
+    /**
+     * A listener that is notified when both the Driver and its DriverContext are completed.
+     */
+    private static class CompletionListener implements ActionListener<Void> {
+        private final SubscribableListener<Void> completionListener;
+        private final ActionListener<Void> driverListener;
+
+        CompletionListener(DriverContext driverContext) {
+            this.completionListener = new SubscribableListener<>();
+            try (var refs = new RefCountingListener(1, completionListener)) {
+                driverListener = refs.acquire();
+                driverContext.waitForAsyncActions(refs.acquire());
+            }
+        }
+
+        void addListener(ActionListener<Void> listener) {
+            completionListener.addListener(listener);
+        }
+
+        @Override
+        public void onResponse(Void unused) {
+            driverListener.onResponse(null);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            driverListener.onFailure(e);
+        }
     }
 }

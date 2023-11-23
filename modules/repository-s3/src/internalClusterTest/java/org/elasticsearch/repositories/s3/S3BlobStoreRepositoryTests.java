@@ -31,14 +31,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -51,14 +49,15 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
-import org.elasticsearch.telemetry.DelegatingMeter;
-import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingInstruments;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.Meter;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -75,7 +74,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -141,7 +139,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestS3RepositoryPlugin.class, TestTelemetryPlugin.class);
+        return List.of(TestS3RepositoryPlugin.class, TestS3BlobTelemetryPlugin.class);
     }
 
     @Override
@@ -181,7 +179,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @Override
-    @TestLogging(reason = "Enable request logging to debug #88841", value = "com.amazonaws.request:DEBUG")
+    @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/88841", value = "com.amazonaws.request:DEBUG")
     public void testRequestStats() throws Exception {
         super.testRequestStats();
     }
@@ -227,6 +225,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
+    @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/101608", value = "com.amazonaws.request:DEBUG")
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
         final String repository = createRepository(randomRepositoryName());
@@ -267,21 +266,30 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             final Map<S3BlobStore.StatsKey, S3BlobStore.IgnoreNoResponseMetricsCollector> statsCollectors = s3BlobStore
                 .getStatsCollectors().collectors;
 
-            final var plugins = internalCluster().getInstance(PluginsService.class, nodeName).filterPlugins(TestTelemetryPlugin.class);
+            final var plugins = internalCluster().getInstance(PluginsService.class, nodeName)
+                .filterPlugins(TestS3BlobTelemetryPlugin.class)
+                .toList();
             assertThat(plugins, hasSize(1));
-            final Map<Map<String, Object>, AtomicLong> metrics = plugins.get(0).metrics;
+            final List<Measurement> metrics = Measurement.combine(plugins.get(0).getLongCounterMeasurement(METRIC_REQUESTS_COUNT));
 
-            assertThat(statsCollectors.size(), equalTo(metrics.size()));
-            metrics.forEach((attributes, counter) -> {
-                final S3BlobStore.Operation operation = S3BlobStore.Operation.parse((String) attributes.get("operation"));
+            assertThat(
+                statsCollectors.size(),
+                equalTo(metrics.stream().map(m -> m.attributes().get("operation")).collect(Collectors.toSet()).size())
+            );
+            metrics.forEach(metric -> {
+                final S3BlobStore.Operation operation = S3BlobStore.Operation.parse((String) metric.attributes().get("operation"));
                 final S3BlobStore.StatsKey statsKey = new S3BlobStore.StatsKey(
                     operation,
-                    OperationPurpose.parse((String) attributes.get("purpose"))
+                    OperationPurpose.parse((String) metric.attributes().get("purpose"))
                 );
-                assertThat(statsCollectors, hasKey(statsKey));
-                assertThat(counter.get(), equalTo(statsCollectors.get(statsKey).counter.sum()));
+                assertThat(nodeName + "/" + statsKey + " exists", statsCollectors, hasKey(statsKey));
+                assertThat(
+                    nodeName + "/" + statsKey + " has correct sum",
+                    metric.getLong(),
+                    equalTo(statsCollectors.get(statsKey).counter.sum())
+                );
 
-                aggregatedMetrics.compute(operation.getKey(), (k, v) -> v == null ? counter.get() : v + counter.get());
+                aggregatedMetrics.compute(operation.getKey(), (k, v) -> v == null ? metric.getLong() : v + metric.getLong());
             });
         }
 
@@ -433,7 +441,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, getMeter()) {
+            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, getMeterRegistry()) {
 
                 @Override
                 public BlobStore blobStore() {
@@ -554,63 +562,45 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
     }
 
-    public static class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
+    public static class TestS3BlobTelemetryPlugin extends TestTelemetryPlugin {
+        protected final MeterRegistry meter = new RecordingMeterRegistry() {
+            private final LongCounter longCounter = new RecordingInstruments.RecordingLongCounter(METRIC_REQUESTS_COUNT, recorder) {
+                @Override
+                public void increment() {
+                    throw new UnsupportedOperationException();
+                }
 
-        private final Map<Map<String, Object>, AtomicLong> metrics = ConcurrentCollections.newConcurrentMap();
+                @Override
+                public void incrementBy(long inc) {
+                    throw new UnsupportedOperationException();
+                }
 
-        private final LongCounter longCounter = new LongCounter() {
+                @Override
+                public void incrementBy(long inc, Map<String, Object> attributes) {
+                    assertThat(
+                        attributes,
+                        allOf(hasEntry("repo_type", S3Repository.TYPE), hasKey("repo_name"), hasKey("operation"), hasKey("purpose"))
+                    );
+                    super.incrementBy(inc, attributes);
+                }
+            };
+
             @Override
-            public void increment() {
-                throw new UnsupportedOperationException();
+            protected LongCounter buildLongCounter(String name, String description, String unit) {
+                return longCounter;
             }
 
-            @Override
-            public void incrementBy(long inc) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void incrementBy(long inc, Map<String, Object> attributes) {
-                assertThat(
-                    attributes,
-                    allOf(hasEntry("repo_type", S3Repository.TYPE), hasKey("repo_name"), hasKey("operation"), hasKey("purpose"))
-                );
-                metrics.computeIfAbsent(attributes, k -> new AtomicLong()).addAndGet(inc);
-            }
-
-            @Override
-            public String getName() {
-                return METRIC_REQUESTS_COUNT;
-            }
-        };
-
-        private final Meter meter = new DelegatingMeter(Meter.NOOP) {
             @Override
             public LongCounter registerLongCounter(String name, String description, String unit) {
                 assertThat(name, equalTo(METRIC_REQUESTS_COUNT));
-                return longCounter;
+                return super.registerLongCounter(name, description, unit);
             }
 
             @Override
             public LongCounter getLongCounter(String name) {
                 assertThat(name, equalTo(METRIC_REQUESTS_COUNT));
-                return longCounter;
+                return super.getLongCounter(name);
             }
         };
-
-        @Override
-        public TelemetryProvider getTelemetryProvider(Settings settings) {
-            return new TelemetryProvider() {
-                @Override
-                public Tracer getTracer() {
-                    return Tracer.NOOP;
-                }
-
-                @Override
-                public Meter getMeter() {
-                    return meter;
-                }
-            };
-        }
     }
 }

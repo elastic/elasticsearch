@@ -83,8 +83,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                     .endObject()
             )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .execute()
-            .actionGet();
+            .get();
         assertSearchHitsWithoutFailures(
             client().prepareSearch("index")
                 .setQuery(

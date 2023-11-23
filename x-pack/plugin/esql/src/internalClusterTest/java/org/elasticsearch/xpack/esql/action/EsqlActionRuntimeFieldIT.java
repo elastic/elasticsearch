@@ -38,8 +38,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Makes sure that the circuit breaker is "plugged in" to ESQL by configuring an
- * unreasonably small breaker and tripping it.
+ * Tests runtime fields against ESQL.
  */
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")

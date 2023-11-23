@@ -187,7 +187,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.COMPLETE,
                 0,
-                "no shard relocation is necessary for a node restart"
+                "no shard relocation is necessary for a node restart",
+                null
             );
         }
 
@@ -196,7 +197,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.NOT_STARTED,
                 0,
-                "node is not currently part of the cluster"
+                "node is not currently part of the cluster",
+                null
             );
         }
 
@@ -242,7 +244,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         // The node is in `DiscoveryNodes`, but not `RoutingNodes` - so there are no shards assigned to it. We're done.
         if (currentState.getRoutingNodes().node(nodeId) == null) {
             // We don't know about that node
-            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0);
+            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0, 0, 0);
         }
 
         // Check if there are any shards currently on this node, and if there are any relocating shards
@@ -256,12 +258,14 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             SingleNodeShutdownMetadata.Status shardStatus = totalRemainingShards == 0
                 ? SingleNodeShutdownMetadata.Status.COMPLETE
                 : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
-            return new ShutdownShardMigrationStatus(shardStatus, totalRemainingShards);
+            return new ShutdownShardMigrationStatus(shardStatus, startedShards, relocatingShards, initializingShards);
         } else if (initializingShards > 0 && relocatingShards == 0 && startedShards == 0) {
             // If there's only initializing shards left, return now with a note that only initializing shards are left
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.IN_PROGRESS,
-                totalRemainingShards,
+                startedShards,
+                relocatingShards,
+                initializingShards,
                 "all remaining shards are currently INITIALIZING and must finish before they can be moved off this node"
             );
         }
@@ -314,7 +318,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 0,
                 "["
                     + shardsToIgnoreForFinalStatus.get()
-                    + "] shards cannot be moved away from this node but have at least one copy on another node in the cluster"
+                    + "] shards cannot be moved away from this node but have at least one copy on another node in the cluster",
+                null
             );
         } else if (unmovableShard.isPresent()) {
             // We found a shard that can't be moved, so shard relocation is stalled. Blame the unmovable shard.
@@ -334,7 +339,12 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 decision
             );
         } else {
-            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, totalRemainingShards);
+            return new ShutdownShardMigrationStatus(
+                SingleNodeShutdownMetadata.Status.IN_PROGRESS,
+                startedShards,
+                relocatingShards,
+                initializingShards
+            );
         }
     }
 

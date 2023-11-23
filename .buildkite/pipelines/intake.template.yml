@@ -14,7 +14,7 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      machineType: custom-32-98304
+      machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part2
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart2
@@ -22,7 +22,7 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      machineType: custom-32-98304
+      machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - label: part3
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart3
@@ -30,7 +30,15 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      machineType: custom-32-98304
+      machineType: n1-standard-32
+      buildDirectory: /dev/shm/bk
+  - label: part4
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart4
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: n1-standard-32
       buildDirectory: /dev/shm/bk
   - group: bwc-snapshots
     steps:

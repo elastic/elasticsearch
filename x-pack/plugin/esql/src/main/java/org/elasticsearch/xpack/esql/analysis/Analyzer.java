@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -324,7 +325,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveEnrich(p, childrenOutput);
             }
 
+            if (plan instanceof MvExpand p) {
+                return resolveMvExpand(p, childrenOutput);
+            }
+
             return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+        }
+
+        private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
+            if (p.target() instanceof UnresolvedAttribute ua) {
+                Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
+                if (resolved == ua) {
+                    return p;
+                }
+                return new MvExpand(
+                    p.source(),
+                    p.child(),
+                    resolved,
+                    new ReferenceAttribute(resolved.source(), resolved.name(), resolved.dataType(), null, resolved.nullable(), null, false)
+                );
+            }
+            return p;
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
@@ -501,11 +522,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 if (resolved.resolved() && resolved.dataType() != KEYWORD) {
                     resolved = ua.withUnresolvedMessage(
-                        "Unsupported type ["
-                            + resolved.dataType()
-                            + "]  for enrich matching field ["
-                            + ua.name()
-                            + "]; only KEYWORD allowed"
+                        "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; only KEYWORD allowed"
                     );
                 }
                 return new Enrich(enrich.source(), enrich.child(), enrich.policyName(), resolved, enrich.policy(), enrich.enrichFields());

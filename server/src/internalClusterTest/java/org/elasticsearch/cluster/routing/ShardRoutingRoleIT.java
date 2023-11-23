@@ -190,7 +190,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
     private static TestPlugin getMasterNodePlugin() {
         return internalCluster().getCurrentMasterNodeInstance(PluginsService.class)
             .filterPlugins(TestPlugin.class)
-            .stream()
             .findFirst()
             .orElseThrow(() -> new AssertionError("no plugin"));
     }
@@ -253,7 +252,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
             }
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -378,7 +377,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "ES-4677")
     public void testRelocation() {
         var routingTableWatcher = new RoutingTableWatcher();
 
@@ -699,7 +697,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 });
             }
 
-            RefreshResponse response = indicesAdmin().prepareRefresh(INDEX_NAME).execute().actionGet();
+            RefreshResponse response = indicesAdmin().prepareRefresh(INDEX_NAME).get();
             assertThat(
                 "each unpromotable replica shard should be added to the shard failures",
                 response.getFailedShards(),

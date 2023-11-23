@@ -1,6 +1,9 @@
 [discrete]
 [[esql-mv_concat]]
 === `MV_CONCAT`
+[.text-center]
+image::esql/functions/signature/mv_concat.svg[Embedded,opts=inline]
+
 Converts a multivalued string field into a single valued field containing the
 concatenation of all values separated by a delimiter:
 
@@ -24,3 +27,6 @@ include::{esql-specs}/string.csv-spec[tag=mv_concat-to_string]
 include::{esql-specs}/string.csv-spec[tag=mv_concat-to_string-result]
 |===
 
+Supported types:
+
+include::types/mv_concat.asciidoc[]

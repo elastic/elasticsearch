@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.MultiSearchAction;
@@ -32,7 +33,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractSearchCancellationTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -51,6 +51,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102257")
 public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
     @Override
@@ -228,11 +229,10 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
     }
 
-    @TestIssueLogging(
-        value = "org.elasticsearch.action.search:TRACE,org.elasticsearch.search:TRACE," + "org.elasticsearch.tasks:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/99929"
-    )
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
+        // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
+        // are limited to 1
+        internalCluster().ensureAtLeastNumDataNodes(2);
         int numberOfShards = between(2, 5);
         createIndex("test", numberOfShards, 0);
         indexTestData();

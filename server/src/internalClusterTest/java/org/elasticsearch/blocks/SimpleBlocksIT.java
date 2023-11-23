@@ -107,7 +107,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     private void canCreateIndex(String index) {
         try {
-            CreateIndexResponse r = indicesAdmin().prepareCreate(index).execute().actionGet();
+            CreateIndexResponse r = indicesAdmin().prepareCreate(index).get();
             assertThat(r, notNullValue());
         } catch (ClusterBlockException e) {
             fail();
@@ -116,7 +116,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     private void canNotCreateIndex(String index) {
         try {
-            indicesAdmin().prepareCreate(index).execute().actionGet();
+            indicesAdmin().prepareCreate(index).get();
             fail();
         } catch (ClusterBlockException e) {
             // all is well
@@ -127,7 +127,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             IndexRequestBuilder builder = prepareIndex(index);
             builder.setSource("foo", "bar");
-            DocWriteResponse r = builder.execute().actionGet();
+            DocWriteResponse r = builder.get();
             assertThat(r, notNullValue());
         } catch (ClusterBlockException e) {
             fail();
@@ -138,7 +138,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             IndexRequestBuilder builder = prepareIndex(index);
             builder.setSource("foo", "bar");
-            builder.execute().actionGet();
+            builder.get();
             fail();
         } catch (ClusterBlockException e) {
             // all is well

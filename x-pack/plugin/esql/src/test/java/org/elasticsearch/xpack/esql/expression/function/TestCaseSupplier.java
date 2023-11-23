@@ -26,7 +26,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.DoubleBinaryOperator;
+import java.util.function.BinaryOperator;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -70,7 +70,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         if (types != null) {
             for (int i = 0; i < types.size(); i++) {
                 if (supplied.getData().get(i).type() != types.get(i)) {
-                    throw new IllegalStateException("supplier/data type mismatch " + supplied.getData().get(i).type() + "/" + types.get(i));
+                    throw new IllegalStateException(
+                        name + ": supplier/data type mismatch " + supplied.getData().get(i).type() + "/" + types.get(i)
+                    );
                 }
             }
         }
@@ -136,27 +138,28 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         String name,
         String lhsName,
         String rhsName,
-        DoubleBinaryOperator expected,
+        BinaryOperator<Double> expected,
         Double lhsMin,
         Double lhsMax,
         Double rhsMin,
         Double rhsMax,
         List<String> warnings
     ) {
+        List<TypedDataSupplier> lhsSuppliers = castToDoubleSuppliersFromRange(lhsMin, lhsMax);
+        List<TypedDataSupplier> rhsSuppliers = castToDoubleSuppliersFromRange(rhsMin, rhsMax);
+        return forBinaryCastingToDouble(name, lhsName, rhsName, expected, lhsSuppliers, rhsSuppliers, warnings);
+    }
+
+    public static List<TestCaseSupplier> forBinaryCastingToDouble(
+        String name,
+        String lhsName,
+        String rhsName,
+        BinaryOperator<Double> expected,
+        List<TypedDataSupplier> lhsSuppliers,
+        List<TypedDataSupplier> rhsSuppliers,
+        List<String> warnings
+    ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        List<TypedDataSupplier> lhsSuppliers = new ArrayList<>();
-        List<TypedDataSupplier> rhsSuppliers = new ArrayList<>();
-
-        lhsSuppliers.addAll(intCases(lhsMin.intValue(), lhsMax.intValue()));
-        lhsSuppliers.addAll(longCases(lhsMin.longValue(), lhsMax.longValue()));
-        lhsSuppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(lhsMin)), BigInteger.valueOf((long) Math.floor(lhsMax))));
-        lhsSuppliers.addAll(doubleCases(lhsMin, lhsMax));
-
-        rhsSuppliers.addAll(intCases(rhsMin.intValue(), rhsMax.intValue()));
-        rhsSuppliers.addAll(longCases(rhsMin.longValue(), rhsMax.longValue()));
-        rhsSuppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(rhsMin)), BigInteger.valueOf((long) Math.floor(rhsMax))));
-        rhsSuppliers.addAll(doubleCases(rhsMin, rhsMax));
-
         for (TypedDataSupplier lhsSupplier : lhsSuppliers) {
             for (TypedDataSupplier rhsSupplier : rhsSuppliers) {
                 String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
@@ -180,7 +183,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                         List.of(lhsTyped, rhsTyped),
                         name + "[" + lhsName + "=" + lhsEvalName + ", " + rhsName + "=" + rhsEvalName + "]",
                         DataTypes.DOUBLE,
-                        equalTo(expected.applyAsDouble(lhs.doubleValue(), rhs.doubleValue()))
+                        equalTo(expected.apply(lhs.doubleValue(), rhs.doubleValue()))
                     );
                     for (String warning : warnings) {
                         testCase = testCase.withWarning(warning);
@@ -190,6 +193,15 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             }
         }
 
+        return suppliers;
+    }
+
+    public static List<TypedDataSupplier> castToDoubleSuppliersFromRange(Double Min, Double Max) {
+        List<TypedDataSupplier> suppliers = new ArrayList<>();
+        suppliers.addAll(intCases(Min.intValue(), Max.intValue()));
+        suppliers.addAll(longCases(Min.longValue(), Max.longValue()));
+        suppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(Min)), BigInteger.valueOf((long) Math.floor(Max))));
+        suppliers.addAll(doubleCases(Min, Max));
         return suppliers;
     }
 

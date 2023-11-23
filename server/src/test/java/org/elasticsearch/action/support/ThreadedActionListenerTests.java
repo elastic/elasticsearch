@@ -83,7 +83,7 @@ public class ThreadedActionListenerTests extends ESTestCase {
                                         e = elasticsearchException;
                                         assertNull(e.getCause());
                                     } else {
-                                        throw new AssertionError("unexpected", e);
+                                        fail(e);
                                     }
                                 }
 
@@ -91,7 +91,7 @@ public class ThreadedActionListenerTests extends ESTestCase {
                                     assertEquals("simulated", e.getMessage());
                                     assertEquals(0, e.getSuppressed().length);
                                 } else {
-                                    throw new AssertionError("unexpected", e);
+                                    fail(e);
                                 }
 
                             }

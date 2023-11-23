@@ -153,7 +153,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
     public <T extends Plugin> T getPlugin(Class<T> type) {
         final PluginsService pluginsService = internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
-        return pluginsService.filterPlugins(type).stream().findFirst().get();
+        return pluginsService.filterPlugins(type).findFirst().get();
     }
 
     public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {

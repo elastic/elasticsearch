@@ -11,7 +11,6 @@ package org.elasticsearch.search.geo;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeometryNormalizer;
@@ -47,7 +46,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,22 +108,24 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
             .get();
 
         Geometry geometry = new Rectangle(-45, 45, 45, -45);
-        SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(queryBuilder().shapeQuery(defaultFieldName, geometry).relation(ShapeRelation.INTERSECTS))
-            .get();
-
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
-
+        assertNoFailuresAndResponse(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, geometry).relation(ShapeRelation.INTERSECTS)),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+            }
+        );
         // default query, without specifying relation (expect intersects)
-        searchResponse = client().prepareSearch(defaultIndexName).setQuery(queryBuilder().shapeQuery(defaultFieldName, geometry)).get();
-
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        assertNoFailuresAndResponse(
+            client().prepareSearch(defaultIndexName).setQuery(queryBuilder().shapeQuery(defaultFieldName, geometry)),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+            }
+        );
     }
 
     public void testIndexPointsCircle() throws Exception {
@@ -170,14 +172,15 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
 
         Polygon polygon = new Polygon(new LinearRing(new double[] { -35, -35, -25, -25, -35 }, new double[] { -35, -25, -25, -35, -35 }));
 
-        SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(queryBuilder().shapeQuery(defaultFieldName, polygon).relation(ShapeRelation.INTERSECTS))
-            .get();
-
-        assertNoFailures(searchResponse);
-        SearchHits searchHits = searchResponse.getHits();
-        assertThat(searchHits.getTotalHits().value, equalTo(1L));
-        assertThat(searchHits.getAt(0).getId(), equalTo("1"));
+        assertNoFailuresAndResponse(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, polygon).relation(ShapeRelation.INTERSECTS)),
+            response -> {
+                SearchHits searchHits = response.getHits();
+                assertThat(searchHits.getTotalHits().value, equalTo(1L));
+                assertThat(searchHits.getAt(0).getId(), equalTo("1"));
+            }
+        );
     }
 
     public void testIndexPointsMultiPolygon() throws Exception {
@@ -208,47 +211,44 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         );
 
         MultiPolygon multiPolygon = new MultiPolygon(List.of(encloseDocument1Cb, encloseDocument2Cb));
-        {
-            SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPolygon).relation(ShapeRelation.INTERSECTS))
-                .get();
 
-            assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
-            assertThat(searchResponse.getHits().getHits().length, equalTo(2));
-            assertThat(searchResponse.getHits().getAt(0).getId(), not(equalTo("2")));
-            assertThat(searchResponse.getHits().getAt(1).getId(), not(equalTo("2")));
-        }
-        {
-            SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPolygon).relation(ShapeRelation.WITHIN))
-                .get();
-
-            assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
-            assertThat(searchResponse.getHits().getHits().length, equalTo(2));
-            assertThat(searchResponse.getHits().getAt(0).getId(), not(equalTo("2")));
-            assertThat(searchResponse.getHits().getAt(1).getId(), not(equalTo("2")));
-        }
-        {
-            SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPolygon).relation(ShapeRelation.DISJOINT))
-                .get();
-
-            assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-            assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-            assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
-        }
-        {
-            SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPolygon).relation(ShapeRelation.CONTAINS))
-                .get();
-
-            assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
-            assertThat(searchResponse.getHits().getHits().length, equalTo(0));
-        }
+        assertNoFailuresAndResponse(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPolygon).relation(ShapeRelation.INTERSECTS)),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getHits().length, equalTo(2));
+                assertThat(response.getHits().getAt(0).getId(), not(equalTo("2")));
+                assertThat(response.getHits().getAt(1).getId(), not(equalTo("2")));
+            }
+        );
+        assertNoFailuresAndResponse(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPolygon).relation(ShapeRelation.WITHIN)),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getHits().length, equalTo(2));
+                assertThat(response.getHits().getAt(0).getId(), not(equalTo("2")));
+                assertThat(response.getHits().getAt(1).getId(), not(equalTo("2")));
+            }
+        );
+        assertNoFailuresAndResponse(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPolygon).relation(ShapeRelation.DISJOINT)),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+            }
+        );
+        assertNoFailuresAndResponse(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPolygon).relation(ShapeRelation.CONTAINS)),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(response.getHits().getHits().length, equalTo(0));
+            }
+        );
     }
 
     public void testIndexPointsRectangle() throws Exception {
@@ -267,14 +267,15 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
 
         Rectangle rectangle = new Rectangle(-50, -40, -45, -55);
 
-        SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(queryBuilder().shapeQuery(defaultFieldName, rectangle).relation(ShapeRelation.INTERSECTS))
-            .get();
-
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+        assertNoFailuresAndResponse(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, rectangle).relation(ShapeRelation.INTERSECTS)),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+            }
+        );
     }
 
     public void testIndexPointsIndexedRectangle() throws Exception {
@@ -316,30 +317,31 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(
-                queryBuilder().shapeQuery(defaultFieldName, "shape1")
-                    .relation(ShapeRelation.INTERSECTS)
-                    .indexedShapeIndex(indexedShapeIndex)
-                    .indexedShapePath(indexedShapePath)
-            )
-            .get();
+        assertNoFailuresAndResponse(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(
+                    queryBuilder().shapeQuery(defaultFieldName, "shape1")
+                        .relation(ShapeRelation.INTERSECTS)
+                        .indexedShapeIndex(indexedShapeIndex)
+                        .indexedShapePath(indexedShapePath)
+                ),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                assertThat(response.getHits().getAt(0).getId(), equalTo("point2"));
+            }
+        );
 
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("point2"));
-
-        searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(
-                queryBuilder().shapeQuery(defaultFieldName, "shape2")
-                    .relation(ShapeRelation.INTERSECTS)
-                    .indexedShapeIndex(indexedShapeIndex)
-                    .indexedShapePath(indexedShapePath)
-            )
-            .get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(
+                    queryBuilder().shapeQuery(defaultFieldName, "shape2")
+                        .relation(ShapeRelation.INTERSECTS)
+                        .indexedShapeIndex(indexedShapeIndex)
+                        .indexedShapePath(indexedShapePath)
+                ),
+            0L
+        );
     }
 
     public void testWithInQueryLine() throws Exception {
@@ -404,34 +406,29 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
             .get();
 
         Point point = new Point(-35, -25);
-        {
-            SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point))
-                .get();
-            SearchHits searchHits = response.getHits();
-            assertEquals(1, searchHits.getTotalHits().value);
-        }
-        {
-            SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.WITHIN))
-                .get();
-            SearchHits searchHits = response.getHits();
-            assertEquals(1, searchHits.getTotalHits().value);
-        }
-        {
-            SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.CONTAINS))
-                .get();
-            SearchHits searchHits = response.getHits();
-            assertEquals(1, searchHits.getTotalHits().value);
-        }
-        {
-            SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.DISJOINT))
-                .get();
-            SearchHits searchHits = response.getHits();
-            assertEquals(0, searchHits.getTotalHits().value);
-        }
+
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName).setQuery(queryBuilder().shapeQuery(defaultFieldName, point)),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.WITHIN)),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.CONTAINS)),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.DISJOINT)),
+            0L
+        );
     }
 
     public void testQueryMultiPoint() throws Exception {
@@ -445,34 +442,28 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
 
         MultiPoint multiPoint = new MultiPoint(List.of(new Point(-35, -25), new Point(-15, -5)));
 
-        {
-            SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPoint))
-                .get();
-            SearchHits searchHits = response.getHits();
-            assertEquals(1, searchHits.getTotalHits().value);
-        }
-        {
-            SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPoint).relation(ShapeRelation.WITHIN))
-                .get();
-            SearchHits searchHits = response.getHits();
-            assertEquals(1, searchHits.getTotalHits().value);
-        }
-        {
-            SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPoint).relation(ShapeRelation.CONTAINS))
-                .get();
-            SearchHits searchHits = response.getHits();
-            assertEquals(0, searchHits.getTotalHits().value);
-        }
-        {
-            SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPoint).relation(ShapeRelation.DISJOINT))
-                .get();
-            SearchHits searchHits = response.getHits();
-            assertEquals(0, searchHits.getTotalHits().value);
-        }
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName).setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPoint)),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPoint).relation(ShapeRelation.WITHIN)),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPoint).relation(ShapeRelation.CONTAINS)),
+            0L
+        );
+
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, multiPoint).relation(ShapeRelation.DISJOINT)),
+            0L
+        );
     }
 
     public void testQueryPointFromGeoJSON() throws Exception {
@@ -489,34 +480,30 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         client().index(new IndexRequest(defaultIndexName).id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
         Point point = new Point(-35, -25);
-        {
-            SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point))
-                .get();
-            SearchHits searchHits = response.getHits();
-            assertEquals(1, searchHits.getTotalHits().value);
-        }
-        {
-            SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.WITHIN))
-                .get();
-            SearchHits searchHits = response.getHits();
-            assertEquals(1, searchHits.getTotalHits().value);
-        }
-        {
-            SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.CONTAINS))
-                .get();
-            SearchHits searchHits = response.getHits();
-            assertEquals(1, searchHits.getTotalHits().value);
-        }
-        {
-            SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.DISJOINT))
-                .get();
-            SearchHits searchHits = response.getHits();
-            assertEquals(0, searchHits.getTotalHits().value);
-        }
+
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName).setQuery(queryBuilder().shapeQuery(defaultFieldName, point)),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.WITHIN)),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.CONTAINS)),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.DISJOINT)),
+            0L
+        );
+
     }
 
     /**
@@ -551,34 +538,34 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         for (Point point : new Point[] { pointA, pointB, pointC, pointD, pointInvalid }) {
             int expectedDocs = point.equals(pointInvalid) ? 0 : 1;
             int disjointDocs = point.equals(pointInvalid) ? 1 : 0;
-            {
-                SearchResponse response = client().prepareSearch(defaultIndexName)
-                    .setQuery(queryBuilder().shapeQuery(defaultFieldName, point))
-                    .get();
-                SearchHits searchHits = response.getHits();
-                assertEquals("Doc matches %s" + point, expectedDocs, searchHits.getTotalHits().value);
-            }
-            {
-                SearchResponse response = client().prepareSearch(defaultIndexName)
-                    .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.WITHIN))
-                    .get();
-                SearchHits searchHits = response.getHits();
-                assertEquals("Doc WITHIN %s" + point, 0, searchHits.getTotalHits().value);
-            }
-            {
-                SearchResponse response = client().prepareSearch(defaultIndexName)
-                    .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.CONTAINS))
-                    .get();
-                SearchHits searchHits = response.getHits();
-                assertEquals("Doc CONTAINS %s" + point, expectedDocs, searchHits.getTotalHits().value);
-            }
-            {
-                SearchResponse response = client().prepareSearch(defaultIndexName)
-                    .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.DISJOINT))
-                    .get();
-                SearchHits searchHits = response.getHits();
-                assertEquals("Doc DISJOINT with %s" + point, disjointDocs, searchHits.getTotalHits().value);
-            }
+
+            assertHitCountAndNoFailures(
+                client().prepareSearch(defaultIndexName)
+                    .setTrackTotalHits(true)
+                    .setQuery(queryBuilder().shapeQuery(defaultFieldName, point)),
+                expectedDocs
+            );
+
+            assertHitCountAndNoFailures(
+                client().prepareSearch(defaultIndexName)
+                    .setTrackTotalHits(true)
+                    .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.WITHIN)),
+                0L
+            );
+
+            assertHitCountAndNoFailures(
+                client().prepareSearch(defaultIndexName)
+                    .setTrackTotalHits(true)
+                    .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.CONTAINS)),
+                expectedDocs
+            );
+
+            assertHitCountAndNoFailures(
+                client().prepareSearch(defaultIndexName)
+                    .setTrackTotalHits(true)
+                    .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.DISJOINT)),
+                disjointDocs
+            );
         }
     }
 
@@ -598,13 +585,12 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         }
         client().admin().indices().prepareRefresh(defaultIndexName).get();
         // all points from a line intersect with the line
-        SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setTrackTotalHits(true)
-            .setQuery(queryBuilder().shapeQuery(defaultFieldName, line).relation(ShapeRelation.INTERSECTS))
-            .get();
-        assertNoFailures(searchResponse);
-        SearchHits searchHits = searchResponse.getHits();
-        assertThat(searchHits.getTotalHits().value, equalTo((long) line.length()));
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName)
+                .setTrackTotalHits(true)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, line).relation(ShapeRelation.INTERSECTS)),
+            line.length()
+        );
     }
 
     public void testIndexPointsFromPolygon() throws Exception {
@@ -624,13 +610,12 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         }
         client().admin().indices().prepareRefresh(defaultIndexName).get();
         // all points from a polygon intersect with the polygon
-        SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setTrackTotalHits(true)
-            .setQuery(queryBuilder().shapeQuery(defaultFieldName, polygon).relation(ShapeRelation.INTERSECTS))
-            .get();
-        assertNoFailures(searchResponse);
-        SearchHits searchHits = searchResponse.getHits();
-        assertThat(searchHits.getTotalHits().value, equalTo((long) linearRing.length()));
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName)
+                .setTrackTotalHits(true)
+                .setQuery(queryBuilder().shapeQuery(defaultFieldName, polygon).relation(ShapeRelation.INTERSECTS)),
+            linearRing.length()
+        );
     }
 
     /** Only LegacyGeoShape has limited support, so other tests will ignore nothing */

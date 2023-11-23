@@ -30,11 +30,6 @@ import java.util.Map;
 public abstract class ParentChildTestCase extends ESIntegTestCase {
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(InternalSettingsPlugin.class, ParentJoinPlugin.class);
     }

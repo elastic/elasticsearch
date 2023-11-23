@@ -63,6 +63,7 @@ public class RestAllocationAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse state) {
                 NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
+                statsRequest.setIncludeShardsStats(false);
                 statsRequest.clear()
                     .addMetric(NodesStatsRequest.Metric.FS.metricName())
                     .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
@@ -92,7 +93,7 @@ public class RestAllocationAction extends AbstractCatAction {
         table.addCell("host", "alias:h;desc:host of node");
         table.addCell("ip", "desc:ip of node");
         table.addCell("node", "alias:n;desc:name of node");
-        table.addCell("node.role", "default:false;alias:r,role,nodeRole;desc:node roles");
+        table.addCell("node.role", "alias:r,role,nodeRole;desc:node roles");
         table.endHeaders();
         return table;
     }

@@ -683,7 +683,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             indicesAdmin().preparePutTemplate(downsampleIndex)
                 .setPatterns(List.of(downsampleIndex))
                 .setSettings(Settings.builder().put("index.blocks.write", "true").build())
-                .get()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, indexer::execute);
@@ -1047,14 +1046,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertAcked(
             indicesAdmin().prepareUpdateSettings(sourceIndex)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), blockWrite).build())
-                .get()
         );
     }
 
     private void downsample(String sourceIndex, String downsampleIndex, DownsampleConfig config) {
         assertAcked(
             client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config))
-                .actionGet()
         );
     }
 
@@ -1437,16 +1434,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             null
         );
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(dataStreamName + "*"),
-            indexTemplate,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false),
-            null
-        );
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(indexTemplate)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+            .build();
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")
             .indexTemplate(template);
         assertAcked(client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet());

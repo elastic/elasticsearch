@@ -1039,7 +1039,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 bulkRequest.add(indexRequest);
             }
         }
-        BulkResponse response = bulkRequest.execute().actionGet();
+        BulkResponse response = bulkRequest.get();
         if (response.hasFailures()) {
             throw new IllegalStateException(Strings.toString(response));
         }
@@ -1064,7 +1064,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 bulkRequest.add(indexRequest);
             }
         }
-        bulkRequest.execute().actionGet();
+        bulkRequest.get();
     }
 
     private void indexModelSizeStats(ModelSizeStats modelSizeStats) {
@@ -1114,6 +1114,6 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 bulkRequest.add(indexRequest);
             }
         }
-        bulkRequest.execute().actionGet();
+        bulkRequest.get();
     }
 }

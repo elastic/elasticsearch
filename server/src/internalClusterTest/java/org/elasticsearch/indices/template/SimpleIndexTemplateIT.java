@@ -155,8 +155,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         SearchResponse searchResponse = prepareSearch("test_index").setQuery(termQuery("field1", "value1"))
             .addStoredField("field1")
             .addStoredField("field2")
-            .execute()
-            .actionGet();
+            .get();
 
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));
@@ -170,8 +169,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         searchResponse = prepareSearch("text_index").setQuery(termQuery("field1", "value1"))
             .addStoredField("field1")
             .addStoredField("field2")
-            .execute()
-            .actionGet();
+            .get();
         if (searchResponse.getFailedShards() > 0) {
             logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));
         }
@@ -181,7 +179,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     public void testDeleteIndexTemplate() throws Exception {
-        final int existingTemplates = admin().cluster().prepareState().execute().actionGet().getState().metadata().templates().size();
+        final int existingTemplates = admin().cluster().prepareState().get().getState().metadata().templates().size();
         logger.info("--> put template_1 and template_2");
         indicesAdmin().preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("te*"))
@@ -203,8 +201,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         indicesAdmin().preparePutTemplate("template_2")
             .setPatterns(Collections.singletonList("test*"))
@@ -222,13 +219,12 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("--> explicitly delete template_1");
-        indicesAdmin().prepareDeleteTemplate("template_1").execute().actionGet();
+        indicesAdmin().prepareDeleteTemplate("template_1").get();
 
-        ClusterState state = admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState state = admin().cluster().prepareState().get().getState();
 
         assertThat(state.metadata().templates().size(), equalTo(1 + existingTemplates));
         assertThat(state.metadata().templates().containsKey("template_2"), equalTo(true));
@@ -255,19 +251,15 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("--> delete template*");
-        indicesAdmin().prepareDeleteTemplate("template*").execute().actionGet();
-        assertThat(
-            admin().cluster().prepareState().execute().actionGet().getState().metadata().templates().size(),
-            equalTo(existingTemplates)
-        );
+        indicesAdmin().prepareDeleteTemplate("template*").get();
+        assertThat(admin().cluster().prepareState().get().getState().metadata().templates().size(), equalTo(existingTemplates));
 
         logger.info("--> delete * with no templates, make sure we don't get a failure");
-        indicesAdmin().prepareDeleteTemplate("*").execute().actionGet();
-        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metadata().templates().size(), equalTo(0));
+        indicesAdmin().prepareDeleteTemplate("*").get();
+        assertThat(admin().cluster().prepareState().get().getState().metadata().templates().size(), equalTo(0));
     }
 
     public void testThatGetIndexTemplatesWorks() throws Exception {
@@ -293,11 +285,10 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("--> get template template_1");
-        GetIndexTemplatesResponse getTemplate1Response = indicesAdmin().prepareGetTemplates("template_1").execute().actionGet();
+        GetIndexTemplatesResponse getTemplate1Response = indicesAdmin().prepareGetTemplates("template_1").get();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(1));
         assertThat(getTemplate1Response.getIndexTemplates().get(0), is(notNullValue()));
         assertThat(getTemplate1Response.getIndexTemplates().get(0).patterns(), is(Collections.singletonList("te*")));
@@ -305,7 +296,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(getTemplate1Response.getIndexTemplates().get(0).getVersion(), is(123));
 
         logger.info("--> get non-existing-template");
-        GetIndexTemplatesResponse getTemplate2Response = indicesAdmin().prepareGetTemplates("non-existing-template").execute().actionGet();
+        GetIndexTemplatesResponse getTemplate2Response = indicesAdmin().prepareGetTemplates("non-existing-template").get();
         assertThat(getTemplate2Response.getIndexTemplates(), hasSize(0));
     }
 
@@ -331,8 +322,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("--> put template_2");
         indicesAdmin().preparePutTemplate("template_2")
@@ -355,8 +345,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("--> put template3");
         indicesAdmin().preparePutTemplate("template3")
@@ -379,11 +368,10 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
 
         logger.info("--> get template template_*");
-        GetIndexTemplatesResponse getTemplate1Response = indicesAdmin().prepareGetTemplates("template_*").execute().actionGet();
+        GetIndexTemplatesResponse getTemplate1Response = indicesAdmin().prepareGetTemplates("template_*").get();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(2));
 
         List<String> templateNames = new ArrayList<>();
@@ -392,7 +380,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(templateNames, containsInAnyOrder("template_1", "template_2"));
 
         logger.info("--> get all templates");
-        getTemplate1Response = indicesAdmin().prepareGetTemplates("template*").execute().actionGet();
+        getTemplate1Response = indicesAdmin().prepareGetTemplates("template*").get();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(3));
 
         templateNames = new ArrayList<>();
@@ -402,7 +390,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(templateNames, containsInAnyOrder("template_1", "template_2", "template3"));
 
         logger.info("--> get templates template_1 and template_2");
-        getTemplate1Response = indicesAdmin().prepareGetTemplates("template_1", "template_2").execute().actionGet();
+        getTemplate1Response = indicesAdmin().prepareGetTemplates("template_1", "template_2").get();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(2));
 
         templateNames = new ArrayList<>();
@@ -811,7 +799,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setVersion(version)
                 .setOrder(order)
                 .setMapping("field", "type=text")
-                .get()
         );
 
         GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates("versioned_template").get();
@@ -853,8 +840,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         SearchResponse searchResponse = prepareSearch("ax").setQuery(termQuery("field1", "value1"))
             .addStoredField("field1")
             .addStoredField("field2")
-            .execute()
-            .actionGet();
+            .get();
 
         assertHitCount(searchResponse, 1);
         assertEquals("value1", searchResponse.getHits().getAt(0).field("field1").getValue().toString());
@@ -864,8 +850,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         searchResponse = prepareSearch("bx").setQuery(termQuery("field1", "value1"))
             .addStoredField("field1")
             .addStoredField("field2")
-            .execute()
-            .actionGet();
+            .get();
 
         assertHitCount(searchResponse, 1);
         assertEquals("value1", searchResponse.getHits().getAt(0).field("field1").getValue().toString());
@@ -913,7 +898,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             indicesAdmin().preparePutTemplate("just_partitions")
                 .setPatterns(Collections.singletonList("te*"))
                 .setSettings(Settings.builder().put("index.routing_partition_size", "6"))
-                .get()
         );
 
         // create an index with too few shards

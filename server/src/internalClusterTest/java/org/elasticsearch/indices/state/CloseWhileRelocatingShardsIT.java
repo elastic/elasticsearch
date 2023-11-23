@@ -31,7 +31,6 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -177,15 +176,11 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             };
 
-            final MockTransportService targetTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                targetNode
-            );
+            final var targetTransportService = MockTransportService.getInstance(targetNode);
 
             for (DiscoveryNode node : state.getNodes()) {
                 if (node.canContainData() && node.getName().equals(targetNode) == false) {
-                    final TransportService sourceTransportService = internalCluster().getInstance(TransportService.class, node.getName());
-                    targetTransportService.addSendBehavior(sourceTransportService, sendBehavior);
+                    targetTransportService.addSendBehavior(MockTransportService.getInstance(node.getName()), sendBehavior);
                 }
             }
 

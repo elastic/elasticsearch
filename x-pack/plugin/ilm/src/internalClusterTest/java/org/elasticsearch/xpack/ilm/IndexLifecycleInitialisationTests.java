@@ -110,11 +110,6 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, TestILMPlugin.class);
     }
@@ -188,8 +183,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
-                .execute()
-                .actionGet()
+                .get()
                 .getState()
                 .getMetadata()
                 .index("test")
@@ -420,8 +414,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = clusterAdmin().prepareState()
-                .execute()
-                .actionGet()
+                .get()
                 .getState()
                 .getMetadata()
                 .index("test")

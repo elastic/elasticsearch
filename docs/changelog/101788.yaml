@@ -1,0 +1,6 @@
+pr: 101788
+summary: "ESQL: Narrow catch in convert functions"
+area: ES|QL
+type: bug
+issues:
+ - 100820

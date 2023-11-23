@@ -167,15 +167,14 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
 
         prepareIndex("test").setId(Integer.toString(1))
             .setSource(jsonBuilder().startObject().field("field", queryString).endObject())
-            .execute()
-            .actionGet();
+            .get();
         client().admin().indices().prepareRefresh().get();
         TermVectorsRequestBuilder resp = client().prepareTermVectors("test", Integer.toString(1))
             .setPayloads(true)
             .setOffsets(true)
             .setPositions(true)
             .setSelectedFields();
-        TermVectorsResponse response = resp.execute().actionGet();
+        TermVectorsResponse response = resp.get();
         assertThat("doc id 1 doesn't exists but should", response.isExists(), equalTo(true));
         Fields fields = response.getFields();
         assertThat(fields.size(), equalTo(1));

@@ -101,7 +101,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertAcked(
             indicesAdmin().prepareResizeIndex("source", "first_shrink")
                 .setSettings(indexSettings(shardSplits[1], 0).putNull("index.blocks.write").build())
-                .get()
         );
         ensureGreen();
         assertHitCount(prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
@@ -127,7 +126,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .setSettings(
                     indexSettings(shardSplits[2], 0).putNull("index.blocks.write").putNull("index.routing.allocation.require._name").build()
                 )
-                .get()
         );
         ensureGreen();
         assertHitCount(prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
@@ -267,7 +265,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                         .putNull("index.routing.allocation.require._name")
                         .build()
                 )
-                .get()
         );
         ensureGreen();
 
@@ -454,15 +451,13 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         // check that the index sort order of `source` is correctly applied to the `target`
         assertAcked(
-            indicesAdmin().prepareResizeIndex("source", "target")
-                .setSettings(indexSettings(2, 0).putNull("index.blocks.write").build())
-                .get()
+            indicesAdmin().prepareResizeIndex("source", "target").setSettings(indexSettings(2, 0).putNull("index.blocks.write").build())
         );
         ensureGreen();
         assertNoResizeSourceIndexSettings("target");
 
         flushAndRefresh();
-        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("target").execute().actionGet();
+        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("target").get();
         assertEquals(settingsResponse.getSetting("target", "index.sort.field"), "id");
         assertEquals(settingsResponse.getSetting("target", "index.sort.order"), "desc");
         assertSortedSegments("target", expectedIndexSort);
@@ -505,7 +500,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             assertAcked(
                 indicesAdmin().prepareResizeIndex("source", "target")
                     .setSettings(Settings.builder().put("index.number_of_replicas", 0).build())
-                    .get()
             );
             ensureGreen();
             assertNoResizeSourceIndexSettings("target");
@@ -578,7 +572,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                     ).build()
                 )
                 .setResizeType(ResizeType.SHRINK)
-                .get()
         );
         ensureGreen();
 
@@ -609,8 +602,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .clear()
             .setMetadata(true)
             .setRoutingTable(true)
-            .execute()
-            .actionGet();
+            .get();
         IndexRoutingTable indexRoutingTable = clusterStateResponse.getState().routingTable().index(index);
         assertThat("Index " + index + " should have all primaries started", indexRoutingTable.allPrimaryShardsActive(), equalTo(true));
         IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(index);

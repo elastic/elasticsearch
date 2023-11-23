@@ -1,5 +1,0 @@
-pr: 99555
-summary: Use mappings version to retrieve system index mappings at creation time
-area: Infra/Core
-type: enhancement
-issues: []

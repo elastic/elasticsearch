@@ -67,15 +67,14 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-File generatedResourcesDir = new File(buildDir, 'generated-resources')
+Directory generatedResourcesDir = layout.buildDirectory.dir('generated-resources').get()
 def generateProviderManifest = tasks.register("generateProviderManifest", GenerateProviderManifest.class) {
-  outputDir = layout.buildDirectory.dir('generated-resources')
-  manifestName = "LISTING.TXT"
+  manifestFile = generatedResourcesDir.file("LISTING.TXT")
   getProviderImplClasspath().from(configurations.providerImpl)
 }
 
 def generateProviderImpl = tasks.register("generateProviderImpl", Sync) {
-  destinationDir = new File(generatedResourcesDir, "impl")
+  destinationDir = generatedResourcesDir.dir("impl").getAsFile()
   into("IMPL-JARS/x-content") {
     from(configurations.providerImpl)
     from(generateProviderManifest)

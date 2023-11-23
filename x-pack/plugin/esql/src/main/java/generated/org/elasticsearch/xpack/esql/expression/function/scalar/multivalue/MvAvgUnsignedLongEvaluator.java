@@ -40,7 +40,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
         CompensatedSum work = new CompensatedSum();
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
@@ -76,7 +76,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+      try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
         CompensatedSum work = new CompensatedSum();
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
@@ -108,7 +108,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
         CompensatedSum work = new CompensatedSum();
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
@@ -135,7 +135,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+      try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
         CompensatedSum work = new CompensatedSum();
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
@@ -147,6 +147,24 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
         }
         return Block.Ref.floating(builder.build().asBlock());
       }
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvAvgUnsignedLongEvaluator get(DriverContext context) {
+      return new MvAvgUnsignedLongEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvAvg[field=" + field + "]";
     }
   }
 }

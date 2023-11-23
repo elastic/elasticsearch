@@ -64,7 +64,6 @@ public class CloneIndexIT extends ESIntegTestCase {
                     .setSettings(
                         Settings.builder().put("index.number_of_replicas", createWithReplicas ? 1 : 0).putNull("index.blocks.write").build()
                     )
-                    .get()
             );
             ensureGreen();
             assertNoResizeSourceIndexSettings("target");

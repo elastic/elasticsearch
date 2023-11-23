@@ -742,7 +742,6 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 assertThat(((InternalAggregation) global).getProperty("scripted"), sameInstance(scriptedMetricAggregation));
                 assertThat((List) ((InternalAggregation) global).getProperty("scripted.value"), sameInstance(aggregationList));
                 assertThat((List) ((InternalAggregation) scriptedMetricAggregation).getProperty("value"), sameInstance(aggregationList));
-                
             }
         );
     }

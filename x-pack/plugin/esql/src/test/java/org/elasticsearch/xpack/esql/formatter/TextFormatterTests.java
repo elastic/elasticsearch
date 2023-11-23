@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.formatter;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
@@ -17,6 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.ql.util.SpatialUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -34,6 +36,7 @@ public class TextFormatterTests extends ESTestCase {
         new ColumnInfo("superduperwidename!!!", "double"),
         new ColumnInfo("baz", "keyword"),
         new ColumnInfo("date", "date"),
+        new ColumnInfo("location", "geo_point"),
         new ColumnInfo("null_field2", "keyword")
     );
     EsqlQueryResponse esqlResponse = new EsqlQueryResponse(
@@ -53,6 +56,10 @@ public class TextFormatterTests extends ESTestCase {
                     new long[] {
                         UTC_DATE_TIME_FORMATTER.parseMillis("1953-09-02T00:00:00.000Z"),
                         UTC_DATE_TIME_FORMATTER.parseMillis("2000-03-15T21:34:37.443Z") },
+                    2
+                ).asBlock(),
+                new LongArrayVector(
+                    new long[] { SpatialUtils.geoPointAsLong(new GeoPoint(56, 12)), SpatialUtils.geoPointAsLong(new GeoPoint(26, -97)) },
                     2
                 ).asBlock(),
                 Block.constantNullBlock(2)
@@ -75,22 +82,22 @@ public class TextFormatterTests extends ESTestCase {
         assertThat(result, arrayWithSize(4));
         assertEquals(
             "      foo      |      bar      |15charwidename!|  null_field1  |superduperwidename!!!|      baz      |"
-                + "          date          |  null_field2  ",
+                + "          date          |           location           |  null_field2  ",
             result[0]
         );
         assertEquals(
             "---------------+---------------+---------------+---------------+---------------------+---------------+"
-                + "------------------------+---------------",
+                + "------------------------+------------------------------+---------------",
             result[1]
         );
         assertEquals(
             "15charwidedata!|1              |6.888          |null           |12.0                 |rabbit         |"
-                + "1953-09-02T00:00:00.000Z|null           ",
+                + "1953-09-02T00:00:00.000Z|POINT (12.0000000 56.0000000) |null           ",
             result[2]
         );
         assertEquals(
             "dog            |2              |123124.888     |null           |9912.0               |goat           |"
-                + "2000-03-15T21:34:37.443Z|null           ",
+                + "2000-03-15T21:34:37.443Z|POINT (-97.0000000 26.0000000)|null           ",
             result[3]
         );
     }
@@ -116,6 +123,12 @@ public class TextFormatterTests extends ESTestCase {
                             UTC_DATE_TIME_FORMATTER.parseMillis("2231-12-31T23:59:59.999Z") },
                         2
                     ).asBlock(),
+                    new LongArrayVector(
+                        new long[] {
+                            SpatialUtils.geoPointAsLong(new GeoPoint(56, 12)),
+                            SpatialUtils.geoPointAsLong(new GeoPoint(26, -97)) },
+                        2
+                    ).asBlock(),
                     Block.constantNullBlock(2)
                 )
             ),
@@ -126,12 +139,12 @@ public class TextFormatterTests extends ESTestCase {
         assertThat(result, arrayWithSize(2));
         assertEquals(
             "doggie         |4              |1.0            |null           |77.0                 |wombat         |"
-                + "1955-01-21T01:02:03.342Z|null           ",
+                + "1955-01-21T01:02:03.342Z|POINT (12.0000000 56.0000000) |null           ",
             result[0]
         );
         assertEquals(
             "dog            |2              |123124.888     |null           |9912.0               |goat           |"
-                + "2231-12-31T23:59:59.999Z|null           ",
+                + "2231-12-31T23:59:59.999Z|POINT (-97.0000000 26.0000000)|null           ",
             result[1]
         );
     }

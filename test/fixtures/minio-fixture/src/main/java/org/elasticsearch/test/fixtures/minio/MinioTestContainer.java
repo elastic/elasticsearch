@@ -41,7 +41,10 @@ public class MinioTestContainer extends GenericContainer<MinioTestContainer> imp
 
     @Override
     public void start() {
-        Assume.assumeFalse("https://github.com/elastic/elasticsearch/issues/102532", System.getProperty("os.name").startsWith("windows"));
+        Assume.assumeFalse(
+            "https://github.com/elastic/elasticsearch/issues/102532",
+            System.getProperty("os.name").toLowerCase().startsWith("windows")
+        );
         if (enabled) {
             super.start();
         }

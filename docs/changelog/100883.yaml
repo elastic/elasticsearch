@@ -1,5 +1,0 @@
-pr: 100883
-summary: Refactor NodesStatsRequest to extract NodesStatsMetrics to a top-level class from it
-area: Stats
-type: refactoring
-issues: []

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.monitoring.collector.node;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsMetrics;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.bootstrap.BootstrapInfo;
@@ -70,11 +70,11 @@ public class NodeStatsCollector extends Collector {
         NodesStatsRequest request = new NodesStatsRequest("_local");
         request.indices(FLAGS);
         request.addMetrics(
-            NodesStatsMetrics.Metric.OS.metricName(),
-            NodesStatsMetrics.Metric.JVM.metricName(),
-            NodesStatsMetrics.Metric.PROCESS.metricName(),
-            NodesStatsMetrics.Metric.THREAD_POOL.metricName(),
-            NodesStatsMetrics.Metric.FS.metricName()
+            NodesStatsRequestParameters.Metric.OS.metricName(),
+            NodesStatsRequestParameters.Metric.JVM.metricName(),
+            NodesStatsRequestParameters.Metric.PROCESS.metricName(),
+            NodesStatsRequestParameters.Metric.THREAD_POOL.metricName(),
+            NodesStatsRequestParameters.Metric.FS.metricName()
         );
         request.timeout(getCollectionTimeout());
 

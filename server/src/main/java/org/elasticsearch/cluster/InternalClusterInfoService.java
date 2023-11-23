@@ -13,8 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsMetrics;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -286,7 +286,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void fetchNodeStats() {
             final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
             nodesStatsRequest.clear();
-            nodesStatsRequest.addMetric(NodesStatsMetrics.Metric.FS.metricName());
+            nodesStatsRequest.addMetric(NodesStatsRequestParameters.Metric.FS.metricName());
             nodesStatsRequest.timeout(fetchTimeout);
             client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.releaseAfter(new ActionListener<>() {
                 @Override

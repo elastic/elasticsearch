@@ -23,14 +23,14 @@ import java.util.stream.Collectors;
 /**
  * This class encapsulates the metrics and other information needed to define scope when we are requesting node stats.
  */
-public class NodesStatsMetrics implements Writeable {
+public class NodesStatsRequestParameters implements Writeable {
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
     private boolean includeShardsStats = true;
 
-    public NodesStatsMetrics() {}
+    public NodesStatsRequestParameters() {}
 
-    public NodesStatsMetrics(StreamInput in) throws IOException {
+    public NodesStatsRequestParameters(StreamInput in) throws IOException {
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
         requestedMetrics.addAll(in.readStringCollectionAsList());

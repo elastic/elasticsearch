@@ -47,12 +47,12 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
     }
 
     public NodesStatsRequestBuilder setBreaker(boolean breaker) {
-        addOrRemoveMetric(breaker, NodesStatsMetrics.Metric.BREAKER);
+        addOrRemoveMetric(breaker, NodesStatsRequestParameters.Metric.BREAKER);
         return this;
     }
 
     public NodesStatsRequestBuilder setScript(boolean script) {
-        addOrRemoveMetric(script, NodesStatsMetrics.Metric.SCRIPT);
+        addOrRemoveMetric(script, NodesStatsRequestParameters.Metric.SCRIPT);
         return this;
     }
 
@@ -68,7 +68,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
      * Should the node OS stats be returned.
      */
     public NodesStatsRequestBuilder setOs(boolean os) {
-        addOrRemoveMetric(os, NodesStatsMetrics.Metric.OS);
+        addOrRemoveMetric(os, NodesStatsRequestParameters.Metric.OS);
         return this;
     }
 
@@ -76,7 +76,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
      * Should the node OS stats be returned.
      */
     public NodesStatsRequestBuilder setProcess(boolean process) {
-        addOrRemoveMetric(process, NodesStatsMetrics.Metric.PROCESS);
+        addOrRemoveMetric(process, NodesStatsRequestParameters.Metric.PROCESS);
         return this;
     }
 
@@ -84,7 +84,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
      * Should the node JVM stats be returned.
      */
     public NodesStatsRequestBuilder setJvm(boolean jvm) {
-        addOrRemoveMetric(jvm, NodesStatsMetrics.Metric.JVM);
+        addOrRemoveMetric(jvm, NodesStatsRequestParameters.Metric.JVM);
         return this;
     }
 
@@ -92,7 +92,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
      * Should the node thread pool stats be returned.
      */
     public NodesStatsRequestBuilder setThreadPool(boolean threadPool) {
-        addOrRemoveMetric(threadPool, NodesStatsMetrics.Metric.THREAD_POOL);
+        addOrRemoveMetric(threadPool, NodesStatsRequestParameters.Metric.THREAD_POOL);
         return this;
     }
 
@@ -100,7 +100,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
      * Should the node file system stats be returned.
      */
     public NodesStatsRequestBuilder setFs(boolean fs) {
-        addOrRemoveMetric(fs, NodesStatsMetrics.Metric.FS);
+        addOrRemoveMetric(fs, NodesStatsRequestParameters.Metric.FS);
         return this;
     }
 
@@ -108,7 +108,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
      * Should the node Transport stats be returned.
      */
     public NodesStatsRequestBuilder setTransport(boolean transport) {
-        addOrRemoveMetric(transport, NodesStatsMetrics.Metric.TRANSPORT);
+        addOrRemoveMetric(transport, NodesStatsRequestParameters.Metric.TRANSPORT);
         return this;
     }
 
@@ -116,7 +116,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
      * Should the node HTTP stats be returned.
      */
     public NodesStatsRequestBuilder setHttp(boolean http) {
-        addOrRemoveMetric(http, NodesStatsMetrics.Metric.HTTP);
+        addOrRemoveMetric(http, NodesStatsRequestParameters.Metric.HTTP);
         return this;
     }
 
@@ -124,7 +124,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
      * Should the discovery stats be returned.
      */
     public NodesStatsRequestBuilder setDiscovery(boolean discovery) {
-        addOrRemoveMetric(discovery, NodesStatsMetrics.Metric.DISCOVERY);
+        addOrRemoveMetric(discovery, NodesStatsRequestParameters.Metric.DISCOVERY);
         return this;
     }
 
@@ -132,12 +132,12 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
      * Should ingest statistics be returned.
      */
     public NodesStatsRequestBuilder setIngest(boolean ingest) {
-        addOrRemoveMetric(ingest, NodesStatsMetrics.Metric.INGEST);
+        addOrRemoveMetric(ingest, NodesStatsRequestParameters.Metric.INGEST);
         return this;
     }
 
     public NodesStatsRequestBuilder setAdaptiveSelection(boolean adaptiveSelection) {
-        addOrRemoveMetric(adaptiveSelection, NodesStatsMetrics.Metric.ADAPTIVE_SELECTION);
+        addOrRemoveMetric(adaptiveSelection, NodesStatsRequestParameters.Metric.ADAPTIVE_SELECTION);
         return this;
     }
 
@@ -145,24 +145,24 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
      * Should script context cache statistics be returned
      */
     public NodesStatsRequestBuilder setScriptCache(boolean scriptCache) {
-        addOrRemoveMetric(scriptCache, NodesStatsMetrics.Metric.SCRIPT_CACHE);
+        addOrRemoveMetric(scriptCache, NodesStatsRequestParameters.Metric.SCRIPT_CACHE);
         return this;
     }
 
     public NodesStatsRequestBuilder setIndexingPressure(boolean indexingPressure) {
-        addOrRemoveMetric(indexingPressure, NodesStatsMetrics.Metric.INDEXING_PRESSURE);
+        addOrRemoveMetric(indexingPressure, NodesStatsRequestParameters.Metric.INDEXING_PRESSURE);
         return this;
     }
 
     public NodesStatsRequestBuilder setRepositoryStats(boolean repositoryStats) {
-        addOrRemoveMetric(repositoryStats, NodesStatsMetrics.Metric.REPOSITORIES);
+        addOrRemoveMetric(repositoryStats, NodesStatsRequestParameters.Metric.REPOSITORIES);
         return this;
     }
 
     /**
      * Helper method for adding metrics to a request
      */
-    private void addOrRemoveMetric(boolean includeMetric, NodesStatsMetrics.Metric metric) {
+    private void addOrRemoveMetric(boolean includeMetric, NodesStatsRequestParameters.Metric metric) {
         if (includeMetric) {
             request.addMetric(metric.metricName());
         } else {

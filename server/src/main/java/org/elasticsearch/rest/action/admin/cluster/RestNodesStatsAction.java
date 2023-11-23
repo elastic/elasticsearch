@@ -9,8 +9,8 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.NodeStatsLevel;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsMetrics;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -57,7 +57,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
     static {
         Map<String, Consumer<NodesStatsRequest>> map = new HashMap<>();
-        for (NodesStatsMetrics.Metric metric : NodesStatsMetrics.Metric.values()) {
+        for (NodesStatsRequestParameters.Metric metric : NodesStatsRequestParameters.Metric.values()) {
             map.put(metric.metricName(), request -> request.addMetric(metric.metricName()));
         }
         map.put("indices", request -> request.indices(true));

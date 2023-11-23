@@ -29,17 +29,17 @@ import java.util.TreeSet;
  */
 public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
-    private NodesStatsMetrics nodesStatsMetrics;
+    private NodesStatsRequestParameters nodesStatsRequestParameters;
 
     public NodesStatsRequest() {
         super((String[]) null);
-        nodesStatsMetrics = new NodesStatsMetrics();
+        nodesStatsRequestParameters = new NodesStatsRequestParameters();
     }
 
     public NodesStatsRequest(StreamInput in) throws IOException {
         super(in);
 
-        nodesStatsMetrics = new NodesStatsMetrics(in);
+        nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
     }
 
     /**
@@ -48,15 +48,15 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      */
     public NodesStatsRequest(String... nodesIds) {
         super(nodesIds);
-        nodesStatsMetrics = new NodesStatsMetrics();
+        nodesStatsRequestParameters = new NodesStatsRequestParameters();
     }
 
     /**
      * Sets all the request flags.
      */
     public NodesStatsRequest all() {
-        this.nodesStatsMetrics.indices().all();
-        this.nodesStatsMetrics.requestedMetrics().addAll(NodesStatsMetrics.Metric.allMetrics());
+        this.nodesStatsRequestParameters.indices().all();
+        this.nodesStatsRequestParameters.requestedMetrics().addAll(NodesStatsRequestParameters.Metric.allMetrics());
         return this;
     }
 
@@ -64,8 +64,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Clears all the request flags.
      */
     public NodesStatsRequest clear() {
-        this.nodesStatsMetrics.indices().clear();
-        this.nodesStatsMetrics.requestedMetrics().clear();
+        this.nodesStatsRequestParameters.indices().clear();
+        this.nodesStatsRequestParameters.requestedMetrics().clear();
         return this;
     }
 
@@ -75,7 +75,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * @return flags indicating which indices stats to return
      */
     public CommonStatsFlags indices() {
-        return nodesStatsMetrics.indices();
+        return nodesStatsRequestParameters.indices();
     }
 
     /**
@@ -85,7 +85,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * @return This object, for request chaining.
      */
     public NodesStatsRequest indices(CommonStatsFlags indices) {
-        nodesStatsMetrics.setIndices(indices);
+        nodesStatsRequestParameters.setIndices(indices);
         return this;
     }
 
@@ -94,9 +94,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      */
     public NodesStatsRequest indices(boolean indices) {
         if (indices) {
-            this.nodesStatsMetrics.indices().all();
+            this.nodesStatsRequestParameters.indices().all();
         } else {
-            this.nodesStatsMetrics.indices().clear();
+            this.nodesStatsRequestParameters.indices().clear();
         }
         return this;
     }
@@ -106,17 +106,17 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * handled separately.
      */
     public Set<String> requestedMetrics() {
-        return Set.copyOf(nodesStatsMetrics.requestedMetrics());
+        return Set.copyOf(nodesStatsRequestParameters.requestedMetrics());
     }
 
     /**
      * Add metric
      */
     public NodesStatsRequest addMetric(String metric) {
-        if (NodesStatsMetrics.Metric.allMetrics().contains(metric) == false) {
+        if (NodesStatsRequestParameters.Metric.allMetrics().contains(metric) == false) {
             throw new IllegalStateException("Used an illegal metric: " + metric);
         }
-        nodesStatsMetrics.requestedMetrics().add(metric);
+        nodesStatsRequestParameters.requestedMetrics().add(metric);
         return this;
     }
 
@@ -126,12 +126,12 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     public NodesStatsRequest addMetrics(String... metrics) {
         // use sorted set for reliable ordering in error messages
         SortedSet<String> metricsSet = new TreeSet<>(Set.of(metrics));
-        if (NodesStatsMetrics.Metric.allMetrics().containsAll(metricsSet) == false) {
-            metricsSet.removeAll(NodesStatsMetrics.Metric.allMetrics());
+        if (NodesStatsRequestParameters.Metric.allMetrics().containsAll(metricsSet) == false) {
+            metricsSet.removeAll(NodesStatsRequestParameters.Metric.allMetrics());
             String plural = metricsSet.size() == 1 ? "" : "s";
             throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
         }
-        nodesStatsMetrics.requestedMetrics().addAll(metricsSet);
+        nodesStatsRequestParameters.requestedMetrics().addAll(metricsSet);
         return this;
     }
 
@@ -139,10 +139,10 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Remove metric
      */
     public NodesStatsRequest removeMetric(String metric) {
-        if (NodesStatsMetrics.Metric.allMetrics().contains(metric) == false) {
+        if (NodesStatsRequestParameters.Metric.allMetrics().contains(metric) == false) {
             throw new IllegalStateException("Used an illegal metric: " + metric);
         }
-        nodesStatsMetrics.requestedMetrics().remove(metric);
+        nodesStatsRequestParameters.requestedMetrics().remove(metric);
         return this;
     }
 
@@ -151,8 +151,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return Strings.format(
             "nodes=%s, metrics=%s, flags=%s",
             Arrays.toString(nodesIds()),
-            nodesStatsMetrics.requestedMetrics().toString(),
-            Arrays.toString(nodesStatsMetrics.indices().getFlags())
+            nodesStatsRequestParameters.requestedMetrics().toString(),
+            Arrays.toString(nodesStatsRequestParameters.indices().getFlags())
         );
     }
 
@@ -167,17 +167,17 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     }
 
     public boolean includeShardsStats() {
-        return nodesStatsMetrics.includeShardsStats();
+        return nodesStatsRequestParameters.includeShardsStats();
     }
 
     public void setIncludeShardsStats(boolean includeShardsStats) {
-        nodesStatsMetrics.setIncludeShardsStats(includeShardsStats);
+        nodesStatsRequestParameters.setIncludeShardsStats(includeShardsStats);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        nodesStatsMetrics.writeTo(out);
+        nodesStatsRequestParameters.writeTo(out);
     }
 
 }

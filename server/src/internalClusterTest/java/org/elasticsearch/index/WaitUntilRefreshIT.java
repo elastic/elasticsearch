@@ -151,8 +151,9 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         while (false == index.isDone()) {
             indicesAdmin().prepareRefresh("test").get();
         }
-        assertEquals(RestStatus.CREATED, index.get().status());
-        assertFalse("request shouldn't have forced a refresh", index.get().forcedRefresh());
+        var response = index.get();
+        assertEquals(RestStatus.CREATED, response.status());
+        assertFalse("request shouldn't have forced a refresh", response.forcedRefresh());
         assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
     }
 

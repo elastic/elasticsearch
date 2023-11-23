@@ -15,7 +15,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +35,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -305,14 +305,14 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // search with versioning
         for (int i = 0; i < 10; i++) {
             // TODO: ADD SEQ NO!
-            SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery()).setVersion(true).get();
-            assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(2L));
+            assertResponse(prepareSearch().setQuery(matchAllQuery()).setVersion(true), response ->
+            assertThat(response.getHits().getAt(0).getVersion(), equalTo(2L)));
         }
 
         // search without versioning
         for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery()).get();
-            assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(Versions.NOT_FOUND));
+            assertResponse(prepareSearch().setQuery(matchAllQuery()), response ->
+            assertThat(response.getHits().getAt(0).getVersion(), equalTo(Versions.NOT_FOUND)));
         }
 
         DeleteResponse deleteResponse = client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(1).get();
@@ -374,10 +374,11 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().get();
 
         for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery()).setVersion(true).seqNoAndPrimaryTerm(true).get();
-            assertHitCount(searchResponse, 1);
-            assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(2L));
-            assertThat(searchResponse.getHits().getAt(0).getSeqNo(), equalTo(1L));
+            assertResponse(prepareSearch().setQuery(matchAllQuery()).setVersion(true).seqNoAndPrimaryTerm(true), response -> {
+                assertHitCount(response, 1);
+                assertThat(response.getHits().getAt(0).getVersion(), equalTo(2L));
+                assertThat(response.getHits().getAt(0).getSeqNo(), equalTo(1L));
+            });
         }
     }
 

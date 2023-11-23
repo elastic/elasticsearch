@@ -846,12 +846,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             assert endingSnapshots.contains(snapshot) == false : snapshot;
                         }
                     }
-                    for (final List<ActionListener<Void>> listeners : snapshotDeletionListeners.values()) {
+                    for (final Iterator<List<ActionListener<Void>>> it = snapshotDeletionListeners.values().iterator(); it.hasNext();) {
+                        final List<ActionListener<Void>> listeners = it.next();
                         readyToResolveListeners.add(
                             () -> failListenersIgnoringException(listeners, new NotMasterException("no longer master"))
                         );
+                        it.remove();
                     }
-                    snapshotDeletionListeners.clear();
                 }
                 // fail snapshot listeners outside mutex
                 readyToResolveListeners.forEach(Runnable::run);
@@ -2493,10 +2494,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     assert repositoryOperations.assertNotQueued(snapshot);
                 }
                 final Exception wrapped = new RepositoryException("_all", "Failed to update cluster state during repository operation", e);
-                for (final List<ActionListener<Void>> listeners : snapshotDeletionListeners.values()) {
+                for (final Iterator<List<ActionListener<Void>>> it = snapshotDeletionListeners.values().iterator(); it.hasNext();) {
+                    final List<ActionListener<Void>> listeners = it.next();
                     readyToResolveListeners.add(() -> failListenersIgnoringException(listeners, wrapped));
+                    it.remove();
                 }
-                snapshotDeletionListeners.clear();
+                assert snapshotDeletionListeners.isEmpty() : "No new listeners should have been added but saw " + snapshotDeletionListeners;
             } else {
                 assert false
                     : new AssertionError("Modifying snapshot state should only ever fail because we failed to publish new state", e);

@@ -136,8 +136,8 @@ generates a consistent id:
 ---
 index a new document on top of an old one:
   - skip:
-      version: " - 8.1.99"
-      reason: indexing on top of another document support added in 8.2
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       search:
@@ -170,7 +170,7 @@ index a new document on top of an old one:
               network:
                 tx: 111434595272
                 rx: 430605511
-  - match: {_id: cn4exSPK93Q9eJj8AAABeRnR_mY}
+  - match: {_id: cn4excfoxSs_KdA5AAABeRnR_mY}
 
   - do:
       search:
@@ -215,7 +215,7 @@ index a new document on top of an old one over bulk:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: {items.0.index._id: cn4exSPK93Q9eJj8AAABeRnR_mY}
+  - match: {items.0.index._id: cn4excfoxSs_KdA5AAABeRnR_mY}
 
   - do:
       search:
@@ -268,7 +268,7 @@ create operation on top of old document fails over bulk:
         body:
           - '{"create": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: { items.0.create.error.reason: "[cn4exSPK93Q9eJj8AAABeRnR_mY][{_tsid=KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ}@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
+  - match: { items.0.create.error.reason: "[cn4excfoxSs_KdA5AAABeRnR_mY][KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQAAAAAAAAA@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
 
 ---
 ids query:
@@ -295,15 +295,15 @@ ids query:
 ---
 get:
   - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       get:
         index:   test
-        id:      cZZNs-xII2fZweptAAABeRnSA5M
+        id:      cZZNs7B9sSWsyrL5AAABeRnSA5M
   - match: {_index: test}
-  - match: {_id: cZZNs-xII2fZweptAAABeRnSA5M}
+  - match: {_id: cZZNs7B9sSWsyrL5AAABeRnSA5M}
   - match:
       _source:
         "@timestamp": "2021-04-28T18:51:04.467Z"
@@ -345,13 +345,13 @@ get with routing:
 ---
 delete:
   - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       delete:
         index:   test
-        id:      cn4exSPK93Q9eJj8AAABeRnRFAY
+        id:      cn4excfoxSs_KdA5AAABeRnR_mY
   - match: {result: deleted}
 
 ---
@@ -414,8 +414,8 @@ delete over _bulk:
 ---
 routing_path matches deep object:
   - skip:
-      version: " - 8.1.99"
-      reason: id generation changed in 8.2
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       indices.create:
@@ -454,13 +454,13 @@ routing_path matches deep object:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"bar": {"baz": {"uid": "uid1"}}}}}'
   - match: {items.0.index.result: created}
-  - match: {items.0.index._id: OcEOGeykhIEIYuXSAAABeRnRGTM}
+  - match: {items.0.index._id: OcEOGchJrjH1fFX8AAABeRnRGTM}
 
 ---
 routing_path matches object:
   - skip:
-      version: " - 8.1.99"
-      reason: id generation changed in 8.2
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       indices.create:
@@ -495,4 +495,4 @@ routing_path matches object:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"uid": "uid1"}}}'
   - match: {items.0.index.result: created}
-  - match: {items.0.index._id: 8bgiqXPBT_mM6CX6AAABeRnRGTM}
+  - match: {items.0.index._id: 8bgiqW9JKwAyp1bZAAABeRnRGTM}

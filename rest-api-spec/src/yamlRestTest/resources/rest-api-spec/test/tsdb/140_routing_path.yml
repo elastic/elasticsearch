@@ -1,11 +1,4 @@
 ---
-setup:
-  - skip:
-      version: " - 8.9.99"
-      reason: "counter field support added in 8.10"
-      features: close_to
-
----
 missing routing path field:
   - skip:
       features: close_to
@@ -133,8 +126,8 @@ missing dimension on routing path field:
 multi-value routing path field:
   - skip:
       features: close_to
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       indices.create:

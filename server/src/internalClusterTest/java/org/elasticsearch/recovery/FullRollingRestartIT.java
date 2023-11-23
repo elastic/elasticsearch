@@ -49,11 +49,11 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         final String healthTimeout = "1m";
 
         for (int i = 0; i < 1000; i++) {
-            client().prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
+            prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
         flush();
         for (int i = 1000; i < 2000; i++) {
-            client().prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
+            prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
 
         logger.info("--> now start adding nodes");
@@ -165,7 +165,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         ).get();
 
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
+            prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
         ensureGreen();
         ClusterState state = clusterAdmin().prepareState().get().getState();

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.profiling;
 
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -18,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.XContentType;
@@ -35,7 +33,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public abstract class ProfilingTestCase extends ESIntegTestCase {
@@ -85,11 +82,6 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             .get();
         assertTrue("Creation of [" + name + "] is not acknowledged.", response.isAcknowledged());
         assertTrue("Shards for [" + name + "] are not acknowledged.", response.isShardsAcknowledged());
-    }
-
-    protected final void indexDoc(String index, String id, Map<String, Object> source) {
-        DocWriteResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
-        assertEquals(RestStatus.CREATED, indexResponse.status());
     }
 
     /**

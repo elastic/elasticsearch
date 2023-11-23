@@ -48,7 +48,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         ensureGreen("test");
         logger.info("--> index some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
         indicesAdmin().prepareRefresh().get();
         assertThat(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value, equalTo(100L));
@@ -129,7 +129,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> index some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
         indicesAdmin().prepareRefresh().get();
         assertThat(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value, equalTo(100L));

@@ -92,7 +92,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         int numDocs = scaledRandomIntBetween(25, 100);
         totalNumDocs.set(numDocs);
         CountDownLatch indexingDone = new CountDownLatch(numDocs);
-        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         indexingDone.countDown(); // one doc is indexed above blocking
         IndexShard shard = indexService.getShard(0);
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
@@ -125,7 +125,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         started.await();
         assertThat(count.applyAsLong(totalNumDocs.get()), equalTo(1L));
         for (int i = 1; i < numDocs; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).execute(new ActionListener<>() {
+            prepareIndex("test").setId("" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).execute(new ActionListener<>() {
                 @Override
                 public void onResponse(DocWriteResponse indexResponse) {
                     indexingDone.countDown();
@@ -154,7 +154,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", builder.build());
         assertFalse(indexService.getIndexSettings().isExplicitRefresh());
         ensureGreen();
-        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
         scheduleRefresh(shard, false);
         assertTrue(shard.isSearchIdle());
@@ -162,7 +162,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // async on purpose to make sure it happens concurrently
         indicesAdmin().prepareRefresh().execute(ActionListener.running(refreshLatch::countDown));
         assertHitCount(client().prepareSearch(), 1);
-        client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         scheduleRefresh(shard, false);
         assertTrue(shard.hasRefreshPending());
 
@@ -179,7 +179,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // We need to ensure a `scheduledRefresh` triggered by the internal refresh setting update is executed before we index a new doc;
         // otherwise, it will compete to call `Engine#maybeRefresh` with the `scheduledRefresh` that we are going to verify.
         ensureNoPendingScheduledRefresh(indexService.getThreadPool());
-        client().prepareIndex("test").setId("2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         scheduleRefresh(shard, true);
         assertFalse(shard.hasRefreshPending());
         assertTrue(shard.isSearchIdle());
@@ -279,15 +279,13 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
 
         assertEquals(
             RestStatus.CREATED,
-            client().prepareIndex(idleIndex)
-                .setSource("keyword", "idle", "@timestamp", "2021-05-10T19:00:03.765Z", "routing_field", "aaa")
+            prepareIndex(idleIndex).setSource("keyword", "idle", "@timestamp", "2021-05-10T19:00:03.765Z", "routing_field", "aaa")
                 .get()
                 .status()
         );
         assertEquals(
             RestStatus.CREATED,
-            client().prepareIndex(activeIndex)
-                .setSource("keyword", "active", "@timestamp", "2021-05-12T20:07:12.112Z", "routing_field", "aaa")
+            prepareIndex(activeIndex).setSource("keyword", "active", "@timestamp", "2021-05-12T20:07:12.112Z", "routing_field", "aaa")
                 .get()
                 .status()
         );
@@ -351,11 +349,8 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             "type=keyword"
         );
 
-        assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", "idle").get().status());
-        assertEquals(
-            RestStatus.CREATED,
-            client().prepareIndex(activeIndex).setSource("keyword", "active", "unmapped", "bbb").get().status()
-        );
+        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", "idle").get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", "active", "unmapped", "bbb").get().status());
         assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(

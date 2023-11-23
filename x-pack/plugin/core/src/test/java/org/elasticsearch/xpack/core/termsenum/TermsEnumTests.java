@@ -109,8 +109,7 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
     }
 
     private void indexAndRefresh(String indexName, String id, String field, String value) throws IOException {
-        client().prepareIndex(indexName)
-            .setId(id)
+        prepareIndex(indexName).setId(id)
             .setSource(jsonBuilder().startObject().field(field, value).endObject())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -206,8 +205,9 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
         for (int i = 0; i < numDocs; i++) {
             randomIps[i] = randomIp(randomBoolean());
             bulkRequestBuilder.add(
-                client().prepareIndex(indexName)
-                    .setSource(jsonBuilder().startObject().field("ip_addr", NetworkAddress.format(randomIps[i])).endObject())
+                prepareIndex(indexName).setSource(
+                    jsonBuilder().startObject().field("ip_addr", NetworkAddress.format(randomIps[i])).endObject()
+                )
             );
         }
         assertNoFailures(bulkRequestBuilder.get());

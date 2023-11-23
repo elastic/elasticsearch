@@ -68,8 +68,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setRouting(routingValue)
             .setSource("field", "value1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -98,8 +97,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setRouting(routingValue)
             .setSource("field", "value1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -120,8 +118,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         String routingValue = findNonMatchingRoutingValue("test", "1");
 
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setRouting(routingValue)
             .setSource("field", "value1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -171,8 +168,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         String secondRoutingValue = "1";
         logger.info("--> indexing with id [{}], and routing [{}]", routingValue, secondRoutingValue);
-        client().prepareIndex("test")
-            .setId(routingValue)
+        prepareIndex("test").setId(routingValue)
             .setRouting(secondRoutingValue)
             .setSource("field", "value1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -282,8 +278,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         String routingValue = findNonMatchingRoutingValue("test", "1");
 
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        client().prepareIndex(indexOrAlias())
-            .setId("1")
+        prepareIndex(indexOrAlias()).setId("1")
             .setRouting(routingValue)
             .setSource("field", "value1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -292,7 +287,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         logger.info("--> indexing with id [1], with no routing, should fail");
         try {
-            client().prepareIndex(indexOrAlias()).setId("1").setSource("field", "value1").get();
+            prepareIndex(indexOrAlias()).setId("1").setSource("field", "value1").get();
             fail("index with missing routing when routing is required should fail");
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
@@ -463,10 +458,9 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
-        client().prepareIndex(indexOrAlias()).setId("1").setRouting(routingValue).setSource("field", "value1").get();
+        prepareIndex(indexOrAlias()).setId("1").setRouting(routingValue).setSource("field", "value1").get();
         logger.info("--> indexing with id [2], and routing [{}]", routingValue);
-        client().prepareIndex(indexOrAlias())
-            .setId("2")
+        prepareIndex(indexOrAlias()).setId("2")
             .setRouting(routingValue)
             .setSource("field", "value2")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)

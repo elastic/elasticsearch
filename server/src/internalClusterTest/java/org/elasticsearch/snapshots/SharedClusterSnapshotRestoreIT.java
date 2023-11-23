@@ -1510,9 +1510,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> indexing some data");
         indexRandom(
             true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-3").setSource("foo", "bar")
+            prepareIndex("test-idx-1").setSource("foo", "bar"),
+            prepareIndex("test-idx-2").setSource("foo", "bar"),
+            prepareIndex("test-idx-3").setSource("foo", "bar")
         );
 
         createSnapshot("test-repo", "test-snap-1", Collections.singletonList("test-idx-*"));
@@ -1553,9 +1553,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createIndex("test-idx-1", "test-idx-2");
         indexRandom(
             true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
+            prepareIndex("test-idx-1").setSource("foo", "bar"),
+            prepareIndex("test-idx-2").setSource("foo", "bar"),
+            prepareIndex("test-idx-2").setSource("foo", "bar")
         );
         flushAndRefresh("test-idx-1", "test-idx-2");
 

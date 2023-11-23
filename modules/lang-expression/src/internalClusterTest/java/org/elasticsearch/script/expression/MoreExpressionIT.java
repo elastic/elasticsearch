@@ -650,8 +650,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
         refresh();
         // access .lat
         assertNoFailuresAndResponse(buildRequest("doc['location'].lat"), rsp -> {

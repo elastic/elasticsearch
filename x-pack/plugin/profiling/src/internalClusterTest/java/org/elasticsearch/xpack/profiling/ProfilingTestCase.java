@@ -93,7 +93,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     }
 
     /**
-     * @return <code>true</code> iff this test relies that data (and the corresponding indices / data streams) are present for this test.
+     * @return <code>true</code> iff this test relies on that data (and the corresponding indices / data streams) are present for this test.
      */
     protected boolean requiresDataSetup() {
         return true;
@@ -115,7 +115,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
 
     protected final void bulkIndex(String file) throws Exception {
         byte[] bulkData = read(file);
-        BulkResponse response = client().prepareBulk().add(bulkData, 0, bulkData.length, XContentType.JSON).execute().actionGet();
+        BulkResponse response = client().prepareBulk().add(bulkData, 0, bulkData.length, XContentType.JSON).get();
         assertFalse(response.hasFailures());
     }
 
@@ -139,6 +139,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         bulkIndex("data/profiling-stacktraces.ndjson");
         bulkIndex("data/profiling-stackframes.ndjson");
         bulkIndex("data/profiling-executables.ndjson");
+        bulkIndex("data/profiling-hosts.ndjson");
         bulkIndex("data/apm-test.ndjson");
 
         refresh();

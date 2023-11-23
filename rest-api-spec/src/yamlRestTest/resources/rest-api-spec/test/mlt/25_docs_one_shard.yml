@@ -1,0 +1,79 @@
+---
+"Basic mlt query with docs - explicitly on same shard":
+  - skip:
+      version: "all"
+      reason: temporarily disabling for investigation
+
+  - do:
+      indices.create:
+        index: mlt_one_shard_test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      index:
+        index:  mlt_one_shard_test_index
+        id:     "1"
+        body:   { foo: bar }
+
+  - do:
+      index:
+        index:  mlt_one_shard_test_index
+        id:     "2"
+        body:   { foo: baz }
+
+  - do:
+      index:
+        index:  mlt_one_shard_test_index
+        id:     "3"
+        body:   { foo: foo }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: mlt_one_shard_test_index
+        id: "1"
+
+  - match: { _source.foo: "bar" }
+
+  - do:
+      get:
+        index: mlt_one_shard_test_index
+        id: "2"
+
+  - match: { _source.foo: "baz" }
+
+  - do:
+      get:
+        index: mlt_one_shard_test_index
+        id: "3"
+
+  - match: { _source.foo: "foo" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index:   mlt_one_shard_test_index
+        body:
+          query:
+            more_like_this:
+              like:
+                -
+                  _index: mlt_one_shard_test_index
+                  doc:
+                    foo: bar
+                -
+                  _index: mlt_one_shard_test_index
+                  _id: "2"
+                -
+                  _id: "3"
+              include: true
+              min_doc_freq: 0
+              min_term_freq: 0
+
+  - match: { hits.total: 3 }

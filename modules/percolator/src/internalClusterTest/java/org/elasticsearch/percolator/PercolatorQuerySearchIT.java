@@ -536,28 +536,23 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         client().prepareIndex("test")
             .setId("1")
             .setSource(jsonBuilder().startObject().field("id", "1").field("query", matchQuery("field1", "brown fox")).endObject())
-            .execute()
-            .actionGet();
+            .get();
         client().prepareIndex("test")
             .setId("2")
             .setSource(jsonBuilder().startObject().field("id", "2").field("query", matchQuery("field1", "lazy dog")).endObject())
-            .execute()
-            .actionGet();
+            .get();
         client().prepareIndex("test")
             .setId("3")
             .setSource(jsonBuilder().startObject().field("id", "3").field("query", termQuery("field1", "jumps")).endObject())
-            .execute()
-            .actionGet();
+            .get();
         client().prepareIndex("test")
             .setId("4")
             .setSource(jsonBuilder().startObject().field("id", "4").field("query", termQuery("field1", "dog")).endObject())
-            .execute()
-            .actionGet();
+            .get();
         client().prepareIndex("test")
             .setId("5")
             .setSource(jsonBuilder().startObject().field("id", "5").field("query", termQuery("field1", "fox")).endObject())
-            .execute()
-            .actionGet();
+            .get();
         indicesAdmin().prepareRefresh().get();
 
         BytesReference document = BytesReference.bytes(
@@ -1123,13 +1118,11 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         client().prepareIndex("test")
             .setId("1")
             .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "b")).field("a", "b").endObject())
-            .execute()
-            .actionGet();
+            .get();
         client().prepareIndex("test")
             .setId("2")
             .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "c")).endObject())
-            .execute()
-            .actionGet();
+            .get();
         client().prepareIndex("test")
             .setId("3")
             .setSource(
@@ -1137,18 +1130,9 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     .field("query", boolQuery().must(matchQuery("field1", "b")).must(matchQuery("field1", "c")))
                     .endObject()
             )
-            .execute()
-            .actionGet();
-        client().prepareIndex("test")
-            .setId("4")
-            .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
-            .execute()
-            .actionGet();
-        client().prepareIndex("test")
-            .setId("5")
-            .setSource(jsonBuilder().startObject().field("field1", "c").endObject())
-            .execute()
-            .actionGet();
+            .get();
+        client().prepareIndex("test").setId("4").setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject()).get();
+        client().prepareIndex("test").setId("5").setSource(jsonBuilder().startObject().field("field1", "c").endObject()).get();
         indicesAdmin().prepareRefresh().get();
 
         MultiSearchResponse response = client().prepareMultiSearch()
@@ -1278,14 +1262,12 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         client().prepareIndex("test")
             .setId("1")
             .setSource(jsonBuilder().startObject().field("q", boolQuery().must(rangeQuery("d").gt("now"))).endObject())
-            .execute()
-            .actionGet();
+            .get();
 
         client().prepareIndex("test")
             .setId("2")
             .setSource(jsonBuilder().startObject().field("q", boolQuery().must(rangeQuery("d").lt("now"))).endObject())
-            .execute()
-            .actionGet();
+            .get();
 
         indicesAdmin().prepareRefresh().get();
 
@@ -1353,8 +1335,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     .endObject()
             )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .execute()
-            .actionGet();
+            .get();
 
         assertHitCount(
             prepareSearch("test").setQuery(

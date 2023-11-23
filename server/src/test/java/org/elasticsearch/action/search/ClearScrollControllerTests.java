@@ -49,7 +49,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             latch
         );
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
             @Override
             public void sendClearAllScrollContexts(Transport.Connection connection, ActionListener<TransportResponse> listener) {
                 nodesInvoked.add(connection.getNode());
@@ -107,7 +107,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             latch
         );
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
 
             @Override
             public void sendFreeContext(
@@ -181,7 +181,7 @@ public class ClearScrollControllerTests extends ESTestCase {
             latch
         );
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
-        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null, SearchTransportAPMMetrics.NOOP) {
 
             @Override
             public void sendFreeContext(

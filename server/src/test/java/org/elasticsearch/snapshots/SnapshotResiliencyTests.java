@@ -63,6 +63,7 @@ import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -1834,7 +1835,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final SearchTransportService searchTransportService = new SearchTransportService(
                     transportService,
                     client,
-                    SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
+                    SearchExecutionStatsCollector.makeWrapper(responseCollectorService),
+                    SearchTransportAPMMetrics.NOOP
                 );
                 final SearchService searchService = new SearchService(
                     clusterService,

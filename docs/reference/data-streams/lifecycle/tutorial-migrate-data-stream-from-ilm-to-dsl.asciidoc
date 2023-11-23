@@ -4,9 +4,9 @@
 
 preview::[]
 
-In this tutorial we'll look at migrating an existing data stream from {ilm-init} to 
-data stream lifecycle. The existing {ilm-init} managed backing indices will continue 
-to be managed by {ilm-init} until they age out and get deleted by {ilm-init}; however,
+In this tutorial we'll look at migrating an existing data stream from Index Lifecycle Management ({ilm-cap}) to 
+data stream lifecycle. The existing {ilm-cap} managed backing indices will continue 
+to be managed by {ilm-cap} until they age out and get deleted by {ilm-cap}; however,
 the new backing indices will be managed by data stream lifecycle. 
 This way, a data stream is gradually migrated away from being managed by {ilm-cap} to 
 being managed by data stream lifecycle. As we'll see, {ilm-cap} and data stream lifecycle
@@ -20,7 +20,7 @@ To migrate a data stream from {ilm-cap} to  data stream lifecycle we'll have to 
 two steps:
 
 1. Update the index template that's backing the data stream to set <<index-lifecycle-prefer-ilm, prefer_ilm>> 
-to `false`, and to configure data stream lifecycle. 
+to `false`, and to configure data stream lifecycle.
 2. Configure the data stream lifecycle for the _existing_ data stream using
 the <<data-streams-put-lifecycle, lifecycle API>>.
 
@@ -102,8 +102,8 @@ GET _data_stream/dsl-data-stream
 --------------------------------------------------
 // TEST[continued]
 
-Inspecting the response we'll see that both backing indices are managed by {ilm-init}
-and that the next generation index will also be managed by {ilm-init}:
+Inspecting the response we'll see that both backing indices are managed by {ilm-cap}
+and that the next generation index will also be managed by {ilm-cap}:
 
 [source,console-result]
 ----
@@ -152,9 +152,9 @@ and that the next generation index will also be managed by {ilm-init}:
 
 <1> The name of the backing index.
 <2> For each backing index we display the value of the <<index-lifecycle-prefer-ilm, prefer_ilm>>
-configuration which will indicate if {ilm-init} takes precedence over data stream lifecycle in case
+configuration which will indicate if {ilm-cap} takes precedence over data stream lifecycle in case
 both systems are configured for an index.
-<3> The {ilm-init} policy configured for this index.
+<3> The {ilm-cap} policy configured for this index.
 <4> The system that manages this index (possible values are "Index Lifecycle Management",
 "Data stream lifecycle", or "Unmanaged")
 <5> The system that will manage the next generation index (the new write index of this
@@ -163,9 +163,9 @@ data stream, once the data stream is rolled over). The possible values are
 <6> The <<index-lifecycle-prefer-ilm, prefer_ilm>> value configured in the index template
 that's backing the data stream. This value will be configured for all the new backing indices.
 If it's not configured in the index template the backing indices will receive the `true`
-default value ({ilm-init} takes precedence over data stream lifecycle by default as it's
+default value ({ilm-cap} takes precedence over data stream lifecycle by default as it's
 currently richer in features).
-<7> The {ilm-init} policy configured in the index template that's backing this data
+<7> The {ilm-cap} policy configured in the index template that's backing this data
 stream (which will be configured on all the new backing indices, as long as it exists
 in the index template).
 
@@ -210,7 +210,7 @@ PUT _index_template/dsl-data-stream-template
 // TEST[continued]
 
 <1> The `prefer_ilm` setting will now be configured on the **new** backing indices
-(created by rolling over the data stream) such that {ilm-init} does _not_ take 
+(created by rolling over the data stream) such that {ilm-cap} does _not_ take 
 precedence over data stream lifecycle.
 <2> We're configuring the data stream lifecycle so _new_ data streams will be 
 managed by data stream lifecycle.
@@ -286,8 +286,8 @@ GET _data_stream/dsl-data-stream
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_indices":[],"failure_store":false/]
 
-<1> The existing backing index will continue to be managed by {ilm-init}
-<2> The existing backing index will continue to be managed by {ilm-init}
+<1> The existing backing index will continue to be managed by {ilm-cap}
+<2> The existing backing index will continue to be managed by {ilm-cap}
 <3> The next generation index will be managed by Data stream lifecycle
 <4> The `prefer_ilm` setting value we configured in the index template is reflected
 and will be configured accordingly for new backing indices.
@@ -365,8 +365,8 @@ GET _data_stream/dsl-data-stream
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8abcd1"/"index_uuid": $body.data_streams.0.indices.2.index_uuid/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_indices":[],"failure_store":false/]
 
-<1> The backing indices that existed before rollover will continue to be managed by {ilm-init}
-<2> The backing indices that existed before rollover will continue to be managed by {ilm-init}
+<1> The backing indices that existed before rollover will continue to be managed by {ilm-cap}
+<2> The backing indices that existed before rollover will continue to be managed by {ilm-cap}
 <3> The new write index received the `false` value for the `prefer_ilm` setting, as we configured
 in the index template
 <4> The new write index is managed by `Data stream lifecycle`

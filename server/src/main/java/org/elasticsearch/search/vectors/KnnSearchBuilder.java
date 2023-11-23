@@ -37,6 +37,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.TransportVersions.KNN_K_NUMCANDS_AS_OPTIONAL_PARAMS;
 import static org.elasticsearch.TransportVersions.NESTED_KNN_VECTOR_QUERY_V;
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -344,9 +345,17 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             throw new IllegalArgumentException("missing rewrite");
         }
         Integer requestSize = context.requestSize();
-        return new KnnVectorQueryBuilder(field, queryVector, numCands, similarity).boost(boost)
+        int size = requestSize == null ? DEFAULT_SIZE : requestSize;
+        int adjustedSize = k == null ? size : k;
+        int adjustedNumCands = numCands == null ? Math.max(NUM_CANDS_DEFAULT, adjustedSize) : numCands;
+        if (adjustedNumCands < adjustedSize) {
+            throw new IllegalArgumentException(
+                "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
+            );
+        }
+        return new KnnVectorQueryBuilder(field, queryVector, adjustedNumCands, similarity).boost(boost)
             .addFilterQueries(filterQueries)
-            .requestSize(requestSize);
+            .requestSize(adjustedSize);
     }
 
     @Override

@@ -457,8 +457,14 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         int numDocs = randomIntBetween(10, 200);
         final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex(INDEX_NAME)
-                .setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
+            docs[i] = prepareIndex(INDEX_NAME).setSource(
+                "foo-int",
+                randomInt(),
+                "foo-string",
+                randomAlphaOfLength(32),
+                "foo-float",
+                randomFloat()
+            );
         }
         indexRandom(randomBoolean(), docs);
 
@@ -915,8 +921,14 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
 
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex(name)
-                .setSource("foo-int", randomInt(), "foo-string", randomAlphaOfLength(32), "foo-float", randomFloat());
+            docs[i] = prepareIndex(name).setSource(
+                "foo-int",
+                randomInt(),
+                "foo-string",
+                randomAlphaOfLength(32),
+                "foo-float",
+                randomFloat()
+            );
         }
 
         indexRandom(true, docs);
@@ -981,7 +993,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final List<IndexRequestBuilder> requests = new ArrayList<>();
         final int replicatedDocCount = scaledRandomIntBetween(25, 250);
         while (requests.size() < replicatedDocCount) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         if (randomBoolean()) {
@@ -1003,7 +1015,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         final int numNewDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numNewDocs; i++) {
-            client().prepareIndex(indexName).setSource("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+            prepareIndex(indexName).setSource("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         }
         // Flush twice to update the safe commit's local checkpoint
         assertThat(indicesAdmin().prepareFlush(indexName).setForce(true).execute().get().getFailedShards(), equalTo(0));
@@ -1035,10 +1047,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         indicesAdmin().preparePutMapping("test").setSource("test_field", "type=text,analyzer=test_analyzer").get();
         int numDocs = between(1, 10);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test")
-                .setId("u" + i)
-                .setSource(singletonMap("test_field", Integer.toString(i)), XContentType.JSON)
-                .get();
+            prepareIndex("test").setId("u" + i).setSource(singletonMap("test_field", Integer.toString(i)), XContentType.JSON).get();
         }
         Semaphore recoveryBlocked = new Semaphore(1);
         for (DiscoveryNode node : clusterService().state().nodes()) {
@@ -1138,7 +1147,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, numDocs).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
+            IntStream.range(0, numDocs).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         indicesAdmin().prepareRefresh(indexName).get(); // avoid refresh when we are failing a shard
         String failingNode = randomFrom(nodes);
@@ -1229,7 +1238,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
 
@@ -1293,7 +1302,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
 
@@ -1324,9 +1333,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        IntStream.range(0, between(1, 100))
-                            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                            .collect(toList())
+                        IntStream.range(0, between(1, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
                     );
 
                     // We do not guarantee that the replica can recover locally all the way to its own global checkpoint before starting
@@ -1379,7 +1386,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
         ensureGreen(indexName);
 
@@ -1460,9 +1467,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        IntStream.range(0, newDocCount)
-                            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                            .collect(toList())
+                        IntStream.range(0, newDocCount).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
                     );
 
                     flush(indexName);
@@ -1504,7 +1509,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
 
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
@@ -1523,7 +1528,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(0, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList())
+            IntStream.range(0, between(0, 100)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
 
         setReplicaCount(1, indexName);
@@ -1580,9 +1585,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, randomIntBetween(0, 10))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, randomIntBetween(0, 10)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
 
         assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
@@ -1610,9 +1613,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, randomIntBetween(0, 10))
-                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                .collect(toList())
+            IntStream.range(0, randomIntBetween(0, 10)).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).collect(toList())
         );
 
         logger.info("--> add replicas again");
@@ -1630,7 +1631,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .setSettings(indexSettings(1, 1).put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), randomBoolean()))
         );
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
+            .mapToObj(n -> prepareIndex(indexName).setSource("foo", "bar"))
             .toList();
         indexRandom(randomBoolean(), true, true, indexRequests);
         ensureGreen();
@@ -1676,9 +1677,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             indexers[i] = new Thread(() -> {
                 while (stopped.get() == false) {
                     try {
-                        DocWriteResponse response = client().prepareIndex(indexName)
-                            .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
-                            .get();
+                        DocWriteResponse response = prepareIndex(indexName).setSource(
+                            Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()),
+                            XContentType.JSON
+                        ).get();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                     } catch (ElasticsearchException ignored) {}
                 }
@@ -1721,7 +1723,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.include._name", String.join(",", dataNodes)).build());
         ensureGreen(indexName);
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
+            .mapToObj(n -> prepareIndex(indexName).setSource("foo", "bar"))
             .toList();
         indexRandom(randomBoolean(), true, true, indexRequests);
         assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
@@ -1795,7 +1797,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
+            .mapToObj(n -> prepareIndex(indexName).setSource("foo", "bar"))
             .toList();
         indexRandom(randomBoolean(), true, true, indexRequests);
         assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
@@ -1865,7 +1867,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
+            .mapToObj(n -> prepareIndex(indexName).setSource("foo", "bar"))
             .toList();
         indexRandom(randomBoolean(), true, true, indexRequests);
         assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
@@ -1895,7 +1897,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     // Process the TRANSLOG_OPS response on the replica (avoiding failing it due to a concurrent delete) but
                     // before sending the response back send another document to the primary, advancing the GCP to prevent the replica
                     // being marked as in-sync (NB below we delay the replica write until after the index is deleted)
-                    client().prepareIndex(indexName).setSource("foo", "baz").execute(ActionListener.noop());
+                    prepareIndex(indexName).setSource("foo", "baz").execute(ActionListener.noop());
 
                     primaryIndexShard.addGlobalCheckpointListener(
                         globalCheckpointBeforeRecovery + 1,

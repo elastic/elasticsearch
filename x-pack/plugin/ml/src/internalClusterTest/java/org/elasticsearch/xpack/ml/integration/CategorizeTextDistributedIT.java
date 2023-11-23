@@ -57,17 +57,21 @@ public class CategorizeTextDistributedIT extends BaseMlIntegTestCase {
         for (int i = 0; i < 10; ++i) {
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
             for (int j = 0; j < 250; ++j) {
-                IndexRequestBuilder indexRequestBuilder = client().prepareIndex(indexName)
-                    .setSource(Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol destroy"));
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(indexName).setSource(
+                    Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol destroy")
+                );
                 bulkRequestBuilder.add(indexRequestBuilder);
-                indexRequestBuilder = client().prepareIndex(indexName)
-                    .setSource(Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol init"));
+                indexRequestBuilder = prepareIndex(indexName).setSource(
+                    Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol init")
+                );
                 bulkRequestBuilder.add(indexRequestBuilder);
-                indexRequestBuilder = client().prepareIndex(indexName)
-                    .setSource(Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol start"));
+                indexRequestBuilder = prepareIndex(indexName).setSource(
+                    Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol start")
+                );
                 bulkRequestBuilder.add(indexRequestBuilder);
-                indexRequestBuilder = client().prepareIndex(indexName)
-                    .setSource(Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol stop"));
+                indexRequestBuilder = prepareIndex(indexName).setSource(
+                    Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol stop")
+                );
                 bulkRequestBuilder.add(indexRequestBuilder);
             }
             bulkRequestBuilder.get();

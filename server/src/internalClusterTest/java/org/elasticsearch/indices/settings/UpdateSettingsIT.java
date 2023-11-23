@@ -381,11 +381,11 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
     public void testEngineGCDeletesSetting() throws Exception {
         createIndex("test");
-        client().prepareIndex("test").setId("1").setSource("f", 1).setVersionType(VersionType.EXTERNAL).setVersion(1).get();
+        prepareIndex("test").setId("1").setSource("f", 1).setVersionType(VersionType.EXTERNAL).setVersion(1).get();
         client().prepareDelete("test", "1").setVersionType(VersionType.EXTERNAL).setVersion(2).get();
         // delete is still in cache this should fail
         assertRequestBuilderThrows(
-            client().prepareIndex("test").setId("1").setSource("f", 3).setVersionType(VersionType.EXTERNAL).setVersion(1),
+            prepareIndex("test").setId("1").setSource("f", 3).setVersionType(VersionType.EXTERNAL).setVersion(1),
             VersionConflictEngineException.class
         );
 
@@ -400,7 +400,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
 
         // delete should not be in cache
-        client().prepareIndex("test").setId("1").setSource("f", 2).setVersionType(VersionType.EXTERNAL).setVersion(1);
+        prepareIndex("test").setId("1").setSource("f", 2).setVersionType(VersionType.EXTERNAL).setVersion(1);
     }
 
     public void testUpdateSettingsWithBlocks() {

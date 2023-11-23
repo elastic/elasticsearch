@@ -165,8 +165,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             .build();
         createIndex("test", setting, mapping);
 
-        client().prepareIndex("test")
-            .setId(Integer.toString(1))
+        prepareIndex("test").setId(Integer.toString(1))
             .setSource(jsonBuilder().startObject().field("field", queryString).endObject())
             .get();
         client().admin().indices().prepareRefresh().get();

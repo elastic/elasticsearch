@@ -85,8 +85,7 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         createMapping(defaultIndexName, defaultFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("aNullshape")
+        prepareIndex(defaultIndexName).setId("aNullshape")
             .setSource("{\"geo\": null}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -98,14 +97,12 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         createMapping(defaultIndexName, defaultFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultFieldName, "POINT(-30 -30)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("2")
+        prepareIndex(defaultIndexName).setId("2")
             .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultFieldName, "POINT(-45 -50)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -135,14 +132,12 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         createMapping(defaultIndexName, defaultFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultFieldName, "POINT(-30 -30)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("2")
+        prepareIndex(defaultIndexName).setId("2")
             .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultFieldName, "POINT(-45 -50)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -165,14 +160,12 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         createMapping(defaultIndexName, defaultFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-30 -30)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("2")
+        prepareIndex(defaultIndexName).setId("2")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-45 -50)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -194,20 +187,17 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         createMapping(defaultIndexName, defaultFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultFieldName, "POINT(-30 -30)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("2")
+        prepareIndex(defaultIndexName).setId("2")
             .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultFieldName, "POINT(-40 -40)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("3")
+        prepareIndex(defaultIndexName).setId("3")
             .setSource(jsonBuilder().startObject().field("name", "Document 3").field(defaultFieldName, "POINT(-50 -50)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -265,14 +255,12 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         createMapping(defaultIndexName, defaultFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultFieldName, "POINT(-30 -30)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("2")
+        prepareIndex(defaultIndexName).setId("2")
             .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultFieldName, "POINT(-45 -50)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -294,14 +282,12 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         createMapping(defaultIndexName, defaultFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("point1")
+        prepareIndex(defaultIndexName).setId("point1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-30 -30)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("point2")
+        prepareIndex(defaultIndexName).setId("point2")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-45 -50)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -321,14 +307,12 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         client().admin().indices().prepareCreate(indexedShapeIndex).setMapping(queryShapesMapping).get();
         ensureGreen();
 
-        client().prepareIndex(indexedShapeIndex)
-            .setId("shape1")
+        prepareIndex(indexedShapeIndex).setId("shape1")
             .setSource(jsonBuilder().startObject().field(indexedShapePath, "BBOX(-50, -40, -45, -55)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        client().prepareIndex(indexedShapeIndex)
-            .setId("shape2")
+        prepareIndex(indexedShapeIndex).setId("shape2")
             .setSource(jsonBuilder().startObject().field(indexedShapePath, "BBOX(-60, -50, -50, -60)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -416,8 +400,7 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         createMapping(defaultIndexName, defaultFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-35 -25)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -452,8 +435,7 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         createMapping(defaultIndexName, defaultFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, "POINT(-35 -25)").endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -547,8 +529,7 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         Point pointC = new Point(35, 25);
         Point pointD = new Point(45, 35);
         Object[] points = samplePointDataMultiFormat(pointA, pointB, pointC, pointD);
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, points).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -598,9 +579,9 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         );
         for (int i = 0; i < line.length(); i++) {
             Point point = new Point(line.getLon(i), line.getLat(i));
-            client().prepareIndex(defaultIndexName)
-                .setSource(jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(point)).endObject())
-                .get();
+            prepareIndex(defaultIndexName).setSource(
+                jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(point)).endObject()
+            ).get();
         }
         client().admin().indices().prepareRefresh(defaultIndexName).get();
         // all points from a line intersect with the line
@@ -623,9 +604,9 @@ public abstract class BasePointShapeQueryTestCase<T extends AbstractGeometryQuer
         LinearRing linearRing = polygon.getPolygon();
         for (int i = 0; i < linearRing.length(); i++) {
             Point point = new Point(linearRing.getLon(i), linearRing.getLat(i));
-            client().prepareIndex(defaultIndexName)
-                .setSource(jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(point)).endObject())
-                .get();
+            prepareIndex(defaultIndexName).setSource(
+                jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(point)).endObject()
+            ).get();
         }
         client().admin().indices().prepareRefresh(defaultIndexName).get();
         // all points from a polygon intersect with the polygon

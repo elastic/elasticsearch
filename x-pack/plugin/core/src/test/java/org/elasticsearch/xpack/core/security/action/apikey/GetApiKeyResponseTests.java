@@ -197,7 +197,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   "creation": 100000,
                   "expiration": 10000000,
                   "invalidated": true,
-                  "invalidation_time": 100000000,
+                  "invalidation": 100000000,
                   "username": "user-b",
                   "realm": "realm-y",
                   "metadata": {},

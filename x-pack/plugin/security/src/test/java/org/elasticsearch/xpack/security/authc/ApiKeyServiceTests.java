@@ -1020,7 +1020,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertFalse(result.isAuthenticated());
 
         // key is invalidated
-        apiKeyDoc = buildApiKeyDoc(hash, -1, true, -1);
+        apiKeyDoc = buildApiKeyDoc(hash, -1, true, randomLongBetween(0, 3000000000L));
         service.getApiKeyAuthCache().put(apiKeyId, new ListenableFuture<>());
         assertNotNull(service.getApiKeyAuthCache().get(apiKeyId));
         future = new PlainActionFuture<>();

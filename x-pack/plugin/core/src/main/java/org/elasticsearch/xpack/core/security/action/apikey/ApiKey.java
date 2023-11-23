@@ -108,7 +108,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         Instant creation,
         Instant expiration,
         boolean invalidated,
-        Instant invalidation,
+        @Nullable Instant invalidation,
         String username,
         String realm,
         @Nullable Map<String, Object> metadata,
@@ -269,7 +269,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         }
         builder.field("invalidated", invalidated);
         if (invalidation != null) {
-            builder.field("invalidation_time", invalidation.toEpochMilli());
+            builder.field("invalidation", invalidation.toEpochMilli());
         }
         builder.field("username", username).field("realm", realm).field("metadata", (metadata == null ? Map.of() : metadata));
         if (roleDescriptors != null) {
@@ -419,7 +419,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         PARSER.declareLong(constructorArg(), new ParseField("creation"));
         PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
         PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField("invalidation_time"));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField("invalidation"));
         PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareString(constructorArg(), new ParseField("realm"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
@@ -453,7 +453,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             + expiration
             + ", invalidated="
             + invalidated
-            + ", invalidation_time="
+            + ", invalidation="
             + invalidation
             + ", username="
             + username

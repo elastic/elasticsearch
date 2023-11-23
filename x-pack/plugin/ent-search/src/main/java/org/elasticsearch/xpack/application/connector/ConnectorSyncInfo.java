@@ -16,31 +16,32 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Objects;
 
 public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
     @Nullable
     private final String lastAccessControlSyncError;
     @Nullable
-    private final String lastAccessControlSyncScheduledAt;
+    private final Instant lastAccessControlSyncScheduledAt;
     @Nullable
     private final ConnectorSyncStatus lastAccessControlSyncStatus;
     @Nullable
     private final Long lastDeletedDocumentCount;
     @Nullable
-    private final String lastIncrementalSyncScheduledAt;
+    private final Instant lastIncrementalSyncScheduledAt;
     @Nullable
     private final Long lastIndexedDocumentCount;
     @Nullable
-    private final String lastSeen;
+    private final Instant lastSeen;
     @Nullable
     private final String lastSyncError;
     @Nullable
-    private final String lastSyncScheduledAt;
+    private final Instant lastSyncScheduledAt;
     @Nullable
     private final ConnectorSyncStatus lastSyncStatus;
     @Nullable
-    private final String lastSynced;
+    private final Instant lastSynced;
 
     /**
      * @param lastAccessControlSyncError      The last error message related to access control sync, if any.
@@ -57,16 +58,16 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
      */
     private ConnectorSyncInfo(
         String lastAccessControlSyncError,
-        String lastAccessControlSyncScheduledAt,
+        Instant lastAccessControlSyncScheduledAt,
         ConnectorSyncStatus lastAccessControlSyncStatus,
         Long lastDeletedDocumentCount,
-        String lastIncrementalSyncScheduledAt,
+        Instant lastIncrementalSyncScheduledAt,
         Long lastIndexedDocumentCount,
-        String lastSeen,
+        Instant lastSeen,
         String lastSyncError,
-        String lastSyncScheduledAt,
+        Instant lastSyncScheduledAt,
         ConnectorSyncStatus lastSyncStatus,
-        String lastSynced
+        Instant lastSynced
     ) {
         this.lastAccessControlSyncError = lastAccessControlSyncError;
         this.lastAccessControlSyncScheduledAt = lastAccessControlSyncScheduledAt;
@@ -83,16 +84,16 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
 
     public ConnectorSyncInfo(StreamInput in) throws IOException {
         this.lastAccessControlSyncError = in.readOptionalString();
-        this.lastAccessControlSyncScheduledAt = in.readOptionalString();
+        this.lastAccessControlSyncScheduledAt = in.readOptionalInstant();
         this.lastAccessControlSyncStatus = in.readOptionalEnum(ConnectorSyncStatus.class);
         this.lastDeletedDocumentCount = in.readOptionalLong();
-        this.lastIncrementalSyncScheduledAt = in.readOptionalString();
+        this.lastIncrementalSyncScheduledAt = in.readOptionalInstant();
         this.lastIndexedDocumentCount = in.readOptionalLong();
-        this.lastSeen = in.readOptionalString();
+        this.lastSeen = in.readOptionalInstant();
         this.lastSyncError = in.readOptionalString();
-        this.lastSyncScheduledAt = in.readOptionalString();
+        this.lastSyncScheduledAt = in.readOptionalInstant();
         this.lastSyncStatus = in.readOptionalEnum(ConnectorSyncStatus.class);
-        this.lastSynced = in.readOptionalString();
+        this.lastSynced = in.readOptionalInstant();
     }
 
     private static final ParseField LAST_ACCESS_CONTROL_SYNC_ERROR = new ParseField("last_access_control_sync_error");
@@ -150,16 +151,16 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(lastAccessControlSyncError);
-        out.writeOptionalString(lastAccessControlSyncScheduledAt);
+        out.writeOptionalInstant(lastAccessControlSyncScheduledAt);
         out.writeOptionalEnum(lastAccessControlSyncStatus);
         out.writeOptionalLong(lastDeletedDocumentCount);
-        out.writeOptionalString(lastIncrementalSyncScheduledAt);
+        out.writeOptionalInstant(lastIncrementalSyncScheduledAt);
         out.writeOptionalLong(lastIndexedDocumentCount);
-        out.writeOptionalString(lastSeen);
+        out.writeOptionalInstant(lastSeen);
         out.writeOptionalString(lastSyncError);
-        out.writeOptionalString(lastSyncScheduledAt);
+        out.writeOptionalInstant(lastSyncScheduledAt);
         out.writeOptionalEnum(lastSyncStatus);
-        out.writeOptionalString(lastSynced);
+        out.writeOptionalInstant(lastSynced);
     }
 
     @Override
@@ -200,23 +201,23 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
     public static class Builder {
 
         private String lastAccessControlSyncError;
-        private String lastAccessControlSyncScheduledAt;
+        private Instant lastAccessControlSyncScheduledAt;
         private ConnectorSyncStatus lastAccessControlSyncStatus;
         private Long lastDeletedDocumentCount;
-        private String lastIncrementalSyncScheduledAt;
+        private Instant lastIncrementalSyncScheduledAt;
         private Long lastIndexedDocumentCount;
-        private String lastSeen;
+        private Instant lastSeen;
         private String lastSyncError;
-        private String lastSyncScheduledAt;
+        private Instant lastSyncScheduledAt;
         private ConnectorSyncStatus lastSyncStatus;
-        private String lastSynced;
+        private Instant lastSynced;
 
         public Builder setLastAccessControlSyncError(String lastAccessControlSyncError) {
             this.lastAccessControlSyncError = lastAccessControlSyncError;
             return this;
         }
 
-        public Builder setLastAccessControlSyncScheduledAt(String lastAccessControlSyncScheduledAt) {
+        public Builder setLastAccessControlSyncScheduledAt(Instant lastAccessControlSyncScheduledAt) {
             this.lastAccessControlSyncScheduledAt = lastAccessControlSyncScheduledAt;
             return this;
         }
@@ -231,7 +232,7 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public Builder setLastIncrementalSyncScheduledAt(String lastIncrementalSyncScheduledAt) {
+        public Builder setLastIncrementalSyncScheduledAt(Instant lastIncrementalSyncScheduledAt) {
             this.lastIncrementalSyncScheduledAt = lastIncrementalSyncScheduledAt;
             return this;
         }
@@ -241,7 +242,7 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public Builder setLastSeen(String lastSeen) {
+        public Builder setLastSeen(Instant lastSeen) {
             this.lastSeen = lastSeen;
             return this;
         }
@@ -251,7 +252,7 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public Builder setLastSyncScheduledAt(String lastSyncScheduledAt) {
+        public Builder setLastSyncScheduledAt(Instant lastSyncScheduledAt) {
             this.lastSyncScheduledAt = lastSyncScheduledAt;
             return this;
         }
@@ -261,7 +262,7 @@ public class ConnectorSyncInfo implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public Builder setLastSynced(String lastSynced) {
+        public Builder setLastSynced(Instant lastSynced) {
             this.lastSynced = lastSynced;
             return this;
         }

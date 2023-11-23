@@ -154,12 +154,9 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             )
         );
 
-        // Check if Connector API is enabled
+        // Connectors
         if (ConnectorAPIFeature.isEnabled()) {
-            actionHandlers.add(
-                // Connectors
-                new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class)
-            );
+            actionHandlers.add(new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class));
         }
 
         return Collections.unmodifiableList(actionHandlers);
@@ -204,12 +201,9 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             )
         );
 
-        // Check if Connector API is enabled
+        // Connectors
         if (ConnectorAPIFeature.isEnabled()) {
-            restHandlers.add(
-                // Connectors
-                new RestPutConnectorAction()
-            );
+            restHandlers.add(new RestPutConnectorAction());
         }
 
         return Collections.unmodifiableList(restHandlers);

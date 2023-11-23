@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -16,7 +17,6 @@ import java.util.Locale;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomDateFormatterPattern;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomList;
@@ -58,16 +58,16 @@ public final class ConnectorTestUtils {
 
     public static ConnectorSyncInfo getRandomConnectorSyncInfo() {
         return new ConnectorSyncInfo.Builder().setLastAccessControlSyncError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
-            .setLastAccessControlSyncScheduledAt(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setLastAccessControlSyncScheduledAt(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
             .setLastAccessControlSyncStatus(randomFrom(new ConnectorSyncStatus[] { null, getRandomSyncStatus() }))
             .setLastDeletedDocumentCount(randomFrom(new Long[] { null, randomLong() }))
-            .setLastIncrementalSyncScheduledAt(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setLastIncrementalSyncScheduledAt(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
             .setLastIndexedDocumentCount(randomFrom(new Long[] { null, randomLong() }))
-            .setLastSeen(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setLastSeen(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
             .setLastSyncError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
-            .setLastSyncScheduledAt(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setLastSyncScheduledAt(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
             .setLastSyncStatus(randomFrom(new ConnectorSyncStatus[] { null, getRandomSyncStatus() }))
-            .setLastSynced(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setLastSynced(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
             .build();
     }
 
@@ -84,7 +84,7 @@ public final class ConnectorTestUtils {
     public static ConnectorCustomSchedule getRandomConnectorCustomSchedule() {
         return new ConnectorCustomSchedule.Builder().setInterval(getRandomCronExpression())
             .setEnabled(randomBoolean())
-            .setLastSynced(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
+            .setLastSynced(randomFrom(new Instant[] { null, Instant.ofEpochMilli(randomLong()) }))
             .setName(randomAlphaOfLength(10))
             .setConfigurationOverrides(
                 new ConnectorCustomSchedule.ConfigurationOverrides.Builder().setMaxCrawlDepth(randomInt())
@@ -99,7 +99,7 @@ public final class ConnectorTestUtils {
 
     public static ConnectorFiltering getRandomConnectorFiltering() {
 
-        String currentTimestamp = randomDateFormatterPattern();
+        Instant currentTimestamp = Instant.now();
 
         return new ConnectorFiltering.Builder().setActive(
             new ConnectorFiltering.FilteringRules.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
@@ -150,7 +150,7 @@ public final class ConnectorTestUtils {
     public static Connector getRandomConnector() {
         return new Connector.Builder().setConnectorId(randomAlphaOfLength(10))
             .setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
-            .setConfiguration(randomBoolean() ? Collections.emptyMap() : null)
+            .setConfiguration(Collections.emptyMap())
             .setCustomScheduling(randomBoolean() ? getRandomConnectorCustomSchedule() : null)
             .setDescription(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
@@ -159,7 +159,7 @@ public final class ConnectorTestUtils {
             .setIndexName(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setIsNative(randomBoolean())
             .setLanguage(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
-            .setSyncInfo(randomBoolean() ? getRandomConnectorSyncInfo() : null)
+            .setSyncInfo(getRandomConnectorSyncInfo())
             .setName(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setPipeline(randomBoolean() ? getRandomConnectorIngestPipeline() : null)
             .setScheduling(randomBoolean() ? getRandomConnectorScheduling() : null)
@@ -199,8 +199,8 @@ public final class ConnectorTestUtils {
         return values[randomInt(values.length - 1)];
     }
 
-    private static ConnectorFiltering.FilteringRuleRule getRandomFilteringRule() {
-        ConnectorFiltering.FilteringRuleRule[] values = ConnectorFiltering.FilteringRuleRule.values();
+    private static ConnectorFiltering.FilteringRuleCondition getRandomFilteringRule() {
+        ConnectorFiltering.FilteringRuleCondition[] values = ConnectorFiltering.FilteringRuleCondition.values();
         return values[randomInt(values.length - 1)];
     }
 

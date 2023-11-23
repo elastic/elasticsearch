@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
@@ -31,7 +32,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
     private final boolean enabled;
     private final String interval;
     @Nullable
-    private final String lastSynced;
+    private final Instant lastSynced;
     private final String name;
 
     /**
@@ -47,21 +48,21 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         ConfigurationOverrides configurationOverrides,
         boolean enabled,
         String interval,
-        String lastSynced,
+        Instant lastSynced,
         String name
     ) {
         this.configurationOverrides = Objects.requireNonNull(configurationOverrides, CONFIG_OVERRIDES_FIELD.getPreferredName());
         this.enabled = enabled;
         this.interval = Objects.requireNonNull(interval, INTERVAL_FIELD.getPreferredName());
         this.lastSynced = lastSynced;
-        this.name = Objects.requireNonNull(interval, NAME_FIELD.getPreferredName());
+        this.name = Objects.requireNonNull(name, NAME_FIELD.getPreferredName());
     }
 
     public ConnectorCustomSchedule(StreamInput in) throws IOException {
         this.configurationOverrides = new ConfigurationOverrides(in);
         this.enabled = in.readBoolean();
         this.interval = in.readString();
-        this.lastSynced = in.readOptionalString();
+        this.lastSynced = in.readOptionalInstant();
         this.name = in.readString();
     }
 
@@ -78,7 +79,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         args -> new Builder().setConfigurationOverrides((ConfigurationOverrides) args[0])
             .setEnabled((Boolean) args[1])
             .setInterval((String) args[2])
-            .setLastSynced((String) args[3])
+            .setLastSynced((Instant) args[3])
             .setName((String) args[4])
             .build()
     );
@@ -121,7 +122,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         out.writeWriteable(configurationOverrides);
         out.writeBoolean(enabled);
         out.writeString(interval);
-        out.writeOptionalString(lastSynced);
+        out.writeOptionalInstant(lastSynced);
         out.writeString(name);
     }
 
@@ -147,7 +148,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         private ConfigurationOverrides configurationOverrides;
         private boolean enabled;
         private String interval;
-        private String lastSynced;
+        private Instant lastSynced;
         private String name;
 
         public Builder setConfigurationOverrides(ConfigurationOverrides configurationOverrides) {
@@ -165,7 +166,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setLastSynced(String lastSynced) {
+        public Builder setLastSynced(Instant lastSynced) {
             this.lastSynced = lastSynced;
             return this;
         }
@@ -254,13 +255,13 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
                 builder.field(SITEMAP_DISCOVERY_DISABLED_FIELD.getPreferredName(), sitemapDiscoveryDisabled);
             }
             if (domainAllowList != null) {
-                builder.field(DOMAIN_ALLOWLIST_FIELD.getPreferredName(), domainAllowList);
+                builder.stringListField(DOMAIN_ALLOWLIST_FIELD.getPreferredName(), domainAllowList);
             }
             if (sitemapUrls != null) {
-                builder.field(SITEMAP_URLS_FIELD.getPreferredName(), sitemapUrls);
+                builder.stringListField(SITEMAP_URLS_FIELD.getPreferredName(), sitemapUrls);
             }
             if (seedUrls != null) {
-                builder.field(SEED_URLS_FIELD.getPreferredName(), seedUrls);
+                builder.stringListField(SEED_URLS_FIELD.getPreferredName(), seedUrls);
             }
             builder.endObject();
             return builder;

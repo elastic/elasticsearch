@@ -126,8 +126,8 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
                 {
                     builder.field("enabled", incrementalSyncEnabled);
                 }
+                builder.endObject();
             }
-            builder.endObject();
             builder.startObject("sync_rules");
             {
                 if (syncRulesAdvancedEnabled != null) {

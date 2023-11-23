@@ -66,7 +66,7 @@ public class Connector implements Writeable, ToXContentObject {
     private final List<ConnectorFiltering> filtering;
     @Nullable
     private final String indexName;
-    @Nullable
+
     private final boolean isNative;
     @Nullable
     private final String language;
@@ -83,7 +83,6 @@ public class Connector implements Writeable, ToXContentObject {
     private final ConnectorStatus status;
     @Nullable
     private final Object syncCursor;
-    @Nullable
     private final boolean syncNow;
 
     /**
@@ -131,9 +130,8 @@ public class Connector implements Writeable, ToXContentObject {
         boolean syncNow
     ) {
         this.connectorId = Objects.requireNonNull(connectorId, "connectorId cannot be null");
-        ;
         this.apiKeyId = apiKeyId;
-        this.configuration = Objects.requireNonNullElse(configuration, Collections.emptyMap());
+        this.configuration = configuration;
         this.customScheduling = customScheduling;
         this.description = description;
         this.error = error;
@@ -142,12 +140,12 @@ public class Connector implements Writeable, ToXContentObject {
         this.indexName = indexName;
         this.isNative = isNative;
         this.language = language;
-        this.syncInfo = Objects.requireNonNullElse(syncInfo, new ConnectorSyncInfo.Builder().build());
+        this.syncInfo = syncInfo;
         this.name = name;
         this.pipeline = pipeline;
         this.scheduling = scheduling;
         this.serviceType = serviceType;
-        this.status = status;
+        this.status = Objects.requireNonNull(status, "connector status cannot be null");
         this.syncCursor = syncCursor;
         this.syncNow = syncNow;
     }
@@ -218,7 +216,7 @@ public class Connector implements Writeable, ToXContentObject {
                 builder.field(FEATURES_FIELD.getPreferredName(), features);
             }
             if (filtering != null) {
-                builder.field(FILTERING_FIELD.getPreferredName(), filtering);
+                builder.xContentList(FILTERING_FIELD.getPreferredName(), filtering);
             }
             if (indexName != null) {
                 builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
@@ -245,9 +243,7 @@ public class Connector implements Writeable, ToXContentObject {
             if (syncCursor != null) {
                 builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
             }
-            if (status != null) {
-                builder.field(STATUS_FIELD.getPreferredName(), status.toString());
-            }
+            builder.field(STATUS_FIELD.getPreferredName(), status.toString());
             builder.field(SYNC_NOW_FIELD.getPreferredName(), syncNow);
 
         }
@@ -337,21 +333,21 @@ public class Connector implements Writeable, ToXContentObject {
 
         private String connectorId;
         private String apiKeyId;
-        private Map<String, Object> configuration;
+        private Map<String, Object> configuration = Collections.emptyMap();
         private ConnectorCustomSchedule customScheduling;
         private String description;
         private String error;
         private ConnectorFeatures features;
-        private List<ConnectorFiltering> filtering;
+        private List<ConnectorFiltering> filtering = List.of(ConnectorFiltering.getDefaultConnectorFilteringConfig());
         private String indexName;
         private boolean isNative = false;
         private String language;
-        private ConnectorSyncInfo syncInfo;
+        private ConnectorSyncInfo syncInfo = new ConnectorSyncInfo.Builder().build();
         private String name;
         private ConnectorIngestPipeline pipeline;
-        private ConnectorScheduling scheduling;
+        private ConnectorScheduling scheduling = ConnectorScheduling.getDefaultConnectorScheduling();
         private String serviceType;
-        private ConnectorStatus status;
+        private ConnectorStatus status = ConnectorStatus.CREATED;
         private Object syncCursor;
         private boolean syncNow = false;
 
@@ -402,6 +398,9 @@ public class Connector implements Writeable, ToXContentObject {
 
         public Builder setIsNative(boolean isNative) {
             this.isNative = isNative;
+            if (isNative) {
+                this.status = ConnectorStatus.NEEDS_CONFIGURATION;
+            }
             return this;
         }
 
@@ -416,7 +415,7 @@ public class Connector implements Writeable, ToXContentObject {
         }
 
         public Builder setName(String name) {
-            this.name = name;
+            this.name = Objects.requireNonNullElse(name, "");
             return this;
         }
 

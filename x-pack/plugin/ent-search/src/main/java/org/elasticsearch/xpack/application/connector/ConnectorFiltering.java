@@ -14,8 +14,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -107,8 +106,8 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
 
     public static class FilteringRules implements Writeable, ToXContentObject {
 
-        private final String advancedSnippetCreatedAt;
-        private final String advancedSnippetUpdatedAt;
+        private final Instant advancedSnippetCreatedAt;
+        private final Instant advancedSnippetUpdatedAt;
         private final Map<String, Object> advancedSnippetValue;
         private final List<FilteringRule> rules;
         private final List<FilteringValidation> validationErrors;
@@ -125,8 +124,8 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
          * @param validationState The {@link FilteringValidationState} of the filtering rules.
          */
         public FilteringRules(
-            String advancedSnippetCreatedAt,
-            String advancedSnippetUpdatedAt,
+            Instant advancedSnippetCreatedAt,
+            Instant advancedSnippetUpdatedAt,
             Map<String, Object> advancedSnippetValue,
             List<FilteringRule> rules,
             List<FilteringValidation> validationErrors,
@@ -141,8 +140,8 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         }
 
         public FilteringRules(StreamInput in) throws IOException {
-            this.advancedSnippetCreatedAt = in.readString();
-            this.advancedSnippetUpdatedAt = in.readString();
+            this.advancedSnippetCreatedAt = in.readInstant();
+            this.advancedSnippetUpdatedAt = in.readInstant();
             this.advancedSnippetValue = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
             this.rules = in.readCollectionAsList(FilteringRule::new);
             this.validationErrors = in.readCollectionAsList(FilteringValidation::new);
@@ -184,8 +183,8 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(advancedSnippetCreatedAt);
-            out.writeString(advancedSnippetUpdatedAt);
+            out.writeInstant(advancedSnippetCreatedAt);
+            out.writeInstant(advancedSnippetUpdatedAt);
             out.writeMap(advancedSnippetValue, StreamOutput::writeString, StreamOutput::writeGenericValue);
             out.writeCollection(rules);
             out.writeCollection(validationErrors);
@@ -219,19 +218,19 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
 
         public static class Builder {
 
-            private String advancedSnippetCreatedAt;
-            private String advancedSnippetUpdatedAt;
+            private Instant advancedSnippetCreatedAt;
+            private Instant advancedSnippetUpdatedAt;
             private Map<String, Object> advancedSnippetValue;
             private List<FilteringRule> rules;
             private List<FilteringValidation> validationErrors;
             private FilteringValidationState validationState;
 
-            public Builder setAdvancedSnippetCreatedAt(String advancedSnippetCreatedAt) {
+            public Builder setAdvancedSnippetCreatedAt(Instant advancedSnippetCreatedAt) {
                 this.advancedSnippetCreatedAt = advancedSnippetCreatedAt;
                 return this;
             }
 
-            public Builder setAdvancedSnippetUpdatedAt(String advancedSnippetUpdatedAt) {
+            public Builder setAdvancedSnippetUpdatedAt(Instant advancedSnippetUpdatedAt) {
                 this.advancedSnippetUpdatedAt = advancedSnippetUpdatedAt;
                 return this;
             }
@@ -271,35 +270,35 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
 
     public static class FilteringRule implements Writeable, ToXContentObject {
 
-        private final String createdAt;
+        private final Instant createdAt;
         private final String field;
         private final String id;
         private final Integer order;
         private final FilteringPolicy policy;
-        private final FilteringRuleRule rule;
-        private final String updatedAt;
+        private final FilteringRuleCondition rule;
+        private final Instant updatedAt;
         private final String value;
 
         /**
          * Constructs a new FilteringRule instance.
          *
          * @param createdAt The creation timestamp of the filtering rule.
-         * @param field The field associated with the filtering rule.
-         * @param id The identifier of the filtering rule.
-         * @param order The order of the filtering rule.
-         * @param policy The {@link FilteringPolicy} of the filtering rule.
-         * @param rule The specific {@link FilteringRuleRule}
+         * @param field     The field associated with the filtering rule.
+         * @param id        The identifier of the filtering rule.
+         * @param order     The order of the filtering rule.
+         * @param policy    The {@link FilteringPolicy} of the filtering rule.
+         * @param rule      The specific {@link FilteringRuleCondition}
          * @param updatedAt The update timestamp of the filtering rule.
-         * @param value The value associated with the filtering rule.
+         * @param value     The value associated with the filtering rule.
          */
         public FilteringRule(
-            String createdAt,
+            Instant createdAt,
             String field,
             String id,
             Integer order,
             FilteringPolicy policy,
-            FilteringRuleRule rule,
-            String updatedAt,
+            FilteringRuleCondition rule,
+            Instant updatedAt,
             String value
         ) {
             this.createdAt = createdAt;
@@ -313,13 +312,13 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         }
 
         public FilteringRule(StreamInput in) throws IOException {
-            this.createdAt = in.readString();
+            this.createdAt = in.readInstant();
             this.field = in.readString();
             this.id = in.readString();
             this.order = in.readInt();
             this.policy = in.readEnum(FilteringPolicy.class);
-            this.rule = in.readEnum(FilteringRuleRule.class);
-            this.updatedAt = in.readString();
+            this.rule = in.readEnum(FilteringRuleCondition.class);
+            this.updatedAt = in.readInstant();
             this.value = in.readString();
         }
 
@@ -340,13 +339,13 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(createdAt);
+            out.writeInstant(createdAt);
             out.writeString(field);
             out.writeString(id);
             out.writeInt(order);
             out.writeEnum(policy);
             out.writeEnum(rule);
-            out.writeString(updatedAt);
+            out.writeInstant(updatedAt);
             out.writeString(value);
         }
 
@@ -372,16 +371,16 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
 
         public static class Builder {
 
-            private String createdAt;
+            private Instant createdAt;
             private String field;
             private String id;
             private Integer order;
             private FilteringPolicy policy;
-            private FilteringRuleRule rule;
-            private String updatedAt;
+            private FilteringRuleCondition rule;
+            private Instant updatedAt;
             private String value;
 
-            public Builder setCreatedAt(String createdAt) {
+            public Builder setCreatedAt(Instant createdAt) {
                 this.createdAt = createdAt;
                 return this;
             }
@@ -406,12 +405,12 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
                 return this;
             }
 
-            public Builder setRule(FilteringRuleRule rule) {
+            public Builder setRule(FilteringRuleCondition rule) {
                 this.rule = rule;
                 return this;
             }
 
-            public Builder setUpdatedAt(String updatedAt) {
+            public Builder setUpdatedAt(Instant updatedAt) {
                 this.updatedAt = updatedAt;
                 return this;
             }
@@ -518,7 +517,7 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         }
     }
 
-    public enum FilteringRuleRule {
+    public enum FilteringRuleCondition {
         CONTAINS("contains"),
         ENDS_WITH("ends_with"),
         EQUALS("equals"),
@@ -529,7 +528,7 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
 
         private final String value;
 
-        FilteringRuleRule(String value) {
+        FilteringRuleCondition(String value) {
             this.value = value;
         }
 
@@ -541,7 +540,7 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
 
     public static ConnectorFiltering getDefaultConnectorFilteringConfig() {
 
-        String currentTimestamp = ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+        Instant currentTimestamp = Instant.now();
 
         return new ConnectorFiltering.Builder().setActive(
             new FilteringRules.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
@@ -554,7 +553,7 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
                             .setId("DEFAULT")
                             .setOrder(0)
                             .setPolicy(FilteringPolicy.INCLUDE)
-                            .setRule(FilteringRuleRule.REGEX)
+                            .setRule(FilteringRuleCondition.REGEX)
                             .setUpdatedAt(currentTimestamp)
                             .setValue(".*")
                             .build()
@@ -576,7 +575,7 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
                                 .setId("DEFAULT")
                                 .setOrder(0)
                                 .setPolicy(FilteringPolicy.INCLUDE)
-                                .setRule(FilteringRuleRule.REGEX)
+                                .setRule(FilteringRuleCondition.REGEX)
                                 .setUpdatedAt(currentTimestamp)
                                 .setValue(".*")
                                 .build()

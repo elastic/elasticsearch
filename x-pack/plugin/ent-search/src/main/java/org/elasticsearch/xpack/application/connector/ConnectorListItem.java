@@ -29,6 +29,7 @@ public class ConnectorListItem implements Writeable, ToXContentObject {
 
     private final String connectorId;
 
+    @Nullable
     private final String name;
 
     public ConnectorListItem(String connectorId, @Nullable String name) {

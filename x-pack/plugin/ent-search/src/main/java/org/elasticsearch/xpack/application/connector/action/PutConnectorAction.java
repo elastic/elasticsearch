@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -45,11 +46,18 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
     public static class Request extends ActionRequest implements ToXContentObject {
 
         private final String connectorId;
+
+        @Nullable
         private final String description;
+        @Nullable
         private final String indexName;
+        @Nullable
         private final Boolean isNative;
+        @Nullable
         private final String language;
+        @Nullable
         private final String name;
+        @Nullable
         private final String serviceType;
 
         public Request(
@@ -120,12 +128,24 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field("description", description);
-                builder.field("index_name", indexName);
-                builder.field("is_native", isNative);
-                builder.field("language", language);
-                builder.field("name", name);
-                builder.field("service_type", serviceType);
+                if (description != null) {
+                    builder.field("description", description);
+                }
+                if (indexName != null) {
+                    builder.field("index_name", indexName);
+                }
+                if (isNative != null) {
+                    builder.field("is_native", isNative);
+                }
+                if (language != null) {
+                    builder.field("language", language);
+                }
+                if (name != null) {
+                    builder.field("name", name);
+                }
+                if (serviceType != null) {
+                    builder.field("service_type", serviceType);
+                }
             }
             builder.endObject();
             return builder;

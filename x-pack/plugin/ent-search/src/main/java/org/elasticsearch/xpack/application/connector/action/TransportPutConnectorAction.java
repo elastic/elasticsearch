@@ -17,13 +17,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.Connector;
-import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
-import org.elasticsearch.xpack.application.connector.ConnectorScheduling;
-import org.elasticsearch.xpack.application.connector.ConnectorStatus;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 public class TransportPutConnectorAction extends HandledTransportAction<PutConnectorAction.Request, PutConnectorAction.Response> {
@@ -57,15 +52,10 @@ public class TransportPutConnectorAction extends HandledTransportAction<PutConne
             .setIndexName(request.getIndexName())
             .setIsNative(isNative)
             .setLanguage(request.getLanguage())
-            .setName(Objects.requireNonNullElse(request.getName(), ""))
+            .setName(request.getName())
             .setServiceType(request.getServiceType())
-
-            // Default values related to Connector creation process
-            .setStatus(isNative ? ConnectorStatus.NEEDS_CONFIGURATION : ConnectorStatus.CREATED)
-            .setConfiguration(Collections.emptyMap())
-            .setScheduling(ConnectorScheduling.getDefaultConnectorScheduling())
-            .setFiltering(List.of(ConnectorFiltering.getDefaultConnectorFilteringConfig()))
             .build();
+
         connectorIndexService.putConnector(connector, listener.map(r -> new PutConnectorAction.Response(r.getResult())));
     }
 }

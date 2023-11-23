@@ -36,20 +36,18 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref strRef = str.eval(page)) {
-      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
-      try (Block.Ref startRef = start.eval(page)) {
-        IntBlock startBlock = (IntBlock) startRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (IntBlock startBlock = (IntBlock) start.eval(page)) {
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, startBlock));
+          return eval(page.getPositionCount(), strBlock, startBlock);
         }
         IntVector startVector = startBlock.asVector();
         if (startVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, startBlock));
+          return eval(page.getPositionCount(), strBlock, startBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), strVector, startVector).asBlock());
+        return eval(page.getPositionCount(), strVector, startVector).asBlock();
       }
     }
   }

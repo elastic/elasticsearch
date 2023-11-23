@@ -42,12 +42,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Page process(Page page) {
-        Block.Ref ref = evaluator.eval(page);
-        Block block = ref.block();
-        if (ref.floating() == false) {
-            // We take ownership of this block, so we need to shallow copy (incRef) to avoid double releases.
-            block.incRef();
-        }
+        Block block = evaluator.eval(page);
         return page.appendBlock(block);
     }
 
@@ -73,7 +68,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
         /**
          * Evaluate the expression.
          */
-        Block.Ref eval(Page page);
+        Block eval(Page page);
     }
 
     public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ExpressionEvaluator.Factory() {
@@ -90,8 +85,8 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     public static final ExpressionEvaluator CONSTANT_NULL = new ExpressionEvaluator() {
         @Override
-        public Block.Ref eval(Page page) {
-            return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        public Block eval(Page page) {
+            return Block.constantNullBlock(page.getPositionCount());
         }
 
         @Override

@@ -108,10 +108,10 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
          */
         protected abstract Block evalVector(Vector v);
 
-        public Block.Ref eval(Page page) {
-            try (Block.Ref ref = fieldEvaluator.eval(page)) {
-                Vector vector = ref.block().asVector();
-                return Block.Ref.floating(vector == null ? evalBlock(ref.block()) : evalVector(vector));
+        public Block eval(Page page) {
+            try (Block block = fieldEvaluator.eval(page)) {
+                Vector vector = block.asVector();
+                return vector == null ? evalBlock(block) : evalVector(vector);
             }
         }
 

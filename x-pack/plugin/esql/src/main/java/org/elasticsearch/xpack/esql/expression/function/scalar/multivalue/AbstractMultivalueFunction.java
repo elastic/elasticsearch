@@ -65,29 +65,33 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
          * valued fields and no null values. Building an array vector directly is
          * generally faster than building it via a {@link Block.Builder}.
          */
-        protected abstract Block.Ref evalNotNullable(Block.Ref fieldVal);
+        protected abstract Block evalNotNullable(Block fieldVal);
 
         /**
          * Called to evaluate single valued fields when the target block does not
          * have null values.
          */
-        protected Block.Ref evalSingleValuedNotNullable(Block.Ref fieldRef) {
+        protected Block evalSingleValuedNotNullable(Block fieldRef) {
+            fieldRef.incRef();
             return fieldRef;
         }
 
         @Override
-        public final Block.Ref eval(Page page) {
-            Block.Ref ref = field.eval(page);
-            if (ref.block().mayHaveMultivaluedFields() == false) {
-                if (ref.block().mayHaveNulls()) {
-                    return evalSingleValuedNullable(ref);
+        public final Block eval(Page page) {
+            try (Block block = field.eval(page)) {
+                if (block.mayHaveMultivaluedFields()) {
+                    if (block.mayHaveNulls()) {
+                        return evalNullable(block);
+                    } else {
+                        return evalNotNullable(block);
+                    }
                 }
-                return evalSingleValuedNotNullable(ref);
+                if (block.mayHaveNulls()) {
+                    return evalSingleValuedNullable(block);
+                } else {
+                    return evalSingleValuedNotNullable(block);
+                }
             }
-            if (ref.block().mayHaveNulls()) {
-                return evalNullable(ref);
-            }
-            return evalNotNullable(ref);
         }
     }
 
@@ -106,20 +110,26 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
         /**
          * Called when evaluating a {@link Block} that contains null values.
          */
-        protected abstract Block.Ref evalNullable(Block.Ref fieldVal);
+        protected abstract Block evalNullable(Block fieldVal);
 
         /**
          * Called to evaluate single valued fields when the target block has null
          * values.
          */
-        protected Block.Ref evalSingleValuedNullable(Block.Ref fieldRef) {
+        protected Block evalSingleValuedNullable(Block fieldRef) {
+            fieldRef.incRef();
             return fieldRef;
         }
 
         @Override
-        public Block.Ref eval(Page page) {
-            Block.Ref ref = field.eval(page);
-            return ref.block().mayHaveMultivaluedFields() ? evalNullable(ref) : evalSingleValuedNullable(ref);
+        public Block eval(Page page) {
+            try (Block block = field.eval(page)) {
+                if (block.mayHaveMultivaluedFields()) {
+                    return evalNullable(block);
+                } else {
+                    return evalSingleValuedNullable(block);
+                }
+            }
         }
 
         @Override

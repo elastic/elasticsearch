@@ -445,9 +445,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
      * time the index was closed.
      */
     public void testCloseIndexDuringRollingUpgrade() throws Exception {
-        final Version minimumNodeVersion = minimumNodeVersion();
-        final String indexName = String.join("_", "index", CLUSTER_TYPE.toString(), Integer.toString(minimumNodeVersion.id))
-            .toLowerCase(Locale.ROOT);
+        int id = switch (CLUSTER_TYPE) {
+            case OLD -> 1;
+            case MIXED -> 2;
+            case UPGRADED -> 3;
+        };
+        final String indexName = String.join("_", "index", CLUSTER_TYPE.toString(), Integer.toString(id)).toLowerCase(Locale.ROOT);
 
         if (indexExists(indexName) == false) {
             createIndex(

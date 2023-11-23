@@ -30,7 +30,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -44,7 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
  * (e.g. number of nodes) is predefined and cannot be changed during the tests execution
  */
-public abstract class TestCluster implements Closeable {
+public abstract class TestCluster {
 
     protected final Logger logger = LogManager.getLogger(getClass());
     private final long seed;
@@ -126,7 +125,10 @@ public abstract class TestCluster implements Closeable {
     /**
      * Closes the current cluster
      */
-    @Override
+    // NB this is deliberately not implementing AutoCloseable or Closeable, because if we do that then IDEs tell us that we should be using
+    // a try-with-resources block and that is almost never correct. The lifecycle of these clusters is managed by the test framework itself
+    // and should not be touched by most test code. CloseableTestClusterWrapper provides adapters for the few cases where you do want to
+    // auto-close these things.
     public abstract void close() throws IOException;
 
     /**

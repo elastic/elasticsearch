@@ -521,16 +521,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
         TestCluster testCluster = clusters.remove(clazz); // remove this cluster first
         clearClusters(); // all leftovers are gone by now... this is really just a double safety if we miss something somewhere
         switch (currentClusterScope) {
-            case SUITE:
+            case SUITE -> {
                 if (testCluster == null) { // only build if it's not there yet
                     testCluster = buildWithPrivateContext(currentClusterScope, seed);
                 }
-                break;
-            case TEST:
+            }
+            case TEST -> {
                 // close the previous one and create a new one
-                IOUtils.closeWhileHandlingException(testCluster);
+                if (testCluster != null) {
+                    IOUtils.closeWhileHandlingException(testCluster::close);
+                }
                 testCluster = buildTestCluster(currentClusterScope, seed);
-                break;
+            }
         }
         clusters.put(clazz, testCluster);
         return testCluster;
@@ -538,7 +540,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static void clearClusters() throws Exception {
         if (clusters.isEmpty() == false) {
-            IOUtils.close(clusters.values());
+            IOUtils.close(CloseableTestClusterWrapper.wrap(clusters.values()));
             clusters.clear();
         }
         if (restClient != null) {

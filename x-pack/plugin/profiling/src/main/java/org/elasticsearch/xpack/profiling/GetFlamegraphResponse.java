@@ -25,6 +25,10 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     private final double samplingRate;
     private final long selfCPU;
     private final long totalCPU;
+    private final double selfAnnualCO2Tons;
+    private final double totalAnnualCO2Tons;
+    private final double selfAnnualCostsUSD;
+    private final double totalAnnualCostsUSD;
     private final long totalSamples;
     private final List<Map<String, Integer>> edges;
     private final List<String> fileIds;
@@ -38,6 +42,10 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     private final List<Integer> sourceLines;
     private final List<Long> countInclusive;
     private final List<Long> countExclusive;
+    private final List<Double> annualCO2TonsInclusive;
+    private final List<Double> annualCO2TonsExclusive;
+    private final List<Double> annualCostsUSDInclusive;
+    private final List<Double> annualCostsUSDExclusive;
 
     public GetFlamegraphResponse(StreamInput in) throws IOException {
         this.size = in.readInt();
@@ -54,8 +62,16 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         this.sourceLines = in.readCollectionAsList(StreamInput::readInt);
         this.countInclusive = in.readCollectionAsList(StreamInput::readLong);
         this.countExclusive = in.readCollectionAsList(StreamInput::readLong);
+        this.annualCO2TonsInclusive = in.readCollectionAsList(StreamInput::readDouble);
+        this.annualCO2TonsExclusive = in.readCollectionAsList(StreamInput::readDouble);
+        this.annualCostsUSDInclusive = in.readCollectionAsList(StreamInput::readDouble);
+        this.annualCostsUSDExclusive = in.readCollectionAsList(StreamInput::readDouble);
         this.selfCPU = in.readLong();
         this.totalCPU = in.readLong();
+        this.selfAnnualCO2Tons = in.readDouble();
+        this.totalAnnualCO2Tons = in.readDouble();
+        this.selfAnnualCostsUSD = in.readDouble();
+        this.totalAnnualCostsUSD = in.readDouble();
         this.totalSamples = in.readLong();
     }
 
@@ -74,8 +90,16 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         List<Integer> sourceLines,
         List<Long> countInclusive,
         List<Long> countExclusive,
+        List<Double> annualCO2TonsInclusive,
+        List<Double> annualCO2TonsExclusive,
+        List<Double> annualCostsUSDInclusive,
+        List<Double> annualCostsUSDExclusive,
         long selfCPU,
         long totalCPU,
+        double selfAnnualCO2Tons,
+        double totalAnnualCO2Tons,
+        double selfAnnualCostsUSD,
+        double totalAnnualCostsUSD,
         long totalSamples
     ) {
         this.size = size;
@@ -92,8 +116,16 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         this.sourceLines = sourceLines;
         this.countInclusive = countInclusive;
         this.countExclusive = countExclusive;
+        this.annualCO2TonsInclusive = annualCO2TonsInclusive;
+        this.annualCO2TonsExclusive = annualCO2TonsExclusive;
+        this.annualCostsUSDInclusive = annualCostsUSDInclusive;
+        this.annualCostsUSDExclusive = annualCostsUSDExclusive;
         this.selfCPU = selfCPU;
         this.totalCPU = totalCPU;
+        this.selfAnnualCO2Tons = selfAnnualCO2Tons;
+        this.totalAnnualCO2Tons = totalAnnualCO2Tons;
+        this.selfAnnualCostsUSD = selfAnnualCostsUSD;
+        this.totalAnnualCostsUSD = totalAnnualCostsUSD;
         this.totalSamples = totalSamples;
     }
 
@@ -113,8 +145,16 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         out.writeCollection(this.sourceLines, StreamOutput::writeInt);
         out.writeCollection(this.countInclusive, StreamOutput::writeLong);
         out.writeCollection(this.countExclusive, StreamOutput::writeLong);
+        out.writeCollection(this.annualCO2TonsInclusive, StreamOutput::writeDouble);
+        out.writeCollection(this.annualCO2TonsExclusive, StreamOutput::writeDouble);
+        out.writeCollection(this.annualCostsUSDInclusive, StreamOutput::writeDouble);
+        out.writeCollection(this.annualCostsUSDExclusive, StreamOutput::writeDouble);
         out.writeLong(this.selfCPU);
         out.writeLong(this.totalCPU);
+        out.writeDouble(this.selfAnnualCO2Tons);
+        out.writeDouble(this.totalAnnualCO2Tons);
+        out.writeDouble(this.selfAnnualCostsUSD);
+        out.writeDouble(this.totalAnnualCostsUSD);
         out.writeLong(this.totalSamples);
     }
 
@@ -212,10 +252,30 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
             ChunkedToXContentHelper.array("SourceLine", Iterators.map(sourceLines.iterator(), e -> (b, p) -> b.value(e))),
             ChunkedToXContentHelper.array("CountInclusive", Iterators.map(countInclusive.iterator(), e -> (b, p) -> b.value(e))),
             ChunkedToXContentHelper.array("CountExclusive", Iterators.map(countExclusive.iterator(), e -> (b, p) -> b.value(e))),
+            ChunkedToXContentHelper.array(
+                "AnnualCO2TonsInclusive",
+                Iterators.map(annualCO2TonsInclusive.iterator(), e -> (b, p) -> b.value(e))
+            ),
+            ChunkedToXContentHelper.array(
+                "AnnualCO2TonsExclusive",
+                Iterators.map(annualCO2TonsExclusive.iterator(), e -> (b, p) -> b.value(e))
+            ),
+            ChunkedToXContentHelper.array(
+                "AnnualCostsUSDInclusive",
+                Iterators.map(annualCostsUSDInclusive.iterator(), e -> (b, p) -> b.value(e))
+            ),
+            ChunkedToXContentHelper.array(
+                "AnnualCostsUSDExclusive",
+                Iterators.map(annualCostsUSDExclusive.iterator(), e -> (b, p) -> b.value(e))
+            ),
             Iterators.single((b, p) -> b.field("Size", size)),
             Iterators.single((b, p) -> b.field("SamplingRate", samplingRate)),
             Iterators.single((b, p) -> b.field("SelfCPU", selfCPU)),
             Iterators.single((b, p) -> b.field("TotalCPU", totalCPU)),
+            Iterators.single((b, p) -> b.field("SelfAnnualCO2Tons", selfAnnualCO2Tons)),
+            Iterators.single((b, p) -> b.field("TotalAnnualCO2Tons", totalAnnualCO2Tons)),
+            Iterators.single((b, p) -> b.field("SelfAnnualCostsUSD", selfAnnualCostsUSD)),
+            Iterators.single((b, p) -> b.field("TotalAnnualCostsUSD", totalAnnualCostsUSD)),
             Iterators.single((b, p) -> b.field("TotalSamples", totalSamples)),
             ChunkedToXContentHelper.endObject()
         );

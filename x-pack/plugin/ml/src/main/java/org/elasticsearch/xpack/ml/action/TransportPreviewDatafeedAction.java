@@ -226,7 +226,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         } catch (Exception e) {
             listener.onFailure(e);
         } finally {
-            dataExtractor.cancel();
+            dataExtractor.destroy();
         }
     }
 }

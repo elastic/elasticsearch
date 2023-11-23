@@ -683,6 +683,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         }
 
         @Override
+        public void destroy() {
+            // do nothing
+        }
+
+        @Override
         public long getEndTime() {
             return 0;
         }

@@ -36,6 +36,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -110,7 +111,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
 import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
@@ -291,8 +291,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // TODO (ES-7313): add new ESRestTestCaseHistoricalFeatures() too
                 List.of(new RestTestLegacyFeatures()),
                 semanticNodeVersions,
-                // TODO (ES-7316): GET and pass cluster state
-                Set.of()
+                ClusterFeatures.calculateAllNodeFeatures(getClusterStateFeatures().values())
             );
         }
 
@@ -2052,6 +2051,31 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             }
         }, 60, TimeUnit.SECONDS);
+    }
+
+    private static Map<String, Set<String>> getClusterStateFeatures() throws IOException {
+        final Request request = new Request("GET", "_cluster/state");
+        request.addParameter("filter_path", "nodes_features");
+
+        final Response response = adminClient().performRequest(request);
+
+        Map<String, Set<String>> clusterFeatures = new HashMap<>();
+
+        var responseData = responseAsMap(response);
+        if (responseData.containsKey("nodes_features")) {
+            List<?> features = (List<?>) responseData.get("nodes_features");
+            if (features != null) {
+                for (Object feature : features) {
+                    @SuppressWarnings("unchecked")
+                    var nodeFeatureMap = (Map<String, ?>) feature;
+                    var nodeId = nodeFeatureMap.get("node_id").toString();
+                    @SuppressWarnings("unchecked")
+                    var nodeFeatures = (List<String>) nodeFeatureMap.get("features");
+                    clusterFeatures.put(nodeId, new HashSet<>(nodeFeatures));
+                }
+            }
+        }
+        return clusterFeatures;
     }
 
     /**

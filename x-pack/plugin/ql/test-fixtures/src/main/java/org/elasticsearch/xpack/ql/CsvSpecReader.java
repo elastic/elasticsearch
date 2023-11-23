@@ -92,6 +92,14 @@ public final class CsvSpecReader {
         // would need to be changed to a less common sequence (like `]#` maybe).
         private static final String EMULATED_PREFIX = "#[emulated:";
 
+        /**
+         * Returns the warning headers expected to be added by the test. To declare such a header, use the `warning:definition` format
+         * in the CSV test declaration. The `definition` can use the `EMULATED_PREFIX` string to specify the format of the warning run on
+         * emulated physical operators, if this differs from the format returned by SingleValueQuery.
+         * @param forEmulated if true, the tests are run on emulated physical operators; if false, the test case is for queries executed
+         *                   on a "full stack" ESQL, having data loaded from Lucene.
+         * @return the list of headers that are expected to be returned part of the response.
+         */
         public List<String> expectedWarnings(boolean forEmulated) {
             List<String> warnings = new ArrayList<>(expectedWarnings.size());
             for (String warning : expectedWarnings) {

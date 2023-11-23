@@ -1517,8 +1517,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private List<ActionListener<SnapshotInfo>> endAndGetListenersToResolve(Snapshot snapshot) {
         // get listeners before removing from the ending snapshots set to not trip assertion in #assertConsistentWithClusterState that
         // makes sure we don't have listeners for snapshots that aren't tracked in any internal state of this class
+        final List<ActionListener<SnapshotInfo>> listenersToComplete = snapshotCompletionListeners.remove(snapshot);
         endingSnapshots.remove(snapshot);
-        return snapshotCompletionListeners.remove(snapshot);
+        return listenersToComplete;
     }
 
     /**
@@ -1534,15 +1535,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      */
     private void handleFinalizationFailure(Exception e, Snapshot snapshot, RepositoryData repositoryData) {
         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
-            // Failure due to not being master anymore, don't try to remove snapshot from cluster state the next master
+            // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
             // will try ending this snapshot again
             logger.debug(() -> "[" + snapshot + "] failed to update cluster state during snapshot finalization", e);
-            final List<ActionListener<SnapshotInfo>> listeners = endAndGetListenersToResolve(snapshot);
-            failListenersIgnoringException(
-                listeners,
+            failSnapshotCompletionListeners(
+                snapshot,
                 new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e)
             );
-            assert repositoryOperations.assertNotQueued(snapshot);
             failAllListenersOnMasterFailOver(e);
         } else {
             logger.warn(() -> "[" + snapshot + "] failed to finalize snapshot", e);
@@ -1858,20 +1857,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     () -> "[" + snapshot + "] failed to remove snapshot metadata",
                     e
                 );
-                final List<ActionListener<SnapshotInfo>> listeners = endAndGetListenersToResolve(snapshot);
-                failListenersIgnoringException(
-                    listeners,
+                failSnapshotCompletionListeners(
+                    snapshot,
                     new SnapshotException(snapshot, "Failed to remove snapshot from cluster state", e)
                 );
-                assert repositoryOperations.assertNotQueued(snapshot);
                 failAllListenersOnMasterFailOver(e);
             }
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                final List<ActionListener<SnapshotInfo>> listeners = endAndGetListenersToResolve(snapshot);
-                failListenersIgnoringException(listeners, failure);
-                assert repositoryOperations.assertNotQueued(snapshot);
+                failSnapshotCompletionListeners(snapshot, failure);
                 if (repositoryData != null) {
                     runNextQueuedOperation(repositoryData, snapshot.getRepository(), true);
                 }
@@ -1912,6 +1907,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
         }
         return changed ? SnapshotDeletionsInProgress.of(updatedEntries) : null;
+    }
+
+    private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e) {
+        failListenersIgnoringException(endAndGetListenersToResolve(snapshot), e);
+        assert repositoryOperations.assertNotQueued(snapshot);
     }
 
     /**
@@ -2105,9 +2105,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     logger.info("snapshots {} aborted", completedNoCleanup);
                 }
                 for (Snapshot snapshot : completedNoCleanup) {
-                    final List<ActionListener<SnapshotInfo>> listeners = endAndGetListenersToResolve(snapshot);
-                    failListenersIgnoringException(listeners, new SnapshotException(snapshot, SnapshotsInProgress.ABORTED_FAILURE_TEXT));
-                    assert repositoryOperations.assertNotQueued(snapshot);
+                    failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, SnapshotsInProgress.ABORTED_FAILURE_TEXT));
                 }
                 if (newDelete == null) {
                     listener.onResponse(null);
@@ -2485,7 +2483,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
                 repositoryOperations.clear();
                 for (final Snapshot snapshot : snapshotCompletionListeners.keySet()) {
-                    // inline `endAndGetListenersToResolve` for better readability
+                    // inline code of `endAndGetListenersToResolve` to collect listeners
                     final List<ActionListener<SnapshotInfo>> listeners = snapshotCompletionListeners.remove(snapshot);
                     endingSnapshots.remove(snapshot);
                     readyToResolveListeners.add(
@@ -3583,6 +3581,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
                 leaveRepoLoop(repository);
                 for (Snapshot snapshot : snapshotsToFail) {
+                    // inline code of `failSnapshotCompletionListeners` and collect listenrs
                     final List<ActionListener<SnapshotInfo>> listeners = endAndGetListenersToResolve(snapshot);
                     readyToResolveListeners.add(() -> failListenersIgnoringException(listeners, failure));
                     assert repositoryOperations.assertNotQueued(snapshot);

@@ -100,7 +100,7 @@ class TransformFailureHandler {
         // counter for search/index gets reset after a successful bulk index request
         int numFailureRetries = getNumFailureRetries(settingsConfig);
 
-        final int failureCount = context.incrementAndGetStatePersistenceFailureCount(e);
+        int failureCount = context.incrementAndGetStatePersistenceFailureCount(e);
 
         if (numFailureRetries != -1 && failureCount > numFailureRetries) {
             fail(

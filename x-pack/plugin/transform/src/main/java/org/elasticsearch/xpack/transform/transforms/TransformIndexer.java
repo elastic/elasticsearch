@@ -87,7 +87,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     // Constant for triggering state persistence, used when there are no state persistence errors.
     // In face of errors, exponential backoff scheme is used.
-    public static final TimeValue DEFAULT_TRIGGER_SAVE_STATE_INTERVAL_MS = TimeValue.timeValueSeconds(60);
+    public static final TimeValue DEFAULT_TRIGGER_SAVE_STATE_INTERVAL = TimeValue.timeValueSeconds(60);
 
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
@@ -195,7 +195,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         long currentTimeMilliseconds = TimeUnit.NANOSECONDS.toMillis(getTimeNanos());
         long nextSaveStateMilliseconds = TransformSchedulingUtils.calculateNextScheduledTime(
             lastSaveStateMilliseconds,
-            DEFAULT_TRIGGER_SAVE_STATE_INTERVAL_MS,
+            DEFAULT_TRIGGER_SAVE_STATE_INTERVAL,
             context.getStatePersistenceFailureCount()
         );
         return currentTimeMilliseconds > nextSaveStateMilliseconds;

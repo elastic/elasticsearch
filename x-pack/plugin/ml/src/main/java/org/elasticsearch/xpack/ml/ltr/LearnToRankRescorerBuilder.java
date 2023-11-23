@@ -363,13 +363,7 @@ public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankResco
     @Override
     protected LearnToRankRescorerContext innerBuildContext(int windowSize, SearchExecutionContext context) {
         rescoreOccurred = true;
-        return new LearnToRankRescorerContext(
-            windowSize,
-            LearnToRankRescorer.INSTANCE,
-            inferenceConfig,
-            inferenceDefinition,
-            context
-        );
+        return new LearnToRankRescorerContext(windowSize, LearnToRankRescorer.INSTANCE, inferenceConfig, inferenceDefinition, context);
     }
 
     @Override

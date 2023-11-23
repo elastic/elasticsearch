@@ -970,8 +970,8 @@ public class CertificateToolTests extends ESTestCase {
                 assertThat(seq.getObjectAt(0).toString(), equalTo(CN_OID));
                 assertThat(seq.getObjectAt(1), instanceOf(ASN1TaggedObject.class));
                 ASN1TaggedObject tagged = (ASN1TaggedObject) seq.getObjectAt(1);
-                assertThat(tagged.getObject(), instanceOf(ASN1String.class));
-                assertThat(tagged.getObject().toString(), is(in(certInfo.commonNames)));
+                assertThat(tagged.getBaseObject(), instanceOf(ASN1String.class));
+                assertThat(tagged.getBaseObject().toString(), is(in(certInfo.commonNames)));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }

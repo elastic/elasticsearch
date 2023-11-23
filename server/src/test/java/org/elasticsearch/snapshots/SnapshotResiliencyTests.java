@@ -150,6 +150,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesFeatures;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.IndicesServiceBuilder;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -1756,44 +1757,39 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
                 );
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
-                indicesService = new IndicesService(
-                    settings,
-                    mock(PluginsService.class),
-                    nodeEnv,
-                    namedXContentRegistry,
-                    new AnalysisRegistry(
-                        environment,
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap()
-                    ),
-                    indexNameExpressionResolver,
-                    mapperRegistry,
-                    namedWriteableRegistry,
-                    threadPool,
-                    indexScopedSettings,
-                    new NoneCircuitBreakerService(),
-                    bigArrays,
-                    scriptService,
-                    clusterService,
-                    client,
-                    new FeatureService(List.of(new IndicesFeatures())),
-                    new MetaStateService(nodeEnv, namedXContentRegistry),
-                    Collections.emptyList(),
-                    emptyMap(),
-                    null,
-                    emptyMap(),
-                    List.of(),
-                    emptyMap(),
-                    null,
-                    () -> DocumentParsingObserver.EMPTY_INSTANCE
-                );
+
+                indicesService = new IndicesServiceBuilder().settings(settings)
+                    .pluginsService(mock(PluginsService.class))
+                    .nodeEnvironment(nodeEnv)
+                    .xContentRegistry(namedXContentRegistry)
+                    .analysisRegistry(
+                        new AnalysisRegistry(
+                            environment,
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap()
+                        )
+                    )
+                    .indexNameExpressionResolver(indexNameExpressionResolver)
+                    .mapperRegistry(mapperRegistry)
+                    .namedWriteableRegistry(namedWriteableRegistry)
+                    .threadPool(threadPool)
+                    .indexScopedSettings(indexScopedSettings)
+                    .circuitBreakerService(new NoneCircuitBreakerService())
+                    .bigArrays(bigArrays)
+                    .scriptService(scriptService)
+                    .clusterService(clusterService)
+                    .client(client)
+                    .featureService(new FeatureService(List.of(new IndicesFeatures())))
+                    .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
+                    .documentParsingObserverSupplier(() -> DocumentParsingObserver.EMPTY_INSTANCE)
+                    .build();
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
                     settings,

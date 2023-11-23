@@ -17,18 +17,18 @@ import java.util.Map;
 
 public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.StoredFields {
     private final LeafStoredFieldLoader loader;
-    private final boolean loadSource;
+    private final SourceLoader.Leaf sourceLoader;
     private Source source;
 
-    public BlockLoaderStoredFieldsFromLeafLoader(LeafStoredFieldLoader loader, boolean loadSource) {
+    public BlockLoaderStoredFieldsFromLeafLoader(LeafStoredFieldLoader loader, SourceLoader.Leaf sourceLoader) {
         this.loader = loader;
-        this.loadSource = loadSource;
+        this.sourceLoader = sourceLoader;
     }
 
     public void advanceTo(int doc) throws IOException {
         loader.advanceTo(doc);
-        if (loadSource) {
-            source = Source.fromBytes(loader.source());
+        if (sourceLoader != null) {
+            source = sourceLoader.source(loader, doc);
         }
     }
 

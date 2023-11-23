@@ -118,6 +118,8 @@ setup:
 
   - skip:
       features: headers
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/102339"
 
   - do:
       headers:
@@ -195,6 +197,8 @@ setup:
 
   - skip:
       features: headers
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/102339"
 
   - do:
       headers:

@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +42,7 @@ import java.util.function.IntToLongFunction;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchIdleIT extends ESSingleNodeTestCase {
@@ -304,18 +304,20 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertIdleShard(activeIndexStatsBefore);
 
         // WHEN
-        final SearchResponse searchResponse = client().prepareSearch("test*")
-            .setQuery(new RangeQueryBuilder("@timestamp").from("2021-05-12T20:00:00.000Z").to("2021-05-12T21:00:00.000Z"))
-            .setPreFilterShardSize(5)
-            .get();
-
-        // THEN
-        assertEquals(RestStatus.OK, searchResponse.status());
-        assertEquals(idleIndexShardsCount + activeIndexShardsCount - 1, searchResponse.getSkippedShards());
-        assertEquals(0, searchResponse.getFailedShards());
-        Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
-        // NOTE: we need an empty result from at least one shard
-        assertEquals(1, searchResponse.getHits().getHits().length);
+        assertResponse(
+            client().prepareSearch("test*")
+                .setQuery(new RangeQueryBuilder("@timestamp").from("2021-05-12T20:00:00.000Z").to("2021-05-12T21:00:00.000Z"))
+                .setPreFilterShardSize(5),
+            response -> {
+                // THEN
+                assertEquals(RestStatus.OK, response.status());
+                assertEquals(idleIndexShardsCount + activeIndexShardsCount - 1, response.getSkippedShards());
+                assertEquals(0, response.getFailedShards());
+                Arrays.stream(response.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
+                // NOTE: we need an empty result from at least one shard
+                assertEquals(1, response.getHits().getHits().length);
+            }
+        );
         final IndicesStatsResponse idleIndexStatsAfter = indicesAdmin().prepareStats(idleIndex).get();
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
     }
@@ -366,18 +368,15 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertIdleShard(activeIndexStatsBefore);
 
         // WHEN
-        final SearchResponse searchResponse = client().prepareSearch("test*")
-            .setQuery(new ExistsQueryBuilder("unmapped"))
-            .setPreFilterShardSize(5)
-            .get();
-
-        // THEN
-        assertEquals(RestStatus.OK, searchResponse.status());
-        assertEquals(idleIndexShardsCount, searchResponse.getSkippedShards());
-        assertEquals(0, searchResponse.getFailedShards());
-        Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
-        // NOTE: we need an empty result from at least one shard
-        assertEquals(1, searchResponse.getHits().getHits().length);
+        assertResponse(client().prepareSearch("test*").setQuery(new ExistsQueryBuilder("unmapped")).setPreFilterShardSize(5), response -> {
+            // THEN
+            assertEquals(RestStatus.OK, response.status());
+            assertEquals(idleIndexShardsCount, response.getSkippedShards());
+            assertEquals(0, response.getFailedShards());
+            Arrays.stream(response.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
+            // NOTE: we need an empty result from at least one shard
+            assertEquals(1, response.getHits().getHits().length);
+        });
         final IndicesStatsResponse idleIndexStatsAfter = indicesAdmin().prepareStats(idleIndex).get();
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
     }

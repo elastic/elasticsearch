@@ -96,17 +96,17 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
             () -> testModelLoader
         );
         SearchExecutionContext context = createSearchExecutionContext();
-        LearnToRankInferenceRescorerContext learnToRankInferenceRescorerContext = learnToRankRescorerBuilder.innerBuildContext(
+        LearnToRankRescorerContext learnToRankRescorerContext = learnToRankRescorerBuilder.innerBuildContext(
             randomIntBetween(1, 30),
             context
         );
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> learnToRankInferenceRescorerContext.rescorer()
+            () -> learnToRankRescorerContext.rescorer()
                 .rescore(
                     new TopDocs(new TotalHits(10, TotalHits.Relation.EQUAL_TO), new ScoreDoc[10]),
                     mock(IndexSearcher.class),
-                    learnToRankInferenceRescorerContext
+                    learnToRankRescorerContext
                 )
         );
         assertEquals("local model reference is null, missing rewriteAndFetch before rescore phase?", e.getMessage());
@@ -274,7 +274,7 @@ public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestC
             (LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig(),
             localModel
         );
-        LearnToRankInferenceRescorerContext rescoreContext = learnToRankRescorerBuilder.innerBuildContext(20, context);
+        LearnToRankRescorerContext rescoreContext = learnToRankRescorerBuilder.innerBuildContext(20, context);
         assertNotNull(rescoreContext);
         assertThat(rescoreContext.getWindowSize(), equalTo(20));
         List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors(context.searcher());

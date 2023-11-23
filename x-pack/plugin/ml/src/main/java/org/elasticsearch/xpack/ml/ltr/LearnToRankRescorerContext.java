@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class LearnToRankInferenceRescorerContext extends RescoreContext {
+public class LearnToRankRescorerContext extends RescoreContext {
 
     final SearchExecutionContext executionContext;
     final LocalModel regressionModelDefinition;
@@ -37,7 +37,7 @@ public class LearnToRankInferenceRescorerContext extends RescoreContext {
      * @param regressionModelDefinition The local model inference definition, may be null during certain search phases.
      * @param executionContext The local shard search context
      */
-    public LearnToRankInferenceRescorerContext(
+    public LearnToRankRescorerContext(
         int windowSize,
         Rescorer rescorer,
         LearnToRankConfig learnToRankConfig,

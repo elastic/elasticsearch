@@ -51,7 +51,7 @@ public class LearnToRankRescorer implements Rescorer {
         if (topDocs.scoreDocs.length == 0) {
             return topDocs;
         }
-        LearnToRankInferenceRescorerContext ltrRescoreContext = (LearnToRankInferenceRescorerContext) rescoreContext;
+        LearnToRankRescorerContext ltrRescoreContext = (LearnToRankRescorerContext) rescoreContext;
         if (ltrRescoreContext.regressionModelDefinition == null) {
             throw new IllegalStateException("local model reference is null, missing rewriteAndFetch before rescore phase?");
         }

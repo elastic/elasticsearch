@@ -21,7 +21,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * This class is a container that encapsulates the necessary information needed to indicate which node stats is requested.
+ * This class encapsulates the metrics and other information needed to define scope when we are requesting node stats.
  */
 public class NodesStatsMetrics implements Writeable {
     private CommonStatsFlags indices = new CommonStatsFlags();

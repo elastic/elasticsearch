@@ -93,6 +93,7 @@ class TransformFailureHandler {
      *
      * @param e the exception caught
      * @param settingsConfig The settings
+     * @return true if there is at least one more retry to be made, false otherwise
      */
     boolean handleStatePersistenceFailure(Exception e, SettingsConfig settingsConfig) {
         // we use the same setting for retries, however a separate counter, because the failure
@@ -106,9 +107,9 @@ class TransformFailureHandler {
                 e,
                 "task encountered more than " + numFailureRetries + " failures updating internal state; latest failure: " + e.getMessage()
             );
-            return true;
+            return false;
         }
-        return false;
+        return true;
     }
 
     /**

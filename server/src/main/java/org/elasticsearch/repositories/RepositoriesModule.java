@@ -36,7 +36,7 @@ import java.util.function.BiConsumer;
 public final class RepositoriesModule {
 
     public static final String METRIC_REQUESTS_COUNT = "repositories.requests.count";
-    public static final String HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM = "repositories.requests.http_request_time.histogram";
+    public static final String HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM = "es.repositories.requests.http_request_time.histogram";
     private final RepositoriesService repositoriesService;
 
     public RepositoriesModule(

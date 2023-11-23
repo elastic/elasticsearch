@@ -1,10 +1,10 @@
 setup:
   - skip:
       version: ' - 8.11.99'
-      reason: '[k] and [num_candidates] were made optional for kNN search in 8.12'
+      reason: '[k] and [num_candidates] were made optional for kNN query in 8.12'
   - do:
       indices.create:
-        index: test
+        index: knn_query_test_index
         body:
           mappings:
             properties:
@@ -16,21 +16,21 @@ setup:
 
   - do:
       index:
-        index: test
+        index: knn_query_test_index
         id: "1"
         body:
           vector: [1.0, -10.5, 1.3, 0.593, 41]
 
   - do:
       index:
-        index: test
+        index: knn_query_test_index
         id: "2"
         body:
           vector: [-0.5, 100.0, -13, 14.8, -156.0]
 
   - do:
       index:
-        index: test
+        index: knn_query_test_index
         id: "3"
         body:
           vector: [0.5, 111.3, -13.0, 14.8, -156.0]
@@ -43,7 +43,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
-        index: test
+        index: knn_query_test_index
         body:
           knn:
             field: vector
@@ -57,7 +57,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
-        index: test
+        index: knn_query_test_index
         body:
           knn:
             field: vector
@@ -73,7 +73,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
-        index: test
+        index: knn_query_test_index
         body:
           knn:
             field: vector
@@ -88,7 +88,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
-        index: test
+        index: knn_query_test_index
         body:
           knn:
             field: vector
@@ -103,7 +103,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
-        index: test
+        index: knn_query_test_index
         body:
           knn:
             field: vector
@@ -118,7 +118,7 @@ setup:
   - do:
       catch: bad_request
       search:
-        index: test
+        index: knn_query_test_index
         body:
           knn:
             field: vector

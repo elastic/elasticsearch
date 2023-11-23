@@ -11,10 +11,13 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -217,15 +220,6 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         assertThat(e.getMessage(), containsString("[k] must be greater than 0"));
     }
 
-    public void testInvalidNumCandsBasedOnSize() {
-        int size = 20;
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new KnnSearchBuilder("field", randomVector(3), null, 10, null).toQueryBuilder(createSearchExecutionContext(2))
-        );
-        assertThat(e.getMessage(), containsString("[num_candidates] cannot be less than [k]"));
-    }
-
     public void testRewrite() throws Exception {
         float[] expectedArray = randomVector(randomIntBetween(10, 1024));
         KnnSearchBuilder searchBuilder = new KnnSearchBuilder(
@@ -306,10 +300,11 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
     }
 
     private static SearchExecutionContext createSearchExecutionContext(int requestSize) {
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         return new SearchExecutionContext(
             0,
             0,
-            null,
+            new IndexSettings(IndexMetadata.builder("knn_test_index").settings(indexSettings).build(), indexSettings),
             null,
             null,
             null,

@@ -588,8 +588,9 @@ Number of nearest neighbors to return as top hits. This value must be less than
 end::knn-k[]
 
 tag::knn-num-candidates[]
-The number of nearest neighbor candidates to consider per shard. Cannot exceed
-10,000. {es} collects `num_candidates` results from each shard, then merges them
+The number of nearest neighbor candidates to consider per shard.
+Needs to be greater than `k` and cannot exceed 10,000. {es} collects
+`num_candidates` results from each shard, then merges them
 to find the top `k` results. Increasing `num_candidates` tends to improve the
 accuracy of the final `k` results. Defaults to `max(2 * k, 100)`.
 end::knn-num-candidates[]

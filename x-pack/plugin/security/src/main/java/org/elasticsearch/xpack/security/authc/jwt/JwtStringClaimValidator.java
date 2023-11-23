@@ -13,8 +13,6 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collection;

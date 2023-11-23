@@ -63,7 +63,6 @@ import org.elasticsearch.core.Releasables;
 public final class RefCountingRunnable implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(RefCountingRunnable.class);
-    static final String ALREADY_CLOSED_MESSAGE = "already closed, cannot acquire or release any further refs";
 
     private final RefCounted refCounted;
 

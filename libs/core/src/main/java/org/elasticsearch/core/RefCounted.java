@@ -71,7 +71,7 @@ public interface RefCounted {
         if (tryIncRef()) {
             return;
         }
-        assert false : "mustIncRef()";
+        assert false : AbstractRefCounted.ALREADY_CLOSED_MESSAGE;
         incRef(); // throws an ISE
     }
 }

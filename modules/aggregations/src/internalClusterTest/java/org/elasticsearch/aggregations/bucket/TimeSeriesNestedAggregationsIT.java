@@ -29,14 +29,12 @@ import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
@@ -209,27 +207,14 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
     }
 
     private static void assertTimeSeriesAggregation(final InternalTimeSeries timeSeriesAggregation) {
-        final List<Map<String, Object>> dimensions = timeSeriesAggregation.getBuckets()
-            .stream()
-            .map(InternalTimeSeries.InternalBucket::getKey)
-            .toList();
+        final List<Object> dimensions = timeSeriesAggregation.getBuckets().stream().map(InternalTimeSeries.InternalBucket::getKey).toList();
         // NOTE: only two time series expected as a result of having just two distinct values for the last dimension
         assertEquals(2, dimensions.size());
 
-        final Map<String, Object> firstTimeSeries = dimensions.get(0);
-        final Map<String, Object> secondTimeSeries = dimensions.get(1);
+        final Object firstTimeSeries = dimensions.get(0);
+        final Object secondTimeSeries = dimensions.get(1);
 
-        assertTsid(firstTimeSeries);
-        assertTsid(secondTimeSeries);
-    }
-
-    private static void assertTsid(final Map<String, Object> timeSeries) {
-        timeSeries.entrySet().stream().sorted(Map.Entry.comparingByKey()).limit(numberOfDimensions - 2).forEach(entry -> {
-            assertThat(entry.getValue().toString(), Matchers.equalTo(FOO_DIM_VALUE));
-        });
-        timeSeries.entrySet().stream().sorted(Map.Entry.comparingByKey()).skip(numberOfDimensions - 1).forEach(entry -> {
-            assertThat(entry.getValue().toString(), Matchers.oneOf(BAR_DIM_VALUE, BAZ_DIM_VALUE));
-        });
+        assertNotEquals(firstTimeSeries, secondTimeSeries);
     }
 
     private static void assertCardinality(final InternalCardinality cardinalityAggregation, int expectedCardinality) {

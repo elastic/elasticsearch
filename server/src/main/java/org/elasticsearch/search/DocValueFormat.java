@@ -697,10 +697,13 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public BytesRef parseBytesRef(Object value) {
-            if (value instanceof BytesRef) {
-                return (BytesRef) value;
+            if (value instanceof BytesRef valueAsBytesRef) {
+                return new BytesRef(Base64.getUrlEncoder().withoutPadding().encodeToString(valueAsBytesRef.bytes));
             }
-            return plainTsidParseBytesRef(value);
+            if (value instanceof String valueAsString) {
+                return new BytesRef(valueAsString);
+            }
+            return parseBytesRefMap(value);
         }
 
         /**
@@ -708,9 +711,9 @@ public interface DocValueFormat extends NamedWriteable {
          * Tsid hashing does not allow us to parse the tsid extracting dimension fields key/values pairs.
          * @param value The Map encoding tsid dimension fields key/value pairs.
          *
-         * @return
+         * @return a {@link BytesRef} representing a map of key/value pairs
          */
-        private BytesRef plainTsidParseBytesRef(Object value) {
+        private BytesRef parseBytesRefMap(Object value) {
             if (value instanceof Map<?, ?> == false) {
                 throw new IllegalArgumentException("Cannot parse tsid object [" + value + "]");
             }

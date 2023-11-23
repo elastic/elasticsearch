@@ -523,7 +523,8 @@ public class InferenceProcessorTests extends ESTestCase {
             modelId,
             new RegressionConfigUpdate("foo", null),
             inputs,
-            randomBoolean()
+            randomBoolean(),
+            false
         );
 
         IngestDocument document = TestIngestDocument.emptyIngestDocument();
@@ -553,7 +554,8 @@ public class InferenceProcessorTests extends ESTestCase {
             modelId,
             new RegressionConfigUpdate("foo", null),
             inputs,
-            randomBoolean()
+            randomBoolean(),
+            false
         );
 
         IngestDocument document = TestIngestDocument.emptyIngestDocument();
@@ -599,7 +601,8 @@ public class InferenceProcessorTests extends ESTestCase {
             modelId,
             new EmptyConfigUpdate(),
             inputs,
-            randomBoolean()
+            randomBoolean(),
+            false
         );
 
         IngestDocument document = TestIngestDocument.emptyIngestDocument();
@@ -628,7 +631,8 @@ public class InferenceProcessorTests extends ESTestCase {
             modelId,
             new EmptyConfigUpdate(),
             inputs,
-            randomBoolean()
+            randomBoolean(),
+            false
         );
 
         IngestDocument document = TestIngestDocument.emptyIngestDocument();
@@ -654,6 +658,7 @@ public class InferenceProcessorTests extends ESTestCase {
                 modelId,
                 new EmptyConfigUpdate(),
                 inputs,
+                false,
                 false
             );
 
@@ -675,7 +680,8 @@ public class InferenceProcessorTests extends ESTestCase {
                 modelId,
                 new EmptyConfigUpdate(),
                 inputs,
-                true
+                true,
+                false
             );
 
             IngestDocument document = TestIngestDocument.emptyIngestDocument();

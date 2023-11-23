@@ -13,6 +13,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -53,6 +56,28 @@ public interface InferenceResults extends NamedWriteable, ToXContentFragment {
                 setOrAppendValue(basePath + "." + entry.getKey(), entry.getValue(), ingestDocument);
             }
         }
+    }
+
+    static void writeChunkResultsToField(
+        List<InferenceResults> results,
+        IngestDocument ingestDocument,
+        @Nullable String basePath,
+        String outputField) {
+        Objects.requireNonNull(results, "results");
+        Objects.requireNonNull(ingestDocument, "ingestDocument");
+        Objects.requireNonNull(outputField, "outputField");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> inputValues = ingestDocument.getFieldValue(basePath + "." + outputField, List.class);
+        List<Map<String, Object>> outputValues = new ArrayList<>();
+        int currentResult = 0;
+        for (InferenceResults result : results) {
+            Map<String, Object> outputMap = new HashMap<>();
+            outputMap.put("inference", result.asMap(outputField).get(outputField));
+            outputMap.putAll(inputValues.get(currentResult));
+            outputValues.add(outputMap);
+        }
+
+        ingestDocument.setFieldValue(basePath + "." + outputField, outputValues);
     }
 
     private static void setOrAppendValue(String path, Object value, IngestDocument ingestDocument) {

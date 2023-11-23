@@ -109,9 +109,23 @@ public class InferenceProcessor extends AbstractProcessor {
         String modelId,
         InferenceConfigUpdate inferenceConfig,
         List<Factory.InputConfig> inputs,
-        boolean ignoreMissing
+        boolean ignoreMissing,
+        boolean supportChunking
     ) {
-        return new InferenceProcessor(client, auditor, tag, description, null, modelId, inferenceConfig, null, inputs, true, ignoreMissing);
+        return new InferenceProcessor(
+            client,
+            auditor,
+            tag,
+            description,
+            null,
+            modelId,
+            inferenceConfig,
+            null,
+            inputs,
+            true,
+            ignoreMissing,
+            supportChunking
+        );
     }
 
     public static InferenceProcessor fromTargetFieldConfiguration(
@@ -136,6 +150,7 @@ public class InferenceProcessor extends AbstractProcessor {
             fieldMap,
             null,
             false,
+            false,
             false
         );
     }
@@ -151,6 +166,7 @@ public class InferenceProcessor extends AbstractProcessor {
     private final List<Factory.InputConfig> inputs;
     private final boolean configuredWithInputsFields;
     private final boolean ignoreMissing;
+    private final boolean supportChunking;
 
     private InferenceProcessor(
         Client client,
@@ -163,7 +179,8 @@ public class InferenceProcessor extends AbstractProcessor {
         Map<String, String> fieldMap,
         List<Factory.InputConfig> inputs,
         boolean configuredWithInputsFields,
-        boolean ignoreMissing
+        boolean ignoreMissing,
+        boolean supportChunking
     ) {
         super(tag, description);
         this.configuredWithInputsFields = configuredWithInputsFields;
@@ -172,6 +189,7 @@ public class InferenceProcessor extends AbstractProcessor {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.inferenceConfig = ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
         this.ignoreMissing = ignoreMissing;
+        this.supportChunking = supportChunking;
 
         if (configuredWithInputsFields) {
             this.inputs = ExceptionsHelper.requireNonNull(inputs, INPUT_OUTPUT);
@@ -229,12 +247,23 @@ public class InferenceProcessor extends AbstractProcessor {
             List<String> requestInputs = new ArrayList<>();
             for (var inputFields : inputs) {
                 try {
-                    var inputText = ingestDocument.getFieldValue(inputFields.inputField, String.class, ignoreMissing);
-                    // field is missing and ignoreMissing == true then a null value is returned.
-                    if (inputText == null) {
-                        inputText = "";  // need to send a non-null request to the same number of results back
+                    if (supportChunking) {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> inputChunks = ingestDocument.getFieldValue(inputFields.inputField, List.class, ignoreMissing);
+                        // field is missing and ignoreMissing == true then a null value is returned.
+                        if (inputChunks == null) {
+                            requestInputs.add("");  // need to send a non-null request to the same number of results back
+                        } else {
+                            requestInputs.addAll(inputChunks.stream().map(m -> m.get("text").toString()).toList());
+                        }
+                    } else {
+                        var inputText = ingestDocument.getFieldValue(inputFields.inputField, String.class, ignoreMissing);
+                        // field is missing and ignoreMissing == true then a null value is returned.
+                        if (inputText == null) {
+                            inputText = "";  // need to send a non-null request to the same number of results back
+                        }
+                        requestInputs.add(inputText);
                     }
-                    requestInputs.add(inputText);
                 } catch (IllegalArgumentException e) {
                     if (ingestDocument.hasField(inputFields.inputField())) {
                         // field is present but of the wrong type, translate to a more meaningful message
@@ -297,24 +326,43 @@ public class InferenceProcessor extends AbstractProcessor {
         // String modelIdField = tag == null ? MODEL_ID_RESULTS_FIELD : MODEL_ID_RESULTS_FIELD + "." + tag;
 
         if (configuredWithInputsFields) {
-            if (response.getInferenceResults().size() != inputs.size()) {
-                throw new ElasticsearchStatusException(
-                    "number of results [{}] does not match the number of inputs [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    response.getInferenceResults().size(),
-                    inputs.size()
-                );
-            }
+            if (supportChunking) {
+                int currentResult = 0;
+                for (Factory.InputConfig input : inputs) {
+                    int inputSize = ingestDocument.getFieldValue(input.inputField, List.class).size();
+                    List<InferenceResults> inputResults = response.getInferenceResults()
+                        .subList(currentResult, currentResult + inputSize);
+                    InferenceResults.writeChunkResultsToField(inputResults, ingestDocument, input.outputBasePath, input.outputField);
+                    currentResult += inputSize;
+                }
+                if (currentResult != response.getInferenceResults().size()) {
+                    throw new ElasticsearchStatusException(
+                        "number of results [{}] does not match the number of inputs [{}]",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        response.getInferenceResults().size(),
+                        currentResult
+                    );
+                }
+            } else {
+                if (response.getInferenceResults().size() != inputs.size()) {
+                    throw new ElasticsearchStatusException(
+                        "number of results [{}] does not match the number of inputs [{}]",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        response.getInferenceResults().size(),
+                        inputs.size()
+                    );
+                }
 
-            for (int i = 0; i < inputs.size(); i++) {
-                InferenceResults.writeResultToField(
-                    response.getInferenceResults().get(i),
-                    ingestDocument,
-                    inputs.get(i).outputBasePath(),
-                    inputs.get(i).outputField,
-                    response.getId() != null ? response.getId() : modelId,
-                    i == 0
-                );
+                for (int i = 0; i < inputs.size(); i++) {
+                    InferenceResults.writeResultToField(
+                        response.getInferenceResults().get(i),
+                        ingestDocument,
+                        inputs.get(i).outputBasePath(),
+                        inputs.get(i).outputField,
+                        response.getId() != null ? response.getId() : modelId,
+                        i == 0
+                    );
+                }
             }
         } else {
             assert response.getInferenceResults().size() == 1;
@@ -472,7 +520,8 @@ public class InferenceProcessor extends AbstractProcessor {
                     modelId,
                     inferenceConfigUpdate,
                     parsedInputs,
-                    ignoreMissing
+                    ignoreMissing,
+                    false
                 );
             } else {
                 // old style configuration with target field

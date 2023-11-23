@@ -50,7 +50,7 @@ public final class ScriptProcessor extends AbstractProcessor {
      * @param precompiledIngestScriptFactory The {@link Script} precompiled script
      * @param scriptService The {@link ScriptService} used to execute the script.
      */
-    ScriptProcessor(
+    public ScriptProcessor(
         String tag,
         String description,
         Script script,

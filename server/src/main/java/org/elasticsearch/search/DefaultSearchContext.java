@@ -9,6 +9,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -224,9 +225,11 @@ final class DefaultSearchContext extends SearchContext {
         if (indexFieldData instanceof IndexOrdinalsFieldData indexOrdinalsFieldData) {
             if (indexOrdinalsFieldData.supportsGlobalOrdinalsMapping()) {
                 IndexOrdinalsFieldData global = indexOrdinalsFieldData.loadGlobal(directoryReader);
-                LeafOrdinalsFieldData atomicFieldData = global.load(directoryReader.leaves().get(0));
-                SortedSetDocValues values = atomicFieldData.getOrdinalsValues();
-                return values.getValueCount();
+                OrdinalMap ordinalMap = global.getOrdinalMap();
+                if (ordinalMap == null) {
+                    return global.load(directoryReader.leaves().get(0)).getOrdinalsValues().getValueCount();
+                }
+                return ordinalMap.getValueCount();
             }
         }
         return -1L;

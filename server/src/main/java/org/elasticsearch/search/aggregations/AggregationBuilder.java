@@ -258,14 +258,4 @@ public abstract class AggregationBuilder
     protected void validateSequentiallyOrderedWithoutGaps(String type, String name, Consumer<String> addValidationError) {
         validateSequentiallyOrdered(type, name, addValidationError);
     }
-
-    /**
-     * Returns the cardinality of the fields being aggregated on if applicable. Override to expose cardinality info for specific aggs.
-     * This information is used to conditionally enable parallel collection in certain situations.
-     */
-    protected long[] getFieldsCardinality(Function<String, Long> fieldCardinalityResolver) {
-        return EMPTY;
-    }
-
-    private static final long[] EMPTY = new long[0];
 }

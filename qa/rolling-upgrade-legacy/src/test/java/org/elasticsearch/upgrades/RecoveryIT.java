@@ -445,9 +445,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
      * time the index was closed.
      */
     public void testCloseIndexDuringRollingUpgrade() throws Exception {
-        final Version minimumNodeVersion = minimumNodeVersion();
-        final String indexName = String.join("_", "index", CLUSTER_TYPE.toString(), Integer.toString(minimumNodeVersion.id))
-            .toLowerCase(Locale.ROOT);
+        int id = switch (CLUSTER_TYPE) {
+            case OLD -> 1;
+            case MIXED -> 2;
+            case UPGRADED -> 3;
+        };
+        final String indexName = String.join("_", "index", CLUSTER_TYPE.toString(), Integer.toString(id)).toLowerCase(Locale.ROOT);
 
         if (indexExists(indexName) == false) {
             createIndex(
@@ -700,7 +703,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
     public void testAutoExpandIndicesDuringRollingUpgrade() throws Exception {
         final String indexName = "test-auto-expand-filtering";
-        final Version minimumNodeVersion = minimumNodeVersion();
 
         Response response = client().performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
@@ -721,11 +723,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final int numberOfReplicas = Integer.parseInt(
             getIndexSettingsAsMap(indexName).get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS).toString()
         );
-        if (minimumNodeVersion.onOrAfter(Version.V_7_6_0)) {
-            assertEquals(nodes.size() - 2, numberOfReplicas);
-        } else {
-            assertEquals(nodes.size() - 1, numberOfReplicas);
-        }
+        assertThat(nodes, hasSize(numberOfReplicas + 2));
     }
 
     public void testSoftDeletesDisabledWarning() throws Exception {

@@ -465,7 +465,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertNoResizeSourceIndexSettings("target");
 
         flushAndRefresh();
-        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("target").execute().actionGet();
+        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("target").get();
         assertEquals(settingsResponse.getSetting("target", "index.sort.field"), "id");
         assertEquals(settingsResponse.getSetting("target", "index.sort.order"), "desc");
         assertSortedSegments("target", expectedIndexSort);
@@ -610,8 +610,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .clear()
             .setMetadata(true)
             .setRoutingTable(true)
-            .execute()
-            .actionGet();
+            .get();
         IndexRoutingTable indexRoutingTable = clusterStateResponse.getState().routingTable().index(index);
         assertThat("Index " + index + " should have all primaries started", indexRoutingTable.allPrimaryShardsActive(), equalTo(true));
         IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(index);

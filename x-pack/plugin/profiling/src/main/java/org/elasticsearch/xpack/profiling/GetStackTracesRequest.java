@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -40,6 +39,10 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids");
     public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
     public static final ParseField CUSTOM_COST_FACTOR_FIELD = new ParseField("custom_cost_factor");
+    public static final ParseField CUSTOM_CO2_PER_KWH = new ParseField("co2_per_kwh");
+    public static final ParseField CUSTOM_DATACENTER_PUE = new ParseField("datacenter_pue");
+    public static final ParseField CUSTOM_PER_CORE_WATT = new ParseField("per_core_watt");
+    private static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private QueryBuilder query;
     private Integer sampleSize;
@@ -47,6 +50,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private String stackTraceIds;
     private Double requestedDuration;
     private Double customCostFactor;
+    private Double customCO2PerKWH;
+    private Double customDatacenterPUE;
+    private Double customPerCoreWatt;
 
     // We intentionally don't expose this field via the REST API, but we can control behavior within Elasticsearch.
     // Once we have migrated all client-side code to dedicated APIs (such as the flamegraph API), we can adjust
@@ -54,7 +60,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private Boolean adjustSampleCount;
 
     public GetStackTracesRequest() {
-        this(null, null, null, null, null, null);
+        this(null, null, null, null, null, null, null, null, null);
     }
 
     public GetStackTracesRequest(
@@ -63,7 +69,10 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         Double customCostFactor,
         QueryBuilder query,
         String indices,
-        String stackTraceIds
+        String stackTraceIds,
+        Double customCO2PerKWH,
+        Double customDatacenterPUE,
+        Double customPerCoreWatt
     ) {
         this.sampleSize = sampleSize;
         this.requestedDuration = requestedDuration;
@@ -71,6 +80,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.query = query;
         this.indices = indices;
         this.stackTraceIds = stackTraceIds;
+        this.customCO2PerKWH = customCO2PerKWH;
+        this.customDatacenterPUE = customDatacenterPUE;
+        this.customPerCoreWatt = customPerCoreWatt;
     }
 
     public GetStackTracesRequest(StreamInput in) throws IOException {
@@ -81,6 +93,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.adjustSampleCount = in.readOptionalBoolean();
         this.indices = in.readOptionalString();
         this.stackTraceIds = in.readOptionalString();
+        this.customCO2PerKWH = in.readOptionalDouble();
+        this.customDatacenterPUE = in.readOptionalDouble();
+        this.customPerCoreWatt = in.readOptionalDouble();
     }
 
     @Override
@@ -92,10 +107,13 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         out.writeOptionalBoolean(adjustSampleCount);
         out.writeOptionalString(indices);
         out.writeOptionalString(stackTraceIds);
+        out.writeOptionalDouble(customCO2PerKWH);
+        out.writeOptionalDouble(customDatacenterPUE);
+        out.writeOptionalDouble(customPerCoreWatt);
     }
 
     public Integer getSampleSize() {
-        return sampleSize;
+        return sampleSize != null ? sampleSize : DEFAULT_SAMPLE_SIZE;
     }
 
     public Double getRequestedDuration() {
@@ -104,6 +122,18 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     public Double getCustomCostFactor() {
         return customCostFactor;
+    }
+
+    public Double getCustomCO2PerKWH() {
+        return customCO2PerKWH;
+    }
+
+    public Double getCustomDatacenterPUE() {
+        return customDatacenterPUE;
+    }
+
+    public Double getCustomPerCoreWatt() {
+        return customPerCoreWatt;
     }
 
     public QueryBuilder getQuery() {
@@ -151,6 +181,12 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     this.requestedDuration = parser.doubleValue();
                 } else if (CUSTOM_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.customCostFactor = parser.doubleValue();
+                } else if (CUSTOM_CO2_PER_KWH.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.customCO2PerKWH = parser.doubleValue();
+                } else if (CUSTOM_DATACENTER_PUE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.customDatacenterPUE = parser.doubleValue();
+                } else if (CUSTOM_PER_CORE_WATT.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.customPerCoreWatt = parser.doubleValue();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -201,35 +237,23 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     validationException
                 );
             }
-            if (sampleSize == null) {
-                validationException = addValidationError(
-                    "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] is mandatory",
-                    validationException
-                );
-            } else if (sampleSize <= 0) {
-                validationException = addValidationError(
-                    "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] must be greater or equals than 1, got: " + sampleSize,
-                    validationException
-                );
-            }
+            validationException = requirePositive(SAMPLE_SIZE_FIELD, sampleSize, validationException);
         }
-        if (requestedDuration != null) {
-            if (requestedDuration <= 0.0d) {
-                validationException = addValidationError(
-                    "[" + REQUESTED_DURATION_FIELD.getPreferredName() + "] must be greater than 0, got: " + requestedDuration,
-                    validationException
-                );
-            }
-        }
-        if (customCostFactor != null) {
-            if (customCostFactor <= 0.0d) {
-                validationException = addValidationError(
-                    "[" + CUSTOM_COST_FACTOR_FIELD.getPreferredName() + "] must be greater than 0, got: " + customCostFactor,
-                    validationException
-                );
-            }
-        }
+        validationException = requirePositive(REQUESTED_DURATION_FIELD, requestedDuration, validationException);
+        validationException = requirePositive(CUSTOM_COST_FACTOR_FIELD, customCostFactor, validationException);
+        validationException = requirePositive(CUSTOM_CO2_PER_KWH, customCO2PerKWH, validationException);
+        validationException = requirePositive(CUSTOM_DATACENTER_PUE, customDatacenterPUE, validationException);
+        validationException = requirePositive(CUSTOM_PER_CORE_WATT, customPerCoreWatt, validationException);
         return validationException;
+    }
+
+    private static ActionRequestValidationException requirePositive(ParseField field, Number value, ActionRequestValidationException e) {
+        if (value != null) {
+            if (value.doubleValue() <= 0.0d) {
+                return addValidationError("[" + field.getPreferredName() + "] must be greater than 0, got: " + value, e);
+            }
+        }
+        return e;
     }
 
     @Override
@@ -239,39 +263,29 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
             public String getDescription() {
                 // generating description lazily since the query could be large
                 StringBuilder sb = new StringBuilder();
-                if (indices == null) {
-                    sb.append("indices[]");
-                } else {
-                    sb.append("indices[").append(indices).append("]");
-                }
-                if (stackTraceIds == null) {
-                    sb.append("stackTraceIds[]");
-                } else {
-                    sb.append("stackTraceIds[").append(stackTraceIds).append("]");
-                }
-                if (sampleSize == null) {
-                    sb.append("sample_size[]");
-                } else {
-                    sb.append("sample_size[").append(sampleSize).append("]");
-                }
-                if (requestedDuration == null) {
-                    sb.append(", requested_duration[]");
-                } else {
-                    sb.append(", requested_duration[").append(requestedDuration).append("]");
-                }
-                if (customCostFactor == null) {
-                    sb.append(", custom_cost_factor[]");
-                } else {
-                    sb.append(", custom_cost_factor[").append(customCostFactor).append("]");
-                }
-                if (query == null) {
-                    sb.append(", query[]");
-                } else {
-                    sb.append(", query[").append(Strings.toString(query)).append("]");
-                }
+                appendField(sb, "indices", indices);
+                appendField(sb, "stackTraceIds", stackTraceIds);
+                appendField(sb, "sample_size", sampleSize);
+                appendField(sb, "requested_duration", requestedDuration);
+                appendField(sb, "custom_cost_factor", customCostFactor);
+                appendField(sb, "co2_per_kwh", customCO2PerKWH);
+                appendField(sb, "datacenter_pue", customDatacenterPUE);
+                appendField(sb, "per_core_watt", customPerCoreWatt);
+                appendField(sb, "query", query);
                 return sb.toString();
             }
         };
+    }
+
+    private static void appendField(StringBuilder sb, String name, Object value) {
+        if (sb.isEmpty() == false) {
+            sb.append(", ");
+        }
+        if (value == null) {
+            sb.append(name).append("[]");
+        } else {
+            sb.append(name).append("[").append(value).append("]");
+        }
     }
 
     @Override

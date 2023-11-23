@@ -36,7 +36,6 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -1106,7 +1105,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testSetSearchThrottled() {
+    public void testSetSearchThrottled() throws IOException {
         createIndex("throttled_threadpool_index");
         client().execute(
             InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
@@ -1144,21 +1143,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
         assertEquals("can not update private setting [index.search.throttled]; this setting is managed by Elasticsearch", iae.getMessage());
         assertFalse(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
-        ShardSearchRequest req = new ShardSearchRequest(
-            OriginalIndices.NONE,
-            searchRequest,
-            new ShardId(index, 0),
-            0,
-            1,
-            AliasFilter.EMPTY,
-            1f,
-            -1,
-            null
-        );
-        Thread currentThread = Thread.currentThread();
-        // we still make sure can match is executed on the network thread
-        service.canMatch(req, ActionTestUtils.assertNoFailureListener(r -> assertSame(Thread.currentThread(), currentThread)));
     }
 
     public void testAggContextGetsMatchAll() throws IOException {

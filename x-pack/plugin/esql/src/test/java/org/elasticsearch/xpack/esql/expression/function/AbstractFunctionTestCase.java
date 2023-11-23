@@ -12,6 +12,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -30,6 +31,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -58,6 +60,7 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -115,6 +118,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> randomVersion().toBytesRef();
             case "null" -> null;
+            case "_source" -> {
+                try {
+                    yield BytesReference.bytes(
+                        JsonXContent.contentBuilder().startObject().field(randomAlphaOfLength(3), randomAlphaOfLength(10)).endObject()
+                    ).toBytesRef();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
             default -> throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
         }, type);
     }
@@ -669,6 +681,30 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
              */
             .filter(types -> types.stream().filter(t -> t == DataTypes.NULL).count() <= 1)
             .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types))
+            .forEach(suppliers::add);
+        return suppliers;
+    }
+
+    /**
+     * Adds test cases containing unsupported parameter types that immediately fail.
+     */
+    protected static List<TestCaseSupplier> failureForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
+        typesRequired(testCaseSuppliers);
+        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
+        suppliers.addAll(testCaseSuppliers);
+
+        Set<List<DataType>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
+        List<Set<DataType>> validPerPosition = validPerPosition(valid);
+
+        testCaseSuppliers.stream()
+            .map(s -> s.types().size())
+            .collect(Collectors.toSet())
+            .stream()
+            .flatMap(count -> allPermutations(count))
+            .filter(types -> valid.contains(types) == false)
+            .map(types -> new TestCaseSupplier("type error for " + TestCaseSupplier.nameFromTypes(types), types, () -> {
+                throw new IllegalStateException("must implement a case for " + types);
+            }))
             .forEach(suppliers::add);
         return suppliers;
     }

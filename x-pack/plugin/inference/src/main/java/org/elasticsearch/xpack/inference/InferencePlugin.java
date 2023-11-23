@@ -30,7 +30,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.inference.action.CoordinatedInferenceAction;
+import org.elasticsearch.xpack.core.inference.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.inference.action.DeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.InferenceAction;

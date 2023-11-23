@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.inference.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelActionRequestTests;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
@@ -56,14 +57,15 @@ public class CoordinatedInferenceActionRequestTests extends AbstractWireSerializ
                 var inferenceTimeout = randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), null, "timeout");
                 var highPriority = randomBoolean() ? null : randomBoolean();
 
-                yield CoordinatedInferenceAction.Request.forInClusterInference(
+                var request = CoordinatedInferenceAction.Request.forTextInput(
                     randomAlphaOfLength(6),
                     List.of(randomAlphaOfLength(6)),
                     inferenceConfig,
                     previouslyLicensed,
-                    inferenceTimeout,
-                    highPriority
+                    inferenceTimeout
                 );
+                request.setHighPriority(highPriority);
+                yield request;
             }
             case 1 -> {
                 var inferenceConfig = randomBoolean() ? null : InferModelActionRequestTests.randomInferenceConfigUpdate();
@@ -71,14 +73,15 @@ public class CoordinatedInferenceActionRequestTests extends AbstractWireSerializ
                 var inferenceTimeout = randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), null, "timeout");
                 var highPriority = randomBoolean() ? null : randomBoolean();
 
-                yield CoordinatedInferenceAction.Request.forDFA(
+                var request = CoordinatedInferenceAction.Request.forMapInput(
                     randomAlphaOfLength(6),
                     Stream.generate(CoordinatedInferenceActionRequestTests::randomMap).limit(randomInt(5)).collect(Collectors.toList()),
                     inferenceConfig,
                     previouslyLicensed,
-                    inferenceTimeout,
-                    highPriority
+                    inferenceTimeout
                 );
+                request.setHighPriority(highPriority);
+                yield request;
             }
             case 2 -> {
                 var taskSettings = randomBoolean() ? null : randomMap();

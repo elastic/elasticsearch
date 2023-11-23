@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.action;
+package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -24,34 +26,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceAction.Response> {
+public class CoordinatedInferenceAction extends ActionType<InferModelAction.Response> {
 
     public static final CoordinatedInferenceAction INSTANCE = new CoordinatedInferenceAction();
     public static final String NAME = "cluster:internal/xpack/coordinatedinference";
 
     public CoordinatedInferenceAction() {
-        super(NAME, CoordinatedInferenceAction.Response::new);
+        super(NAME, InferModelAction.Response::new);
     }
 
     public static class Request extends ActionRequest {
 
-        public enum RequestType {
-            FOR_INFERENCE_SERVICE,
-            FOR_IN_CLUSTER_MODEL,
-            FOR_DFA_MODEL
-        }
-
         public static Request forInferenceService(String modelId, List<String> inputs, @Nullable Map<String, Object> taskSettings) {
-            return new Request(modelId, inputs, taskSettings, null, null, null, null, null, RequestType.FOR_INFERENCE_SERVICE);
+            return new Request(modelId, inputs, taskSettings, null, null, null, null, false);
         }
 
-        public static Request forInClusterInference(
+        public static Request forTextInput(
             String modelId,
             List<String> inputs,
             @Nullable InferenceConfigUpdate inferenceConfigUpdate,
             @Nullable Boolean previouslyLicensed,
-            @Nullable TimeValue inferenceTimeout,
-            @Nullable Boolean highPriority
+            @Nullable TimeValue inferenceTimeout
         ) {
             return new Request(
                 modelId,
@@ -61,18 +56,16 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
                 inferenceConfigUpdate,
                 previouslyLicensed,
                 inferenceTimeout,
-                highPriority,
-                RequestType.FOR_IN_CLUSTER_MODEL
+                false // high priority
             );
         }
 
-        public static Request forDFA(
+        public static Request forMapInput(
             String modelId,
             List<Map<String, Object>> objectsToInfer,
             @Nullable InferenceConfigUpdate inferenceConfigUpdate,
             @Nullable Boolean previouslyLicensed,
-            @Nullable TimeValue inferenceTimeout,
-            @Nullable Boolean highPriority
+            @Nullable TimeValue inferenceTimeout
         ) {
             return new Request(
                 modelId,
@@ -82,8 +75,7 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
                 inferenceConfigUpdate,
                 previouslyLicensed,
                 inferenceTimeout,
-                highPriority,
-                RequestType.FOR_DFA_MODEL
+                false // high priority,
             );
         }
 
@@ -93,13 +85,13 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
         // _inference settings
         private final Map<String, Object> taskSettings;
         // In cluster model options
-        private final InferenceConfigUpdate inferenceConfigUpdate;
-        private final Boolean previouslyLicensed;
         private final TimeValue inferenceTimeout;
-        private final Boolean highPriority;
+        private final Boolean previouslyLicensed;
+        private final InferenceConfigUpdate inferenceConfigUpdate;
+        private boolean highPriority;
+        private TrainedModelPrefixStrings.PrefixType prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
         // DFA models only
         private final List<Map<String, Object>> objectsToInfer;
-        private final RequestType requestType;
 
         private Request(
             String modelId,
@@ -109,8 +101,7 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
             @Nullable InferenceConfigUpdate inferenceConfigUpdate,
             @Nullable Boolean previouslyLicensed,
             @Nullable TimeValue inferenceTimeout,
-            @Nullable Boolean highPriority,
-            RequestType requestType
+            boolean highPriority
         ) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
             this.inputs = inputs;
@@ -120,7 +111,6 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
             this.previouslyLicensed = previouslyLicensed;
             this.inferenceTimeout = inferenceTimeout;
             this.highPriority = highPriority;
-            this.requestType = requestType;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -136,8 +126,7 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
             this.inferenceConfigUpdate = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readOptionalBoolean();
             this.inferenceTimeout = in.readOptionalTimeValue();
-            this.highPriority = in.readOptionalBoolean();
-            this.requestType = in.readEnum(RequestType.class);
+            this.highPriority = in.readBoolean();
         }
 
         public String getModelId() {
@@ -168,12 +157,12 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
             return inferenceTimeout;
         }
 
-        public Boolean getHighPriority() {
+        public boolean getHighPriority() {
             return highPriority;
         }
 
-        public RequestType getRequestType() {
-            return requestType;
+        public void setHighPriority(boolean highPriority) {
+            this.highPriority = highPriority;
         }
 
         public boolean hasInferenceConfig() {
@@ -182,6 +171,14 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
 
         public boolean hasObjects() {
             return objectsToInfer != null;
+        }
+
+        public void setPrefixType(TrainedModelPrefixStrings.PrefixType prefixType) {
+            this.prefixType = prefixType;
+        }
+
+        public TrainedModelPrefixStrings.PrefixType getPrefixType() {
+            return prefixType;
         }
 
         @Override
@@ -198,18 +195,11 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
             out.writeOptionalNamedWriteable(inferenceConfigUpdate);
             out.writeOptionalBoolean(previouslyLicensed);
             out.writeOptionalTimeValue(inferenceTimeout);
-            out.writeOptionalBoolean(highPriority);
-            out.writeEnum(requestType);
+            out.writeBoolean(highPriority);
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            if (inputs != null && inputs.size() > 1) {
-                // TODO support multiple inputs to _inference
-                var ex = new ActionRequestValidationException();
-                ex.addValidationError("Only a single input is supported");
-                return ex;
-            }
             return null;
         }
 
@@ -225,8 +215,7 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
                 && Objects.equals(inferenceConfigUpdate, request.inferenceConfigUpdate)
                 && Objects.equals(previouslyLicensed, request.previouslyLicensed)
                 && Objects.equals(inferenceTimeout, request.inferenceTimeout)
-                && Objects.equals(highPriority, request.highPriority)
-                && Objects.equals(requestType, request.requestType);
+                && Objects.equals(highPriority, request.highPriority);
         }
 
         @Override
@@ -239,41 +228,8 @@ public class CoordinatedInferenceAction extends ActionType<CoordinatedInferenceA
                 inferenceConfigUpdate,
                 previouslyLicensed,
                 inferenceTimeout,
-                highPriority,
-                requestType
+                highPriority
             );
-        }
-    }
-
-    public static class Response extends ActionResponse {
-
-        private final List<? extends InferenceResults> inferenceResults;
-
-        public Response(List<? extends InferenceResults> inferenceResults) {
-            this.inferenceResults = inferenceResults;
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            inferenceResults = in.readNamedWriteableCollectionAsList(InferenceResults.class);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteableCollection(inferenceResults);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(inferenceResults, response.inferenceResults);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(inferenceResults);
         }
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
@@ -191,7 +192,7 @@ public class InferenceProcessor extends AbstractProcessor {
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
 
-        InferModelAction.Request request;
+        CoordinatedInferenceAction.Request request;
         try {
             request = buildRequest(ingestDocument);
         } catch (ElasticsearchStatusException e) {
@@ -202,7 +203,7 @@ public class InferenceProcessor extends AbstractProcessor {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            InferModelAction.INSTANCE,
+            CoordinatedInferenceAction.INSTANCE,
             request,
             ActionListener.wrap(r -> handleResponse(r, ingestDocument, handler), e -> handler.accept(ingestDocument, e))
         );
@@ -223,7 +224,7 @@ public class InferenceProcessor extends AbstractProcessor {
         }
     }
 
-    InferModelAction.Request buildRequest(IngestDocument ingestDocument) {
+    CoordinatedInferenceAction.Request buildRequest(IngestDocument ingestDocument) {
         if (configuredWithInputsFields) {
             // ignore missing only applies when using an input field list
             List<String> requestInputs = new ArrayList<>();
@@ -246,10 +247,10 @@ public class InferenceProcessor extends AbstractProcessor {
                     }
                 }
             }
-            var request = InferModelAction.Request.forTextInput(
+            var request = CoordinatedInferenceAction.Request.forTextInput(
                 modelId,
-                inferenceConfig,
                 requestInputs,
+                inferenceConfig,
                 previouslyLicensed,
                 InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
             );
@@ -263,7 +264,7 @@ public class InferenceProcessor extends AbstractProcessor {
             }
 
             LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-            var request = InferModelAction.Request.forIngestDocs(
+            var request = CoordinatedInferenceAction.Request.forMapInput(
                 modelId,
                 List.of(fields),
                 inferenceConfig,

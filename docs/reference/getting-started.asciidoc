@@ -4,14 +4,13 @@
 
 This guide helps beginners learn how to:
 
-* Install and run {es} (Using {ecloud} or Docker)
-* Add (non-timestamped) data to {es}
-* Search and sort data
-* Aggregate data
+* Install and run {es} and {kib} (using {ecloud} or Docker)
+* Add simple (non-timestamped) dataset to {es}
+* Run basic searches
 
 [TIP]
 ====
-If you're interested in using {es} with Python, check out Elastic Search Labs:
+If you're interested in using {es} with Python, check out Elastic Search Labs. This is the best place to explore AI-powered search use cases, such as working with embeddings, vector search, and retrieval augmented generation (RAG).
 
 * https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[Tutorial]. This extensive, hands-on tutorial walks you through building a complete search solution with {es}, from the ground up.
 * https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`]. This Github repository contains a range of executable Python https://github.com/elastic/elasticsearch-labs/tree/main/notebooks[notebooks] and https://github.com/elastic/elasticsearch-labs/tree/main/example-apps[example apps].
@@ -220,366 +219,41 @@ You should receive a response indicating there were no errors.
 === Search data
 
 Indexed documents are available for search in near real-time.
-Run the following command to search the `books` index for documents containing `snow`:
 
+[discrete]
+[[search-all-documents]]
+==== Search all documents
+
+Run the following command to search the `books` index for all documents:
 [source,console]
 ----
 GET books/_search
-{
-  "query": {
-    "query_string": {
-      "query": "snow"
-    }
-  }
-}
 ----
 // TEST[continued]
 
-By default, the `hits` section of the response includes up to the first 10
-documents that match the search.
 The `_source` of each hit contains the original
 JSON object submitted during indexing.
 
-.Expand to see example response
-[%collapsible]
-===============
-[source,console-result]
-----
-{
-  "took": 14,
-  "timed_out": false,
-  "_shards": {
-    "total": 1,
-    "successful": 1,
-    "skipped": 0,
-    "failed": 0
-  },
-  "hits": {
-    "total": {
-      "value": 1,
-      "relation": "eq"
-    },
-    "max_score": 1.5904956,
-    "hits": [
-      {
-        "_index": "books",
-        "_id": "IEkx2IsBaSa7VYx_vkj6",
-        "_score": 1.5904956,
-        "_source": {
-          "name": "Snow Crash",
-          "author": "Neal Stephenson",
-          "release_date": "1992-06-01",
-          "page_count": 470
-        }
-      }
-    ]
-  }
-}
-----
-// TEST[skip:TODO]
-===============
-
 [discrete]
-[[get-specific-fields]]
-==== Get specific fields
+[[qs-match-query]]
+==== `match` query
 
-Parsing the entire `_source` is unwieldy for large documents. To exclude it from
-the response, set the `_source` parameter to `false`. Instead, use the `fields`
-parameter to retrieve the fields you want.
-Here's an example that returns only the `author` field.
+You can use the `match` query to search for documents that contain a specific value in a specific field.
+This is the standard query for performing full-text search, including fuzzy matching and phrase searches.
 
+Run the following command to search the `books` index for documents containing `brave` in the `name` field:
 [source,console]
 ----
 GET books/_search
 {
   "query": {
-    "match_all": { }
-  },
-  "fields": [
-    "author"
-  ],
-  "_source": false
-}
-----
-// TEST[continued]
-
-The response contains each hit's `fields` values as a flat array.
-
-.Expand to see example response
-[%collapsible]
-===============
-[source,console-result]
-----
-{
-  "took": 5,
-  "timed_out": false,
-  "_shards": {
-    "total": 1,
-    "successful": 1,
-    "skipped": 0,
-    "failed": 0
-  },
-  "hits": {
-    "total": {
-      "value": 6,
-      "relation": "eq"
-    },
-    "max_score": 1,
-    "hits": [
-      {
-        "_index": "books",
-        "_id": "O0lG2IsBaSa7VYx_rEia",
-        "_score": 1,
-        "fields": {
-          "author": [
-            "Neal Stephenson"
-          ]
-        }
-      },
-      {
-        "_index": "books",
-        "_id": "QklI2IsBaSa7VYx_Qkh-",
-        "_score": 1,
-        "fields": {
-          "author": [
-            "Alastair Reynolds"
-          ]
-        }
-      },
-      {
-        "_index": "books",
-        "_id": "Q0lI2IsBaSa7VYx_Qkh-",
-        "_score": 1,
-        "fields": {
-          "author": [
-            "George Orwell"
-          ]
-        }
-      },
-      {
-        "_index": "books",
-        "_id": "RElI2IsBaSa7VYx_Qkh-",
-        "_score": 1,
-        "fields": {
-          "author": [
-            "Ray Bradbury"
-          ]
-        }
-      },
-      {
-        "_index": "books",
-        "_id": "RUlI2IsBaSa7VYx_Qkh-",
-        "_score": 1,
-        "fields": {
-          "author": [
-            "Aldous Huxley"
-          ]
-        }
-      },
-      {
-        "_index": "books",
-        "_id": "RklI2IsBaSa7VYx_Qkh-",
-        "_score": 1,
-        "fields": {
-          "author": [
-            "Margaret Atwood"
-          ]
-        }
-      }
-    ]
-  }
-}
-----
-// TEST[skip:TODO]
-===============
-
-[discrete]
-[[combine-queries]]
-==== Combine queries
-
-You can use the `bool` query to combine multiple queries.
-Let's imagine a scenario where you want to find books based on multiple criteria: author and page count.
-This requires a combination of a `terms` query (for the authors) and a `range` query (for the page count).
-
-[source,console]
-----
-GET /books/_search
-{
-  "query": {
-    "bool": {
-      "must": [
-        {
-          "terms": {
-            "author.keyword": ["Neal Stephenson", "Ray Bradbury"]
-          }
-        },
-        {
-          "range": {
-            "page_count": {
-              "gte": 200,
-              "lte": 300
-            }
-          }
-        }
-      ]
+    "match": {
+      "name": "brave"
     }
   }
 }
 ----
 // TEST[continued]
-
-The response contains the books that match the query.
-
-.Expand to see example response
-[%collapsible]
-===============
-[source,console-result]
-----
-{
-  "took": 1,
-  "timed_out": false,
-  "_shards": {
-    "total": 1,
-    "successful": 1,
-    "skipped": 0,
-    "failed": 0
-  },
-  "hits": {
-    "total": {
-      "value": 1,
-      "relation": "eq"
-    },
-    "max_score": 2,
-    "hits": [
-      {
-        "_index": "books",
-        "_id": "I0kx2IsBaSa7VYx_vkj6",
-        "_score": 2,
-        "_source": {
-          "name": "Fahrenheit 451",
-          "author": "Ray Bradbury",
-          "release_date": "1953-10-15",
-          "page_count": 227
-        }
-      }
-    ]
-  }
-}
-----
-// TEST[skip:TODO]
-===============
-
-[discrete]
-[[aggregate-data]]
-==== Aggregate data
-
-Use aggregations to summarize data as metrics, statistics, or other analytics.
-Let's say we want to calculate the average page count for each author.
-
-The following search uses an `aggs` clause to calculate the average page count:
-
-[source,console]
-----
-GET /books/_search
-{
-  "size": 0,  // This omits the actual search results and only returns the aggregations
-  "aggs": {
-    "average_pages_by_author": {
-      "terms": {
-        "field": "author.keyword",
-        "size": 10  // Adjust this to get more or fewer authors
-      },
-      "aggs": {
-        "average_page_count": {
-          "avg": {
-            "field": "page_count"
-          }
-        }
-      }
-    }
-  }
-}
-----
-// TEST[continued]
-
-The response’s `aggregations` object contains aggregation results.
-
-.Expand to see example response
-[%collapsible]
-===============
-[source,console-result]
-----
-{
-  "took": 1,
-  "timed_out": false,
-  "_shards": {
-    "total": 1,
-    "successful": 1,
-    "skipped": 0,
-    "failed": 0
-  },
-  "hits": {
-    "total": {
-      "value": 6,
-      "relation": "eq"
-    },
-    "max_score": null,
-    "hits": []
-  },
-  "aggregations": {
-    "average_pages_by_author": {
-      "doc_count_error_upper_bound": 0,
-      "sum_other_doc_count": 0,
-      "buckets": [
-        {
-          "key": "Alastair Reynolds",
-          "doc_count": 1,
-          "average_page_count": {
-            "value": 585
-          }
-        },
-        {
-          "key": "Aldous Huxley",
-          "doc_count": 1,
-          "average_page_count": {
-            "value": 268
-          }
-        },
-        {
-          "key": "George Orwell",
-          "doc_count": 1,
-          "average_page_count": {
-            "value": 328
-          }
-        },
-        {
-          "key": "Margaret Atwood",
-          "doc_count": 1,
-          "average_page_count": {
-            "value": 311
-          }
-        },
-        {
-          "key": "Neal Stephenson",
-          "doc_count": 1,
-          "average_page_count": {
-            "value": 470
-          }
-        },
-        {
-          "key": "Ray Bradbury",
-          "doc_count": 1,
-          "average_page_count": {
-            "value": 227
-          }
-        }
-      ]
-    }
-  }
-}
-----
-// TEST[skip:TODO]
-===============
 
 [discrete]
 [[whats-next]]
@@ -588,23 +262,24 @@ The response’s `aggregations` object contains aggregation results.
 Now that {es} is up and running and you've learned the basics, you'll probably want to test out larger datasets, or index your own data.
 
 [discrete]
-[[whats-next-sample-data]]
-==== Try sample data
+[[whats-next-search-learn-more]]
+==== Learn more about search queries
 
-* Learn how to {kibana-ref}/sample-data.html[install sample data] using {kib}. This is a quick way to test out {es} on larger workloads.
-** Check out the https://github.com/elastic/kibana/tree/main/src/plugins/home/server/services/sample_data/data_sets[the raw sample data] in the {kib} repo, if you'd like to work with the data programmatically.
+* <<search-with-elasticsearch>>. Jump here to learn about exact value search, full-text search, vector search, and more, using the <<search-search,search API>>.
 
 [discrete]
-[[whats-next-upload-data]]
-==== Upload your own data
+[[whats-next-more-data]]
+==== Add more data
 
+* Learn how to {kibana-ref}/sample-data.html[install sample data] using {kib}. This is a quick way to test out {es} on larger workloads.
 * Learn how to use the {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[upload data UI] in {kib} to add your own CSV, TSV, or JSON files.
 * Use the https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html[bulk API] to ingest your own datasets to {es}.
-** If you'd like to use Python, check out https://www.elastic.co/search-labs/tutorials/search-tutorial/full-text-search/create-index#ingesting-documents-from-a-json-file[ingesting documents from a JSON file] in the Elastic Search Labs tutorial.
 
 [discrete]
 [[whats-next-client-libraries]]
-==== Integrate with your own application
+==== {es} programming language clients
 
-* To integrate {es} with your own application, you'll want to use a https://www.elastic.co/guide/en/elasticsearch/client/index.html[client library] for your preferred language.
-** If you're using Python, check out https://www.elastic.co/search-labs[Elastic Search Labs] for a range of examples that use the {es} Python client.
+* Check out our https://www.elastic.co/guide/en/elasticsearch/client/index.html[client library] to work with your {es} instance in your preferred programming language.
+* If you're using Python, check out https://www.elastic.co/search-labs[Elastic Search Labs] for a range of examples that use the {es} Python client. This is the best place to explore AI-powered search use cases, such as working with embeddings, vector search, and retrieval augmented generation (RAG).
+** https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[Tutorial]. This extensive, hands-on tutorial walks you through building a complete search solution with {es}, from the ground up.
+** https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] contains a range of executable Python https://github.com/elastic/elasticsearch-labs/tree/main/notebooks[notebooks] and https://github.com/elastic/elasticsearch-labs/tree/main/example-apps[example apps].

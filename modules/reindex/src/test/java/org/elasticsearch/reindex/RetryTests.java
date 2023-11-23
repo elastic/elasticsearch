@@ -175,9 +175,9 @@ public class RetryTests extends ESIntegTestCase {
         final Settings indexSettings = indexSettings(1, 0).put("index.routing.allocation.include.color", "blue").build();
 
         // Create the source index on the node with small thread pools so we can block them.
-        indicesAdmin().prepareCreate("source").setSettings(indexSettings).execute().actionGet();
+        indicesAdmin().prepareCreate("source").setSettings(indexSettings).get();
         // Not all test cases use the dest index but those that do require that it be on the node will small thread pools
-        indicesAdmin().prepareCreate("dest").setSettings(indexSettings).execute().actionGet();
+        indicesAdmin().prepareCreate("dest").setSettings(indexSettings).get();
         // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < DOC_COUNT; i++) {

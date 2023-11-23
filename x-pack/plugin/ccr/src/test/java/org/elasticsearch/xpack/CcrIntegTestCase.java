@@ -476,7 +476,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected final RefreshResponse refresh(Client client, String... indices) {
-        RefreshResponse actionGet = client.admin().indices().prepareRefresh(indices).execute().actionGet();
+        RefreshResponse actionGet = client.admin().indices().prepareRefresh(indices).get();
         assertNoFailures(actionGet);
         return actionGet;
     }

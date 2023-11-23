@@ -1409,8 +1409,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 .setSize(1)
                 .addStoredField("_id")
                 .setQuery(query)
-                .execute()
-                .actionGet();
+                .get();
 
             assertNoFailures(scrollResponse);
             assertThat(scrollResponse.getHits().getTotalHits().value, equalTo(10L));

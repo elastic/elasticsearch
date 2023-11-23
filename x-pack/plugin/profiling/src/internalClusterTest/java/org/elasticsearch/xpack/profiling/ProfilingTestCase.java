@@ -115,7 +115,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
 
     protected final void bulkIndex(String file) throws Exception {
         byte[] bulkData = read(file);
-        BulkResponse response = client().prepareBulk().add(bulkData, 0, bulkData.length, XContentType.JSON).execute().actionGet();
+        BulkResponse response = client().prepareBulk().add(bulkData, 0, bulkData.length, XContentType.JSON).get();
         assertFalse(response.hasFailures());
     }
 

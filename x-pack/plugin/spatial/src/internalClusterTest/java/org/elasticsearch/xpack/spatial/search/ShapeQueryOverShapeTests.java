@@ -259,7 +259,7 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
 
     public void testContainsShapeQuery() {
 
-        indicesAdmin().prepareCreate("test_contains").setMapping("location", "type=shape").execute().actionGet();
+        indicesAdmin().prepareCreate("test_contains").setMapping("location", "type=shape").get();
 
         String doc = """
             {"location" : {"type":"envelope", "coordinates":[ [-100.0, 100.0], [100.0, -100.0]]}}""";

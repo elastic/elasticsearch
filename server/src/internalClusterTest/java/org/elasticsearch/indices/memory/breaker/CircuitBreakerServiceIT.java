@@ -293,7 +293,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
     /** Issues a cache clear and waits 30 seconds for the field data breaker to be cleared */
     public void clearFieldData() throws Exception {
-        indicesAdmin().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+        indicesAdmin().prepareClearCache().setFieldDataCache(true).get();
         assertBusy(() -> {
             NodesStatsResponse resp = clusterAdmin().prepareNodesStats().clear().setBreaker(true).get(new TimeValue(15, TimeUnit.SECONDS));
             for (NodeStats nStats : resp.getNodes()) {

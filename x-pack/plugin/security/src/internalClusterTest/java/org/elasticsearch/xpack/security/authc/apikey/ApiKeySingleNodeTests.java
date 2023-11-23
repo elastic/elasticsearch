@@ -752,8 +752,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
                 )
             )
             .setRefreshPolicy(randomFrom(NONE, WAIT_UNTIL, IMMEDIATE))
-            .execute()
-            .actionGet();
+            .get();
         final String encoded = Base64.getEncoder()
             .encodeToString(
                 (createAdminKeyResponse.getId() + ":" + createAdminKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8)

@@ -39,6 +39,10 @@ public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
         super(inetSocketAddress, strings);
     }
 
+    public S3HttpFixtureWithEC2() {
+        this(true);
+    }
+
     @Override
     protected HttpHandler createHandler(final String[] args) {
         final String ec2AccessKey = Objects.requireNonNull(args[2]);

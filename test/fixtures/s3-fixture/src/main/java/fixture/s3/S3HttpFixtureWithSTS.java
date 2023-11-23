@@ -51,6 +51,10 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
         super(inetSocketAddress, args);
     }
 
+    public S3HttpFixtureWithSTS() {
+        this(true);
+    }
+
     @Override
     protected HttpHandler createHandler(final String[] args) {
         String accessKey = Objects.requireNonNull(args[2]);

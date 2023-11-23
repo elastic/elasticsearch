@@ -144,9 +144,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         SearchRequestBuilder searchRequest = client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC);
 
         String errMsg = "Data too large, data for [test] would be";
-        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
+        assertFailures(searchRequest, RestStatus.TOO_MANY_REQUESTS, containsString(errMsg));
         errMsg = "which is larger than the limit of [100/100b]";
-        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
+        assertFailures(searchRequest, RestStatus.TOO_MANY_REQUESTS, containsString(errMsg));
 
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
         long breaks = 0;
@@ -210,9 +210,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         SearchRequestBuilder searchRequest = client.prepareSearch("ramtest").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC);
 
         String errMsg = "Data too large, data for [test] would be";
-        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
+        assertFailures(searchRequest, RestStatus.TOO_MANY_REQUESTS, containsString(errMsg));
         errMsg = "which is larger than the limit of [100/100b]";
-        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
+        assertFailures(searchRequest, RestStatus.TOO_MANY_REQUESTS, containsString(errMsg));
 
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
         long breaks = 0;

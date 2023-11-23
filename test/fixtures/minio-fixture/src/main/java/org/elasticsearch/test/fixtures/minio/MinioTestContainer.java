@@ -17,6 +17,10 @@ public class MinioTestContainer extends GenericContainer<MinioTestContainer> imp
     private static final int servicePort = 9000;
     private final boolean enabled;
 
+    public MinioTestContainer() {
+        this(true);
+    }
+
     public MinioTestContainer(boolean enabled) {
         super(
             new ImageFromDockerfile().withDockerfileFromBuilder(

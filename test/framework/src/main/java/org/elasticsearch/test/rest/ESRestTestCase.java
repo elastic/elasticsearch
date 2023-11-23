@@ -52,6 +52,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
@@ -100,6 +101,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
@@ -137,7 +139,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
-    private static Map<NodeFeature, Version> historicalFeatures;
+    private static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*");
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -209,6 +211,15 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static EnumSet<ProductFeature> availableFeatures;
     private static TreeSet<Version> nodeVersions;
+    private static TestFeatureService testFeatureService;
+
+    protected final boolean clusterHasFeature(String featureId) {
+        return testFeatureService.clusterHasFeature(featureId);
+    }
+
+    protected boolean clusterHasFeature(NodeFeature feature) {
+        return testFeatureService.clusterHasFeature(feature.id());
+    }
 
     @Before
     public void initClient() throws IOException {
@@ -217,6 +228,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert availableFeatures == null;
             assert nodeVersions == null;
+            assert testFeatureService == null;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
@@ -229,7 +241,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             for (Map.Entry<?, ?> node : nodes.entrySet()) {
                 Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-                nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
+                // TODO (ES-7316): change this for serverless/non-semantic (change to string or remove if not needed)
+                nodeVersions.add(parseLegacyVersion(nodeInfo.get("version").toString()).get());
                 for (Object module : (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
                     final String moduleName = moduleInfo.get("name").toString();
@@ -268,7 +281,15 @@ public abstract class ESRestTestCase extends ESTestCase {
                     );
                 }
             }
+
+            testFeatureService = new TestFeatureService(
+                List.of(new RestTestLegacyFeatures()), // TODO (ES-7313): add new ESRestTestCaseHistoricalFeatures() too
+                nodeVersions,
+                Set.of()
+            ); // TODO (ES-7316): GET and pass cluster state
         }
+
+        assert testFeatureService != null;
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;
@@ -449,6 +470,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = null;
             availableFeatures = null;
             nodeVersions = null;
+            testFeatureService = null;
         }
     }
 
@@ -576,8 +598,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected boolean resetFeatureStates() {
         try {
             final Version minimumNodeVersion = minimumNodeVersion();
-            // Reset feature state API was introduced in 7.13.0
-            if (minimumNodeVersion.before(Version.V_7_13_0)) {
+            if (clusterHasFeature(RestTestLegacyFeatures.FEATURE_STATE_RESET_SUPPORTED) == false) {
                 return false;
             }
 
@@ -2073,13 +2094,23 @@ public abstract class ESRestTestCase extends ESTestCase {
             // fallback on version if index version is not there
             IndexVersion indexVersion = versionStr != null
                 ? IndexVersion.fromId(Integer.parseInt(versionStr))
-                : IndexVersion.fromId(Version.fromString((String) nodeData.get("version")).id);
+                : IndexVersion.fromId(
+                    parseLegacyVersion((String) nodeData.get("version")).map(Version::id).orElse(IndexVersions.MINIMUM_COMPATIBLE.id())
+                );
             if (minVersion == null || minVersion.after(indexVersion)) {
                 minVersion = indexVersion;
             }
         }
         assertNotNull(minVersion);
         return minVersion;
+    }
+
+    private static Optional<Version> parseLegacyVersion(String version) {
+        var semanticVersionMatcher = SEMANTIC_VERSION_PATTERN.matcher(version);
+        if (semanticVersionMatcher.matches()) {
+            return Optional.of(Version.fromString(semanticVersionMatcher.group(1)));
+        }
+        return Optional.empty();
     }
 
     @SuppressWarnings("unchecked")
@@ -2218,32 +2249,39 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    protected Map<NodeFeature, Version> getHistoricalFeatures() {
-        if (historicalFeatures == null) {
-            Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
-            String metadataPath = System.getProperty("tests.features.metadata.path");
-            if (metadataPath == null) {
-                throw new UnsupportedOperationException("Historical features information is unavailable when using legacy test plugins.");
-            }
+    private static class ESRestTestCaseHistoricalFeatures implements FeatureSpecification {
+        private static Map<NodeFeature, Version> historicalFeatures;
 
-            String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
-            for (String metadataFile : metadataFiles) {
-                try (
-                    InputStream in = Files.newInputStream(PathUtils.get(metadataFile));
-                    XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, in)
-                ) {
-                    for (Map.Entry<String, String> entry : parser.mapStrings().entrySet()) {
-                        historicalFeaturesMap.put(new NodeFeature(entry.getKey()), Version.fromString(entry.getValue()));
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+        @Override
+        public Map<NodeFeature, Version> getHistoricalFeatures() {
+            if (historicalFeatures == null) {
+                Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
+                String metadataPath = System.getProperty("tests.features.metadata.path");
+                if (metadataPath == null) {
+                    throw new UnsupportedOperationException(
+                        "Historical features information is unavailable when using legacy test plugins."
+                    );
                 }
+
+                String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
+                for (String metadataFile : metadataFiles) {
+                    try (
+                        InputStream in = Files.newInputStream(PathUtils.get(metadataFile));
+                        XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, in)
+                    ) {
+                        for (Map.Entry<String, String> entry : parser.mapStrings().entrySet()) {
+                            historicalFeaturesMap.put(new NodeFeature(entry.getKey()), Version.fromString(entry.getValue()));
+                        }
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+
+                historicalFeatures = Collections.unmodifiableMap(historicalFeaturesMap);
             }
 
-            historicalFeatures = Collections.unmodifiableMap(historicalFeaturesMap);
+            return historicalFeatures;
         }
-
-        return historicalFeatures;
     }
 
     public static void setIgnoredErrorResponseCodes(Request request, RestStatus... restStatuses) {

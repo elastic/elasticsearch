@@ -36,7 +36,7 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     public static final NodeFeature CONNECTOR_TEMPLATES_FEATURE = new NodeFeature("elastic-connectors.templates");
 
     // This number must be incremented when we make changes to built-in templates.
-    static final int REGISTRY_VERSION = 1;
+    static final int REGISTRY_VERSION = 2;
 
     // Connector indices constants
 

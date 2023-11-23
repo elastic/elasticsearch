@@ -922,7 +922,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .order(BucketOrder.aggregation("stats", true))
                         .subAggregation(stats("stats").field("i"))
-                ).execute().actionGet();
+                ).get();
 
                 fail(
                     "Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation "

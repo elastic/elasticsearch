@@ -150,7 +150,7 @@ public abstract class TestCluster implements Closeable {
                 // Happens if `action.destructive_requires_name` is set to true
                 // which is the case in the CloseIndexDisableCloseAllTests
                 if ("_all".equals(indices[0])) {
-                    ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
+                    ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
                     ArrayList<String> concreteIndices = new ArrayList<>();
                     for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
                         concreteIndices.add(indexMetadata.getIndex().getName());
@@ -174,7 +174,7 @@ public abstract class TestCluster implements Closeable {
                     continue;
                 }
                 try {
-                    client().admin().indices().prepareDeleteTemplate(indexTemplate.getName()).execute().actionGet();
+                    client().admin().indices().prepareDeleteTemplate(indexTemplate.getName()).get();
                 } catch (IndexTemplateMissingException e) {
                     // ignore
                 }
@@ -194,7 +194,7 @@ public abstract class TestCluster implements Closeable {
             }
             for (String template : templates) {
                 try {
-                    client().admin().indices().prepareDeleteTemplate(template).execute().actionGet();
+                    client().admin().indices().prepareDeleteTemplate(template).get();
                 } catch (IndexTemplateMissingException e) {
                     // ignore
                 }

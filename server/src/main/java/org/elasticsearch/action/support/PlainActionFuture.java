@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
@@ -450,17 +449,4 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         return fut.actionGet(timeout, unit);
     }
 
-    /**
-     * Same as {@code PlainActionFuture} but for use with {@link RefCounted} result types. Unlike {@code PlainActionFuture} this future
-     * acquires a reference to its result. This means that the result reference must be released by a call to {@link RefCounted#decRef()}
-     * on the result before it goes out of scope.
-     * @param <R> reference counted result type
-     */
-    public static class ForRefCounted<R extends RefCounted> extends PlainActionFuture<R> {
-        @Override
-        public final void onResponse(R result) {
-            result.incRef();
-            super.onResponse(result);
-        }
-    }
 }

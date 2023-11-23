@@ -99,7 +99,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("test").get();
         // Ensure single segment with no deletes. Hopefully solves test instability in
         // issue https://github.com/elastic/x-pack-elasticsearch/issues/918
-        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge("test").setFlush(true).setMaxNumSegments(1).execute().actionGet();
+        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge("test").setFlush(true).setMaxNumSegments(1).get();
         indicesAdmin().prepareRefresh("test").get();
         assertAllSuccessful(actionGet);
         for (IndexShardSegments seg : indicesAdmin().prepareSegments().get().getIndices().get("test")) {

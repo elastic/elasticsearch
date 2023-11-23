@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -262,13 +261,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             version = handshakeVersion;
             compress = connectionProfile.getCompressionEnabled();
             compressionScheme = connectionProfile.getCompressionScheme();
-        }
-
-        @Override
-        public Version getVersion() {
-            // TODO: this should be the below, but in some cases the node version does not match the passed-in version.
-            // return node.getVersion();
-            return Version.fromId(version.id());
         }
 
         @Override

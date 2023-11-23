@@ -677,7 +677,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertFalse(indicesAdmin().prepareGetAliases("foo").setIndices("bar_bar").get().getAliases().isEmpty());
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index("foo").alias("foo")).execute().actionGet()
+            () -> indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index("foo").alias("foo")).get()
         );
         assertEquals(
             "The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
@@ -1090,13 +1090,13 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("week_20").alias("tmp")).execute().actionGet()
+            () -> indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("week_20").alias("tmp")).get()
         );
         assertEquals(
             "The provided expression [week_20] matches an alias, specify the corresponding concrete indices instead.",
             iae.getMessage()
         );
-        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("2017-05-20").alias("tmp")).execute().get());
+        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("2017-05-20").alias("tmp")));
     }
 
     // Before 2.0 alias filters were parsed at alias creation time, in order
@@ -1159,7 +1159,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
                     () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test", "alias1").addAlias("test", "alias2"))
                 );
                 assertAliasesVersionIncreases("test", () -> assertAcked(indicesAdmin().prepareAliases().removeAlias("test", "alias1")));
-                assertThat(indicesAdmin().prepareGetAliases("alias2").execute().actionGet().getAliases().get("test").size(), equalTo(1));
+                assertThat(indicesAdmin().prepareGetAliases("alias2").get().getAliases().get("test").size(), equalTo(1));
                 assertFalse(indicesAdmin().prepareGetAliases("alias2").get().getAliases().isEmpty());
             } finally {
                 disableIndexBlock("test", block);
@@ -1177,7 +1177,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 "test",
                 () -> assertBlocked(indicesAdmin().prepareAliases().removeAlias("test", "alias2"), INDEX_READ_ONLY_BLOCK)
             );
-            assertThat(indicesAdmin().prepareGetAliases("alias2").execute().actionGet().getAliases().get("test").size(), equalTo(1));
+            assertThat(indicesAdmin().prepareGetAliases("alias2").get().getAliases().get("test").size(), equalTo(1));
             assertFalse(indicesAdmin().prepareGetAliases("alias2").get().getAliases().isEmpty());
 
         } finally {
@@ -1213,7 +1213,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareAliases().removeIndex("foo").execute().actionGet()
+            () -> indicesAdmin().prepareAliases().removeIndex("foo").get()
         );
         assertEquals(
             "The provided expression [foo] matches an alias, specify the corresponding concrete indices instead.",
@@ -1359,7 +1359,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         final String indexName = "index-name";
         final IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareCreate(indexName).addAlias(new Alias(indexName)).execute().actionGet()
+            () -> indicesAdmin().prepareCreate(indexName).addAlias(new Alias(indexName)).get()
         );
         assertEquals("alias name [" + indexName + "] self-conflicts with index name", iae.getMessage());
     }

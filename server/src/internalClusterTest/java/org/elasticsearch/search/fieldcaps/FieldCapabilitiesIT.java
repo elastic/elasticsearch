@@ -549,8 +549,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     assertNotNull(toNode);
                     clusterAdmin().prepareReroute()
                         .add(new MoveAllocationCommand(shardId.getIndexName(), shardId.id(), fromNode.getId(), toNode.getId()))
-                        .execute()
-                        .actionGet();
+                        .get();
                 }
             }
         }

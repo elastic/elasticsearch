@@ -150,10 +150,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void assertMasterNode(Client client, String node) {
-        assertThat(
-            client.admin().cluster().prepareState().execute().actionGet().getState().nodes().getMasterNode().getName(),
-            equalTo(node)
-        );
+        assertThat(client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(), equalTo(node));
     }
 
     private void writeJSONFile(String node, String json) throws Exception {

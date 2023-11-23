@@ -93,8 +93,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         BulkResponse bulkResponse = client().prepareBulk()
             .add(client().prepareIndex().setIndex("test").setId("1").setSource("field1", "value1"))
             .add(client().prepareUpdate().setIndex("test").setId("1").setDoc("field2", "value2"))
-            .execute()
-            .actionGet();
+            .get();
 
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(2));

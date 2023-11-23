@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.not;
 public class SimilarityIT extends ESIntegTestCase {
     public void testCustomBM25Similarity() throws Exception {
         try {
-            indicesAdmin().prepareDelete("test").execute().actionGet();
+            indicesAdmin().prepareDelete("test").get();
         } catch (Exception e) {
             // ignore
         }
@@ -45,21 +45,19 @@ public class SimilarityIT extends ESIntegTestCase {
             .setSettings(
                 indexSettings(1, 0).put("similarity.custom.type", "BM25").put("similarity.custom.k1", 2.0f).put("similarity.custom.b", 0.5f)
             )
-            .execute()
-            .actionGet();
+            .get();
 
         client().prepareIndex("test")
             .setId("1")
             .setSource("field1", "the quick brown fox jumped over the lazy dog", "field2", "the quick brown fox jumped over the lazy dog")
             .setRefreshPolicy(IMMEDIATE)
-            .execute()
-            .actionGet();
+            .get();
 
-        SearchResponse bm25SearchResponse = prepareSearch().setQuery(matchQuery("field1", "quick brown fox")).execute().actionGet();
+        SearchResponse bm25SearchResponse = prepareSearch().setQuery(matchQuery("field1", "quick brown fox")).get();
         assertThat(bm25SearchResponse.getHits().getTotalHits().value, equalTo(1L));
         float bm25Score = bm25SearchResponse.getHits().getHits()[0].getScore();
 
-        SearchResponse booleanSearchResponse = prepareSearch().setQuery(matchQuery("field2", "quick brown fox")).execute().actionGet();
+        SearchResponse booleanSearchResponse = prepareSearch().setQuery(matchQuery("field2", "quick brown fox")).get();
         assertThat(booleanSearchResponse.getHits().getTotalHits().value, equalTo(1L));
         float defaultScore = booleanSearchResponse.getHits().getHits()[0].getScore();
 

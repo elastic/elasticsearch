@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -26,9 +27,6 @@ import java.util.function.Predicate;
  * values.
  * Whether a claim's value can be an array of strings is customised with the {@link #singleValuedClaim}
  * field, which enforces the claim's value to be a single string if it is configured to {@code true}.
- *
- * NOTE the allowed values can be null which means skipping the actual value check, i.e. the validator
- * succeeds as long as there is a (non-null) value.
  */
 public class JwtStringClaimValidator implements JwtFieldValidator {
 
@@ -41,14 +39,14 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
     // Whether the claim should be a single string
     private final boolean singleValuedClaim;
 
-    public JwtStringClaimValidator(String claimName, List<String> allowedClaimValues, boolean singleValuedClaim) {
+    public JwtStringClaimValidator(String claimName, Collection<String> allowedClaimValues, boolean singleValuedClaim) {
         this(claimName, null, allowedClaimValues, singleValuedClaim);
     }
 
     public JwtStringClaimValidator(
         String claimName,
         Map<String, String> fallbackClaimNames,
-        List<String> allowedClaimValues,
+        Collection<String> allowedClaimValues,
         boolean singleValuedClaim
     ) {
         this.claimName = claimName;

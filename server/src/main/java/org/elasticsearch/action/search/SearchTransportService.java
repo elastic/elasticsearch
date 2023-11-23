@@ -57,6 +57,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
 /**
@@ -83,6 +84,7 @@ public class SearchTransportService {
         Transport.Connection,
         SearchActionListener<? super SearchPhaseResult>,
         ActionListener<? super SearchPhaseResult>> responseWrapper;
+    private final SearchTransportAPMMetrics searchTransportMetrics;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     public SearchTransportService(
@@ -91,11 +93,13 @@ public class SearchTransportService {
         BiFunction<
             Transport.Connection,
             SearchActionListener<? super SearchPhaseResult>,
-            ActionListener<? super SearchPhaseResult>> responseWrapper
+            ActionListener<? super SearchPhaseResult>> responseWrapper,
+        SearchTransportAPMMetrics searchTransportMetrics
     ) {
         this.transportService = transportService;
         this.client = client;
         this.responseWrapper = responseWrapper;
+        this.searchTransportMetrics = searchTransportMetrics;
     }
 
     public void sendFreeContext(Transport.Connection connection, final ShardSearchContextId contextId, OriginalIndices originalIndices) {
@@ -382,7 +386,7 @@ public class SearchTransportService {
         }
     }
 
-    public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
+    public void registerRequestHandler(TransportService transportService, SearchService searchService) {
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -419,7 +423,7 @@ public class SearchTransportService {
             (in) -> TransportResponse.Empty.INSTANCE
         );
 
-        transportService.registerRequestHandler(
+        registerRequestHandlerWithAPMMetrics(
             DFS_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
@@ -428,7 +432,7 @@ public class SearchTransportService {
 
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, true, DfsSearchResult::new);
 
-        transportService.registerRequestHandler(
+        registerRequestHandlerWithAPMMetrics(
             QUERY_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
@@ -445,7 +449,7 @@ public class SearchTransportService {
             (request) -> ((ShardSearchRequest) request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new
         );
 
-        transportService.registerRequestHandler(
+        registerRequestHandlerWithAPMMetrics(
             QUERY_ID_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             QuerySearchRequest::new,
@@ -455,7 +459,7 @@ public class SearchTransportService {
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, true, QuerySearchResult::new);
 
-        transportService.registerRequestHandler(
+        registerRequestHandlerWithAPMMetrics(
             QUERY_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             InternalScrollSearchRequest::new,
@@ -465,7 +469,7 @@ public class SearchTransportService {
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, true, ScrollQuerySearchResult::new);
 
-        transportService.registerRequestHandler(
+        registerRequestHandlerWithAPMMetrics(
             QUERY_FETCH_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             InternalScrollSearchRequest::new,
@@ -480,7 +484,7 @@ public class SearchTransportService {
             (SearchShardTask) task,
             new ChannelActionListener<>(channel)
         );
-        transportService.registerRequestHandler(
+        registerRequestHandlerWithAPMMetrics(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardFetchRequest::new,
@@ -508,10 +512,31 @@ public class SearchTransportService {
     }
 
     /**
+     * Decorates the transportService.registerRequestHandler with APM metric instrumentation.
+     */
+    public <Request extends TransportRequest> void registerRequestHandlerWithAPMMetrics(
+        String action,
+        Executor executor,
+        Writeable.Reader<Request> requestReader,
+        TransportRequestHandler<Request> handler
+    ) {
+        transportService.registerRequestHandler(action, executor, requestReader, (request, channel, task) -> {
+            var startTime = transportService.getThreadPool().relativeTimeInMillis();
+            try {
+                handler.messageReceived(request, channel, task);
+            } finally {
+                var elapsedTime = transportService.getThreadPool().relativeTimeInMillis() - startTime;
+                searchTransportMetrics.getActionLatencies().record(elapsedTime, Map.of("action", action));
+            }
+        });
+    }
+
+    /**
      * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved
      * against the local cluster.
+     *
      * @param clusterAlias the cluster alias the node should be resolved against
-     * @param node the node to resolve
+     * @param node         the node to resolve
      * @return a connection to the given node belonging to the cluster with the provided alias.
      */
     public Transport.Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {

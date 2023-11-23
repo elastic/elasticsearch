@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedCom
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
+import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -901,7 +902,8 @@ class NodeConstruction {
         final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,
             client,
-            SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
+            SearchExecutionStatsCollector.makeWrapper(responseCollectorService),
+            new SearchTransportAPMMetrics(telemetryProvider.getMeterRegistry())
         );
         final HttpServerTransport httpServerTransport = serviceProvider.newHttpTransport(pluginsService, networkModule);
         final IndexingPressure indexingLimits = new IndexingPressure(settings);

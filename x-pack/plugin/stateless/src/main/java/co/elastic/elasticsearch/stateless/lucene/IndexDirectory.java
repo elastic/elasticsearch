@@ -485,6 +485,11 @@ public class IndexDirectory extends ByteSizeDirectory {
                 throw new UncheckedIOException(e);
             }
         }
+
+        @Override
+        public String toString() {
+            return "LocalFileRef [name=" + name + ", uploaded=" + uploaded.get() + ", deleted=" + deleted.get() + ']';
+        }
     }
 
     /**
@@ -910,10 +915,9 @@ public class IndexDirectory extends ByteSizeDirectory {
 
         @Override
         public String toString() {
-            return "ReopeningIndexInput ["
+            return "ReopeningIndexInput {["
                 + name
-                + "]["
-                + ", context="
+                + "], context="
                 + context
                 + ", delegate="
                 + delegate
@@ -921,7 +925,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                 + clone
                 + ", position="
                 + position
-                + ", sliceDescription='"
+                + ", sliceDescription="
                 + sliceDescription
                 + ", sliceOffset="
                 + sliceOffset

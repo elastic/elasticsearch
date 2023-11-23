@@ -70,12 +70,12 @@ public class CategorizeTextDistributedIT extends BaseMlIntegTestCase {
                     .setSource(Map.of("message", "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol stop"));
                 bulkRequestBuilder.add(indexRequestBuilder);
             }
-            bulkRequestBuilder.execute().actionGet();
+            bulkRequestBuilder.get();
         }
-        client().admin().indices().prepareRefresh(indexName).execute().actionGet();
+        client().admin().indices().prepareRefresh(indexName).get();
 
         // Confirm the theory that all 3 nodes will have a shard on
-        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(indexName).execute().actionGet();
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(indexName).get();
         Set<String> nodesWithShards = Arrays.stream(indicesStatsResponse.getShards())
             .map(ShardStats::getShardRouting)
             .map(ShardRouting::currentNodeId)

@@ -430,7 +430,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .setPatterns(Collections.singletonList("*"))
                 .setOrder(0)
                 .setSettings(randomSettingsBuilder);
-            assertAcked(putTemplate.execute().actionGet());
+            assertAcked(putTemplate.get());
         }
     }
 
@@ -568,7 +568,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             try {
                 if (cluster() != null) {
                     if (currentClusterScope != Scope.TEST) {
-                        Metadata metadata = clusterAdmin().prepareState().execute().actionGet().getState().getMetadata();
+                        Metadata metadata = clusterAdmin().prepareState().get().getState().getMetadata();
 
                         final Set<String> persistentKeys = new HashSet<>(metadata.persistentSettings().keySet());
                         assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
@@ -835,7 +835,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public static void updateIndexSettings(Settings.Builder settingsBuilder, String... index) {
         UpdateSettingsRequestBuilder settingsRequest = indicesAdmin().prepareUpdateSettings(index);
         settingsRequest.setSettings(settingsBuilder);
-        assertAcked(settingsRequest.execute().actionGet());
+        assertAcked(settingsRequest.get());
     }
 
     public static void setReplicaCount(int replicas, String index) {
@@ -1390,53 +1390,53 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Syntactic sugar for:
      * <pre>
-     *   client().prepareIndex(index).setSource(source).execute().actionGet();
+     *   client().prepareIndex(index).setSource(source).get();
      * </pre>
      */
     protected final DocWriteResponse index(String index, XContentBuilder source) {
-        return client().prepareIndex(index).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setSource(source).get();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   client().prepareIndex(index).setSource(source).execute().actionGet();
+     *   client().prepareIndex(index).setSource(source).get();
      * </pre>
      */
     protected final DocWriteResponse index(String index, String id, Map<String, Object> source) {
-        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).get();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
+     *   return client().prepareIndex(index).setId(id).setSource(source).get();
      * </pre>
      */
     protected final DocWriteResponse index(String index, String id, XContentBuilder source) {
-        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).get();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
+     *   return client().prepareIndex(index).setId(id).setSource(source).get();
      * </pre>
      */
     protected final DocWriteResponse indexDoc(String index, String id, Object... source) {
-        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source).get();
     }
 
     /**
      * Syntactic sugar for:
      * <pre>
-     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
+     *   return client().prepareIndex(index).setId(id).setSource(source).get();
      * </pre>
      * <p>
      * where source is a JSON String.
      */
     protected final DocWriteResponse index(String index, String id, String source) {
-        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
+        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).get();
     }
 
     /**
@@ -1448,8 +1448,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         waitForRelocation();
         RefreshResponse actionGet = indicesAdmin().prepareRefresh(indices)
             .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
-            .execute()
-            .actionGet();
+            .get();
         assertNoFailures(actionGet);
         return actionGet;
     }
@@ -1467,7 +1466,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final FlushResponse flush(String... indices) {
         waitForRelocation();
-        FlushResponse actionGet = indicesAdmin().prepareFlush(indices).execute().actionGet();
+        FlushResponse actionGet = indicesAdmin().prepareFlush(indices).get();
         for (DefaultShardOperationFailedException failure : actionGet.getShardFailures()) {
             assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
@@ -1479,7 +1478,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected ForceMergeResponse forceMerge() {
         waitForRelocation();
-        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
+        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).get();
         assertNoFailures(actionGet);
         return actionGet;
     }
@@ -1500,8 +1499,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .prepareGetIndex()
             .setIndices(index)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED)
-            .execute()
-            .actionGet();
+            .get();
         return getIndexResponse.getIndices().length > 0;
     }
 
@@ -1652,7 +1650,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             } else {
                 logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), false, false);
                 for (IndexRequestBuilder indexRequestBuilder : builders) {
-                    indexRequestBuilder.execute().actionGet();
+                    indexRequestBuilder.get();
                     postIndexAsyncActions(indicesArray, inFlightAsyncOperations, maybeFlush);
                 }
             }
@@ -1667,7 +1665,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 for (IndexRequestBuilder indexRequestBuilder : segmented) {
                     bulkBuilder.add(indexRequestBuilder);
                 }
-                BulkResponse actionGet = bulkBuilder.execute().actionGet();
+                BulkResponse actionGet = bulkBuilder.get();
                 assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
             }
         }
@@ -1679,7 +1677,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             Throwable t = ExceptionsHelper.unwrapCause(tuple.v2());
             if (t instanceof EsRejectedExecutionException) {
                 logger.debug("Error indexing doc: " + t.getMessage() + ", reindexing.");
-                tuple.v1().execute().actionGet(); // re-index if rejected
+                tuple.v1().get(); // re-index if rejected
             } else {
                 actualErrors.add(tuple.v2());
             }
@@ -2213,7 +2211,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public Set<String> assertAllShardsOnNodes(String index, String... pattern) {
         Set<String> nodes = new HashSet<>();
-        ClusterState clusterState = clusterAdmin().prepareState().execute().actionGet().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 final IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
@@ -2234,7 +2232,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Asserts that all segments are sorted with the provided {@link Sort}.
      */
     public void assertSortedSegments(String indexName, Sort expectedIndexSort) {
-        IndicesSegmentResponse segmentResponse = indicesAdmin().prepareSegments(indexName).execute().actionGet();
+        IndicesSegmentResponse segmentResponse = indicesAdmin().prepareSegments(indexName).get();
         IndexSegments indexSegments = segmentResponse.getIndices().get(indexName);
         for (IndexShardSegments indexShardSegments : indexSegments.getShards().values()) {
             for (ShardSegments shardSegments : indexShardSegments.shards()) {

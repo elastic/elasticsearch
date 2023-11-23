@@ -322,8 +322,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     public void testCanMatch() throws IOException {
         createIndex("index");
-        client().prepareIndex("index").setId("1").setSource("field", "2010-01-05T02:00").setRefreshPolicy(IMMEDIATE).execute().actionGet();
-        client().prepareIndex("index").setId("2").setSource("field", "2010-01-06T02:00").setRefreshPolicy(IMMEDIATE).execute().actionGet();
+        client().prepareIndex("index").setId("1").setSource("field", "2010-01-05T02:00").setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("index").setId("2").setSource("field", "2010-01-06T02:00").setRefreshPolicy(IMMEDIATE).get();
         {
             IndicesService indexServices = getInstanceFromNode(IndicesService.class);
             Index index = resolveIndex("index");
@@ -508,7 +508,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     public void testFreezeIndexIncreasesIndexSettingsVersion() {
         final String index = "test";
         createIndex(index, indexSettings(1, 0).build());
-        client().prepareIndex(index).setSource("field", "value").execute().actionGet();
+        client().prepareIndex(index).setSource("field", "value").get();
 
         final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index(index).getSettingsVersion();
 

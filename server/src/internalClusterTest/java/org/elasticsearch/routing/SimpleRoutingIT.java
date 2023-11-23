@@ -76,25 +76,25 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             .get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").get().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "1").setRouting(routingValue).execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("test", "1").setRouting(routingValue).get().isExists(), equalTo(true));
         }
 
         logger.info("--> deleting with no routing, should not delete anything");
         client().prepareDelete("test", "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
-            assertThat(client().prepareGet("test", "1").setRouting(routingValue).execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("test", "1").get().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").setRouting(routingValue).get().isExists(), equalTo(true));
         }
 
         logger.info("--> deleting with routing, should delete");
         client().prepareDelete("test", "1").setRouting(routingValue).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
-            assertThat(client().prepareGet("test", "1").setRouting(routingValue).execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").get().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").setRouting(routingValue).get().isExists(), equalTo(false));
         }
 
         logger.info("--> indexing with id [1], and routing [0]");
@@ -106,11 +106,11 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             .get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").get().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "1").setRouting(routingValue).execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("test", "1").setRouting(routingValue).get().isExists(), equalTo(true));
         }
     }
 
@@ -128,40 +128,26 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             .get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").get().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "1").setRouting(routingValue).execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet("test", "1").setRouting(routingValue).get().isExists(), equalTo(true));
         }
 
         logger.info("--> search with no routing, should fine one");
         for (int i = 0; i < 5; i++) {
-            assertThat(
-                prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
-                equalTo(1L)
-            );
+            assertThat(prepareSearch().setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value, equalTo(1L));
         }
 
         logger.info("--> search with wrong routing, should not find");
         for (int i = 0; i < 5; i++) {
             assertThat(
-                prepareSearch().setRouting("1")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch().setRouting("1").setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
                 equalTo(0L)
             );
             assertThat(
-                prepareSearch().setSize(0)
-                    .setRouting("1")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch().setSize(0).setRouting("1").setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
                 equalTo(0L)
             );
         }
@@ -169,20 +155,14 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> search with correct routing, should find");
         for (int i = 0; i < 5; i++) {
             assertThat(
-                prepareSearch().setRouting(routingValue)
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch().setRouting(routingValue).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
                 equalTo(1L)
             );
             assertThat(
                 prepareSearch().setSize(0)
                     .setRouting(routingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
+                    .get()
                     .getHits()
                     .getTotalHits().value,
                 equalTo(1L)
@@ -200,12 +180,9 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         logger.info("--> search with no routing, should fine two");
         for (int i = 0; i < 5; i++) {
+            assertThat(prepareSearch().setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value, equalTo(2L));
             assertThat(
-                prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
-                equalTo(2L)
-            );
-            assertThat(
-                prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
+                prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
                 equalTo(2L)
             );
         }
@@ -213,20 +190,14 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> search with {} routing, should find one", routingValue);
         for (int i = 0; i < 5; i++) {
             assertThat(
-                prepareSearch().setRouting(routingValue)
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch().setRouting(routingValue).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
                 equalTo(1L)
             );
             assertThat(
                 prepareSearch().setSize(0)
                     .setRouting(routingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
+                    .get()
                     .getHits()
                     .getTotalHits().value,
                 equalTo(1L)
@@ -236,20 +207,14 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> search with {} routing, should find one", secondRoutingValue);
         for (int i = 0; i < 5; i++) {
             assertThat(
-                prepareSearch().setRouting("1")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch().setRouting("1").setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
                 equalTo(1L)
             );
             assertThat(
                 prepareSearch().setSize(0)
                     .setRouting(secondRoutingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
+                    .get()
                     .getHits()
                     .getTotalHits().value,
                 equalTo(1L)
@@ -261,8 +226,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(
                 prepareSearch().setRouting(routingValue, secondRoutingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
+                    .get()
                     .getHits()
                     .getTotalHits().value,
                 equalTo(2L)
@@ -271,8 +235,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 prepareSearch().setSize(0)
                     .setRouting(routingValue, secondRoutingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
+                    .get()
                     .getHits()
                     .getTotalHits().value,
                 equalTo(2L)
@@ -284,8 +247,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(
                 prepareSearch().setRouting(routingValue, secondRoutingValue, routingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
+                    .get()
                     .getHits()
                     .getTotalHits().value,
                 equalTo(2L)
@@ -294,8 +256,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 prepareSearch().setSize(0)
                     .setRouting(routingValue, secondRoutingValue, routingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
+                    .get()
                     .getHits()
                     .getTotalHits().value,
                 equalTo(2L)
@@ -316,8 +277,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
 
@@ -340,7 +300,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).get().isExists(), equalTo(true));
         }
 
         logger.info("--> deleting with no routing, should fail");
@@ -353,34 +313,34 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             try {
-                client().prepareGet(indexOrAlias(), "1").execute().actionGet().isExists();
+                client().prepareGet(indexOrAlias(), "1").get().isExists();
                 fail("get with missing routing when routing is required should fail");
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
             }
-            assertThat(client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).execute().actionGet().isExists(), equalTo(true));
+            assertThat(client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).get().isExists(), equalTo(true));
         }
 
         try {
-            client().prepareUpdate(indexOrAlias(), "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").execute().actionGet();
+            client().prepareUpdate(indexOrAlias(), "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").get();
             fail("update with missing routing when routing is required should fail");
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
 
         client().prepareUpdate(indexOrAlias(), "1").setRouting(routingValue).setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").get();
-        indicesAdmin().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().get();
 
         for (int i = 0; i < 5; i++) {
             try {
-                client().prepareGet(indexOrAlias(), "1").execute().actionGet().isExists();
+                client().prepareGet(indexOrAlias(), "1").get().isExists();
                 fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
             }
-            GetResponse getResponse = client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).execute().actionGet();
+            GetResponse getResponse = client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).get();
             assertThat(getResponse.isExists(), equalTo(true));
             assertThat(getResponse.getSourceAsMap().get("field"), equalTo("value2"));
         }
@@ -389,13 +349,13 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             try {
-                client().prepareGet(indexOrAlias(), "1").execute().actionGet().isExists();
+                client().prepareGet(indexOrAlias(), "1").get().isExists();
                 fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
             }
-            assertThat(client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).get().isExists(), equalTo(false));
         }
     }
 
@@ -412,15 +372,13 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
         ensureGreen();
         {
             String index = indexOrAlias();
             BulkResponse bulkResponse = client().prepareBulk()
                 .add(new IndexRequest(index).id("1").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                .execute()
-                .actionGet();
+                .get();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(true));
 
@@ -437,16 +395,14 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             String index = indexOrAlias();
             BulkResponse bulkResponse = client().prepareBulk()
                 .add(new IndexRequest(index).id("1").routing("0").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                .execute()
-                .actionGet();
+                .get();
             assertThat(bulkResponse.hasFailures(), equalTo(false));
         }
 
         {
             BulkResponse bulkResponse = client().prepareBulk()
                 .add(new UpdateRequest(indexOrAlias(), "1").doc(Requests.INDEX_CONTENT_TYPE, "field", "value2"))
-                .execute()
-                .actionGet();
+                .get();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(true));
 
@@ -462,14 +418,13 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         {
             BulkResponse bulkResponse = client().prepareBulk()
                 .add(new UpdateRequest(indexOrAlias(), "1").doc(Requests.INDEX_CONTENT_TYPE, "field", "value2").routing("0"))
-                .execute()
-                .actionGet();
+                .get();
             assertThat(bulkResponse.hasFailures(), equalTo(false));
         }
 
         {
             String index = indexOrAlias();
-            BulkResponse bulkResponse = client().prepareBulk().add(new DeleteRequest(index).id("1")).execute().actionGet();
+            BulkResponse bulkResponse = client().prepareBulk().add(new DeleteRequest(index).id("1")).get();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(true));
 
@@ -484,7 +439,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         {
             String index = indexOrAlias();
-            BulkResponse bulkResponse = client().prepareBulk().add(new DeleteRequest(index).id("1").routing("0")).execute().actionGet();
+            BulkResponse bulkResponse = client().prepareBulk().add(new DeleteRequest(index).id("1").routing("0")).get();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(false));
         }
@@ -504,8 +459,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
+            .get();
         ensureGreen();
         String routingValue = findNonMatchingRoutingValue("test", "1");
         logger.info("--> indexing with id [1], and routing [{}]", routingValue);
@@ -519,7 +473,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             .get();
 
         logger.info("--> verifying get with id [1] with routing [0], should succeed");
-        assertThat(client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).execute().actionGet().isExists(), equalTo(true));
+        assertThat(client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).get().isExists(), equalTo(true));
 
         logger.info("--> verifying get with id [1], with no routing, should fail");
         try {

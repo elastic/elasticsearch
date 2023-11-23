@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
     public static final String NAME = "terms";
@@ -106,13 +107,13 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
     private SubAggCollectionMode collectMode = null;
-    private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
-        DEFAULT_BUCKET_COUNT_THRESHOLDS
-    );
+    private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
+
     private boolean showTermDocCountError = false;
 
     public TermsAggregationBuilder(String name) {
         super(name);
+        this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 
     protected TermsAggregationBuilder(
@@ -132,6 +133,26 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     @Override
     public boolean supportsSampling() {
         return true;
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        // TODO unconditionally enable parallelism when ordered by key instead of count as precision is not affected
+        /*
+        if (InternalOrder.isKeyOrder(order)) {
+            return true;
+        }
+        */
+        if (script() == null
+            && (executionHint == null || executionHint.equals(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString()))) {
+            long cardinality = fieldCardinalityResolver.applyAsLong(name);
+            if (cardinality <= 0) {
+                return false;
+            }
+            BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
+            return cardinality <= adjusted.getShardSize();
+        }
+        return false;
     }
 
     @Override

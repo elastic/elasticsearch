@@ -277,39 +277,45 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
-    @Override
-    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
-        throws IOException {
-        BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
+    public static BucketCountThresholds adjustBucketCountThresholds(BucketCountThresholds bucketCountThresholds, BucketOrder order) {
+        BucketCountThresholds newBucketCountThresholds = new BucketCountThresholds(bucketCountThresholds);
         if (InternalOrder.isKeyOrder(order) == false
-            && bucketCountThresholds.getShardSize() == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.shardSize()) {
+            && newBucketCountThresholds.getShardSize() == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.shardSize()) {
             // The user has not made a shardSize selection. Use default
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
-            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
+            newBucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(newBucketCountThresholds.getRequiredSize()));
         }
+        newBucketCountThresholds.ensureValidity();
+        return newBucketCountThresholds;
+    }
+
+    @Override
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+
+        BucketCountThresholds adjusted = adjustBucketCountThresholds(this.bucketCountThresholds, order);
         // If min_doc_count and shard_min_doc_count is provided, we do not support them being larger than 1
         // This is because we cannot be sure about their relative scale when sampled
         if (getSamplingContext().map(SamplingContext::isSampled).orElse(false)) {
-            if (bucketCountThresholds.getMinDocCount() > 1 || bucketCountThresholds.getShardMinDocCount() > 1) {
+            if (adjusted.getMinDocCount() > 1 || adjusted.getShardMinDocCount() > 1) {
                 throw new ElasticsearchStatusException(
                     "aggregation [{}] is within a sampling context; "
                         + "min_doc_count, provided [{}], and min_shard_doc_count, provided [{}], cannot be greater than 1",
                     RestStatus.BAD_REQUEST,
                     name(),
-                    bucketCountThresholds.getMinDocCount(),
-                    bucketCountThresholds.getShardMinDocCount()
+                    adjusted.getMinDocCount(),
+                    adjusted.getShardMinDocCount()
                 );
             }
         }
-        bucketCountThresholds.ensureValidity();
 
         return aggregatorSupplier.build(
             name,
             factories,
             config,
             order,
-            bucketCountThresholds,
+            adjusted,
             includeExclude,
             executionHint,
             context,

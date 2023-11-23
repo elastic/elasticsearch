@@ -134,7 +134,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1078,7 +1077,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 request.getClusterAlias()
             );
             ExecutorService executor = this.enableSearchWorkerThreads ? threadPool.executor(Names.SEARCH_WORKER) : null;
-            int maximumNumberOfSlices = determineMaximumNumberOfSlices(executor, request, resultsType);
             searchContext = new DefaultSearchContext(
                 reader,
                 request,
@@ -1088,7 +1086,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 fetchPhase,
                 lowLevelCancellation,
                 executor,
-                maximumNumberOfSlices,
+                resultsType,
+                enableQueryPhaseParallelCollection,
                 minimumDocsPerSlice
             );
             // we clone the query shard context here just for rewriting otherwise we
@@ -1107,27 +1106,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return searchContext;
-    }
-
-    int determineMaximumNumberOfSlices(ExecutorService executor, ShardSearchRequest request, ResultsType resultsType) {
-        return executor instanceof ThreadPoolExecutor tpe
-            && isParallelCollectionSupportedForResults(resultsType, request.source(), this.enableQueryPhaseParallelCollection)
-                ? tpe.getMaximumPoolSize()
-                : 1;
-    }
-
-    static boolean isParallelCollectionSupportedForResults(
-        ResultsType resultsType,
-        SearchSourceBuilder source,
-        boolean isQueryPhaseParallelismEnabled
-    ) {
-        if (resultsType == ResultsType.DFS) {
-            return true;
-        }
-        if (resultsType == ResultsType.QUERY && isQueryPhaseParallelismEnabled) {
-            return source == null || source.supportsParallelCollection();
-        }
-        return false;
     }
 
     private void freeAllContextForIndex(Index index) {

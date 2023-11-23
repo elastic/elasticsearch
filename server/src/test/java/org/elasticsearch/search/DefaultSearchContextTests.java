@@ -15,10 +15,14 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -34,6 +38,9 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
@@ -42,15 +49,20 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -147,7 +159,8 @@ public class DefaultSearchContextTests extends ESTestCase {
                 null,
                 false,
                 null,
-                randomInt(),
+                randomFrom(SearchService.ResultsType.values()),
+                randomBoolean(),
                 randomInt()
             );
             contextWithoutScroll.from(300);
@@ -178,63 +191,67 @@ public class DefaultSearchContextTests extends ESTestCase {
                 shardSearchRequest,
                 randomNonNegativeLong()
             );
-            DefaultSearchContext context1 = new DefaultSearchContext(
-                readerContext,
-                shardSearchRequest,
-                target,
-                null,
-                timeout,
-                null,
-                false,
-                null,
-                randomInt(),
-                randomInt()
-            );
-            context1.from(300);
-            exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
-            assertThat(
-                exception.getMessage(),
-                equalTo(
-                    "Batch size is too large, size must be less than or equal to: ["
-                        + maxResultWindow
-                        + "] but was [310]. Scroll batch sizes cost as much memory as result windows so they are "
-                        + "controlled by the ["
-                        + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
-                        + "] index level setting."
+            try (
+                DefaultSearchContext context1 = new DefaultSearchContext(
+                    readerContext,
+                    shardSearchRequest,
+                    target,
+                    null,
+                    timeout,
+                    null,
+                    false,
+                    null,
+                    randomFrom(SearchService.ResultsType.values()),
+                    randomBoolean(),
+                    randomInt()
                 )
-            );
+            ) {
+                context1.from(300);
+                exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
+                assertThat(
+                    exception.getMessage(),
+                    equalTo(
+                        "Batch size is too large, size must be less than or equal to: ["
+                            + maxResultWindow
+                            + "] but was [310]. Scroll batch sizes cost as much memory as result windows so they are "
+                            + "controlled by the ["
+                            + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
+                            + "] index level setting."
+                    )
+                );
 
-            // resultWindow not greater than maxResultWindow and both rescore and sort are not null
-            context1.from(0);
-            DocValueFormat docValueFormat = mock(DocValueFormat.class);
-            SortAndFormats sortAndFormats = new SortAndFormats(new Sort(), new DocValueFormat[] { docValueFormat });
-            context1.sort(sortAndFormats);
+                // resultWindow not greater than maxResultWindow and both rescore and sort are not null
+                context1.from(0);
+                DocValueFormat docValueFormat = mock(DocValueFormat.class);
+                SortAndFormats sortAndFormats = new SortAndFormats(new Sort(), new DocValueFormat[] { docValueFormat });
+                context1.sort(sortAndFormats);
 
-            RescoreContext rescoreContext = mock(RescoreContext.class);
-            when(rescoreContext.getWindowSize()).thenReturn(500);
-            context1.addRescore(rescoreContext);
+                RescoreContext rescoreContext = mock(RescoreContext.class);
+                when(rescoreContext.getWindowSize()).thenReturn(500);
+                context1.addRescore(rescoreContext);
 
-            exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
-            assertThat(exception.getMessage(), equalTo("Cannot use [sort] option in conjunction with [rescore]."));
+                exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
+                assertThat(exception.getMessage(), equalTo("Cannot use [sort] option in conjunction with [rescore]."));
 
-            // rescore is null but sort is not null and rescoreContext.getWindowSize() exceeds maxResultWindow
-            context1.sort(null);
-            exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
+                // rescore is null but sort is not null and rescoreContext.getWindowSize() exceeds maxResultWindow
+                context1.sort(null);
+                exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
 
-            assertThat(
-                exception.getMessage(),
-                equalTo(
-                    "Rescore window ["
-                        + rescoreContext.getWindowSize()
-                        + "] is too large. "
-                        + "It must be less than ["
-                        + maxRescoreWindow
-                        + "]. This prevents allocating massive heaps for storing the results "
-                        + "to be rescored. This limit can be set by changing the ["
-                        + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
-                        + "] index level setting."
-                )
-            );
+                assertThat(
+                    exception.getMessage(),
+                    equalTo(
+                        "Rescore window ["
+                            + rescoreContext.getWindowSize()
+                            + "] is too large. "
+                            + "It must be less than ["
+                            + maxRescoreWindow
+                            + "]. This prevents allocating massive heaps for storing the results "
+                            + "to be rescored. This limit can be set by changing the ["
+                            + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
+                            + "] index level setting."
+                    )
+                );
+            }
 
             readerContext.close();
             readerContext = new ReaderContext(
@@ -253,90 +270,103 @@ public class DefaultSearchContextTests extends ESTestCase {
                 }
             };
             // rescore is null but sliceBuilder is not null
-            DefaultSearchContext context2 = new DefaultSearchContext(
-                readerContext,
-                shardSearchRequest,
-                target,
-                null,
-                timeout,
-                null,
-                false,
-                null,
-                randomInt(),
-                randomInt()
-            );
-
-            SliceBuilder sliceBuilder = mock(SliceBuilder.class);
-            int numSlices = maxSlicesPerScroll + randomIntBetween(1, 100);
-            when(sliceBuilder.getMax()).thenReturn(numSlices);
-            context2.sliceBuilder(sliceBuilder);
-
-            exception = expectThrows(IllegalArgumentException.class, context2::preProcess);
-            assertThat(
-                exception.getMessage(),
-                equalTo(
-                    "The number of slices ["
-                        + numSlices
-                        + "] is too large. It must "
-                        + "be less than ["
-                        + maxSlicesPerScroll
-                        + "]. This limit can be set by changing the ["
-                        + IndexSettings.MAX_SLICES_PER_SCROLL.getKey()
-                        + "] index level setting."
+            try (
+                DefaultSearchContext context2 = new DefaultSearchContext(
+                    readerContext,
+                    shardSearchRequest,
+                    target,
+                    null,
+                    timeout,
+                    null,
+                    false,
+                    null,
+                    randomFrom(SearchService.ResultsType.values()),
+                    randomBoolean(),
+                    randomInt()
                 )
-            );
+            ) {
 
-            // No exceptions should be thrown
-            when(shardSearchRequest.getAliasFilter()).thenReturn(AliasFilter.EMPTY);
-            when(shardSearchRequest.indexBoost()).thenReturn(AbstractQueryBuilder.DEFAULT_BOOST);
+                SliceBuilder sliceBuilder = mock(SliceBuilder.class);
+                int numSlices = maxSlicesPerScroll + randomIntBetween(1, 100);
+                when(sliceBuilder.getMax()).thenReturn(numSlices);
+                context2.sliceBuilder(sliceBuilder);
 
-            DefaultSearchContext context3 = new DefaultSearchContext(
-                readerContext,
-                shardSearchRequest,
-                target,
-                null,
-                timeout,
-                null,
-                false,
-                null,
-                randomInt(),
-                randomInt()
-            );
+                exception = expectThrows(IllegalArgumentException.class, context2::preProcess);
+                assertThat(
+                    exception.getMessage(),
+                    equalTo(
+                        "The number of slices ["
+                            + numSlices
+                            + "] is too large. It must "
+                            + "be less than ["
+                            + maxSlicesPerScroll
+                            + "]. This limit can be set by changing the ["
+                            + IndexSettings.MAX_SLICES_PER_SCROLL.getKey()
+                            + "] index level setting."
+                    )
+                );
+
+                // No exceptions should be thrown
+                when(shardSearchRequest.getAliasFilter()).thenReturn(AliasFilter.EMPTY);
+                when(shardSearchRequest.indexBoost()).thenReturn(AbstractQueryBuilder.DEFAULT_BOOST);
+            }
+
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
-            context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess();
-            assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
+            try (
+                DefaultSearchContext context3 = new DefaultSearchContext(
+                    readerContext,
+                    shardSearchRequest,
+                    target,
+                    null,
+                    timeout,
+                    null,
+                    false,
+                    null,
+                    randomFrom(SearchService.ResultsType.values()),
+                    randomBoolean(),
+                    randomInt()
+                )
+            ) {
+                context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess();
+                assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
 
-            when(searchExecutionContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
+                when(searchExecutionContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
 
-            readerContext.close();
-            readerContext = new ReaderContext(
-                newContextId(),
-                indexService,
-                indexShard,
-                searcherSupplier.get(),
-                randomNonNegativeLong(),
-                false
-            );
-            DefaultSearchContext context4 = new DefaultSearchContext(
-                readerContext,
-                shardSearchRequest,
-                target,
-                null,
-                timeout,
-                null,
-                false,
-                null,
-                randomInt(),
-                randomInt()
-            );
-            context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess();
-            Query query1 = context4.query();
-            context4.sliceBuilder(new SliceBuilder(0, 2)).parsedQuery(parsedQuery).preProcess();
-            Query query2 = context4.query();
-            assertTrue(query1 instanceof MatchNoDocsQuery || query2 instanceof MatchNoDocsQuery);
+                readerContext.close();
+                readerContext = new ReaderContext(
+                    newContextId(),
+                    indexService,
+                    indexShard,
+                    searcherSupplier.get(),
+                    randomNonNegativeLong(),
+                    false
+                );
+            }
 
-            readerContext.close();
-            threadPool.shutdown();
+            try (
+                DefaultSearchContext context4 = new DefaultSearchContext(
+                    readerContext,
+                    shardSearchRequest,
+                    target,
+                    null,
+                    timeout,
+                    null,
+                    false,
+                    null,
+                    randomFrom(SearchService.ResultsType.values()),
+                    randomBoolean(),
+                    randomInt()
+                )
+            ) {
+                context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess();
+                Query query1 = context4.query();
+                context4.sliceBuilder(new SliceBuilder(0, 2)).parsedQuery(parsedQuery).preProcess();
+                Query query2 = context4.query();
+                assertTrue(query1 instanceof MatchNoDocsQuery || query2 instanceof MatchNoDocsQuery);
+
+                readerContext.close();
+                threadPool.shutdown();
+            }
         }
     }
 
@@ -394,7 +424,8 @@ public class DefaultSearchContextTests extends ESTestCase {
                 null,
                 false,
                 null,
-                randomInt(),
+                randomFrom(SearchService.ResultsType.values()),
+                randomBoolean(),
                 randomInt()
             );
 
@@ -428,6 +459,235 @@ public class DefaultSearchContextTests extends ESTestCase {
         try (DefaultSearchContext context = createDefaultSearchContext(settings)) {
             assertThat(context.newIdLoader(), instanceOf(IdLoader.TsIdLoader.class));
             context.indexShard().getThreadPool().shutdown();
+        }
+    }
+
+    public void testDetermineMaximumNumberOfSlices() {
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(new ShardId("index", "uuid", 0));
+        ShardSearchRequest parallelReq = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(randomBoolean()),
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1f,
+            System.currentTimeMillis(),
+            null
+        );
+        ShardSearchRequest singleSliceReq = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(randomBoolean())
+                .source(new SearchSourceBuilder().sort(SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME))),
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1f,
+            System.currentTimeMillis(),
+            null
+        );
+        int executorPoolSize = randomIntBetween(1, 100);
+        ExecutorService threadPoolExecutor = EsExecutors.newFixed(
+            "test",
+            executorPoolSize,
+            0,
+            Thread::new,
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
+        ExecutorService notThreadPoolExecutor = Executors.newWorkStealingPool();
+        ToLongFunction<String> fieldCardinality = name -> -1;
+
+        assertEquals(
+            executorPoolSize,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                threadPoolExecutor,
+                parallelReq,
+                SearchService.ResultsType.DFS,
+                true,
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            executorPoolSize,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                threadPoolExecutor,
+                singleSliceReq,
+                SearchService.ResultsType.DFS,
+                true,
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(null, parallelReq, SearchService.ResultsType.DFS, true, fieldCardinality)
+        );
+        assertEquals(
+            executorPoolSize,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                threadPoolExecutor,
+                parallelReq,
+                SearchService.ResultsType.QUERY,
+                true,
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                threadPoolExecutor,
+                singleSliceReq,
+                SearchService.ResultsType.QUERY,
+                true,
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                notThreadPoolExecutor,
+                parallelReq,
+                SearchService.ResultsType.DFS,
+                true,
+                fieldCardinality
+            )
+        );
+
+        assertEquals(
+            executorPoolSize,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                threadPoolExecutor,
+                parallelReq,
+                SearchService.ResultsType.DFS,
+                false,
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(null, parallelReq, SearchService.ResultsType.DFS, false, fieldCardinality)
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                threadPoolExecutor,
+                parallelReq,
+                SearchService.ResultsType.QUERY,
+                false,
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(null, parallelReq, SearchService.ResultsType.QUERY, false, fieldCardinality)
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                notThreadPoolExecutor,
+                parallelReq,
+                SearchService.ResultsType.DFS,
+                false,
+                fieldCardinality
+            )
+        );
+    }
+
+    public void testIsParallelCollectionSupportedForResults() {
+        SearchSourceBuilder searchSourceBuilderOrNull = randomBoolean() ? null : new SearchSourceBuilder();
+        ToLongFunction<String> fieldCardinality = name -> -1;
+        for (var resultsType : SearchService.ResultsType.values()) {
+            switch (resultsType) {
+                case NONE, FETCH -> assertFalse(
+                    "NONE and FETCH phases do not support parallel collection.",
+                    DefaultSearchContext.isParallelCollectionSupportedForResults(
+                        resultsType,
+                        searchSourceBuilderOrNull,
+                        fieldCardinality,
+                        randomBoolean()
+                    )
+                );
+                case DFS -> assertTrue(
+                    "DFS phase always supports parallel collection.",
+                    DefaultSearchContext.isParallelCollectionSupportedForResults(
+                        resultsType,
+                        searchSourceBuilderOrNull,
+                        fieldCardinality,
+                        randomBoolean()
+                    )
+                );
+                case QUERY -> {
+                    SearchSourceBuilder searchSourceBuilderNoAgg = new SearchSourceBuilder();
+                    assertTrue(
+                        "Parallel collection should be supported for the query phase when no agg is present.",
+                        DefaultSearchContext.isParallelCollectionSupportedForResults(
+                            resultsType,
+                            searchSourceBuilderNoAgg,
+                            fieldCardinality,
+                            true
+                        )
+                    );
+                    assertTrue(
+                        "Parallel collection should be supported for the query phase when the source is null.",
+                        DefaultSearchContext.isParallelCollectionSupportedForResults(resultsType, null, fieldCardinality, true)
+                    );
+
+                    SearchSourceBuilder searchSourceAggSupportsParallelCollection = new SearchSourceBuilder();
+                    searchSourceAggSupportsParallelCollection.aggregation(new DateRangeAggregationBuilder("dateRange"));
+                    assertTrue(
+                        "Parallel collection should be supported for the query phase when when enabled && contains supported agg.",
+                        DefaultSearchContext.isParallelCollectionSupportedForResults(
+                            resultsType,
+                            searchSourceAggSupportsParallelCollection,
+                            fieldCardinality,
+                            true
+                        )
+                    );
+
+                    assertFalse(
+                        "Parallel collection should not be supported for the query phase when disabled.",
+                        DefaultSearchContext.isParallelCollectionSupportedForResults(
+                            resultsType,
+                            searchSourceBuilderNoAgg,
+                            fieldCardinality,
+                            false
+                        )
+                    );
+                    assertFalse(
+                        "Parallel collection should not be supported for the query phase when disabled and source is null.",
+                        DefaultSearchContext.isParallelCollectionSupportedForResults(resultsType, null, fieldCardinality, false)
+                    );
+
+                    SearchSourceBuilder searchSourceAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
+                    searchSourceAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
+                    assertFalse(
+                        "Parallel collection should not be supported for the query phase when "
+                            + "enabled && does not contains supported agg.",
+                        DefaultSearchContext.isParallelCollectionSupportedForResults(
+                            resultsType,
+                            searchSourceAggDoesNotSupportParallelCollection,
+                            fieldCardinality,
+                            true
+                        )
+                    );
+
+                    SearchSourceBuilder searchSourceMultiAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
+                    searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
+                    searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new DateRangeAggregationBuilder("dateRange"));
+                    assertFalse(
+                        "Parallel collection should not be supported for the query phase when when enabled && contains unsupported agg.",
+                        DefaultSearchContext.isParallelCollectionSupportedForResults(
+                            resultsType,
+                            searchSourceMultiAggDoesNotSupportParallelCollection,
+                            fieldCardinality,
+                            true
+                        )
+                    );
+                }
+                default -> throw new UnsupportedOperationException("Untested ResultsType added, please add new testcases.");
+            }
         }
     }
 
@@ -508,7 +768,8 @@ public class DefaultSearchContextTests extends ESTestCase {
                 null,
                 false,
                 null,
-                randomInt(),
+                randomFrom(SearchService.ResultsType.values()),
+                randomBoolean(),
                 randomInt()
             );
         }

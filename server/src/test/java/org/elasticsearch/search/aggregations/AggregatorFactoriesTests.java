@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
@@ -50,6 +51,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -317,22 +319,47 @@ public class AggregatorFactoriesTests extends ESTestCase {
     }
 
     public void testSupportsParallelCollection() {
+        ToLongFunction<String> randomCardinality = name -> randomLongBetween(1, 200);
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
+            builder.addAggregator(new FilterAggregationBuilder("name", new MatchAllQueryBuilder()));
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new TermsAggregationBuilder("terms"));
+            assertFalse(builder.supportsParallelCollection(field -> -1));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new TermsAggregationBuilder("terms"));
+            assertFalse(builder.supportsParallelCollection(field -> 0));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.shardSize(10);
+            builder.addAggregator(terms);
+            assertTrue(builder.supportsParallelCollection(field -> randomIntBetween(1, 10)));
+            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(11, 100)));
+        }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(new CardinalityAggregationBuilder("cardinality"));
-            assertTrue(builder.supportsParallelCollection());
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(new NestedAggregationBuilder("nested", "path"));
-            assertTrue(builder.supportsParallelCollection());
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(
                 new CompositeAggregationBuilder("composite", Collections.singletonList(new TermsValuesSourceBuilder("name")))
             );
-            assertTrue(builder.supportsParallelCollection());
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
@@ -342,7 +369,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     return true;
                 }
             });
-            assertFalse(builder.supportsParallelCollection());
+            assertFalse(builder.supportsParallelCollection(randomCardinality));
         }
     }
 

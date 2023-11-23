@@ -870,8 +870,8 @@ public class MachineLearning extends Plugin
             return List.of(
                 new RescorerSpec<>(
                     LearnToRankRescorerBuilder.NAME,
-                    in -> new LearnToRankRescorerBuilder(in, modelLoadingService::get),
-                    parser -> LearnToRankRescorerBuilder.fromXContent(parser, modelLoadingService::get)
+                    in -> new LearnToRankRescorerBuilder(in, learnToRankService.get()),
+                    parser -> LearnToRankRescorerBuilder.fromXContent(parser, learnToRankService.get())
                 )
             );
         }

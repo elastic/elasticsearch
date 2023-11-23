@@ -10,6 +10,7 @@ package org.elasticsearch.test.fixtures.minio;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.junit.rules.TestRule;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 public class MinioTestContainer extends DockerEnvironmentAwareTestContainer implements TestRule {
@@ -17,8 +18,21 @@ public class MinioTestContainer extends DockerEnvironmentAwareTestContainer impl
     private static final int servicePort = 9000;
     private final boolean enabled;
 
+    /**
+     * see <a href="https://github.com/elastic/elasticsearch/issues/102532">https://github.com/elastic/elasticsearch/issues/102532</a>
+     * */
+    private static boolean isDockerAvailable() {
+        try {
+            DockerClientFactory.instance().client();
+            return true;
+        } catch (Throwable ex) {
+            LOGGER.warn("Probing docker has failed; disabling test", ex);
+            return false;
+        }
+    }
+
     public MinioTestContainer() {
-        this(true);
+        this(true && isDockerAvailable());
     }
 
     public MinioTestContainer(boolean enabled) {

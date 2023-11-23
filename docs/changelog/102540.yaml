@@ -1,0 +1,5 @@
+pr: 102540
+summary: Rename the inference rescorer into `learn_to_rank`
+area: "Machine Learning, Ranking"
+type: feature
+issues: []

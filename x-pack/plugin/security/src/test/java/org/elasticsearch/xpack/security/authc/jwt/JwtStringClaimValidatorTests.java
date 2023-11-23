@@ -28,11 +28,11 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final JwtStringClaimValidator validator;
         final JWTClaimsSet jwtClaimsSet;
         if (randomBoolean()) {
-            validator = new JwtStringClaimValidator(claimName, List.of(), randomBoolean());
+            validator = new JwtStringClaimValidator(claimName, List.of(), false, randomBoolean());
             // fallback claim is ignored
             jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, List.of(42), fallbackClaimName, randomAlphaOfLength(8)));
         } else {
-            validator = new JwtStringClaimValidator(claimName, Map.of(claimName, fallbackClaimName), List.of(), randomBoolean());
+            validator = new JwtStringClaimValidator(claimName, Map.of(claimName, fallbackClaimName), List.of(), false, randomBoolean());
             jwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, List.of(42)));
         }
 
@@ -51,11 +51,11 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final JwtStringClaimValidator validator;
         final JWTClaimsSet jwtClaimsSet;
         if (randomBoolean()) {
-            validator = new JwtStringClaimValidator(claimName, List.of(), true);
+            validator = new JwtStringClaimValidator(claimName, List.of(), false, true);
             // fallback claim is ignored
             jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, List.of("foo", "bar"), fallbackClaimName, randomAlphaOfLength(8)));
         } else {
-            validator = new JwtStringClaimValidator(claimName, Map.of(claimName, fallbackClaimName), List.of(), true);
+            validator = new JwtStringClaimValidator(claimName, Map.of(claimName, fallbackClaimName), List.of(), false, true);
             jwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, List.of("foo", "bar")));
         }
 
@@ -74,9 +74,9 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final JwtStringClaimValidator validator;
         final JWTClaimsSet jwtClaimsSet;
         if (randomBoolean()) {
-            validator = new JwtStringClaimValidator(claimName, List.of(), randomBoolean());
+            validator = new JwtStringClaimValidator(claimName, List.of(), false, randomBoolean());
         } else {
-            validator = new JwtStringClaimValidator(claimName, Map.of(claimName, fallbackClaimName), List.of(), randomBoolean());
+            validator = new JwtStringClaimValidator(claimName, Map.of(claimName, fallbackClaimName), List.of(), false, randomBoolean());
         }
         jwtClaimsSet = JWTClaimsSet.parse(Map.of());
 
@@ -99,11 +99,17 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final JWTClaimsSet validJwtClaimsSet;
         final boolean noFallback = randomBoolean();
         if (noFallback) {
-            validator = new JwtStringClaimValidator(claimName, allowedClaimValues, singleValuedClaim);
+            validator = new JwtStringClaimValidator(claimName, allowedClaimValues, false, singleValuedClaim);
             // fallback claim is ignored
             validJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, incomingClaimValue, fallbackClaimName, List.of(42)));
         } else {
-            validator = new JwtStringClaimValidator(claimName, Map.of(claimName, fallbackClaimName), allowedClaimValues, singleValuedClaim);
+            validator = new JwtStringClaimValidator(
+                claimName,
+                Map.of(claimName, fallbackClaimName),
+                allowedClaimValues,
+                false,
+                singleValuedClaim
+            );
             validJwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, incomingClaimValue));
         }
 
@@ -138,7 +144,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         {
             final JWTClaimsSet validJwtClaimsSet;
             if (noFallback) {
-                validator = new JwtStringClaimValidator(claimName, List.of(claimValue), randomBoolean());
+                validator = new JwtStringClaimValidator(claimName, List.of(claimValue), true, randomBoolean());
                 // fallback is ignored (even when it has a valid value) since the main claim exists
                 validJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, randomAlphaOfLengthBetween(1, 10), fallbackClaimName, claimValue));
             } else {
@@ -146,6 +152,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
                     claimName,
                     Map.of(claimName, fallbackClaimName),
                     List.of(claimValue),
+                    true,
                     randomBoolean()
                 );
                 validJwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, randomAlphaOfLengthBetween(1, 10)));

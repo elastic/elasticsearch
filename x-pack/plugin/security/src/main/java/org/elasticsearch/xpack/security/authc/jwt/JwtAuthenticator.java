@@ -128,7 +128,12 @@ public class JwtAuthenticator implements Releasable {
 
         final JwtStringClaimValidator subjectClaimValidator;
         if (realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECTS)) {
-            subjectClaimValidator = new JwtStringClaimValidator("sub", realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS), true);
+            subjectClaimValidator = new JwtStringClaimValidator(
+                "sub",
+                realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS),
+                true,
+                true
+            );
         } else {
             // Allow any value for the sub claim as long as there is a non-null value
             subjectClaimValidator = JwtStringClaimValidator.ALLOW_ALL_SUBJECTS;
@@ -136,9 +141,9 @@ public class JwtAuthenticator implements Releasable {
 
         return List.of(
             JwtTypeValidator.INSTANCE,
-            new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), true),
+            new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), false, true),
             subjectClaimValidator,
-            new JwtStringClaimValidator("aud", realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), false),
+            new JwtStringClaimValidator("aud", realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), false, false),
             new JwtAlgorithmValidator(realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)),
             new JwtDateClaimValidator(clock, "iat", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, false),
             new JwtDateClaimValidator(clock, "exp", allowedClockSkew, JwtDateClaimValidator.Relationship.AFTER_NOW, false),
@@ -157,9 +162,15 @@ public class JwtAuthenticator implements Releasable {
 
         return List.of(
             JwtTypeValidator.INSTANCE,
-            new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), true),
-            new JwtStringClaimValidator("sub", fallbackClaimLookup, realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS), true),
-            new JwtStringClaimValidator("aud", fallbackClaimLookup, realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), false),
+            new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), false, true),
+            new JwtStringClaimValidator("sub", fallbackClaimLookup, realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS), true, true),
+            new JwtStringClaimValidator(
+                "aud",
+                fallbackClaimLookup,
+                realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES),
+                false,
+                false
+            ),
             new JwtAlgorithmValidator(realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)),
             new JwtDateClaimValidator(clock, "iat", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, false),
             new JwtDateClaimValidator(clock, "exp", allowedClockSkew, JwtDateClaimValidator.Relationship.AFTER_NOW, false)
@@ -170,7 +181,7 @@ public class JwtAuthenticator implements Releasable {
         final Settings requiredClaims = realmConfig.getSetting(JwtRealmSettings.REQUIRED_CLAIMS);
         return requiredClaims.names().stream().map(name -> {
             final List<String> allowedValues = requiredClaims.getAsList(name);
-            return new JwtStringClaimValidator(name, allowedValues, false);
+            return new JwtStringClaimValidator(name, allowedValues, false, false);
         }).toList();
     }
 }

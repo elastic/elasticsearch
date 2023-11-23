@@ -15,8 +15,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -30,7 +32,7 @@ import java.util.function.Predicate;
  */
 public class JwtStringClaimValidator implements JwtFieldValidator {
 
-    public static JwtStringClaimValidator ALLOW_ALL_SUBJECTS = new JwtStringClaimValidator("sub", List.of("*"), true);
+    public static JwtStringClaimValidator ALLOW_ALL_SUBJECTS = new JwtStringClaimValidator("sub", List.of("*"), true, true);
 
     private final String claimName;
     @Nullable
@@ -39,19 +41,41 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
     // Whether the claim should be a single string
     private final boolean singleValuedClaim;
 
-    public JwtStringClaimValidator(String claimName, Collection<String> allowedClaimValues, boolean singleValuedClaim) {
-        this(claimName, null, allowedClaimValues, singleValuedClaim);
+    public JwtStringClaimValidator(
+        String claimName,
+        Collection<String> allowedClaimValues,
+        boolean allowedClaimValuesAsPatterns,
+        boolean singleValuedClaim
+    ) {
+        this(claimName, null, allowedClaimValues, allowedClaimValuesAsPatterns, singleValuedClaim);
     }
 
     public JwtStringClaimValidator(
         String claimName,
         Map<String, String> fallbackClaimNames,
         Collection<String> allowedClaimValues,
+        boolean allowedClaimValuesAsPatterns,
         boolean singleValuedClaim
     ) {
         this.claimName = claimName;
         this.fallbackClaimNames = fallbackClaimNames;
-        this.allowedClaimValuesPredicate = Automatons.predicate(allowedClaimValues);
+        if (allowedClaimValuesAsPatterns) {
+            this.allowedClaimValuesPredicate = Automatons.predicate(allowedClaimValues);
+        } else {
+            this.allowedClaimValuesPredicate = new Predicate<>() {
+                private final Set<String> allowedClaimValuesSet = new HashSet<>(allowedClaimValues);
+
+                @Override
+                public boolean test(String s) {
+                    return allowedClaimValuesSet.contains(s);
+                }
+
+                @Override
+                public String toString() {
+                    return "[" + Strings.collectionToCommaDelimitedString(allowedClaimValuesSet) + "]";
+                }
+            };
+        }
         this.singleValuedClaim = singleValuedClaim;
     }
 

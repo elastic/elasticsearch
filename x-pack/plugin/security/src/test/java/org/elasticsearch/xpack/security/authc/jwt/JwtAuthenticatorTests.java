@@ -32,7 +32,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
@@ -155,10 +154,9 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
                     + "] has value ["
                     + mismatchRequiredClaimValue
                     + "] which does not match allowed claim values ["
-                    + requiredClaim.v2().stream().collect(Collectors.joining(","))
-                    + "]"
             )
         );
+        requiredClaim.v2().stream().forEach(requiredClaim -> { assertThat(e.getMessage(), containsString(requiredClaim)); });
     }
 
     public void testMissingRequiredClaims() throws ParseException {

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.rescorer;
+package org.elasticsearch.xpack.ml.ltr;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
@@ -17,11 +17,11 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.ltr.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
 import java.io.IOException;
@@ -32,12 +32,12 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.search.rank.RankBuilder.WINDOW_SIZE_FIELD;
 
-public class InferenceRescorerBuilderSerializationTests extends AbstractBWCSerializationTestCase<InferenceRescorerBuilder> {
+public class LearnToRankRescorerBuilderSerializationTests extends AbstractBWCSerializationTestCase<LearnToRankRescorerBuilder> {
 
     @Override
-    protected InferenceRescorerBuilder doParseInstance(XContentParser parser) throws IOException {
+    protected LearnToRankRescorerBuilder doParseInstance(XContentParser parser) throws IOException {
         String fieldName = null;
-        InferenceRescorerBuilder rescorer = null;
+        LearnToRankRescorerBuilder rescorer = null;
         Integer windowSize = null;
         XContentParser.Token token = parser.nextToken();
         assert token == XContentParser.Token.START_OBJECT;
@@ -51,7 +51,7 @@ public class InferenceRescorerBuilderSerializationTests extends AbstractBWCSeria
                     throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support [" + fieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                rescorer = InferenceRescorerBuilder.fromXContent(parser, null);
+                rescorer = LearnToRankRescorerBuilder.fromXContent(parser, null);
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
             }
@@ -66,19 +66,19 @@ public class InferenceRescorerBuilderSerializationTests extends AbstractBWCSeria
     }
 
     @Override
-    protected Writeable.Reader<InferenceRescorerBuilder> instanceReader() {
-        return in -> new InferenceRescorerBuilder(in, null);
+    protected Writeable.Reader<LearnToRankRescorerBuilder> instanceReader() {
+        return in -> new LearnToRankRescorerBuilder(in, null);
     }
 
     @Override
-    protected InferenceRescorerBuilder createTestInstance() {
-        InferenceRescorerBuilder builder = randomBoolean()
-            ? new InferenceRescorerBuilder(
+    protected LearnToRankRescorerBuilder createTestInstance() {
+        LearnToRankRescorerBuilder builder = randomBoolean()
+            ? new LearnToRankRescorerBuilder(
                 randomAlphaOfLength(10),
                 randomBoolean() ? null : LearnToRankConfigUpdateTests.randomLearnToRankConfigUpdate(),
                 null
             )
-            : new InferenceRescorerBuilder(
+            : new LearnToRankRescorerBuilder(
                 randomAlphaOfLength(10),
                 LearnToRankConfigTests.randomLearnToRankConfig(),
                 (Supplier<ModelLoadingService>) null
@@ -90,11 +90,11 @@ public class InferenceRescorerBuilderSerializationTests extends AbstractBWCSeria
     }
 
     @Override
-    protected InferenceRescorerBuilder mutateInstance(InferenceRescorerBuilder instance) throws IOException {
+    protected LearnToRankRescorerBuilder mutateInstance(LearnToRankRescorerBuilder instance) throws IOException {
         int i = randomInt(3);
         return switch (i) {
             case 0 -> {
-                InferenceRescorerBuilder builder = new InferenceRescorerBuilder(
+                LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(
                     randomValueOtherThan(instance.getModelId(), () -> randomAlphaOfLength(10)),
                     instance.getInferenceConfigUpdate(),
                     null
@@ -104,11 +104,11 @@ public class InferenceRescorerBuilderSerializationTests extends AbstractBWCSeria
                 }
                 yield builder;
             }
-            case 1 -> new InferenceRescorerBuilder(instance.getModelId(), instance.getInferenceConfigUpdate(), null).windowSize(
+            case 1 -> new LearnToRankRescorerBuilder(instance.getModelId(), instance.getInferenceConfigUpdate(), null).windowSize(
                 randomValueOtherThan(instance.windowSize(), () -> randomIntBetween(1, 10000))
             );
             case 2 -> {
-                InferenceRescorerBuilder builder = new InferenceRescorerBuilder(
+                LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(
                     instance.getModelId(),
                     randomValueOtherThan(instance.getInferenceConfigUpdate(), LearnToRankConfigUpdateTests::randomLearnToRankConfigUpdate),
                     null
@@ -119,7 +119,7 @@ public class InferenceRescorerBuilderSerializationTests extends AbstractBWCSeria
                 yield builder;
             }
             case 3 -> {
-                InferenceRescorerBuilder builder = new InferenceRescorerBuilder(
+                LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(
                     instance.getModelId(),
                     randomValueOtherThan(instance.getInferenceConfig(), LearnToRankConfigTests::randomLearnToRankConfig),
                     (Supplier<ModelLoadingService>) null
@@ -134,12 +134,12 @@ public class InferenceRescorerBuilderSerializationTests extends AbstractBWCSeria
     }
 
     @Override
-    protected InferenceRescorerBuilder mutateInstanceForVersion(InferenceRescorerBuilder instance, TransportVersion version) {
+    protected LearnToRankRescorerBuilder mutateInstanceForVersion(LearnToRankRescorerBuilder instance, TransportVersion version) {
         return instance;
     }
 
     public void testIncorrectInferenceConfigUpdateType() {
-        InferenceRescorerBuilder.Builder builder = new InferenceRescorerBuilder.Builder();
+        LearnToRankRescorerBuilder.Builder builder = new LearnToRankRescorerBuilder.Builder();
         expectThrows(
             IllegalArgumentException.class,
             () -> builder.setInferenceConfigUpdate(ClassificationConfigUpdateTests.randomClassificationConfigUpdate())
@@ -149,7 +149,7 @@ public class InferenceRescorerBuilderSerializationTests extends AbstractBWCSeria
     }
 
     public void testIncorrectInferenceConfigType() {
-        InferenceRescorerBuilder.Builder builder = new InferenceRescorerBuilder.Builder();
+        LearnToRankRescorerBuilder.Builder builder = new LearnToRankRescorerBuilder.Builder();
         expectThrows(
             IllegalArgumentException.class,
             () -> builder.setInferenceConfig(ClassificationConfigTests.randomClassificationConfig())

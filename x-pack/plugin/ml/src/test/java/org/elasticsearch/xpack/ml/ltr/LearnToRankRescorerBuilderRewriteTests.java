@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.rescorer;
+package org.elasticsearch.xpack.ml.ltr;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCase {
+public class LearnToRankRescorerBuilderRewriteTests extends AbstractBuilderTestCase {
 
     private static final String GOOD_MODEL = "modelId";
     private static final String BAD_MODEL = "badModel";
@@ -90,20 +90,23 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
 
     public void testMustRewrite() {
         TestModelLoader testModelLoader = new TestModelLoader();
-        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(
+        LearnToRankRescorerBuilder learnToRankRescorerBuilder = new LearnToRankRescorerBuilder(
             GOOD_MODEL,
             LearnToRankConfigTests.randomLearnToRankConfig(),
             () -> testModelLoader
         );
         SearchExecutionContext context = createSearchExecutionContext();
-        InferenceRescorerContext inferenceRescorerContext = inferenceRescorerBuilder.innerBuildContext(randomIntBetween(1, 30), context);
+        LearnToRankInferenceRescorerContext learnToRankInferenceRescorerContext = learnToRankRescorerBuilder.innerBuildContext(
+            randomIntBetween(1, 30),
+            context
+        );
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> inferenceRescorerContext.rescorer()
+            () -> learnToRankInferenceRescorerContext.rescorer()
                 .rescore(
                     new TopDocs(new TotalHits(10, TotalHits.Relation.EQUAL_TO), new ScoreDoc[10]),
                     mock(IndexSearcher.class),
-                    inferenceRescorerContext
+                    learnToRankInferenceRescorerContext
                 )
         );
         assertEquals("local model reference is null, missing rewriteAndFetch before rescore phase?", e.getMessage());
@@ -115,14 +118,14 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
             2,
             List.of(new QueryExtractorBuilder("all", QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery())))
         );
-        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(GOOD_MODEL, ltru, () -> testModelLoader);
-        inferenceRescorerBuilder.windowSize(4);
+        LearnToRankRescorerBuilder learnToRankRescorerBuilder = new LearnToRankRescorerBuilder(GOOD_MODEL, ltru, () -> testModelLoader);
+        learnToRankRescorerBuilder.windowSize(4);
         CoordinatorRewriteContext context = createCoordinatorRewriteContext(
             new DateFieldMapper.DateFieldType("@timestamp"),
             randomIntBetween(0, 1_100_000),
             randomIntBetween(1_500_000, Integer.MAX_VALUE)
         );
-        InferenceRescorerBuilder rewritten = rewriteAndFetch(inferenceRescorerBuilder, context);
+        LearnToRankRescorerBuilder rewritten = rewriteAndFetch(learnToRankRescorerBuilder, context);
         assertThat(rewritten.getInferenceConfig(), not(nullValue()));
         assertThat(rewritten.getInferenceConfig().getNumTopFeatureImportanceValues(), equalTo(2));
         assertThat(
@@ -143,7 +146,7 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
 
     public void testRewriteOnCoordinatorWithBadModel() throws IOException {
         TestModelLoader testModelLoader = new TestModelLoader();
-        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(
+        LearnToRankRescorerBuilder learnToRankRescorerBuilder = new LearnToRankRescorerBuilder(
             BAD_MODEL,
             randomBoolean() ? null : LearnToRankConfigUpdateTests.randomLearnToRankConfigUpdate(),
             () -> testModelLoader
@@ -155,14 +158,14 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
         );
         ElasticsearchStatusException ex = expectThrows(
             ElasticsearchStatusException.class,
-            () -> rewriteAndFetch(inferenceRescorerBuilder, context)
+            () -> rewriteAndFetch(learnToRankRescorerBuilder, context)
         );
         assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
     public void testRewriteOnCoordinatorWithMissingModel() {
         TestModelLoader testModelLoader = new TestModelLoader();
-        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(
+        LearnToRankRescorerBuilder learnToRankRescorerBuilder = new LearnToRankRescorerBuilder(
             "missing_model",
             randomBoolean() ? null : LearnToRankConfigUpdateTests.randomLearnToRankConfigUpdate(),
             () -> testModelLoader
@@ -172,31 +175,35 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
             randomIntBetween(0, 1_100_000),
             randomIntBetween(1_500_000, Integer.MAX_VALUE)
         );
-        expectThrows(ResourceNotFoundException.class, () -> rewriteAndFetch(inferenceRescorerBuilder, context));
+        expectThrows(ResourceNotFoundException.class, () -> rewriteAndFetch(learnToRankRescorerBuilder, context));
     }
 
     public void testSearchRewrite() throws IOException {
         TestModelLoader testModelLoader = new TestModelLoader();
-        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(
+        LearnToRankRescorerBuilder learnToRankRescorerBuilder = new LearnToRankRescorerBuilder(
             GOOD_MODEL,
             LearnToRankConfigTests.randomLearnToRankConfig(),
             () -> testModelLoader
         );
         QueryRewriteContext context = createSearchExecutionContext();
-        InferenceRescorerBuilder rewritten = (InferenceRescorerBuilder) Rewriteable.rewrite(inferenceRescorerBuilder, context, true);
+        LearnToRankRescorerBuilder rewritten = (LearnToRankRescorerBuilder) Rewriteable.rewrite(learnToRankRescorerBuilder, context, true);
         assertThat(rewritten.modelLoadingServiceSupplier(), is(notNullValue()));
 
-        inferenceRescorerBuilder = new InferenceRescorerBuilder(GOOD_MODEL, LearnToRankConfigTests.randomLearnToRankConfig(), localModel());
+        learnToRankRescorerBuilder = new LearnToRankRescorerBuilder(
+            GOOD_MODEL,
+            LearnToRankConfigTests.randomLearnToRankConfig(),
+            localModel()
+        );
 
-        rewritten = (InferenceRescorerBuilder) Rewriteable.rewrite(inferenceRescorerBuilder, context, true);
+        rewritten = (LearnToRankRescorerBuilder) Rewriteable.rewrite(learnToRankRescorerBuilder, context, true);
         assertThat(rewritten.modelLoadingServiceSupplier(), is(nullValue()));
         assertThat(rewritten.getInferenceDefinition(), is(notNullValue()));
     }
 
-    protected InferenceRescorerBuilder rewriteAndFetch(RescorerBuilder<InferenceRescorerBuilder> builder, QueryRewriteContext context) {
-        PlainActionFuture<RescorerBuilder<InferenceRescorerBuilder>> future = new PlainActionFuture<>();
+    protected LearnToRankRescorerBuilder rewriteAndFetch(RescorerBuilder<LearnToRankRescorerBuilder> builder, QueryRewriteContext context) {
+        PlainActionFuture<RescorerBuilder<LearnToRankRescorerBuilder>> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(builder, context, future);
-        return (InferenceRescorerBuilder) future.actionGet();
+        return (LearnToRankRescorerBuilder) future.actionGet();
     }
 
     @Override
@@ -224,31 +231,33 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
 
     public void testRewriteOnShard() throws IOException {
         TestModelLoader testModelLoader = new TestModelLoader();
-        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(
+        LearnToRankRescorerBuilder learnToRankRescorerBuilder = new LearnToRankRescorerBuilder(
             GOOD_MODEL,
             (LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig(),
             () -> testModelLoader
         );
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        InferenceRescorerBuilder rewritten = (InferenceRescorerBuilder) inferenceRescorerBuilder.rewrite(createSearchExecutionContext());
-        assertSame(inferenceRescorerBuilder, rewritten);
+        LearnToRankRescorerBuilder rewritten = (LearnToRankRescorerBuilder) learnToRankRescorerBuilder.rewrite(
+            createSearchExecutionContext()
+        );
+        assertSame(learnToRankRescorerBuilder, rewritten);
         assertFalse(searchExecutionContext.hasAsyncActions());
     }
 
     public void testRewriteAndFetchOnDataNode() throws IOException {
         TestModelLoader testModelLoader = new TestModelLoader();
-        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(
+        LearnToRankRescorerBuilder learnToRankRescorerBuilder = new LearnToRankRescorerBuilder(
             GOOD_MODEL,
             (LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig(),
             () -> testModelLoader
         );
         boolean setWindowSize = randomBoolean();
         if (setWindowSize) {
-            inferenceRescorerBuilder.windowSize(42);
+            learnToRankRescorerBuilder.windowSize(42);
         }
         DataRewriteContext rewriteContext = dataRewriteContext();
-        InferenceRescorerBuilder rewritten = (InferenceRescorerBuilder) inferenceRescorerBuilder.rewrite(rewriteContext);
-        assertNotSame(inferenceRescorerBuilder, rewritten);
+        LearnToRankRescorerBuilder rewritten = (LearnToRankRescorerBuilder) learnToRankRescorerBuilder.rewrite(rewriteContext);
+        assertNotSame(learnToRankRescorerBuilder, rewritten);
         assertTrue(rewriteContext.hasAsyncActions());
         if (setWindowSize) {
             assertThat(rewritten.windowSize(), equalTo(42));
@@ -260,12 +269,12 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
         List<String> inputFields = List.of(DOUBLE_FIELD_NAME, INT_FIELD_NAME);
         when(localModel.inputFields()).thenReturn(inputFields);
         SearchExecutionContext context = createSearchExecutionContext();
-        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(
+        LearnToRankRescorerBuilder learnToRankRescorerBuilder = new LearnToRankRescorerBuilder(
             GOOD_MODEL,
             (LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig(),
             localModel
         );
-        InferenceRescorerContext rescoreContext = inferenceRescorerBuilder.innerBuildContext(20, context);
+        LearnToRankInferenceRescorerContext rescoreContext = learnToRankRescorerBuilder.innerBuildContext(20, context);
         assertNotNull(rescoreContext);
         assertThat(rescoreContext.getWindowSize(), equalTo(20));
         List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors(context.searcher());

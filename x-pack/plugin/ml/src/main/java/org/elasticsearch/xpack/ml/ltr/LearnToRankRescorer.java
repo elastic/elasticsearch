@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.rescorer;
+package org.elasticsearch.xpack.ml.ltr;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,17 +32,17 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
-public class InferenceRescorer implements Rescorer {
+public class LearnToRankRescorer implements Rescorer {
 
-    public static final InferenceRescorer INSTANCE = new InferenceRescorer();
-    private static final Logger logger = LogManager.getLogger(InferenceRescorer.class);
+    public static final LearnToRankRescorer INSTANCE = new LearnToRankRescorer();
+    private static final Logger logger = LogManager.getLogger(LearnToRankRescorer.class);
 
     private static final Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = (o1, o2) -> {
         int cmp = Float.compare(o2.score, o1.score);
         return cmp == 0 ? Integer.compare(o1.doc, o2.doc) : cmp;
     };
 
-    private InferenceRescorer() {
+    private LearnToRankRescorer() {
 
     }
 
@@ -51,11 +51,11 @@ public class InferenceRescorer implements Rescorer {
         if (topDocs.scoreDocs.length == 0) {
             return topDocs;
         }
-        InferenceRescorerContext ltrRescoreContext = (InferenceRescorerContext) rescoreContext;
-        if (ltrRescoreContext.inferenceDefinition == null) {
+        LearnToRankInferenceRescorerContext ltrRescoreContext = (LearnToRankInferenceRescorerContext) rescoreContext;
+        if (ltrRescoreContext.regressionModelDefinition == null) {
             throw new IllegalStateException("local model reference is null, missing rewriteAndFetch before rescore phase?");
         }
-        LocalModel definition = ltrRescoreContext.inferenceDefinition;
+        LocalModel definition = ltrRescoreContext.regressionModelDefinition;
 
         // First take top slice of incoming docs, to be rescored:
         TopDocs topNFirstPass = topN(topDocs, rescoreContext.getWindowSize());
@@ -104,7 +104,7 @@ public class InferenceRescorer implements Rescorer {
         for (int i = 0; i < hitsToRescore.length; i++) {
             Map<String, Object> features = docFeatures.get(i);
             try {
-                InferenceResults results = definition.inferLtr(features, ltrRescoreContext.inferenceConfig);
+                InferenceResults results = definition.inferLtr(features, ltrRescoreContext.learnToRankConfig);
                 if (results instanceof WarningInferenceResults warningInferenceResults) {
                     logger.warn("Failure rescoring doc, warning returned [" + warningInferenceResults.getWarning() + "]");
                 } else if (results.predictedValue() instanceof Number prediction) {

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.rescorer;
+package org.elasticsearch.xpack.ml.ltr;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -24,43 +24,43 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class InferenceRescorerContext extends RescoreContext {
+public class LearnToRankInferenceRescorerContext extends RescoreContext {
 
     final SearchExecutionContext executionContext;
-    final LocalModel inferenceDefinition;
-    final LearnToRankConfig inferenceConfig;
+    final LocalModel regressionModelDefinition;
+    final LearnToRankConfig learnToRankConfig;
 
     /**
      * @param windowSize how many documents to rescore
      * @param rescorer The rescorer to apply
-     * @param inferenceConfig The inference config containing updated and rewritten parameters
-     * @param inferenceDefinition The local model inference definition, may be null during certain search phases.
+     * @param learnToRankConfig The inference config containing updated and rewritten parameters
+     * @param regressionModelDefinition The local model inference definition, may be null during certain search phases.
      * @param executionContext The local shard search context
      */
-    public InferenceRescorerContext(
+    public LearnToRankInferenceRescorerContext(
         int windowSize,
         Rescorer rescorer,
-        LearnToRankConfig inferenceConfig,
-        LocalModel inferenceDefinition,
+        LearnToRankConfig learnToRankConfig,
+        LocalModel regressionModelDefinition,
         SearchExecutionContext executionContext
     ) {
         super(windowSize, rescorer);
         this.executionContext = executionContext;
-        this.inferenceDefinition = inferenceDefinition;
-        this.inferenceConfig = inferenceConfig;
+        this.regressionModelDefinition = regressionModelDefinition;
+        this.learnToRankConfig = learnToRankConfig;
     }
 
     List<FeatureExtractor> buildFeatureExtractors(IndexSearcher searcher) throws IOException {
-        assert this.inferenceDefinition != null && this.inferenceConfig != null;
+        assert this.regressionModelDefinition != null && this.learnToRankConfig != null;
         List<FeatureExtractor> featureExtractors = new ArrayList<>();
-        if (this.inferenceDefinition.inputFields().isEmpty() == false) {
+        if (this.regressionModelDefinition.inputFields().isEmpty() == false) {
             featureExtractors.add(
-                new FieldValueFeatureExtractor(new ArrayList<>(this.inferenceDefinition.inputFields()), this.executionContext)
+                new FieldValueFeatureExtractor(new ArrayList<>(this.regressionModelDefinition.inputFields()), this.executionContext)
             );
         }
         List<Weight> weights = new ArrayList<>();
         List<String> queryFeatureNames = new ArrayList<>();
-        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : inferenceConfig.getFeatureExtractorBuilders()) {
+        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : learnToRankConfig.getFeatureExtractorBuilders()) {
             if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
                 Query query = executionContext.toQuery(queryExtractorBuilder.query().getParsedQuery()).query();
                 Weight weight = searcher.rewrite(query).createWeight(searcher, ScoreMode.COMPLETE, 1f);
@@ -77,11 +77,11 @@ public class InferenceRescorerContext extends RescoreContext {
 
     @Override
     public List<ParsedQuery> getParsedQueries() {
-        if (this.inferenceConfig == null) {
+        if (this.learnToRankConfig == null) {
             return List.of();
         }
         List<ParsedQuery> parsedQueries = new ArrayList<>();
-        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : inferenceConfig.getFeatureExtractorBuilders()) {
+        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : learnToRankConfig.getFeatureExtractorBuilders()) {
             if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
                 parsedQueries.add(executionContext.toQuery(queryExtractorBuilder.query().getParsedQuery()));
             }

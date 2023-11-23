@@ -285,6 +285,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         private void fetchNodeStats() {
             final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
+            nodesStatsRequest.setIncludeShardsStats(false);
             nodesStatsRequest.clear();
             nodesStatsRequest.addMetric(NodesStatsRequestParameters.Metric.FS.metricName());
             nodesStatsRequest.timeout(fetchTimeout);

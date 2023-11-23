@@ -86,6 +86,7 @@ public class RestClusterInfoAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         var nodesStatsRequest = new NodesStatsRequest().clear();
+        nodesStatsRequest.setIncludeShardsStats(false);
         var targets = Strings.tokenizeByCommaToSet(request.param("target"));
 
         if (targets.size() == 1 && targets.contains("_all")) {

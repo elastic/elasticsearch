@@ -123,12 +123,14 @@ public class AutoscalingNodeInfoService {
                 nodeToMemory = Collections.unmodifiableMap(builder);
             }
         };
+        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(
+            missingNodes.stream().map(DiscoveryNode::getId).toArray(String[]::new)
+        ).clear().addMetric(NodesStatsRequestParameters.Metric.OS.metricName()).timeout(fetchTimeout);
+        nodesStatsRequest.setIncludeShardsStats(false);
         client.admin()
             .cluster()
             .nodesStats(
-                new NodesStatsRequest(missingNodes.stream().map(DiscoveryNode::getId).toArray(String[]::new)).clear()
-                    .addMetric(NodesStatsRequestParameters.Metric.OS.metricName())
-                    .timeout(fetchTimeout),
+                nodesStatsRequest,
                 ActionListener.wrap(
                     nodesStatsResponse -> client.admin()
                         .cluster()

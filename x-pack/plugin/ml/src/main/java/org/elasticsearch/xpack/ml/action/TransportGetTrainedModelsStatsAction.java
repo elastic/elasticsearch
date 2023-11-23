@@ -391,6 +391,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         String[] ingestNodes = state.nodes().getIngestNodes().keySet().toArray(String[]::new);
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
             .addMetric(NodesStatsRequestParameters.Metric.INGEST.metricName());
+        nodesStatsRequest.setIncludeShardsStats(false);
         nodesStatsRequest.setParentTask(parentTaskId);
         return nodesStatsRequest;
     }

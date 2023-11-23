@@ -68,6 +68,7 @@ public class NodeStatsCollector extends Collector {
     @Override
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState) {
         NodesStatsRequest request = new NodesStatsRequest("_local");
+        request.setIncludeShardsStats(false);
         request.indices(FLAGS);
         request.addMetrics(
             NodesStatsRequestParameters.Metric.OS.metricName(),

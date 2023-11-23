@@ -1,4 +1,4 @@
-convertFromLong
+convertFromLong#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
 row long = 1512146573982606908
 | eval pt = to_geopoint(long);
 
@@ -6,7 +6,7 @@ long:long           |pt:geo_point
 1512146573982606908 |POINT(42.97109630194 14.7552534413725)
 ;
 
-convertFromString
+convertFromString#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
 row wkt = "POINT(42.97109630194 14.7552534413725)"
 | eval pt = to_geopoint(wkt);
 
@@ -14,7 +14,7 @@ wkt:keyword                              |pt:geo_point
 "POINT(42.97109630194 14.7552534413725)" |POINT(42.97109630194 14.7552534413725)
 ;
 
-convertFromLongArray
+convertFromLongArray#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
 row long = [1512146573982606908, 2329183180959557901]
 | eval pt = to_geopoint(long);
 
@@ -22,7 +22,7 @@ long:long                                  |pt:geo_point
 [1512146573982606908, 2329183180959557901] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
 ;
 
-convertFromStringArray
+convertFromStringArray#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
 row wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
 | eval pt = to_geopoint(wkt);
 
@@ -30,7 +30,7 @@ wkt:keyword                                                                     
 ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
 ;
 
-simpleLoad
+simpleLoad#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
 from airports | limit 10 | sort abbrev | where length(name) > 8;
 
 abbrev:keyword | location:geo_point                       | name:text                   | scalerank:i | type:k     

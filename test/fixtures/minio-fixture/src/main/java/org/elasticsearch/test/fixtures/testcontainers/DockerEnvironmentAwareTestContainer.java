@@ -45,7 +45,7 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<MinioT
     }
 
     private boolean shouldDockerBeAvailable() {
-        return CI == false || EXCLUDED_OS_FOUND;
+        return CI == false || EXCLUDED_OS_FOUND == false;
     }
 
     static String deriveId(Map<String, String> values) {

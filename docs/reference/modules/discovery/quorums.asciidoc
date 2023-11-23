@@ -15,7 +15,7 @@ those of the other piece.
 
 Elasticsearch allows you to add and remove master-eligible nodes to a running
 cluster. In many cases you can do this simply by starting or stopping the nodes
-as required. See <<add-elasticsearch-nodes>>.
+as required. See <<add-elasticsearch-nodes>> for more information.
 
 As nodes are added or removed Elasticsearch maintains an optimal level of fault
 tolerance by updating the cluster's <<modules-discovery-voting,voting
@@ -33,10 +33,17 @@ This means that if there are three or four master-eligible nodes, the cluster
 can tolerate one of them being unavailable. If there are two or fewer
 master-eligible nodes, they must all remain available.
 
-After a node has joined or left the cluster the elected master must issue a
-cluster-state update that adjusts the voting configuration to match, and this
-can take a short time to complete. It is important to wait for this adjustment
-to complete before removing more nodes from the cluster.
+If you stop half or more of the nodes in the voting configuration at the same
+time then the cluster will be unavailable until you bring enough nodes back
+online to form a quorum again. While the cluster is unavailable, any remaining
+nodes will report in their logs that they cannot discover or elect a master
+node. See <<discovery-troubleshooting>> for more information.
+
+After a master-eligible node has joined or left the cluster the elected master
+may issue a cluster-state update that adjusts the voting configuration to match,
+and this can take a short time to complete. It is important to wait for this
+adjustment to complete before removing more nodes from the cluster. See
+<<modules-discovery-removing-nodes>> for more information.
 
 [discrete]
 ==== Master elections

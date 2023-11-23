@@ -628,7 +628,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     }
 
-    public void testNoDefaultField() throws Exception {
+    public void testAllFieldsAreSearchableByDefault() throws Exception {
         final String dataStreamName = "logs-generic-default";
         createDataStream(client, dataStreamName);
 

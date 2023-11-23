@@ -38,14 +38,13 @@ public final class SqrtIntEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      IntBlock valBlock = (IntBlock) valRef.block();
+  public Block eval(Page page) {
+    try (IntBlock valBlock = (IntBlock) val.eval(page)) {
       IntVector valVector = valBlock.asVector();
       if (valVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), valBlock));
+        return eval(page.getPositionCount(), valBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valVector));
+      return eval(page.getPositionCount(), valVector);
     }
   }
 

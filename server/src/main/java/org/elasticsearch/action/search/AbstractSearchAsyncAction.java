@@ -259,7 +259,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (it.getTargetNodeIds().isEmpty() == false) {
                 boolean isCompatible = it.getTargetNodeIds().stream().anyMatch(nodeId -> {
                     Transport.Connection conn = getConnection(it.getClusterAlias(), nodeId);
-                    return conn == null ? true : conn.getVersion().onOrAfter(request.minCompatibleShardNode());
+                    return conn == null || conn.getNode().getVersion().onOrAfter(request.minCompatibleShardNode());
                 });
                 if (isCompatible == false) {
                     return false;
@@ -745,7 +745,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
         Transport.Connection conn = nodeIdToConnection.apply(clusterAlias, nodeId);
         Version minVersion = request.minCompatibleShardNode();
-        if (minVersion != null && conn != null && conn.getVersion().before(minVersion)) {
+        if (minVersion != null && conn != null && conn.getNode().getVersion().before(minVersion)) {
             throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]", minVersion);
         }
         return conn;

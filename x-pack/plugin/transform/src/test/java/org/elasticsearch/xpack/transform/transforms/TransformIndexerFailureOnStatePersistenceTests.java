@@ -281,7 +281,6 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     }
                 );
             }
-
         }
 
         // test reset on success

@@ -37,14 +37,13 @@ public final class AcosEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      DoubleBlock valBlock = (DoubleBlock) valRef.block();
+  public Block eval(Page page) {
+    try (DoubleBlock valBlock = (DoubleBlock) val.eval(page)) {
       DoubleVector valVector = valBlock.asVector();
       if (valVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), valBlock));
+        return eval(page.getPositionCount(), valBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valVector));
+      return eval(page.getPositionCount(), valVector);
     }
   }
 

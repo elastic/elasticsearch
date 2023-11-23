@@ -45,20 +45,18 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      BytesRefBlock valBlock = (BytesRefBlock) valRef.block();
-      try (Block.Ref formatterRef = formatter.eval(page)) {
-        BytesRefBlock formatterBlock = (BytesRefBlock) formatterRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock valBlock = (BytesRefBlock) val.eval(page)) {
+      try (BytesRefBlock formatterBlock = (BytesRefBlock) formatter.eval(page)) {
         BytesRefVector valVector = valBlock.asVector();
         if (valVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+          return eval(page.getPositionCount(), valBlock, formatterBlock);
         }
         BytesRefVector formatterVector = formatterBlock.asVector();
         if (formatterVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+          return eval(page.getPositionCount(), valBlock, formatterBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), valVector, formatterVector));
+        return eval(page.getPositionCount(), valVector, formatterVector);
       }
     }
   }

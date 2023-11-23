@@ -32,7 +32,6 @@ public class Types {
     static final ClassName PAGE = ClassName.get(DATA_PACKAGE, "Page");
     static final ClassName BLOCK = ClassName.get(DATA_PACKAGE, "Block");
     static final TypeName BLOCK_ARRAY = ArrayTypeName.of(BLOCK);
-    static final ClassName BLOCK_REF = ClassName.get(DATA_PACKAGE, "Block", "Ref");
     static final ClassName VECTOR = ClassName.get(DATA_PACKAGE, "Vector");
 
     static final ClassName BIG_ARRAYS = ClassName.get("org.elasticsearch.common.util", "BigArrays");

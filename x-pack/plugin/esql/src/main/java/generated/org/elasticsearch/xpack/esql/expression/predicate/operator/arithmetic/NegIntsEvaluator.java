@@ -37,14 +37,13 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref vRef = v.eval(page)) {
-      IntBlock vBlock = (IntBlock) vRef.block();
+  public Block eval(Page page) {
+    try (IntBlock vBlock = (IntBlock) v.eval(page)) {
       IntVector vVector = vBlock.asVector();
       if (vVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+        return eval(page.getPositionCount(), vBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), vVector));
+      return eval(page.getPositionCount(), vVector);
     }
   }
 

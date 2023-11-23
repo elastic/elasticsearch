@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DriverTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101095")
     public void testThreadContext() throws Exception {
         DriverContext driverContext = driverContext();
         ThreadPool threadPool = threadPool();
@@ -53,7 +54,7 @@ public class DriverTests extends ESTestCase {
                     assertRunningWithRegularUser(threadPool);
                     return super.getOutput();
                 }
-            }, List.of(warning1, new SwitchContextOperator(threadPool), warning2), new PageConsumerOperator(page -> {
+            }, List.of(warning1, new SwitchContextOperator(driverContext, threadPool), warning2), new PageConsumerOperator(page -> {
                 assertRunningWithRegularUser(threadPool);
                 outPages.add(page);
             }), () -> {});
@@ -106,8 +107,8 @@ public class DriverTests extends ESTestCase {
     static class SwitchContextOperator extends AsyncOperator {
         private final ThreadPool threadPool;
 
-        SwitchContextOperator(ThreadPool threadPool) {
-            super(between(1, 3));
+        SwitchContextOperator(DriverContext driverContext, ThreadPool threadPool) {
+            super(driverContext, between(1, 3));
             this.threadPool = threadPool;
         }
 

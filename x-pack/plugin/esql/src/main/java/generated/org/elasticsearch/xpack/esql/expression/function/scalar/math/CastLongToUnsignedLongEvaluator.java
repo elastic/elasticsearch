@@ -36,14 +36,13 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref vRef = v.eval(page)) {
-      LongBlock vBlock = (LongBlock) vRef.block();
+  public Block eval(Page page) {
+    try (LongBlock vBlock = (LongBlock) v.eval(page)) {
       LongVector vVector = vBlock.asVector();
       if (vVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+        return eval(page.getPositionCount(), vBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), vVector).asBlock());
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
   }
 

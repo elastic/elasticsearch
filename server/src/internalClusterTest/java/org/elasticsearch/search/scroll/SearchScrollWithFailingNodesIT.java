@@ -53,7 +53,7 @@ public class SearchScrollWithFailingNodesIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> writes = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            writes.add(client().prepareIndex("test").setSource(jsonBuilder().startObject().field("field", i).endObject()));
+            writes.add(prepareIndex("test").setSource(jsonBuilder().startObject().field("field", i).endObject()));
         }
         indexRandom(false, writes);
         refresh();

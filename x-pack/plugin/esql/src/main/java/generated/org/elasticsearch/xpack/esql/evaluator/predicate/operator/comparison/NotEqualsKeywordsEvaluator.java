@@ -42,20 +42,18 @@ public final class NotEqualsKeywordsEvaluator implements EvalOperator.Expression
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref lhsRef = lhs.eval(page)) {
-      BytesRefBlock lhsBlock = (BytesRefBlock) lhsRef.block();
-      try (Block.Ref rhsRef = rhs.eval(page)) {
-        BytesRefBlock rhsBlock = (BytesRefBlock) rhsRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock lhsBlock = (BytesRefBlock) lhs.eval(page)) {
+      try (BytesRefBlock rhsBlock = (BytesRefBlock) rhs.eval(page)) {
         BytesRefVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
         BytesRefVector rhsVector = rhsBlock.asVector();
         if (rhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector).asBlock());
+        return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
       }
     }
   }

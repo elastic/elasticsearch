@@ -142,8 +142,9 @@ public abstract class AggregatorBase extends Aggregator {
      * @return the cumulative size in bytes allocated by this aggregator to service this request
      */
     protected long addRequestCircuitBreakerBytes(long bytes) {
-        // Only use the potential to circuit break if bytes are being incremented
-        if (bytes > 0) {
+        // Only use the potential to circuit break if bytes are being incremented, In the case of 0
+        // bytes, it will trigger the parent circuit breaker.
+        if (bytes >= 0) {
             context.breaker().addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
         } else {
             context.breaker().addWithoutBreaking(bytes);

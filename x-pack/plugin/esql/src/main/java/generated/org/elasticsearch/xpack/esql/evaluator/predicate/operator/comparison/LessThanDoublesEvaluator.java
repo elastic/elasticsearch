@@ -41,20 +41,18 @@ public final class LessThanDoublesEvaluator implements EvalOperator.ExpressionEv
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref lhsRef = lhs.eval(page)) {
-      DoubleBlock lhsBlock = (DoubleBlock) lhsRef.block();
-      try (Block.Ref rhsRef = rhs.eval(page)) {
-        DoubleBlock rhsBlock = (DoubleBlock) rhsRef.block();
+  public Block eval(Page page) {
+    try (DoubleBlock lhsBlock = (DoubleBlock) lhs.eval(page)) {
+      try (DoubleBlock rhsBlock = (DoubleBlock) rhs.eval(page)) {
         DoubleVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
         DoubleVector rhsVector = rhsBlock.asVector();
         if (rhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector).asBlock());
+        return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
       }
     }
   }

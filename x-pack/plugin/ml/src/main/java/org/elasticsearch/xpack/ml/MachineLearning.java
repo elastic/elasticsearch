@@ -44,7 +44,6 @@ import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -485,8 +484,6 @@ public class MachineLearning extends Plugin
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";
 
     public static final String TRAINED_MODEL_CIRCUIT_BREAKER_NAME = "model_inference";
-
-    public static final NodeFeature STATE_RESET_FALLBACK_ON_DISABLED = new NodeFeature("ml.state_reset_fallback_on_disabled");
 
     private static final long DEFAULT_MODEL_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
     private static final double DEFAULT_MODEL_CIRCUIT_BREAKER_OVERHEAD = 1.0D;

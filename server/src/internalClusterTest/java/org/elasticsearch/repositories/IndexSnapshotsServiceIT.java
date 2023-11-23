@@ -137,7 +137,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             final SnapshotInfo snapshotInfo = createSnapshot(repoName, Strings.format("snap-%03d", i), snapshotIndices);
             if (snapshotInfo.indices().contains(indexName)) {
                 lastSnapshot = snapshotInfo;
-                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().execute().actionGet();
+                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().get();
                 IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(indexName);
                 expectedIndexMetadataId = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetadata);
             }

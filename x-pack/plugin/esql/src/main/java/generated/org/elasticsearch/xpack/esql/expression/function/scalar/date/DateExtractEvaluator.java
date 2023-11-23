@@ -46,20 +46,18 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valueRef = value.eval(page)) {
-      LongBlock valueBlock = (LongBlock) valueRef.block();
-      try (Block.Ref chronoFieldRef = chronoField.eval(page)) {
-        BytesRefBlock chronoFieldBlock = (BytesRefBlock) chronoFieldRef.block();
+  public Block eval(Page page) {
+    try (LongBlock valueBlock = (LongBlock) value.eval(page)) {
+      try (BytesRefBlock chronoFieldBlock = (BytesRefBlock) chronoField.eval(page)) {
         LongVector valueVector = valueBlock.asVector();
         if (valueVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valueBlock, chronoFieldBlock));
+          return eval(page.getPositionCount(), valueBlock, chronoFieldBlock);
         }
         BytesRefVector chronoFieldVector = chronoFieldBlock.asVector();
         if (chronoFieldVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valueBlock, chronoFieldBlock));
+          return eval(page.getPositionCount(), valueBlock, chronoFieldBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), valueVector, chronoFieldVector));
+        return eval(page.getPositionCount(), valueVector, chronoFieldVector);
       }
     }
   }

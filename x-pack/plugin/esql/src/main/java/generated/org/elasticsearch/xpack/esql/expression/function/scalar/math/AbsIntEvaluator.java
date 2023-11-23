@@ -36,14 +36,13 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref fieldValRef = fieldVal.eval(page)) {
-      IntBlock fieldValBlock = (IntBlock) fieldValRef.block();
+  public Block eval(Page page) {
+    try (IntBlock fieldValBlock = (IntBlock) fieldVal.eval(page)) {
       IntVector fieldValVector = fieldValBlock.asVector();
       if (fieldValVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), fieldValBlock));
+        return eval(page.getPositionCount(), fieldValBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), fieldValVector).asBlock());
+      return eval(page.getPositionCount(), fieldValVector).asBlock();
     }
   }
 

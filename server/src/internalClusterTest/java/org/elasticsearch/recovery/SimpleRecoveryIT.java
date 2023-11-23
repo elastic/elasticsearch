@@ -38,7 +38,7 @@ public class SimpleRecoveryIT extends ESIntegTestCase {
     }
 
     public void testSimpleRecovery() throws Exception {
-        assertAcked(prepareCreate("test", 1).execute().actionGet());
+        assertAcked(prepareCreate("test", 1).get());
 
         NumShards numShards = getNumShards("test");
 

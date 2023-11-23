@@ -8,7 +8,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteConnectionManager.ProxyConnection;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -27,8 +27,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -68,7 +68,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         // Add duplicate connect attempt to ensure that we do not get duplicate connections in the round robin
         remoteConnectionManager.connectToRemoteClusterNode(node1, validator, new PlainActionFuture<>());
 
-        DiscoveryNode node2 = DiscoveryNodeUtils.create("node-2", address, Version.CURRENT.minimumCompatibilityVersion());
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node-2", address);
         PlainActionFuture<Void> future2 = new PlainActionFuture<>();
         remoteConnectionManager.connectToRemoteClusterNode(node2, validator, future2);
         assertTrue(future2.isDone());
@@ -77,24 +77,23 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         assertEquals(node2, remoteConnectionManager.getConnection(node2).getNode());
 
         DiscoveryNode node4 = DiscoveryNodeUtils.create("node-4", address);
-        assertThat(remoteConnectionManager.getConnection(node4), instanceOf(RemoteConnectionManager.ProxyConnection.class));
+        assertThat(remoteConnectionManager.getConnection(node4), instanceOf(ProxyConnection.class));
 
         // Test round robin
-        Set<Version> versions = new HashSet<>();
-        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
-        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
+        Set<String> proxyNodes = new HashSet<>();
+        proxyNodes.add(((ProxyConnection) remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
+        proxyNodes.add(((ProxyConnection) remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
 
-        assertThat(versions, hasItems(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
+        assertThat(proxyNodes, containsInAnyOrder("node-1", "node-2"));
 
         // Test that the connection is cleared from the round robin list when it is closed
         remoteConnectionManager.getConnection(node1).close();
 
-        versions.clear();
-        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
-        versions.add(remoteConnectionManager.getConnection(node4).getVersion());
+        proxyNodes.clear();
+        proxyNodes.add(((ProxyConnection) remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
+        proxyNodes.add(((ProxyConnection) remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
 
-        assertThat(versions, hasItems(Version.CURRENT.minimumCompatibilityVersion()));
-        assertEquals(1, versions.size());
+        assertThat(proxyNodes, containsInAnyOrder("node-2"));
     }
 
     public void testResolveRemoteClusterAlias() throws ExecutionException, InterruptedException {
@@ -111,7 +110,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
 
         DiscoveryNode remoteNode2 = DiscoveryNodeUtils.create("remote-node-2", address);
         Transport.Connection proxyConnection = remoteConnectionManager.getConnection(remoteNode2);
-        assertThat(proxyConnection, instanceOf(RemoteConnectionManager.ProxyConnection.class));
+        assertThat(proxyConnection, instanceOf(ProxyConnection.class));
         assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(proxyConnection).get(), equalTo("remote-cluster"));
 
         PlainActionFuture<Transport.Connection> future2 = new PlainActionFuture<>();
@@ -154,11 +153,6 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         @Override
         public DiscoveryNode getNode() {
             return node;
-        }
-
-        @Override
-        public Version getVersion() {
-            return node.getVersion();
         }
 
         @Override

@@ -1,0 +1,7 @@
+pr: 102545
+summary: Fix LIMIT pushdown with MV_EXPAND
+area: ES|QL
+type: bug
+issues:
+ - 102084
+ - 102061

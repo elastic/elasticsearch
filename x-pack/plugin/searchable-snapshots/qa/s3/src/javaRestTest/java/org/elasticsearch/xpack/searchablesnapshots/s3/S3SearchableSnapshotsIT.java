@@ -31,7 +31,6 @@ public class S3SearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTest
         .setting("xpack.license.self_generated.type", "trial")
         .setting("s3.client.searchable_snapshots.protocol", () -> "http", (n) -> USE_FIXTURE)
         .setting("s3.client.searchable_snapshots.endpoint", s3Fixture::getAddress, (n) -> USE_FIXTURE)
-
         .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
         .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
         .setting("xpack.searchable_snapshots.cache_fetch_async_thread_pool.keep_alive", "0ms")

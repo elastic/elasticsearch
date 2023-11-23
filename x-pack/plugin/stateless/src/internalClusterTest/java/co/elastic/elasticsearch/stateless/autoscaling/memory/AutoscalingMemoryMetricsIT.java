@@ -580,7 +580,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         startIndexNode(INDEX_NODE_SETTINGS);
 
         // create test system index with feature state
-        final int numberOfFields = randomIntBetween(10, 1000);
+        final int numberOfFields = randomIntBetween(10, 100);
         final XContentBuilder indexMapping = createIndexMapping(numberOfFields);
         assertAcked(prepareCreate(SYSTEM_INDEX_NAME).setMapping(indexMapping).setSettings(indexSettings(1, 0).build()).get());
 

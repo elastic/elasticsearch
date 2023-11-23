@@ -69,16 +69,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             return null;
         }
         FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters> filterByFilterBuilder =
-            new FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters>(
-                name,
-                false,
-                false,
-                null,
-                context,
-                parent,
-                cardinality,
-                metadata
-            ) {
+            new FilterByFilterAggregator.AdapterBuilder<>(name, false, false, null, context, parent, cardinality, metadata) {
                 @Override
                 protected StringTermsAggregatorFromFilters adapt(
                     CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> delegate
@@ -164,7 +155,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         }
         TermsEnum terms = valuesSupplier.get().termsEnum();
         if (filters.getBuckets().size() > bucketCountThresholds.getShardSize()) {
-            PriorityQueue<OrdBucket> queue = new PriorityQueue<OrdBucket>(bucketCountThresholds.getShardSize()) {
+            PriorityQueue<OrdBucket> queue = new PriorityQueue<>(bucketCountThresholds.getShardSize()) {
                 private final Comparator<Bucket> comparator = order.comparator();
 
                 @Override

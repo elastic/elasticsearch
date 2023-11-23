@@ -13,7 +13,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
@@ -58,6 +57,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -176,84 +176,92 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
     }
 
     public void testStandAloneTimeSeriesAgg() {
-        SearchResponse response = prepareSearch("index").setSize(0).addAggregation(timeSeries("by_ts")).get();
-        assertNoFailures(response);
-        Aggregations aggregations = response.getAggregations();
-        assertNotNull(aggregations);
-        InternalTimeSeries timeSeries = aggregations.get("by_ts");
-        assertThat(
-            timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
-            equalTo(data.keySet())
-        );
-        for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
-            @SuppressWarnings("unchecked")
-            Map<String, String> key = (Map<String, String>) bucket.getKey();
-            assertThat((long) data.get(key).size(), equalTo(bucket.getDocCount()));
-        }
-    }
-
-    public void testTimeSeriesGroupedByADimension() {
-        String groupBy = "dim_" + randomIntBetween(0, numberOfDimensions - 1);
-        SearchResponse response = prepareSearch("index").setSize(0)
-            .addAggregation(
-                terms("by_dim").field(groupBy)
-                    .size(data.size())
-                    .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
-                    .subAggregation(timeSeries("by_ts"))
-            )
-            .get();
-        assertNoFailures(response);
-        Aggregations aggregations = response.getAggregations();
-        assertNotNull(aggregations);
-        Terms terms = aggregations.get("by_dim");
-        Set<Map<String, String>> keys = new HashSet<>();
-        for (Terms.Bucket term : terms.getBuckets()) {
-            InternalTimeSeries timeSeries = term.getAggregations().get("by_ts");
+        assertNoFailuresAndResponse(prepareSearch("index").setSize(0).addAggregation(timeSeries("by_ts")), response -> {
+            Aggregations aggregations = response.getAggregations();
+            assertNotNull(aggregations);
+            InternalTimeSeries timeSeries = aggregations.get("by_ts");
+            assertThat(
+                timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
+                equalTo(data.keySet())
+            );
             for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
                 @SuppressWarnings("unchecked")
                 Map<String, String> key = (Map<String, String>) bucket.getKey();
                 assertThat((long) data.get(key).size(), equalTo(bucket.getDocCount()));
-                assertTrue("key is not unique", keys.add(key));
-                assertThat("time series doesn't contain dimensions we grouped by", key.get(groupBy), equalTo(term.getKeyAsString()));
             }
-        }
-        assertThat(keys, equalTo(data.keySet()));
+        });
+    }
+
+    public void testTimeSeriesGroupedByADimension() {
+        String groupBy = "dim_" + randomIntBetween(0, numberOfDimensions - 1);
+        assertNoFailuresAndResponse(
+            prepareSearch("index").setSize(0)
+                .addAggregation(
+                    terms("by_dim").field(groupBy)
+                        .size(data.size())
+                        .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
+                        .subAggregation(timeSeries("by_ts"))
+                ),
+            response -> {
+                Aggregations aggregations = response.getAggregations();
+                assertNotNull(aggregations);
+                Terms terms = aggregations.get("by_dim");
+                Set<Map<String, String>> keys = new HashSet<>();
+                for (Terms.Bucket term : terms.getBuckets()) {
+                    InternalTimeSeries timeSeries = term.getAggregations().get("by_ts");
+                    for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, String> key = (Map<String, String>) bucket.getKey();
+                        assertThat((long) data.get(key).size(), equalTo(bucket.getDocCount()));
+                        assertTrue("key is not unique", keys.add(key));
+                        assertThat(
+                            "time series doesn't contain dimensions we grouped by",
+                            key.get(groupBy),
+                            equalTo(term.getKeyAsString())
+                        );
+                    }
+                }
+                assertThat(keys, equalTo(data.keySet()));
+            }
+        );
     }
 
     public void testTimeSeriesGroupedByDateHistogram() {
         DateHistogramInterval fixedInterval = DateHistogramInterval.days(randomIntBetween(10, 100));
-        SearchResponse response = prepareSearch("index").setSize(0)
-            .addAggregation(
-                dateHistogram("by_time").field("@timestamp")
-                    .fixedInterval(fixedInterval)
-                    .subAggregation(timeSeries("by_ts").subAggregation(stats("timestamp").field("@timestamp")))
-            )
-            .get();
-        assertNoFailures(response);
-        Aggregations aggregations = response.getAggregations();
-        assertNotNull(aggregations);
-        Histogram histogram = aggregations.get("by_time");
-        Map<Map<String, String>, Long> keys = new HashMap<>();
-        for (Histogram.Bucket interval : histogram.getBuckets()) {
-            long intervalStart = ((ZonedDateTime) interval.getKey()).toEpochSecond() * 1000;
-            long intervalEnd = intervalStart + fixedInterval.estimateMillis();
-            InternalTimeSeries timeSeries = interval.getAggregations().get("by_ts");
-            for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
-                @SuppressWarnings("unchecked")
-                Map<String, String> key = (Map<String, String>) bucket.getKey();
-                keys.compute(key, (k, v) -> (v == null ? 0 : v) + bucket.getDocCount());
-                assertThat(bucket.getDocCount(), lessThanOrEqualTo((long) data.get(key).size()));
-                Stats stats = bucket.getAggregations().get("timestamp");
-                long minTimestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(stats.getMinAsString());
-                long maxTimestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(stats.getMaxAsString());
-                assertThat(minTimestamp, greaterThanOrEqualTo(intervalStart));
-                assertThat(maxTimestamp, lessThan(intervalEnd));
+        assertNoFailuresAndResponse(
+            prepareSearch("index").setSize(0)
+                .addAggregation(
+                    dateHistogram("by_time").field("@timestamp")
+                        .fixedInterval(fixedInterval)
+                        .subAggregation(timeSeries("by_ts").subAggregation(stats("timestamp").field("@timestamp")))
+                ),
+            response -> {
+                Aggregations aggregations = response.getAggregations();
+                assertNotNull(aggregations);
+                Histogram histogram = aggregations.get("by_time");
+                Map<Map<String, String>, Long> keys = new HashMap<>();
+                for (Histogram.Bucket interval : histogram.getBuckets()) {
+                    long intervalStart = ((ZonedDateTime) interval.getKey()).toEpochSecond() * 1000;
+                    long intervalEnd = intervalStart + fixedInterval.estimateMillis();
+                    InternalTimeSeries timeSeries = interval.getAggregations().get("by_ts");
+                    for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, String> key = (Map<String, String>) bucket.getKey();
+                        keys.compute(key, (k, v) -> (v == null ? 0 : v) + bucket.getDocCount());
+                        assertThat(bucket.getDocCount(), lessThanOrEqualTo((long) data.get(key).size()));
+                        Stats stats = bucket.getAggregations().get("timestamp");
+                        long minTimestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(stats.getMinAsString());
+                        long maxTimestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(stats.getMaxAsString());
+                        assertThat(minTimestamp, greaterThanOrEqualTo(intervalStart));
+                        assertThat(maxTimestamp, lessThan(intervalEnd));
+                    }
+                }
+                assertThat(keys.keySet(), equalTo(data.keySet()));
+                for (Map.Entry<Map<String, String>, Long> entry : keys.entrySet()) {
+                    assertThat(entry.getValue(), equalTo((long) data.get(entry.getKey()).size()));
+                }
             }
-        }
-        assertThat(keys.keySet(), equalTo(data.keySet()));
-        for (Map.Entry<Map<String, String>, Long> entry : keys.entrySet()) {
-            assertThat(entry.getValue(), equalTo((long) data.get(entry.getKey()).size()));
-        }
+        );
     }
 
     public void testStandAloneTimeSeriesAggWithDimFilter() {
@@ -264,21 +272,24 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         if (include == false) {
             queryBuilder = QueryBuilders.boolQuery().mustNot(queryBuilder);
         }
-        SearchResponse response = prepareSearch("index").setQuery(queryBuilder).setSize(0).addAggregation(timeSeries("by_ts")).get();
-        assertNoFailures(response);
-        Aggregations aggregations = response.getAggregations();
-        assertNotNull(aggregations);
-        InternalTimeSeries timeSeries = aggregations.get("by_ts");
-        Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByDimension("dim_" + dim, val, include);
-        assertThat(
-            timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
-            equalTo(filteredData.keySet())
+        assertNoFailuresAndResponse(
+            prepareSearch("index").setQuery(queryBuilder).setSize(0).addAggregation(timeSeries("by_ts")),
+            response -> {
+                Aggregations aggregations = response.getAggregations();
+                assertNotNull(aggregations);
+                InternalTimeSeries timeSeries = aggregations.get("by_ts");
+                Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByDimension("dim_" + dim, val, include);
+                assertThat(
+                    timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
+                    equalTo(filteredData.keySet())
+                );
+                for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> key = (Map<String, String>) bucket.getKey();
+                    assertThat(bucket.getDocCount(), equalTo((long) filteredData.get(key).size()));
+                }
+            }
         );
-        for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
-            @SuppressWarnings("unchecked")
-            Map<String, String> key = (Map<String, String>) bucket.getKey();
-            assertThat(bucket.getDocCount(), equalTo((long) filteredData.get(key).size()));
-        }
     }
 
     public void testStandAloneTimeSeriesAggWithGlobalAggregation() {
@@ -290,32 +301,34 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         if (include == false) {
             queryBuilder = QueryBuilders.boolQuery().mustNot(queryBuilder);
         }
-        SearchResponse response = prepareSearch("index").setQuery(queryBuilder)
-            .setSize(0)
-            .addAggregation(timeSeries("by_ts").subAggregation(sum("filter_sum").field("metric_" + metric)))
-            .addAggregation(global("everything").subAggregation(sum("all_sum").field("metric_" + metric)))
-            .addAggregation(PipelineAggregatorBuilders.sumBucket("total_filter_sum", "by_ts>filter_sum"))
-            .get();
-        assertNoFailures(response);
-        Aggregations aggregations = response.getAggregations();
-        assertNotNull(aggregations);
-        InternalTimeSeries timeSeries = aggregations.get("by_ts");
-        Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByDimension("dim_" + dim, val, include);
-        assertThat(
-            timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
-            equalTo(filteredData.keySet())
-        );
-        for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
-            @SuppressWarnings("unchecked")
-            Map<String, String> key = (Map<String, String>) bucket.getKey();
-            assertThat(bucket.getDocCount(), equalTo((long) filteredData.get(key).size()));
-        }
-        SimpleValue obj = aggregations.get("total_filter_sum");
-        assertThat(obj.value(), closeTo(sumByMetric(filteredData, "metric_" + metric), obj.value() * 0.0001));
+        assertNoFailuresAndResponse(
+            prepareSearch("index").setQuery(queryBuilder)
+                .setSize(0)
+                .addAggregation(timeSeries("by_ts").subAggregation(sum("filter_sum").field("metric_" + metric)))
+                .addAggregation(global("everything").subAggregation(sum("all_sum").field("metric_" + metric)))
+                .addAggregation(PipelineAggregatorBuilders.sumBucket("total_filter_sum", "by_ts>filter_sum")),
+            response -> {
+                Aggregations aggregations = response.getAggregations();
+                assertNotNull(aggregations);
+                InternalTimeSeries timeSeries = aggregations.get("by_ts");
+                Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByDimension("dim_" + dim, val, include);
+                assertThat(
+                    timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
+                    equalTo(filteredData.keySet())
+                );
+                for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> key = (Map<String, String>) bucket.getKey();
+                    assertThat(bucket.getDocCount(), equalTo((long) filteredData.get(key).size()));
+                }
+                SimpleValue obj = aggregations.get("total_filter_sum");
+                assertThat(obj.value(), closeTo(sumByMetric(filteredData, "metric_" + metric), obj.value() * 0.0001));
 
-        Global global = aggregations.get("everything");
-        Sum allSum = global.getAggregations().get("all_sum");
-        assertThat(allSum.value(), closeTo(sumByMetric(data, "metric_" + metric), allSum.value() * 0.0001));
+                Global global = aggregations.get("everything");
+                Sum allSum = global.getAggregations().get("all_sum");
+                assertThat(allSum.value(), closeTo(sumByMetric(data, "metric_" + metric), allSum.value() * 0.0001));
+            }
+        );
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
@@ -337,21 +350,29 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         } else {
             queryBuilder.lte(val);
         }
-        SearchResponse response = prepareSearch("index").setQuery(queryBuilder).setSize(0).addAggregation(timeSeries("by_ts")).get();
-        assertNoFailures(response);
-        Aggregations aggregations = response.getAggregations();
-        assertNotNull(aggregations);
-        InternalTimeSeries timeSeries = aggregations.get("by_ts");
-        Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByMetric(data, "metric_" + metric, val, above);
-        assertThat(
-            timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
-            equalTo(filteredData.keySet())
+        assertNoFailuresAndResponse(
+            prepareSearch("index").setQuery(queryBuilder).setSize(0).addAggregation(timeSeries("by_ts")),
+            response -> {
+                Aggregations aggregations = response.getAggregations();
+                assertNotNull(aggregations);
+                InternalTimeSeries timeSeries = aggregations.get("by_ts");
+                Map<Map<String, String>, Map<Long, Map<String, Double>>> filteredData = dataFilteredByMetric(
+                    data,
+                    "metric_" + metric,
+                    val,
+                    above
+                );
+                assertThat(
+                    timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
+                    equalTo(filteredData.keySet())
+                );
+                for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> key = (Map<String, String>) bucket.getKey();
+                    assertThat(bucket.getDocCount(), equalTo((long) filteredData.get(key).size()));
+                }
+            }
         );
-        for (InternalTimeSeries.Bucket bucket : timeSeries.getBuckets()) {
-            @SuppressWarnings("unchecked")
-            Map<String, String> key = (Map<String, String>) bucket.getKey();
-            assertThat(bucket.getDocCount(), equalTo((long) filteredData.get(key).size()));
-        }
     }
 
     public void testRetrievingHits() {

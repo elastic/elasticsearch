@@ -172,7 +172,7 @@ public class TransformConfigVersionTests extends ESTestCase {
             .version(VersionInformation.inferVersions(Version.fromString("8.7.0")))
             .build();
         TransformConfigVersion TransformConfigVersion1 = TransformConfigVersion.getTransformConfigVersionForNode(node1);
-        assertEquals(TransformConfigVersion.fromVersion(Version.V_8_5_0), TransformConfigVersion1);
+        assertEquals(TransformConfigVersion.V_8_5_0, TransformConfigVersion1);
     }
 
     public void testDefinedConstants() throws IllegalAccessException {
@@ -246,19 +246,6 @@ public class TransformConfigVersionTests extends ESTestCase {
         );
     }
 
-    public void testFromVersion() {
-        Version version_V_7_7_0 = Version.V_7_0_0;
-        TransformConfigVersion TransformConfigVersion_V_7_7_0 = TransformConfigVersion.fromVersion(version_V_7_7_0);
-        assertEquals(version_V_7_7_0.id, TransformConfigVersion_V_7_7_0.id());
-
-        // Version 8.10.0 is treated as if it is TransformConfigVersion V_10.
-        assertEquals(TransformConfigVersion.V_10.id(), TransformConfigVersion.fromVersion(Version.V_8_10_0).id());
-
-        // There's no mapping between Version and TransformConfigVersion values after Version.V_8_10_0.
-        Exception e = expectThrows(IllegalArgumentException.class, () -> TransformConfigVersion.fromVersion(Version.fromId(8_11_00_99)));
-        assertEquals("Cannot convert " + Version.fromId(8_11_00_99) + ". Incompatible version", e.getMessage());
-    }
-
     public void testVersionConstantPresent() {
         Set<TransformConfigVersion> ignore = Set.of(
             TransformConfigVersion.ZERO,
@@ -316,13 +303,9 @@ public class TransformConfigVersionTests extends ESTestCase {
         assertEquals(false, KnownTransformConfigVersions.ALL_VERSIONS.contains(unknownVersion));
         assertEquals(TransformConfigVersion.CURRENT.id() + 1, unknownVersion.id());
 
-        for (String version : new String[] { "10.2", "7.17.2.99" }) {
+        for (String version : new String[] { "10.2", "7.17.2.99", "9" }) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> TransformConfigVersion.fromString(version));
-            assertEquals("the version needs to contain major, minor, and revision, and optionally the build: " + version, e.getMessage());
+            assertEquals("Transform config version [" + version + "] not valid", e.getMessage());
         }
-
-        String version = "9";
-        Exception e = expectThrows(IllegalArgumentException.class, () -> TransformConfigVersion.fromString(version));
-        assertEquals("the version needs to contain major, minor, and revision, and optionally the build: " + version, e.getMessage());
     }
 }

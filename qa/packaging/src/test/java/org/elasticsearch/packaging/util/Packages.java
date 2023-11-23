@@ -310,7 +310,7 @@ public class Packages {
      * when instantiated, and advancing that cursor when the {@code clear()}
      * method is called.
      */
-    public static class JournaldWrapper {
+    public static final class JournaldWrapper {
         private Shell sh;
         private String cursor;
 
@@ -318,7 +318,6 @@ public class Packages {
          * Create a new wrapper for Elasticsearch JournalD logs.
          * @param sh A shell with appropriate permissions.
          */
-        @SuppressWarnings("this-escape")
         public JournaldWrapper(Shell sh) {
             this.sh = sh;
             clear();

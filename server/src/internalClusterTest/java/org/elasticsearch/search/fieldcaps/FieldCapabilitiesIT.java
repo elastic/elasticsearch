@@ -58,7 +58,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -192,11 +191,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
-    }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     public void testFieldAlias() {
@@ -469,17 +463,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         try {
             final AtomicBoolean failedRequest = new AtomicBoolean();
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.addRequestHandlingBehavior(
-                    TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
-                    (handler, request, channel, task) -> {
+                MockTransportService.getInstance(node)
+                    .addRequestHandlingBehavior(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, (handler, request, channel, task) -> {
                         if (failedRequest.compareAndSet(false, true)) {
                             channel.sendResponse(new CircuitBreakingException("Simulated", CircuitBreaker.Durability.TRANSIENT));
                         } else {
                             handler.messageReceived(request, channel, task);
                         }
-                    }
-                );
+                    });
             }
             FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
             request.indices("log-index-*");
@@ -495,8 +486,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertThat(response.getField("field1"), hasKey("keyword"));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.clearAllRules();
+                MockTransportService.getInstance(node).clearAllRules();
             }
         }
     }
@@ -559,8 +549,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     assertNotNull(toNode);
                     clusterAdmin().prepareReroute()
                         .add(new MoveAllocationCommand(shardId.getIndexName(), shardId.id(), fromNode.getId(), toNode.getId()))
-                        .execute()
-                        .actionGet();
+                        .get();
                 }
             }
         }
@@ -571,16 +560,13 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         try {
             final AtomicBoolean relocated = new AtomicBoolean();
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.addRequestHandlingBehavior(
-                    TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
-                    (handler, request, channel, task) -> {
+                MockTransportService.getInstance(node)
+                    .addRequestHandlingBehavior(TransportFieldCapabilitiesAction.ACTION_NODE_NAME, (handler, request, channel, task) -> {
                         if (relocated.compareAndSet(false, true)) {
                             moveOrCloseShardsOnNodes(node);
                         }
                         handler.messageReceived(request, channel, task);
-                    }
-                );
+                    });
             }
             FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
             request.indices("log-index-*");
@@ -595,8 +581,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertThat(response.getField("field1"), hasKey("long"));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-                transportService.clearAllRules();
+                MockTransportService.getInstance(node).clearAllRules();
             }
         }
     }
@@ -678,7 +663,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 )
             );
             BlockingOnRewriteQueryBuilder.blockOnRewrite();
-            PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Response> future = new PlainActionFuture<>();
             Request restRequest = new Request("POST", "/_field_caps?fields=*");
             restRequest.setEntity(new StringEntity("""
                       {

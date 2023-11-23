@@ -12,6 +12,13 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
 }
 
+normalization {
+  runtimeClasspath {
+    ignore 'krb5.conf'
+    ignore '*.keytab'
+  }
+}
+
 tasks.register("copyKeytabToGeneratedResources", Copy) {
   from project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "peppa.keytab")
   into "$buildDir/generated-resources/keytabs"
@@ -28,6 +35,7 @@ tasks.register("copyConfToGeneratedResources", Copy) {
 
 String realm = "BUILD.ELASTIC.CO"
 tasks.named("javaRestTest").configure {
+  dependsOn "copyKeytabToGeneratedResources", "copyConfToGeneratedResources"
   usesDefaultDistribution()
   Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
   Path krb5Conf = Paths.get("${project.buildDir}", "generated-resources", "conf", "krb5.conf")
@@ -35,12 +43,9 @@ tasks.named("javaRestTest").configure {
   nonInputProperties.systemProperty 'test.userkt.keytab', "${peppaKeytab}"
   nonInputProperties.systemProperty 'test.userpwd', "george@${realm}"
   nonInputProperties.systemProperty 'test.krb5.conf', "${krb5Conf}"
+  nonInputProperties.systemProperty 'java.security.krb5.conf', "${krb5Conf}"
   systemProperty 'test.userpwd.password', "dino_but_longer_than_14_chars"
-  jvmArgs([
-    "-Djava.security.krb5.conf=${krb5Conf}",
-    "-Dsun.security.krb5.debug=true"
-  ])
-  dependsOn "copyKeytabToGeneratedResources", "copyConfToGeneratedResources"
+  systemProperty 'sun.security.krb5.debug', true
   classpath += files("$buildDir/generated-resources/keytabs")
   classpath += files("$buildDir/generated-resources/conf")
 }

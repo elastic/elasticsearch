@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -23,10 +27,12 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -34,11 +40,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalDouble;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -50,6 +58,8 @@ import java.util.stream.LongStream;
 import static java.util.Comparator.comparing;
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.allOf;
@@ -67,7 +77,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
-
     long epoch = System.currentTimeMillis();
 
     @Before
@@ -81,7 +90,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat(getValuesList(results).size(), equalTo(40));
             assertThat(getValuesList(results).get(0).get(0), equalTo(1));
         }
-
     }
 
     public void testStatsOverConstant() {
@@ -1180,6 +1188,17 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testLoadId() {
+        try (EsqlQueryResponse results = run("from test [metadata _id] | keep _id | sort _id ")) {
+            assertThat(results.columns(), equalTo(List.of(new ColumnInfo("_id", "keyword"))));
+            ListMatcher values = matchesList();
+            for (int i = 10; i < 50; i++) {
+                values = values.item(List.of(Integer.toString(i)));
+            }
+            assertMap(getValuesList(results), values);
+        }
+    }
+
     public void testUnsupportedTypesOrdinalGrouping() {
         assertAcked(
             client().admin().indices().prepareCreate("index-1").setMapping("f1", "type=keyword", "f2", "type=keyword", "v", "type=long")
@@ -1224,8 +1243,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testStatsNestFields() {
-        String node1 = internalCluster().startDataOnlyNode();
-        String node2 = internalCluster().startDataOnlyNode();
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
         assertAcked(
             client().admin()
                 .indices()
@@ -1254,6 +1280,71 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(1, valuesList.size());
 
             assertThat(valuesList.get(0), contains(null, null));
+        }
+    }
+
+    public void testStatsMissingFields() {
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("foo-index")
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", node1))
+                .setMapping("foo_int", "type=integer", "foo_long", "type=long", "foo_float", "type=float", "foo_double", "type=double")
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("bar-index")
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
+                .setMapping("bar_int", "type=integer", "bar_long", "type=long", "bar_float", "type=float", "bar_double", "type=double")
+        );
+        var fields = List.of("foo_int", "foo_long", "foo_float", "foo_double");
+        var functions = List.of("sum", "count", "avg", "count_distinct");
+        for (String field : fields) {
+            for (String function : functions) {
+                String stat = String.format(Locale.ROOT, "stats s = %s(%s)", function, field);
+                String command = String.format(Locale.ROOT, "from foo-index,bar-index | where %s is not null | %s", field, stat);
+                try (var resp = run(command)) {
+                    var valuesList = getValuesList(resp);
+                    assertEquals(1, resp.columns().size());
+                    assertEquals(1, valuesList.size());
+                }
+            }
+        }
+    }
+
+    public void testCountTextField() {
+        assertAcked(client().admin().indices().prepareCreate("test_count").setMapping("name", "type=text"));
+        int numDocs = between(10, 1000);
+        Set<String> names = new HashSet<>();
+        for (int i = 0; i < numDocs; i++) {
+            String name = "name-" + randomIntBetween(1, 100);
+            names.add(name);
+            IndexRequestBuilder indexRequest = client().prepareIndex("test_count").setSource("name", name);
+            if (randomInt(100) < 5) {
+                indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            }
+            indexRequest.get();
+        }
+        client().admin().indices().prepareRefresh("test_count").get();
+        try (EsqlQueryResponse resp = run("FROM test_count | stats COUNT_DISTINCT(name)")) {
+            Iterator<Object> row = resp.values().next();
+            assertThat(row.next(), equalTo((long) names.size()));
+            assertFalse(row.hasNext());
+        }
+        try (EsqlQueryResponse resp = run("FROM test_count | stats COUNT(name)")) {
+            Iterator<Object> row = resp.values().next();
+            assertThat(row.next(), equalTo((long) numDocs));
+            assertFalse(row.hasNext());
         }
     }
 
@@ -1389,5 +1480,52 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .get();
         }
         ensureYellow(indexName);
+    }
+
+    public void testDefaultTruncationSizeSetting() {
+        ClusterAdminClient client = admin().cluster();
+
+        Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getKey(), 1).build();
+
+        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(settings);
+
+        client.updateSettings(settingsRequest).actionGet();
+        try (EsqlQueryResponse results = run("from test")) {
+            logger.info(results);
+            assertEquals(1, getValuesList(results).size());
+        } finally {
+            clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE);
+        }
+    }
+
+    public void testMaxTruncationSizeSetting() {
+        ClusterAdminClient client = admin().cluster();
+
+        Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getKey(), 10).build();
+
+        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(settings);
+
+        client.updateSettings(settingsRequest).actionGet();
+        try (EsqlQueryResponse results = run("from test | limit 40")) {
+            logger.info(results);
+            assertEquals(10, getValuesList(results).size());
+        } finally {
+            clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        }
+    }
+
+    private void clearPersistentSettings(Setting<?>... settings) {
+        Settings.Builder clearedSettings = Settings.builder();
+
+        for (Setting<?> s : settings) {
+            clearedSettings.putNull(s.getKey());
+        }
+
+        var clearSettingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(clearedSettings.build());
+        admin().cluster().updateSettings(clearSettingsRequest).actionGet();
+    }
+
+    private DiscoveryNode randomDataNode() {
+        return randomFrom(clusterService().state().nodes().getDataNodes().values());
     }
 }

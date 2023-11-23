@@ -75,7 +75,6 @@ import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 
 import java.util.List;
 
@@ -98,13 +97,6 @@ public class AggregationBuilders {
      */
     public static AvgAggregationBuilder avg(String name) {
         return new AvgAggregationBuilder(name);
-    }
-
-    /**
-     * Create a new {@link Avg} aggregation with the given name.
-     */
-    public static WeightedAvgAggregationBuilder weightedAvg(String name) {
-        return new WeightedAvgAggregationBuilder(name);
     }
 
     /**

@@ -440,6 +440,17 @@ GET my-index-000001/_search
 Finally you can force an accurate count by setting `"track_total_hits"`
 to `true` in the request.
 
+[TIP]
+=========================================
+The `track_total_hits` parameter allows you to trade hit count accuracy for performance.
+In general the lower the value of `track_total_hits` the faster the query will be,
+with `false` returning the fastest results.
+Setting `track_total_hits` to true will cause {es} to return exact hit counts, which could
+hurt query performance because it disables the
+https://www.elastic.co/blog/faster-retrieval-of-top-hits-in-elasticsearch-with-block-max-wand[Max WAND]
+optimization.
+=========================================
+
 [discrete]
 [[quickly-check-for-matching-docs]]
 === Quickly check for matching docs

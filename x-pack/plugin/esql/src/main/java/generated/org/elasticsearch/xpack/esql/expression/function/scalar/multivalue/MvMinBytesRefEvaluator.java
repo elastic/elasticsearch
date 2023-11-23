@@ -42,7 +42,7 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
     try (ref) {
       BytesRefBlock v = (BytesRefBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
         BytesRef firstScratch = new BytesRef();
         BytesRef nextScratch = new BytesRef();
         for (int p = 0; p < positionCount; p++) {
@@ -77,7 +77,7 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
     try (ref) {
       BytesRefBlock v = (BytesRefBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (BytesRefVector.Builder builder = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      try (BytesRefVector.Builder builder = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
         BytesRef firstScratch = new BytesRef();
         BytesRef nextScratch = new BytesRef();
         for (int p = 0; p < positionCount; p++) {
@@ -104,7 +104,7 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
     try (ref) {
       BytesRefBlock v = (BytesRefBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
         BytesRef firstScratch = new BytesRef();
         BytesRef nextScratch = new BytesRef();
         for (int p = 0; p < positionCount; p++) {
@@ -130,7 +130,7 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
     try (ref) {
       BytesRefBlock v = (BytesRefBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (BytesRefVector.Builder builder = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      try (BytesRefVector.Builder builder = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
         BytesRef firstScratch = new BytesRef();
         BytesRef nextScratch = new BytesRef();
         for (int p = 0; p < positionCount; p++) {
@@ -142,6 +142,24 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
         }
         return Block.Ref.floating(builder.build().asBlock());
       }
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMinBytesRefEvaluator get(DriverContext context) {
+      return new MvMinBytesRefEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMin[field=" + field + "]";
     }
   }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -27,7 +26,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -69,15 +67,8 @@ public class NodeLeftExecutorTests extends ESTestCase {
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
         final NodeLeftExecutor executor = new NodeLeftExecutor(allocationService) {
             @Override
-            protected ClusterState remainingNodesClusterState(
-                ClusterState currentState,
-                DiscoveryNodes.Builder remainingNodesBuilder,
-                Map<String, CompatibilityVersions> compatibilityVersions
-            ) {
-                remainingNodesClusterState.set(
-                    super.remainingNodesClusterState(currentState, remainingNodesBuilder, compatibilityVersions)
-                );
-                return remainingNodesClusterState.get();
+            void remainingNodesClusterState(ClusterState state) {
+                remainingNodesClusterState.set(state);
             }
         };
 

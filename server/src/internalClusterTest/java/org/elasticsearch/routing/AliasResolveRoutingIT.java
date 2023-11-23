@@ -51,7 +51,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
     public void testResolveIndexRouting() {
         createIndex("test1");
         createIndex("test2");
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         indicesAdmin().prepareAliases()
             .addAliasAction(AliasActions.add().index("test1").alias("alias"))
@@ -93,7 +93,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         createIndex("test1");
         createIndex("test2");
         createIndex("test3");
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         indicesAdmin().prepareAliases()
             .addAliasAction(AliasActions.add().index("test1").alias("alias"))

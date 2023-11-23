@@ -12,6 +12,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -30,6 +31,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -52,8 +54,13 @@ import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -61,12 +68,14 @@ import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -107,19 +116,28 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "ip" -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
             case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
-            case "version" -> new Version(randomIdentifier()).toBytesRef();
+            case "version" -> randomVersion().toBytesRef();
             case "null" -> null;
+            case "_source" -> {
+                try {
+                    yield BytesReference.bytes(
+                        JsonXContent.contentBuilder().startObject().field(randomAlphaOfLength(3), randomAlphaOfLength(10)).endObject()
+                    ).toBytesRef();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
             default -> throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
         }, type);
     }
 
     protected TestCaseSupplier.TestCase testCase;
 
-    protected static Iterable<Object[]> parameterSuppliersFromTypedData(List<TestCaseSupplier> cases) {
+    protected static Iterable<Object[]> parameterSuppliersFromTypedData(List<TestCaseSupplier> suppliers) {
         // TODO rename this method to something more descriptive. Javadoc. And make sure all parameters are "representable" types.
-        List<Object[]> parameters = new ArrayList<>(cases.size());
-        for (TestCaseSupplier element : cases) {
-            parameters.add(new Object[] { element });
+        List<Object[]> parameters = new ArrayList<>(suppliers.size());
+        for (TestCaseSupplier supplier : suppliers) {
+            parameters.add(new Object[] { supplier });
         }
         return parameters;
     }
@@ -456,10 +474,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public final void testEvaluatorToString() {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
-        var supplier = evaluator(buildFieldExpression(testCase));
-        try (ExpressionEvaluator ev = supplier.get(driverContext())) {
+        var factory = evaluator(buildFieldExpression(testCase));
+        try (ExpressionEvaluator ev = factory.get(driverContext())) {
             assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
         }
+    }
+
+    public final void testFactoryToString() {
+        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        var factory = evaluator(buildFieldExpression(testCase));
+        assertThat(factory.toString(), equalTo(testCase.evaluatorToString));
     }
 
     public final void testFold() {
@@ -484,13 +509,34 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertSerialization(buildFieldExpression(testCase));
     }
 
+    private static boolean ranAllTests = false;
+
+    @ClassRule
+    public static TestRule rule = new TestRule() {
+        @Override
+        public Statement apply(Statement base, Description description) {
+            for (Description d : description.getChildren()) {
+                if (d.getChildren().size() > 1) {
+                    ranAllTests = true;
+                    return base;
+                }
+            }
+            return base;
+        }
+    };
+
     @AfterClass
     public static void testFunctionInfo() {
+        if (ranAllTests == false) {
+            LogManager.getLogger(getTestClass()).info("Skipping function info checks because we're running a portion of the tests");
+            return;
+        }
         FunctionDefinition definition = definition();
         if (definition == null) {
             LogManager.getLogger(getTestClass()).info("Skipping function info checks because the function isn't registered");
             return;
         }
+        LogManager.getLogger(getTestClass()).info("Running function info checks");
         EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
         List<EsqlFunctionRegistry.ArgSignature> args = description.args();
 
@@ -508,17 +554,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         for (int i = 0; i < args.size(); i++) {
-            Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toSet());
+            Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toCollection(() -> new TreeSet<>()));
             if (annotationTypes.equals(Set.of("?"))) {
                 continue; // TODO remove this eventually, so that all the functions will have to provide signature info
             }
             Set<String> signatureTypes = typesFromSignature.get(i);
+            if (signatureTypes.isEmpty()) {
+                continue;
+            }
             assertEquals(annotationTypes, signatureTypes);
         }
 
-        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toSet());
-        if (returnTypes.equals(Set.of("?")) == false) { // TODO remove this eventually, so that all the functions will have to provide
-                                                        // singature info
+        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(() -> new TreeSet<>()));
+        if (returnTypes.equals(Set.of("?")) == false) {
+            // TODO remove this eventually, so that all the functions will have to provide signature info
             assertEquals(returnTypes, returnFromSignature);
         }
     }
@@ -536,11 +585,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      *                                   on input types like {@link Greatest} or {@link Coalesce}.
      */
     protected static List<TestCaseSupplier> anyNullIsNull(boolean entirelyNullPreservesType, List<TestCaseSupplier> testCaseSuppliers) {
-        for (TestCaseSupplier s : testCaseSuppliers) {
-            if (s.types() == null) {
-                throw new IllegalArgumentException("types required");
-            }
-        }
+        typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
@@ -615,11 +660,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * that they throw type errors.
      */
     protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
-        for (TestCaseSupplier s : testCaseSuppliers) {
-            if (s.types() == null) {
-                throw new IllegalArgumentException("types required");
-            }
-        }
+        typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
@@ -642,6 +683,37 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types))
             .forEach(suppliers::add);
         return suppliers;
+    }
+
+    /**
+     * Adds test cases containing unsupported parameter types that immediately fail.
+     */
+    protected static List<TestCaseSupplier> failureForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
+        typesRequired(testCaseSuppliers);
+        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
+        suppliers.addAll(testCaseSuppliers);
+
+        Set<List<DataType>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
+        List<Set<DataType>> validPerPosition = validPerPosition(valid);
+
+        testCaseSuppliers.stream()
+            .map(s -> s.types().size())
+            .collect(Collectors.toSet())
+            .stream()
+            .flatMap(count -> allPermutations(count))
+            .filter(types -> valid.contains(types) == false)
+            .map(types -> new TestCaseSupplier("type error for " + TestCaseSupplier.nameFromTypes(types), types, () -> {
+                throw new IllegalStateException("must implement a case for " + types);
+            }))
+            .forEach(suppliers::add);
+        return suppliers;
+    }
+
+    private static void typesRequired(List<TestCaseSupplier> suppliers) {
+        String bad = suppliers.stream().filter(s -> s.types() == null).map(s -> s.name()).collect(Collectors.joining("\n"));
+        if (bad.equals("") == false) {
+            throw new IllegalArgumentException("types required but not found for these tests:\n" + bad);
+        }
     }
 
     private static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
@@ -735,7 +807,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
              * don't have a test case covering explicit `null` arguments in
              * this position. Generally you can get that with anyNullIsNull.
              */
-            throw new UnsupportedOperationException("can't guess expected types for " + validTypes);
+            throw new UnsupportedOperationException(
+                "can't guess expected types for " + validTypes.stream().sorted(Comparator.comparing(t -> t.typeName())).toList()
+            );
         }
         return named;
     }
@@ -747,6 +821,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     @AfterClass
     public static void renderSignature() throws IOException {
         if (System.getProperty("generateDocs") == null) {
+            return;
+        }
+        if (ranAllTests == false) {
+            LogManager.getLogger(getTestClass()).info("Skipping rendering signature because we're running a portion of the tests");
             return;
         }
         FunctionDefinition definition = definition();
@@ -882,5 +960,22 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (CircuitBreaker breaker : breakers) {
             assertThat(breaker.getUsed(), equalTo(0L));
         }
+    }
+
+    static Version randomVersion() {
+        // TODO degenerate versions and stuff
+        return switch (between(0, 2)) {
+            case 0 -> new Version(Integer.toString(between(0, 100)));
+            case 1 -> new Version(between(0, 100) + "." + between(0, 100));
+            case 2 -> new Version(between(0, 100) + "." + between(0, 100) + "." + between(0, 100));
+            default -> throw new IllegalArgumentException();
+        };
+    }
+
+    /**
+     * All string types (keyword, text, match_only_text, etc).
+     */
+    protected static DataType[] strings() {
+        return EsqlDataTypes.types().stream().filter(DataTypes::isString).toArray(DataType[]::new);
     }
 }

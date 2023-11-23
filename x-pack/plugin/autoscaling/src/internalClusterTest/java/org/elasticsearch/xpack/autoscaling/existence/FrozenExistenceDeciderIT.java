@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.autoscaling.AbstractFrozenAutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.WaitForDataTierStep;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -72,10 +74,15 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(BlobCachePlugin.class, LocalStateAutoscalingAndSearchableSnapshotsAndIndexLifecycle.class);
+        return List.of(
+            BlobCachePlugin.class,
+            LocalStateAutoscalingAndSearchableSnapshotsAndIndexLifecycle.class,
+            SnapshotLifecycle.class,
+            Ccr.class
+        );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89082")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102405")
     public void testZeroToOne() throws Exception {
         internalCluster().startMasterOnlyNode();
         setupRepoAndPolicy();

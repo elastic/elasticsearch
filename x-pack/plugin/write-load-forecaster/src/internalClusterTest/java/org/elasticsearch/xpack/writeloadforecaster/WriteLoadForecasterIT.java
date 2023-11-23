@@ -153,16 +153,11 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
             client().execute(
                 PutComposableIndexTemplateAction.INSTANCE,
                 new PutComposableIndexTemplateAction.Request("my-template").indexTemplate(
-                    new ComposableIndexTemplate(
-                        List.of("logs-*"),
-                        new Template(indexSettings, null, null),
-                        null,
-                        null,
-                        null,
-                        null,
-                        new ComposableIndexTemplate.DataStreamTemplate(),
-                        null
-                    )
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("logs-*"))
+                        .template(new Template(indexSettings, null, null))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
                 )
             )
         );
@@ -208,9 +203,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
     private void setHasValidLicense(boolean hasValidLicense) {
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            for (var writeLoadForecasterPlugin : pluginsService.filterPlugins(FakeLicenseWriteLoadForecasterPlugin.class)) {
-                writeLoadForecasterPlugin.setHasValidLicense(hasValidLicense);
-            }
+            pluginsService.filterPlugins(FakeLicenseWriteLoadForecasterPlugin.class).forEach(p -> p.setHasValidLicense(hasValidLicense));
         }
     }
 

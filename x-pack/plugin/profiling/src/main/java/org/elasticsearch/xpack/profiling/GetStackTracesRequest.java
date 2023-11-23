@@ -36,44 +36,86 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 public class GetStackTracesRequest extends ActionRequest implements IndicesRequest {
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
+    public static final ParseField INDICES_FIELD = new ParseField("indices");
+    public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids");
+    public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
+    public static final ParseField CUSTOM_COST_FACTOR_FIELD = new ParseField("custom_cost_factor");
 
     private QueryBuilder query;
-
     private Integer sampleSize;
+    private String indices;
+    private String stackTraceIds;
+    private Double requestedDuration;
+    private Double customCostFactor;
 
-    // We intentionally don't expose this field via the REST API but we can control behavior within Elasticsearch.
+    // We intentionally don't expose this field via the REST API, but we can control behavior within Elasticsearch.
     // Once we have migrated all client-side code to dedicated APIs (such as the flamegraph API), we can adjust
     // sample counts by default and remove this flag.
     private Boolean adjustSampleCount;
 
     public GetStackTracesRequest() {
-        this(null, null);
+        this(null, null, null, null, null, null);
     }
 
-    public GetStackTracesRequest(Integer sampleSize, QueryBuilder query) {
+    public GetStackTracesRequest(
+        Integer sampleSize,
+        Double requestedDuration,
+        Double customCostFactor,
+        QueryBuilder query,
+        String indices,
+        String stackTraceIds
+    ) {
         this.sampleSize = sampleSize;
+        this.requestedDuration = requestedDuration;
+        this.customCostFactor = customCostFactor;
         this.query = query;
+        this.indices = indices;
+        this.stackTraceIds = stackTraceIds;
     }
 
     public GetStackTracesRequest(StreamInput in) throws IOException {
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.sampleSize = in.readOptionalInt();
+        this.requestedDuration = in.readOptionalDouble();
+        this.customCostFactor = in.readOptionalDouble();
         this.adjustSampleCount = in.readOptionalBoolean();
+        this.indices = in.readOptionalString();
+        this.stackTraceIds = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalInt(sampleSize);
+        out.writeOptionalDouble(requestedDuration);
+        out.writeOptionalDouble(customCostFactor);
         out.writeOptionalBoolean(adjustSampleCount);
+        out.writeOptionalString(indices);
+        out.writeOptionalString(stackTraceIds);
     }
 
     public Integer getSampleSize() {
         return sampleSize;
     }
 
+    public Double getRequestedDuration() {
+        return requestedDuration;
+    }
+
+    public Double getCustomCostFactor() {
+        return customCostFactor;
+    }
+
     public QueryBuilder getQuery() {
         return query;
+    }
+
+    public String getIndices() {
+        return indices;
+    }
+
+    public String getStackTraceIds() {
+        return stackTraceIds;
     }
 
     public boolean isAdjustSampleCount() {
@@ -101,6 +143,14 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
             } else if (token.isValue()) {
                 if (SAMPLE_SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.sampleSize = parser.intValue();
+                } else if (INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.indices = parser.text();
+                } else if (STACKTRACE_IDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.stackTraceIds = parser.text();
+                } else if (REQUESTED_DURATION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.requestedDuration = parser.doubleValue();
+                } else if (CUSTOM_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.customCostFactor = parser.doubleValue();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -130,13 +180,54 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (sampleSize == null) {
-            validationException = addValidationError("[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] is mandatory", validationException);
-        } else if (sampleSize <= 0) {
-            validationException = addValidationError(
-                "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] must be greater or equals than 1, got: " + sampleSize,
-                validationException
-            );
+        if (indices != null) {
+            if (stackTraceIds == null || stackTraceIds.isEmpty()) {
+                validationException = addValidationError(
+                    "[" + STACKTRACE_IDS_FIELD.getPreferredName() + "] is mandatory",
+                    validationException
+                );
+            }
+            // we don't do downsampling when a custom index is provided
+            if (sampleSize != null) {
+                validationException = addValidationError(
+                    "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] must not be set",
+                    validationException
+                );
+            }
+        } else {
+            if (stackTraceIds != null) {
+                validationException = addValidationError(
+                    "[" + STACKTRACE_IDS_FIELD.getPreferredName() + "] must not be set",
+                    validationException
+                );
+            }
+            if (sampleSize == null) {
+                validationException = addValidationError(
+                    "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] is mandatory",
+                    validationException
+                );
+            } else if (sampleSize <= 0) {
+                validationException = addValidationError(
+                    "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] must be greater or equals than 1, got: " + sampleSize,
+                    validationException
+                );
+            }
+        }
+        if (requestedDuration != null) {
+            if (requestedDuration <= 0.0d) {
+                validationException = addValidationError(
+                    "[" + REQUESTED_DURATION_FIELD.getPreferredName() + "] must be greater than 0, got: " + requestedDuration,
+                    validationException
+                );
+            }
+        }
+        if (customCostFactor != null) {
+            if (customCostFactor <= 0.0d) {
+                validationException = addValidationError(
+                    "[" + CUSTOM_COST_FACTOR_FIELD.getPreferredName() + "] must be greater than 0, got: " + customCostFactor,
+                    validationException
+                );
+            }
         }
         return validationException;
     }
@@ -148,7 +239,31 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
             public String getDescription() {
                 // generating description lazily since the query could be large
                 StringBuilder sb = new StringBuilder();
-                sb.append("sample_size[").append(sampleSize).append("]");
+                if (indices == null) {
+                    sb.append("indices[]");
+                } else {
+                    sb.append("indices[").append(indices).append("]");
+                }
+                if (stackTraceIds == null) {
+                    sb.append("stackTraceIds[]");
+                } else {
+                    sb.append("stackTraceIds[").append(stackTraceIds).append("]");
+                }
+                if (sampleSize == null) {
+                    sb.append("sample_size[]");
+                } else {
+                    sb.append("sample_size[").append(sampleSize).append("]");
+                }
+                if (requestedDuration == null) {
+                    sb.append(", requested_duration[]");
+                } else {
+                    sb.append(", requested_duration[").append(requestedDuration).append("]");
+                }
+                if (customCostFactor == null) {
+                    sb.append(", custom_cost_factor[]");
+                } else {
+                    sb.append(", custom_cost_factor[").append(customCostFactor).append("]");
+                }
                 if (query == null) {
                     sb.append(", query[]");
                 } else {
@@ -168,7 +283,10 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
             return false;
         }
         GetStackTracesRequest that = (GetStackTracesRequest) o;
-        return Objects.equals(query, that.query) && Objects.equals(sampleSize, that.sampleSize);
+        return Objects.equals(query, that.query)
+            && Objects.equals(sampleSize, that.sampleSize)
+            && Objects.equals(indices, that.indices)
+            && Objects.equals(stackTraceIds, that.stackTraceIds);
     }
 
     @Override
@@ -179,7 +297,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         // Resampler to produce a consistent downsampling results, relying on the default hashCode implementation of `query` will
         // produce consistent results per node but not across the cluster. To avoid this, we produce the hashCode based on the
         // string representation instead, which will produce consistent results for the entire cluster and across node restarts.
-        return Objects.hash(Objects.toString(query, "null"), sampleSize);
+        return Objects.hash(Objects.toString(query, "null"), sampleSize, indices, stackTraceIds);
     }
 
     @Override
@@ -188,7 +306,11 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         indices.add("profiling-stacktraces");
         indices.add("profiling-stackframes");
         indices.add("profiling-executables");
-        indices.addAll(EventsIndex.indexNames());
+        if (this.indices == null) {
+            indices.addAll(EventsIndex.indexNames());
+        } else {
+            indices.add(this.indices);
+        }
         return indices.toArray(new String[0]);
     }
 

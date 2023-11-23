@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -131,6 +132,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public String familyTypeName() {
             return KeywordFieldMapper.CONTENT_TYPE;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (value == null) {
+                return BlockLoader.CONSTANT_NULLS;
+            }
+            return BlockLoader.constantBytes(new BytesRef(value));
         }
 
         @Override

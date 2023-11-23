@@ -410,7 +410,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     }
 
     private static ComposableIndexTemplate createComposableIndexTemplateMetaData(String templateName, List<String> patterns) {
-        return new ComposableIndexTemplate.Builder().indexPatterns(patterns).build();
+        return ComposableIndexTemplate.builder().indexPatterns(patterns).build();
     }
 
     private static IndexMetadata createIndexMetadata(String indexName, boolean withAlias) {

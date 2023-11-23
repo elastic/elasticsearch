@@ -11,22 +11,25 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableLongGauge;
 
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
-import java.util.Collections;
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 
 /**
- * LongGaugeAdapter wraps an otel ObservableLongMeasurement
+ * LongGaugeAdapter wraps an otel ObservableLongGauge
  */
 public class LongGaugeAdapter extends AbstractInstrument<ObservableLongGauge> implements org.elasticsearch.telemetry.metric.LongGauge {
-    private final AtomicReference<ValueWithAttributes> valueWithAttributes;
+    private final Supplier<LongWithAttributes> observer;
+    private final ReleasableLock closedLock = new ReleasableLock(new ReentrantLock());
+    private boolean closed = false;
 
-    public LongGaugeAdapter(Meter meter, String name, String description, String unit) {
+    public LongGaugeAdapter(Meter meter, String name, String description, String unit, Supplier<LongWithAttributes> observer) {
         super(meter, name, description, unit);
-        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes(0L, Collections.emptyMap()));
+        this.observer = observer;
     }
 
     @Override
@@ -37,20 +40,24 @@ public class LongGaugeAdapter extends AbstractInstrument<ObservableLongGauge> im
             .setDescription(getDescription())
             .setUnit(getUnit())
             .buildWithCallback(measurement -> {
-                var localValueWithAttributed = valueWithAttributes.get();
-                measurement.record(localValueWithAttributed.value(), OtelHelper.fromMap(localValueWithAttributed.attributes()));
+                LongWithAttributes observation;
+                try {
+                    observation = observer.get();
+                } catch (RuntimeException err) {
+                    assert false : "observer must not throw [" + err.getMessage() + "]";
+                    return;
+                }
+                measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
             });
     }
 
     @Override
-    public void record(long value) {
-        record(value, Collections.emptyMap());
+    public void close() throws Exception {
+        try (ReleasableLock lock = closedLock.acquire()) {
+            if (closed == false) {
+                getInstrument().close();
+            }
+            closed = true;
+        }
     }
-
-    @Override
-    public void record(long value, Map<String, Object> attributes) {
-        this.valueWithAttributes.set(new ValueWithAttributes(value, attributes));
-    }
-
-    private record ValueWithAttributes(long value, Map<String, Object> attributes) {}
 }

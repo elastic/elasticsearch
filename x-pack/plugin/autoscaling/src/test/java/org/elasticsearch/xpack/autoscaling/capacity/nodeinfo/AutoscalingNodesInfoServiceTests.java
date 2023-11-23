@@ -41,6 +41,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -72,6 +74,7 @@ import static org.mockito.Mockito.when;
 
 public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
 
+    private TestThreadPool threadPool;
     private NodeStatsClient client;
     private AutoscalingNodeInfoService service;
     private TimeValue fetchTimeout;
@@ -82,7 +85,8 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        client = new NodeStatsClient();
+        threadPool = createThreadPool();
+        client = new NodeStatsClient(threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
         Settings settings;
         if (randomBoolean()) {
@@ -104,8 +108,8 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     @After
     @Override
     public void tearDown() throws Exception {
+        threadPool.close();
         super.tearDown();
-        client.close();
     }
 
     public void testAddRemoveNode() {
@@ -469,8 +473,8 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         private BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responderStats;
         private BiConsumer<NodesInfoRequest, ActionListener<NodesInfoResponse>> responderInfo;
 
-        private NodeStatsClient() {
-            super(getTestName());
+        private NodeStatsClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         public void respondInfo(NodesInfoResponse response, Runnable whileFetching) {

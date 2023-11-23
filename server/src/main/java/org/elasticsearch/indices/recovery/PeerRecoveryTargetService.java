@@ -336,8 +336,20 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
                         @Override
                         public void onFailure(Exception e) {
+                            final var cause = ExceptionsHelper.unwrapCause(e);
+                            final var sendShardFailure =
+                                // these indicate the source shard has already failed, which will independently notify the master and fail
+                                // the target shard
+                                false == (cause instanceof ShardNotFoundException
+                                    || cause instanceof IndexNotFoundException
+                                    || cause instanceof AlreadyClosedException);
+
                             // TODO retries? See RecoveryResponseHandler#handleException
-                            onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(recoveryState, null, e), true);
+                            onGoingRecoveries.failRecovery(
+                                recoveryId,
+                                new RecoveryFailedException(recoveryState, null, e),
+                                sendShardFailure
+                            );
                         }
                     }
                 );

@@ -30,9 +30,15 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         new SecureString(SecuritySettingsSourceField.TEST_PASSWORD)
     );
 
-    protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    protected static final String UPGRADE_FROM_VERSION = System.getProperty("tests.upgrade_from_version");
 
     protected static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
+
+    // TODO: replace with feature testing
+    @Deprecated
+    protected static boolean isOriginalClusterVersionAtLeast(Version supportedVersion) {
+        return Version.fromString(UPGRADE_FROM_VERSION).onOrAfter(supportedVersion);
+    }
 
     @Override
     protected boolean resetFeatureStates() {

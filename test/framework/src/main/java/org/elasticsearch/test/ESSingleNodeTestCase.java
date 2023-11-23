@@ -254,8 +254,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
         boolean enableConcurrentSearch = enableConcurrentSearch();
         if (enableConcurrentSearch) {
-            settingBuilder.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), true)
-                .put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
+            settingBuilder.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
+        } else {
+            settingBuilder.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false);
         }
         Settings settings = settingBuilder.build();
 

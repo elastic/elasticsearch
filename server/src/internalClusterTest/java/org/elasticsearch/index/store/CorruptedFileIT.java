@@ -350,23 +350,20 @@ public class CorruptedFileIT extends ESIntegTestCase {
         final AtomicBoolean corrupt = new AtomicBoolean(true);
         final CountDownLatch hasCorrupted = new CountDownLatch(1);
         for (var dataNode : dataNodes) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                dataNode.getName()
-            ));
-            mockTransportService.addSendBehavior(
-                internalCluster().getInstance(TransportService.class, unluckyNode.getName()),
-                (connection, requestId, action, request, options) -> {
-                    if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
-                        int i = randomIntBetween(0, req.content().length() - 1);
-                        array[i] = (byte) ~array[i]; // flip one byte in the content
-                        hasCorrupted.countDown();
+            MockTransportService.getInstance(dataNode.getName())
+                .addSendBehavior(
+                    internalCluster().getInstance(TransportService.class, unluckyNode.getName()),
+                    (connection, requestId, action, request, options) -> {
+                        if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                            RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                            byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
+                            int i = randomIntBetween(0, req.content().length() - 1);
+                            array[i] = (byte) ~array[i]; // flip one byte in the content
+                            hasCorrupted.countDown();
+                        }
+                        connection.sendRequest(requestId, action, request, options);
                     }
-                    connection.sendRequest(requestId, action, request, options);
-                }
-            );
+                );
         }
 
         updateIndexSettings(
@@ -409,12 +406,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(prepareSearch().setSize(0), numDocs);
 
-        var source = (MockTransportService) internalCluster().getInstance(TransportService.class, primariesNode.getName());
-        var target = internalCluster().getInstance(TransportService.class, unluckyNode.getName());
+        final var source = MockTransportService.getInstance(primariesNode.getName());
+        final var target = MockTransportService.getInstance(unluckyNode.getName());
 
         final boolean truncate = randomBoolean();
         source.addSendBehavior(target, (connection, requestId, action, request, options) -> {
@@ -548,7 +545,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(prepareSearch().setSize(0), numDocs);
 
@@ -615,7 +612,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(prepareSearch().setSize(0), numDocs);
 

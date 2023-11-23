@@ -61,7 +61,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        logicalOptimizer = new LogicalPlanOptimizer();
+        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
 
         analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),

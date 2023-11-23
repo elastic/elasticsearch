@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -788,7 +789,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(
                 DataFrameAnalyticsState.STARTED,
                 task.getAllocationId(),
-                null
+                null,
+                Instant.now()
             );
             task.updatePersistentTaskState(
                 startedState,

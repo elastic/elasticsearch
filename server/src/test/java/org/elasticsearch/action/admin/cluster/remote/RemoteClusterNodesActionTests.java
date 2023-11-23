@@ -123,9 +123,6 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                     );
                     listener.onResponse((Response) nodesInfoResponse);
                 }
-
-                @Override
-                public void close() {}
             }
         );
 
@@ -201,9 +198,6 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                     assertThat(asInstanceOf(NodesInfoRequest.class, request).requestedMetrics(), empty());
                     listener.onResponse((Response) nodesInfoResponse);
                 }
-
-                @Override
-                public void close() {}
             }
         );
 

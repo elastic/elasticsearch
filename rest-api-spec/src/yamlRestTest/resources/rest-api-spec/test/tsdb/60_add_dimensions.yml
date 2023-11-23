@@ -1,10 +1,4 @@
 ---
-setup:
-  - skip:
-      version: "8.7.00 - 8.11.99"
-      reason: _tsid hasing introduced in 8.12
-
----
 add dimensions with put_mapping:
   - skip:
       version: " - 8.11.99"
@@ -54,7 +48,7 @@ add dimensions with put_mapping:
             - field: "@timestamp"
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ { _tsid: "27hcKTYkXCOfYiuRWRTWygAAAAAAAAAAAAAAAAAAAAAGlT_5e6_NYGOZWULpmMG9IAlZlA" } ] }
+  - match: {hits.hits.0.fields._tsid: [ "JNu4XCk2JFwjn2IrkVkU1soGlT_5e6_NYGOZWULpmMG9IAlZlA" ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---

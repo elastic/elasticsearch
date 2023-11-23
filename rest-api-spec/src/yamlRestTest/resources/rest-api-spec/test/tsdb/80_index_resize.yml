@@ -102,8 +102,8 @@ split:
 ---
 shrink:
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       indices.shrink:
@@ -124,13 +124,13 @@ shrink:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [{_tsid: "KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}]}
+  - match: {hits.hits.0.fields._tsid: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}
 
 ---
 clone:
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       indices.clone:

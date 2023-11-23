@@ -11,7 +11,10 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collection;
@@ -60,7 +63,11 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
         this.claimName = claimName;
         this.fallbackClaimNames = fallbackClaimNames;
         if (allowedClaimValuesAsPatterns) {
-            this.allowedClaimValuesPredicate = Automatons.predicate(allowedClaimValues);
+            try {
+                this.allowedClaimValuesPredicate = Automatons.predicate(allowedClaimValues);
+            } catch (Exception e) {
+                throw new SettingsException("Invalid pattern for allowed claim values for [" + claimName + "].", e);
+            }
         } else {
             this.allowedClaimValuesPredicate = new Predicate<>() {
                 private final Set<String> allowedClaimValuesSet = new HashSet<>(allowedClaimValues);

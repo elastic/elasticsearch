@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -108,6 +109,12 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         final JwtAuthenticator jwtAuthenticator = buildJwtAuthenticator();
         jwtAuthenticator.authenticate(jwtAuthenticationToken, future);
         assertThat(future.actionGet(), equalTo(claimsSet));
+    }
+
+    public void testInvalidAllowedSubjectClaimPattern() {
+        allowedSubject = "/invalid pattern";
+        final SettingsException e = expectThrows(SettingsException.class, () -> buildJwtAuthenticator());
+        assertThat(e.getMessage(), containsString("Invalid pattern for allowed claim values for [sub]."));
     }
 
     public void testMismatchedRequiredClaims() throws ParseException {

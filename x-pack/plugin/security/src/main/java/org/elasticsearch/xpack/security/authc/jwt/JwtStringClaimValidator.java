@@ -33,7 +33,7 @@ import java.util.function.Predicate;
  */
 public class JwtStringClaimValidator implements JwtFieldValidator {
 
-    public static JwtStringClaimValidator ALLOW_ALL_SUBJECTS = new JwtStringClaimValidator("sub", List.of("*"), true, true);
+    public static JwtStringClaimValidator ALLOW_ALL_SUBJECTS = new JwtStringClaimValidator("sub", true, List.of(), List.of("*"));
 
     private final String claimName;
     @Nullable
@@ -44,44 +44,37 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
 
     public JwtStringClaimValidator(
         String claimName,
+        boolean singleValuedClaim,
         Collection<String> allowedClaimValues,
-        boolean allowedClaimValuesAsPatterns,
-        boolean singleValuedClaim
+        Collection<String> allowedClaimValuePatterns
     ) {
-        this(claimName, null, allowedClaimValues, allowedClaimValuesAsPatterns, singleValuedClaim);
+        this(claimName, singleValuedClaim, null, allowedClaimValues, allowedClaimValuePatterns);
     }
 
     public JwtStringClaimValidator(
         String claimName,
+        boolean singleValuedClaim,
         Map<String, String> fallbackClaimNames,
         Collection<String> allowedClaimValues,
-        boolean allowedClaimValuesAsPatterns,
-        boolean singleValuedClaim
+        Collection<String> allowedClaimValuePatterns
     ) {
         this.claimName = claimName;
-        this.fallbackClaimNames = fallbackClaimNames;
-        if (allowedClaimValuesAsPatterns) {
-            try {
-                this.allowedClaimValuesPredicate = Automatons.predicate(allowedClaimValues);
-            } catch (Exception e) {
-                throw new SettingsException("Invalid pattern for allowed claim values for [" + claimName + "].", e);
-            }
-        } else {
-            this.allowedClaimValuesPredicate = new Predicate<>() {
-                private final Set<String> allowedClaimValuesSet = new HashSet<>(allowedClaimValues);
-
-                @Override
-                public boolean test(String s) {
-                    return allowedClaimValuesSet.contains(s);
-                }
-
-                @Override
-                public String toString() {
-                    return "[" + Strings.collectionToCommaDelimitedString(allowedClaimValuesSet) + "]";
-                }
-            };
-        }
         this.singleValuedClaim = singleValuedClaim;
+        this.fallbackClaimNames = fallbackClaimNames;
+        this.allowedClaimValuesPredicate = new Predicate<>() {
+            private final Set<String> allowedClaimsSet = new HashSet<>(allowedClaimValues);
+            private final Predicate<String> allowedClaimPatternsPredicate = predicateFromPatterns(claimName, allowedClaimValuePatterns);
+
+            @Override
+            public boolean test(String s) {
+                return allowedClaimsSet.contains(s) || allowedClaimPatternsPredicate.test(s);
+            }
+
+            @Override
+            public String toString() {
+                return "[" + Strings.collectionToCommaDelimitedString(allowedClaimsSet) + "] || [" + allowedClaimPatternsPredicate + "]";
+            }
+        };
     }
 
     @Override
@@ -109,6 +102,14 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
             return claimValue != null ? List.of(claimValue) : null;
         } else {
             return fallbackableClaim.getStringListClaimValue();
+        }
+    }
+
+    private static Predicate<String> predicateFromPatterns(String claimName, Collection<String> patterns) {
+        try {
+            return Automatons.predicate(patterns);
+        } catch (Exception e) {
+            throw new SettingsException("Invalid pattern for allowed claim values for [" + claimName + "].", e);
         }
     }
 }

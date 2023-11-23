@@ -28,11 +28,11 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final JwtStringClaimValidator validator;
         final JWTClaimsSet jwtClaimsSet;
         if (randomBoolean()) {
-            validator = new JwtStringClaimValidator(claimName, List.of(), false, randomBoolean());
+            validator = new JwtStringClaimValidator(claimName, randomBoolean(), List.of(), List.of());
             // fallback claim is ignored
             jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, List.of(42), fallbackClaimName, randomAlphaOfLength(8)));
         } else {
-            validator = new JwtStringClaimValidator(claimName, Map.of(claimName, fallbackClaimName), List.of(), false, randomBoolean());
+            validator = new JwtStringClaimValidator(claimName, randomBoolean(), Map.of(claimName, fallbackClaimName), List.of(), List.of());
             jwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, List.of(42)));
         }
 
@@ -51,11 +51,11 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final JwtStringClaimValidator validator;
         final JWTClaimsSet jwtClaimsSet;
         if (randomBoolean()) {
-            validator = new JwtStringClaimValidator(claimName, List.of(), false, true);
+            validator = new JwtStringClaimValidator(claimName, true, List.of(), List.of());
             // fallback claim is ignored
             jwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, List.of("foo", "bar"), fallbackClaimName, randomAlphaOfLength(8)));
         } else {
-            validator = new JwtStringClaimValidator(claimName, Map.of(claimName, fallbackClaimName), List.of(), false, true);
+            validator = new JwtStringClaimValidator(claimName, true, Map.of(claimName, fallbackClaimName), List.of(), List.of());
             jwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, List.of("foo", "bar")));
         }
 
@@ -74,9 +74,9 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final JwtStringClaimValidator validator;
         final JWTClaimsSet jwtClaimsSet;
         if (randomBoolean()) {
-            validator = new JwtStringClaimValidator(claimName, List.of(), false, randomBoolean());
+            validator = new JwtStringClaimValidator(claimName, randomBoolean(), List.of(), List.of());
         } else {
-            validator = new JwtStringClaimValidator(claimName, Map.of(claimName, fallbackClaimName), List.of(), false, randomBoolean());
+            validator = new JwtStringClaimValidator(claimName, randomBoolean(), Map.of(claimName, fallbackClaimName), List.of(), List.of());
         }
         jwtClaimsSet = JWTClaimsSet.parse(Map.of());
 
@@ -99,16 +99,16 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         final JWTClaimsSet validJwtClaimsSet;
         final boolean noFallback = randomBoolean();
         if (noFallback) {
-            validator = new JwtStringClaimValidator(claimName, allowedClaimValues, false, singleValuedClaim);
+            validator = new JwtStringClaimValidator(claimName, singleValuedClaim, allowedClaimValues, List.of());
             // fallback claim is ignored
             validJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, incomingClaimValue, fallbackClaimName, List.of(42)));
         } else {
             validator = new JwtStringClaimValidator(
                 claimName,
+                singleValuedClaim,
                 Map.of(claimName, fallbackClaimName),
                 allowedClaimValues,
-                false,
-                singleValuedClaim
+                List.of()
             );
             validJwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, incomingClaimValue));
         }
@@ -134,51 +134,48 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("does not match allowed claim values"));
     }
 
-    public void testSupportsWildcardOrRegex() throws ParseException {
+    public void testDoesNotSupportWildcardOrRegex() throws ParseException {
         final String claimName = randomAlphaOfLengthBetween(10, 18);
         final String fallbackClaimName = randomAlphaOfLength(12);
         final String claimValue = randomFrom("*", "/.*/");
-        final boolean noFallback = randomBoolean();
 
         final JwtStringClaimValidator validator;
-        {
-            final JWTClaimsSet validJwtClaimsSet;
-            if (noFallback) {
-                validator = new JwtStringClaimValidator(claimName, List.of(claimValue), true, randomBoolean());
-                // fallback is ignored (even when it has a valid value) since the main claim exists
-                validJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, randomAlphaOfLengthBetween(1, 10), fallbackClaimName, claimValue));
-            } else {
-                validator = new JwtStringClaimValidator(
-                    claimName,
-                    Map.of(claimName, fallbackClaimName),
-                    List.of(claimValue),
-                    true,
-                    randomBoolean()
-                );
-                validJwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, randomAlphaOfLengthBetween(1, 10)));
-            }
-
-            // It should match arbitrary claim value because wildcard or regex is not supported
-            try {
-                validator.validate(getJwsHeader(), validJwtClaimsSet);
-            } catch (Exception e2) {
-                throw new AssertionError("validation should have passed without exception", e2);
-            }
+        final JWTClaimsSet invalidJwtClaimsSet;
+        final boolean noFallback = randomBoolean();
+        if (noFallback) {
+            validator = new JwtStringClaimValidator(claimName, randomBoolean(), List.of(claimValue), List.of());
+            // fallback is ignored (even when it has a valid value) since the main claim exists
+            invalidJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, randomAlphaOfLengthBetween(1, 10), fallbackClaimName, claimValue));
+        } else {
+            validator = new JwtStringClaimValidator(
+                claimName,
+                randomBoolean(),
+                Map.of(claimName, fallbackClaimName),
+                List.of(claimValue),
+                List.of()
+            );
+            invalidJwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, randomAlphaOfLengthBetween(1, 10)));
         }
-        {
-            // It should also support literal matching
-            final JWTClaimsSet validJwtClaimsSet;
-            if (noFallback) {
-                // fallback claim is ignored
-                validJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, claimValue, fallbackClaimName, randomAlphaOfLength(10)));
-            } else {
-                validJwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, claimValue));
-            }
-            try {
-                validator.validate(getJwsHeader(), validJwtClaimsSet);
-            } catch (Exception e2) {
-                throw new AssertionError("validation should have passed without exception", e2);
-            }
+
+        // It should not match arbitrary claim value because wildcard or regex is not supported
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.validate(getJwsHeader(), invalidJwtClaimsSet)
+        );
+        assertThat(e.getMessage(), containsString("does not match allowed claim values"));
+
+        // It should support literal matching
+        final JWTClaimsSet validJwtClaimsSet;
+        if (noFallback) {
+            // fallback claim is ignored
+            validJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, claimValue, fallbackClaimName, randomAlphaOfLength(10)));
+        } else {
+            validJwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, claimValue));
+        }
+        try {
+            validator.validate(getJwsHeader(), validJwtClaimsSet);
+        } catch (Exception e2) {
+            throw new AssertionError("validation should have passed without exception", e2);
         }
     }
 

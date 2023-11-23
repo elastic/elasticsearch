@@ -162,6 +162,7 @@ public class JwtRealmSettings {
         set.addAll(
             List.of(
                 ALLOWED_SUBJECTS,
+                ALLOWED_SUBJECT_PATTERNS,
                 FALLBACK_SUB_CLAIM,
                 FALLBACK_AUD_CLAIM,
                 REQUIRED_CLAIMS,
@@ -259,6 +260,12 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<List<String>> ALLOWED_SUBJECTS = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "allowed_subjects",
+        key -> Setting.stringListSetting(key, values -> verifyNonNullNotEmpty(key, values, null), Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<List<String>> ALLOWED_SUBJECT_PATTERNS = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "allowed_subject_patterns",
         key -> Setting.stringListSetting(key, values -> verifyNonNullNotEmpty(key, values, null), Setting.Property.NodeScope)
     );
 

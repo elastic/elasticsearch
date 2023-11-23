@@ -130,9 +130,9 @@ public class JwtAuthenticator implements Releasable {
         if (realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECTS)) {
             subjectClaimValidator = new JwtStringClaimValidator(
                 "sub",
-                realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS),
                 true,
-                true
+                realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS),
+                realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
             );
         } else {
             // Allow any value for the sub claim as long as there is a non-null value
@@ -141,9 +141,9 @@ public class JwtAuthenticator implements Releasable {
 
         return List.of(
             JwtTypeValidator.INSTANCE,
-            new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), false, true),
+            new JwtStringClaimValidator("iss", true, List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), List.of()),
             subjectClaimValidator,
-            new JwtStringClaimValidator("aud", realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), false, false),
+            new JwtStringClaimValidator("aud", false, realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), List.of()),
             new JwtAlgorithmValidator(realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)),
             new JwtDateClaimValidator(clock, "iat", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, false),
             new JwtDateClaimValidator(clock, "exp", allowedClockSkew, JwtDateClaimValidator.Relationship.AFTER_NOW, false),
@@ -162,14 +162,20 @@ public class JwtAuthenticator implements Releasable {
 
         return List.of(
             JwtTypeValidator.INSTANCE,
-            new JwtStringClaimValidator("iss", List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), false, true),
-            new JwtStringClaimValidator("sub", fallbackClaimLookup, realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS), true, true),
+            new JwtStringClaimValidator("iss", true, List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), List.of()),
+            new JwtStringClaimValidator(
+                "sub",
+                true,
+                fallbackClaimLookup,
+                realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS),
+                realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
+            ),
             new JwtStringClaimValidator(
                 "aud",
+                false,
                 fallbackClaimLookup,
                 realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES),
-                false,
-                false
+                List.of()
             ),
             new JwtAlgorithmValidator(realmConfig.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS)),
             new JwtDateClaimValidator(clock, "iat", allowedClockSkew, JwtDateClaimValidator.Relationship.BEFORE_NOW, false),
@@ -181,7 +187,7 @@ public class JwtAuthenticator implements Releasable {
         final Settings requiredClaims = realmConfig.getSetting(JwtRealmSettings.REQUIRED_CLAIMS);
         return requiredClaims.names().stream().map(name -> {
             final List<String> allowedValues = requiredClaims.getAsList(name);
-            return new JwtStringClaimValidator(name, allowedValues, false, false);
+            return new JwtStringClaimValidator(name, false, allowedValues, List.of());
         }).toList();
     }
 }

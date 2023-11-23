@@ -528,7 +528,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             case TEST -> {
                 // close the previous one and create a new one
-                IOUtils.closeWhileHandlingException(testCluster::close);
+                if (testCluster != null) {
+                    IOUtils.closeWhileHandlingException(testCluster::close);
+                }
                 testCluster = buildTestCluster(currentClusterScope, seed);
             }
         }

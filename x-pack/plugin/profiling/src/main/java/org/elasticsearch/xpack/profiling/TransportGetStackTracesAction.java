@@ -403,7 +403,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         }
 
         if (unknownHostIDs.isEmpty()) {
-            handler.calculateCO2AndCosts();
             return;
         }
 
@@ -511,8 +510,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             log.debug(hostsWatch::report);
             log.debug("Have [{}] host metadata items", hostsTable.size());
 
-            calculateCO2AndCosts();
-
             mayFinish();
         }
 
@@ -531,7 +528,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             for (HostEventCount hec : responseBuilder.hostEventCounts) {
                 TraceEvent event = events.get(hec.stacktraceID);
                 if (event == null) {
-                    // this should never happen
+                    // If this happens, hostEventsCounts and events are out of sync, which indicates a bug.
                     missingStackTraces.add(hec.stacktraceID);
                     continue;
                 }
@@ -549,6 +546,8 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
         public void mayFinish() {
             if (expectedResponses.decrementAndGet() == 0) {
+                calculateCO2AndCosts();
+
                 responseBuilder.setStackTraces(stackTracePerId);
                 responseBuilder.setTotalFrames(totalFrames.get());
                 log.debug(

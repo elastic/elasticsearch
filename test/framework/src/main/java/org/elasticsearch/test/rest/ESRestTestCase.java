@@ -214,11 +214,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static TreeSet<Version> nodeVersions;
     private static TestFeatureService testFeatureService;
 
-    protected final boolean clusterHasFeature(String featureId) {
+    protected static boolean clusterHasFeature(String featureId) {
         return testFeatureService.clusterHasFeature(featureId);
     }
 
-    protected boolean clusterHasFeature(NodeFeature feature) {
+    protected static boolean clusterHasFeature(NodeFeature feature) {
         return testFeatureService.clusterHasFeature(feature.id());
     }
 
@@ -598,13 +598,12 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected boolean resetFeatureStates() {
         try {
-            final Version minimumNodeVersion = minimumNodeVersion();
             if (clusterHasFeature(RestTestLegacyFeatures.FEATURE_STATE_RESET_SUPPORTED) == false) {
                 return false;
             }
 
             // ML reset fails when ML is disabled in versions before 8.7
-            if (isMlEnabled() == false && minimumNodeVersion.before(Version.V_8_7_0)) {
+            if (isMlEnabled() == false && minimumNodeVersion().before(Version.V_8_7_0)) {
                 return false;
             }
         } catch (IOException e) {
@@ -752,7 +751,6 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         // Clean up searchable snapshots indices before deleting snapshots and repositories
         if (has(ProductFeature.SEARCHABLE_SNAPSHOTS)) {
-            assert nodeVersions.first().onOrAfter(Version.V_7_8_0);
             if (preserveSearchableSnapshotsIndicesUponCompletion() == false) {
                 wipeSearchableSnapshotsIndices();
             }
@@ -784,9 +782,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                  * slows down the test because xpack will just recreate
                  * them.
                  */
-                // In case of bwc testing, if all nodes are before 7.7.0 then no need to attempt to delete component and composable
-                // index templates, because these were introduced in 7.7.0:
-                if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
+                // In case of bwc testing, we need to delete component and composable
+                // index templates only for clusters that support this historical feature
+                if (clusterHasFeature(RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED)) {
                     try {
                         Request getTemplatesRequest = new Request("GET", "_index_template");
                         Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
@@ -799,9 +797,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                             .filter(name -> isXPackTemplate(name) == false)
                             .collect(Collectors.toList());
                         if (names.isEmpty() == false) {
-                            // Ideally we would want to check the version of the elected master node and
-                            // send the delete request directly to that node.
-                            if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
+                            // Ideally we would want to check if the elected master node supports this feature and send the delete request
+                            // directly to that node, but node-specific feature checks is something we want to avoid if possible.
+                            if (clusterHasFeature(RestTestLegacyFeatures.DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED)) {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
@@ -830,9 +828,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                             .filter(name -> isXPackTemplate(name) == false)
                             .collect(Collectors.toList());
                         if (names.isEmpty() == false) {
-                            // Ideally we would want to check the version of the elected master node and
-                            // send the delete request directly to that node.
-                            if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
+                            // Ideally we would want to check if the elected master node supports this feature and send the delete request
+                            // directly to that node, but node-specific feature checks is something we want to avoid if possible.
+                            if (clusterHasFeature(RestTestLegacyFeatures.DELETE_TEMPLATE_MULTIPLE_NAMES_SUPPORTED)) {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
@@ -949,9 +947,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         Set<String> unexpectedTemplates = new HashSet<>();
         if (preserveDataStreamsUponCompletion() == false && preserveTemplatesUponCompletion() == false) {
             if (has(ProductFeature.XPACK)) {
-                // In case of bwc testing, if all nodes are before 7.8.0 then no need to attempt to delete component and composable
-                // index templates, because these were introduced in 7.8.0:
-                if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_8_0))) {
+                // In case of bwc testing, we need to delete component and composable
+                // index templates only for clusters that support this historical feature
+                if (clusterHasFeature(RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED)) {
                     Request getTemplatesRequest = new Request("GET", "_index_template");
                     Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
@@ -1006,7 +1004,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         Object nodesResponse = statusResponse.get("nodes");
         final List<String> nodeIds;
         if (nodesResponse instanceof List<?>) { // `nodes` is parsed as a List<> only if it's populated (not empty)
-            assert minimumNodeVersion().onOrAfter(Version.V_7_15_0);
             List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) nodesResponse;
             nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
         } else {
@@ -1024,7 +1021,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
-        boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
+        boolean includeHidden = clusterHasFeature(RestTestLegacyFeatures.HIDDEN_INDICES_SUPPORTED);
         try {
             // remove all indices except ilm and slm history which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*"));
@@ -1198,7 +1195,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected void refreshAllIndices() throws IOException {
-        boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
+        boolean includeHidden = clusterHasFeature(RestTestLegacyFeatures.HIDDEN_INDICES_SUPPORTED);
         Request refreshRequest = new Request("POST", "/_refresh");
         refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
         // Allow system index deprecation warnings

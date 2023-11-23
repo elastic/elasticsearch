@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -22,6 +21,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -38,18 +38,19 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
 
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
 
-        SearchResponse response = prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("even", true))
-            .addAggregation(AggregationBuilders.terms("test").field("test_field").size(recordCount * 2).collectMode(aggCollectionMode))
-            .addAggregation(
-                AggregationBuilders.terms("test_raw").field("test_field_raw").size(recordCount * 2).collectMode(aggCollectionMode)
-            )
-            .execute()
-            .actionGet();
+        assertResponse(
+            prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("even", true))
+                .addAggregation(AggregationBuilders.terms("test").field("test_field").size(recordCount * 2).collectMode(aggCollectionMode))
+                .addAggregation(
+                    AggregationBuilders.terms("test_raw").field("test_field_raw").size(recordCount * 2).collectMode(aggCollectionMode)
+                ),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value, equalTo((long) recordCount));
 
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) recordCount));
-
-        assertThat(((Terms) response.getAggregations().get("test")).getBuckets().size(), equalTo(recordCount + 1));
-        assertThat(((Terms) response.getAggregations().get("test_raw")).getBuckets().size(), equalTo(recordCount));
+                assertThat(((Terms) response.getAggregations().get("test")).getBuckets().size(), equalTo(recordCount + 1));
+                assertThat(((Terms) response.getAggregations().get("test_raw")).getBuckets().size(), equalTo(recordCount));
+            }
+        );
 
     }
 

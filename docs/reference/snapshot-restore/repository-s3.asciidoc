@@ -136,7 +136,7 @@ settings belong in the `elasticsearch.yml` file.
 `proxy.scheme`::
 
     The scheme to use for the proxy connection to S3. Valid values are either `http` or `https`.
-    Defaults to `https`. This setting allows to specify the protocol used for communication with the
+    Defaults to `http`. This setting allows to specify the protocol used for communication with the
     proxy server
 
 `proxy.username` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::

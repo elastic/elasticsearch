@@ -100,7 +100,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Protocol> PROXY_SCHEME_SETTING = Setting.affixKeySetting(
         PREFIX,
         "proxy.scheme",
-        key -> new Setting<>(key, "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
+        key -> new Setting<>(key, "http", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
     );
 
     /** The username of a proxy to connect to s3 through. */

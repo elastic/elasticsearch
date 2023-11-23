@@ -102,11 +102,11 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex(indexOrAlias()).setId("1").setSource("field", 1))
-            .add(client().prepareIndex().setIndex(indexOrAlias()).setId("2").setSource("field", 2).setCreate(true))
-            .add(client().prepareIndex().setIndex(indexOrAlias()).setId("3").setSource("field", 3))
-            .add(client().prepareIndex().setIndex(indexOrAlias()).setId("4").setSource("field", 4))
-            .add(client().prepareIndex().setIndex(indexOrAlias()).setId("5").setSource("field", 5))
+            .add(prepareIndex(indexOrAlias()).setId("1").setSource("field", 1))
+            .add(prepareIndex(indexOrAlias()).setId("2").setSource("field", 2).setCreate(true))
+            .add(prepareIndex(indexOrAlias()).setId("3").setSource("field", 3))
+            .add(prepareIndex(indexOrAlias()).setId("4").setSource("field", 4))
+            .add(prepareIndex(indexOrAlias()).setId("5").setSource("field", 5))
             .get();
 
         assertThat(bulkResponse.hasFailures(), equalTo(false));
@@ -235,9 +235,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
         ensureGreen();
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex("test").setId("1").setCreate(true).setSource("field", "1"))
-            .add(client().prepareIndex("test").setId("2").setCreate(true).setSource("field", "1"))
-            .add(client().prepareIndex("test").setId("1").setSource("field", "2"))
+            .add(prepareIndex("test").setId("1").setCreate(true).setSource("field", "1"))
+            .add(prepareIndex("test").setId("2").setCreate(true).setSource("field", "1"))
+            .add(prepareIndex("test").setId("1").setSource("field", "2"))
             .get();
 
         assertEquals(DocWriteResponse.Result.CREATED, bulkResponse.getItems()[0].getResponse().getResult());
@@ -258,9 +258,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse().getSeqNo(), equalTo(4L));
 
         bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex("test").setId("e1").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
-            .add(client().prepareIndex("test").setId("e2").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
-            .add(client().prepareIndex("test").setId("e1").setSource("field", "2").setVersion(12).setVersionType(VersionType.EXTERNAL))
+            .add(prepareIndex("test").setId("e1").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
+            .add(prepareIndex("test").setId("e2").setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
+            .add(prepareIndex("test").setId("e1").setSource("field", "2").setVersion(12).setVersionType(VersionType.EXTERNAL))
             .get();
 
         assertEquals(DocWriteResponse.Result.CREATED, bulkResponse.getItems()[0].getResponse().getResult());
@@ -284,9 +284,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex("test").setId("1").setSource("field", 1))
-            .add(client().prepareIndex().setIndex("test").setId("2").setSource("field", 1))
-            .add(client().prepareIndex().setIndex("test").setId("3").setSource("field", 1))
+            .add(prepareIndex("test").setId("1").setSource("field", 1))
+            .add(prepareIndex("test").setId("2").setSource("field", 1))
+            .add(prepareIndex("test").setId("3").setSource("field", 1))
             .get();
 
         assertThat(bulkResponse.hasFailures(), equalTo(false));
@@ -500,7 +500,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs;) {
             final BulkRequestBuilder builder = client().prepareBulk();
             for (int j = 0; j < bulk && i < numDocs; j++, i++) {
-                builder.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("val", i));
+                builder.add(prepareIndex("test").setId(Integer.toString(i)).setSource("val", i));
             }
             logger.info("bulk indexing {}-{}", i - bulk, i - 1);
             BulkResponse response = builder.get();
@@ -575,7 +575,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             } else {
                 name = "test";
             }
-            builder.add(client().prepareIndex().setIndex(name).setId("1").setSource("field", 1));
+            builder.add(prepareIndex(name).setId("1").setSource("field", 1));
         }
         BulkResponse bulkResponse = builder.get();
         assertThat(bulkResponse.hasFailures(), is(expectFailure));
@@ -652,7 +652,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
     public void testFailedRequestsOnClosedIndex() throws Exception {
         createIndex("bulkindex1");
 
-        client().prepareIndex("bulkindex1").setId("1").setSource("text", "test").get();
+        prepareIndex("bulkindex1").setId("1").setSource("text", "test").get();
         assertBusy(() -> assertAcked(indicesAdmin().prepareClose("bulkindex1")));
 
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(RefreshPolicy.IMMEDIATE);
@@ -675,7 +675,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
     // issue 9821
     public void testInvalidIndexNamesCorrectOpType() {
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex("INVALID.NAME").setId("1").setSource(Requests.INDEX_CONTENT_TYPE, "field", 1))
+            .add(prepareIndex("INVALID.NAME").setId("1").setSource(Requests.INDEX_CONTENT_TYPE, "field", 1))
             .add(client().prepareUpdate().setIndex("INVALID.NAME").setId("1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", randomInt()))
             .add(client().prepareDelete().setIndex("INVALID.NAME").setId("1"))
             .get();

@@ -65,7 +65,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
     public void testRemoveUnusedStats() throws Exception {
 
-        client().prepareIndex("foo").setId("some-empty-doc").setSource("{}", XContentType.JSON).get();
+        prepareIndex("foo").setId("some-empty-doc").setSource("{}", XContentType.JSON).get();
 
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(
             new DataFrameAnalyticsConfig.Builder().setId("analytics-with-stats")

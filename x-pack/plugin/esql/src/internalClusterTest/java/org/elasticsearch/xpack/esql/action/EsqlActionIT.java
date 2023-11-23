@@ -782,7 +782,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             String id = "id-" + i;
             long value = randomLongBetween(-100_000, 100_000);
             docs.put(id, value);
-            indexRequests.add(client().prepareIndex().setIndex(indexName).setId(id).setSource(Map.of("val", value)));
+            indexRequests.add(prepareIndex(indexName).setId(id).setSource(Map.of("val", value)));
         }
         indexRandom(true, randomBoolean(), indexRequests);
         String command = "from test_filter | stats avg = avg(val)";
@@ -823,9 +823,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             Doc d = new Doc(i, "tag-" + randomIntBetween(1, 100));
             allDocs.add(d);
-            indexRequests.add(
-                client().prepareIndex().setIndex(indexName).setId(Integer.toString(i)).setSource(Map.of("val", d.val, "tag", d.tag))
-            );
+            indexRequests.add(prepareIndex(indexName).setId(Integer.toString(i)).setSource(Map.of("val", d.val, "tag", d.tag)));
         }
         indexRandom(true, randomBoolean(), indexRequests);
         int limit = randomIntBetween(1, 10);
@@ -1175,7 +1173,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             if (values.isEmpty() == false) {
                 source.put("v", values);
             }
-            client().prepareIndex(indexName).setSource(source).get();
+            prepareIndex(indexName).setSource(source).get();
             if (randomInt(100) < 20) {
                 client().admin().indices().prepareRefresh(indexName).get();
             }
@@ -1213,8 +1211,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             long v = randomIntBetween(1, 10);
             groups.merge(k, v, Long::sum);
             groups.merge(null, v, Long::sum); // null group
-            client().prepareIndex("index-1").setSource("f1", k, "v", v).get();
-            client().prepareIndex("index-2").setSource("f2", k, "v", v).get();
+            prepareIndex("index-1").setSource("f1", k, "v", v).get();
+            prepareIndex("index-2").setSource("f2", k, "v", v).get();
         }
         client().admin().indices().prepareRefresh("index-1", "index-2").get();
         for (String field : List.of("f1", "f2")) {

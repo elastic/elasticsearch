@@ -836,7 +836,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     // the cluster state).
                     for (final Snapshot snapshot : snapshotCompletionListeners.keySet()) {
                         if (endingSnapshots.add(snapshot)) {
-                            // inline `endAndGetListenersToResolve` for better readability
+                            // inline `failSnapshotCompletionListeners` to collect listeners
                             final List<ActionListener<SnapshotInfo>> listeners = snapshotCompletionListeners.remove(snapshot);
                             endingSnapshots.remove(snapshot);
                             readyToResolveListeners.add(

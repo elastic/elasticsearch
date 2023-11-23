@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 8.1.99,8.7.00 - 8.9.99"
-      reason: "tsdb indexing changed in 8.2.0, synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+      version: " - 8.1.99,8.7.00 - 8.11.99"
+      reason: "Introduce TSID hashing"
 
   - do:
       indices.create:

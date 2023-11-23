@@ -470,7 +470,8 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         Object tsid = TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes));
         assertEquals(
             tsid,
-            "AWJzA2ZvbwJkMHPwBm1hbnkgd29yZHMgbWFueSB3b3JkcyBtYW55IHdvcmRzIG1hbnkgd29yZHMgbWFueSB3b3JkcyBtYW55IHdvcmRzIG1hbnkgd29yZHMgbWFueSB3b3JkcyA"
+            "AWJzA2ZvbwJkMHPwBm1hbnkgd29yZHMgbWFueSB3b3JkcyBtYW55IHdvcmRzIG1hbnkgd29yZHMgbWFueSB3b3JkcyBtYW55IHdvcmRzIG1hbnkgd"
+                + "29yZHMgbWFueSB3b3JkcyA"
         );
     }
 

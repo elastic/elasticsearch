@@ -55,11 +55,13 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         Consumer<InternalTimeSeries> verifier = r -> {
             assertThat(r.getBuckets(), hasSize(2));
             assertThat(
-                ((Rate) r.getBucketByKey("{dim=1}").getAggregations().asList().get(0)).getValue(),
+                ((Rate) r.getBucketByKey("JFFUy14C9UcX3MnFnsFrpf2LDvTu5MAoxgghmvEUd5a_i3Y3TA").getAggregations().asList().get(0))
+                    .getValue(),
                 closeTo(59.0 / 3000.0 * MILLIS_IN_SECOND, 0.00001)
             );
             assertThat(
-                ((Rate) r.getBucketByKey("{dim=2}").getAggregations().asList().get(0)).getValue(),
+                ((Rate) r.getBucketByKey("JFFUy14C9UcX3MnFnsFrpf2hRiY7lpxc5PgA4k16syGbZGgr0g").getAggregations().asList().get(0))
+                    .getValue(),
                 closeTo(206.0 / 4000.0 * MILLIS_IN_SECOND, 0.00001)
             );
         };
@@ -83,12 +85,10 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         Consumer<InternalTimeSeries> verifier = r -> {
             assertThat(r.getBuckets(), hasSize(2));
             assertThat(
-                r.getBucketByKey("NFFUy14C9UcX3MnFnsFrpf0AAAAAAAAAAAAAAAAAAAAAiw707uTAKMYIIZrxFHeWv4t2N0w"),
+                r.getBucketByKey("JFFUy14C9UcX3MnFnsFrpf2LDvTu5MAoxgghmvEUd5a_i3Y3TA"),
                 instanceOf(InternalTimeSeries.InternalBucket.class)
             );
-            InternalDateHistogram hb = r.getBucketByKey("NFFUy14C9UcX3MnFnsFrpf0AAAAAAAAAAAAAAAAAAAAAiw707uTAKMYIIZrxFHeWv4t2N0w")
-                .getAggregations()
-                .get("date");
+            InternalDateHistogram hb = r.getBucketByKey("JFFUy14C9UcX3MnFnsFrpf2LDvTu5MAoxgghmvEUd5a_i3Y3TA").getAggregations().get("date");
             {
                 Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
                 assertThat(rate.getValue(), closeTo((60 - 37 + 14) / 2000.0 * MILLIS_IN_SECOND, 0.00001));
@@ -97,7 +97,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
                 Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
                 assertThat(rate.getValue(), closeTo((37 - 15) / 1000.0 * MILLIS_IN_SECOND, 0.00001));
             }
-            hb = r.getBucketByKey("NFFUy14C9UcX3MnFnsFrpf0AAAAAAAAAAAAAAAAAAAAAoUYmO5acXOT4AOJNerMhm2RoK9I").getAggregations().get("date");
+            hb = r.getBucketByKey("JFFUy14C9UcX3MnFnsFrpf2hRiY7lpxc5PgA4k16syGbZGgr0g").getAggregations().get("date");
             {
                 Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
                 assertThat(rate.getValue(), closeTo((150 - 74) / 1000.0 * MILLIS_IN_SECOND, 0.00001));

@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: "8.7.00 - 8.9.99"
-      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+      version: "8.7.00 - 8.11.99"
+      reason: "Introduce TSID hashing"
 
 ---
 add dimensions with put_mapping:

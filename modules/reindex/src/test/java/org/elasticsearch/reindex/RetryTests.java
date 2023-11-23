@@ -199,18 +199,21 @@ public class RetryTests extends ESIntegTestCase {
         logger.info("Starting request");
         ActionFuture<BulkByScrollResponse> responseListener = builder.execute();
 
+        BulkByScrollResponse response = null;
         try {
             logger.info("Waiting for bulk rejections");
             assertBusy(() -> assertThat(taskStatus(action).getBulkRetries(), greaterThan(0L)));
             bulkBlock.await();
 
             logger.info("Waiting for the request to finish");
-            BulkByScrollResponse response = responseListener.get();
+            response = responseListener.get();
             assertThat(response, matcher);
             assertThat(response.getBulkRetries(), greaterThan(0L));
         } finally {
             // Fetch the response just in case we blew up half way through. This will make sure the failure is thrown up to the top level.
-            BulkByScrollResponse response = responseListener.get();
+            if (response == null) {
+                response = responseListener.get();
+            }
             assertThat(response.getSearchFailures(), empty());
             assertThat(response.getBulkFailures(), empty());
         }

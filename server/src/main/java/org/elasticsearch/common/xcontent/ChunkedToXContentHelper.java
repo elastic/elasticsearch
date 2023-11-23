@@ -94,7 +94,7 @@ public enum ChunkedToXContentHelper {
         return Iterators.concat(startObject(name), iterator, endObject());
     }
 
-    private static <T> Iterator<ToXContent> map(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
+    public static <T> Iterator<ToXContent> map(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
         return wrapWithObject(name, Iterators.map(map.entrySet().iterator(), toXContent));
     }
 

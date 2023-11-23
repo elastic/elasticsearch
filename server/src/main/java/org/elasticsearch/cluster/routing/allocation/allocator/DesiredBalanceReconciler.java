@@ -115,7 +115,7 @@ public class DesiredBalanceReconciler {
             "count"
         );
         undesiredAllocationsRatio = meterRegistry.registerDoubleGauge(
-            "es.allocator.desired_balance.undesired_allocations.ratio",
+            "es.allocator.desired_balance.undesired_allocations_ratio",
             "Current undesired_allocations / allocations ratio",
             "count",
             () -> {

@@ -34,6 +34,10 @@ public class S3HttpFixtureWithSessionToken extends S3HttpFixture {
         super(inetSocketAddress, args);
     }
 
+    public S3HttpFixtureWithSessionToken() {
+        this(true);
+    }
+
     @Override
     protected HttpHandler createHandler(final String[] args) {
         final String sessionToken = Objects.requireNonNull(args[3], "session token is missing");

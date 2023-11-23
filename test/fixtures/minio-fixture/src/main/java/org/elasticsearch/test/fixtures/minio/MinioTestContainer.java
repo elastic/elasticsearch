@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test.fixtures.minio;
 
+import org.junit.Assume;
 import org.junit.rules.TestRule;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.images.builder.ImageFromDockerfile;
@@ -16,6 +17,10 @@ public class MinioTestContainer extends GenericContainer<MinioTestContainer> imp
 
     private static final int servicePort = 9000;
     private final boolean enabled;
+
+    public MinioTestContainer() {
+        this(true);
+    }
 
     public MinioTestContainer(boolean enabled) {
         super(
@@ -36,6 +41,10 @@ public class MinioTestContainer extends GenericContainer<MinioTestContainer> imp
 
     @Override
     public void start() {
+        Assume.assumeFalse(
+            "https://github.com/elastic/elasticsearch/issues/102532",
+            System.getProperty("os.name").toLowerCase().startsWith("windows")
+        );
         if (enabled) {
             super.start();
         }

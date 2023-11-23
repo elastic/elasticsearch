@@ -289,7 +289,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
             testFeatureService = new TestFeatureService(
                 // TODO (ES-7313): add new ESRestTestCaseHistoricalFeatures() too
-                serverless ? List.of() : List.of(new RestTestLegacyFeatures()),
+                List.of(new RestTestLegacyFeatures()),
                 semanticNodeVersions,
                 // TODO (ES-7316): GET and pass cluster state
                 Set.of()

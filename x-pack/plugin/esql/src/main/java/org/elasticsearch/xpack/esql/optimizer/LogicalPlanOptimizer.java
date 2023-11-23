@@ -155,10 +155,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineLimits(),
             new ReplaceLimitAndSortAsTopN()
         );
-        var defaultTopN = new Batch<>("Add default TopN", new AddDefaultTopN());
+        var defaultLimits = new Batch<>("Add default limits", new AddLimitToMvExpand(), new AddDefaultTopN());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
-        return asList(substitutions, operators, skip, cleanup, defaultTopN, label);
+        return asList(substitutions, operators, skip, cleanup, defaultLimits, label);
     }
 
     // TODO: currently this rule only works for aggregate functions (AVG)
@@ -438,6 +438,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             } else if (limit.child() instanceof UnaryPlan unary) {
                 if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
+                } else if (unary instanceof MvExpand mvx) {
+                    var limitSource = limit.limit();
+                    var limitVal = (int) limitSource.fold();
+                    if (mvx.limit() < 0 || mvx.limit() > limitVal) {
+                        mvx = new MvExpand(mvx.source(), mvx.child(), mvx.target(), mvx.expanded(), limitVal);
+                    }
+                    return mvx.replaceChild(limit.replaceChild(mvx.child()));
                 }
                 // check if there's a 'visible' descendant limit lower than the current one
                 // and if so, align the current limit since it adds no value
@@ -1048,6 +1055,41 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
             return plan;
         }
+    }
+
+    /**
+     * This is not an optimization: this is last step of pushing LIMIT past MV_EXPAND, ie.
+     *
+     * 1. PushDownAndCombineLimits: "mv_expand x (unbounded) | limit y" ->  "limit y | mv_expand x (with inner limit y)"
+     * 2. further pushdown of LIMIT (eg. needed for TopN)
+     * ... further rules
+     * 3. GO TO 1 (normal batch loop)
+     * 4. only once AddLimitToMvExpand: "mv_expand x (with inner limit y)" -> "mv_expand x (unbounded) | limit y"
+     *
+     * The final limit has to be added again because the implementation of MV_EXPAND operator is unbounded
+     *
+     * The reason why this cannot be a single rule
+     * (eg.  "mv_expand x | limit y" ->  "limit y | mv_expand x | limit y" )
+     * is that LIMIT push-down (PushDownAndCombineLimits) is executed multiple times, and it would result in an infinite loop
+     *
+     */
+    static class AddLimitToMvExpand extends OptimizerRules.OptimizerRule<MvExpand> {
+        AddLimitToMvExpand() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(MvExpand plan) {
+            if (plan.limit() >= 0) {
+                return new Limit(
+                    plan.source(),
+                    new Literal(Source.EMPTY, plan.limit(), DataTypes.INTEGER),
+                    new MvExpand(plan.source(), plan.child(), plan.target(), plan.expanded(), -1)
+                );
+            }
+            return plan;
+        }
+
     }
 
     public static class ReplaceRegexMatch extends OptimizerRules.ReplaceRegexMatch {

@@ -488,7 +488,7 @@ public class PlanNamedTypesTests extends ESTestCase {
 
     public void testMvExpand() throws IOException {
         var esRelation = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
-        var orig = new MvExpand(Source.EMPTY, esRelation, randomFieldAttribute(), randomFieldAttribute());
+        var orig = new MvExpand(Source.EMPTY, esRelation, randomFieldAttribute(), randomFieldAttribute(), -1);
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeMvExpand(out, orig);

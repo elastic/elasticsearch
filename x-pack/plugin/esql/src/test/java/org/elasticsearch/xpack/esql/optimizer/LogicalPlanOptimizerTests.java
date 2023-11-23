@@ -968,17 +968,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
-     * EsqlProject[[emp_no{f}#141, first_name{f}#142, languages{f}#143, lll{r}#132, salary{f}#147]]
-     *  \_TopN[[Order[salary{f}#147,DESC,FIRST], Order[first_name{f}#142,ASC,LAST]],5[INTEGER]]
-     *    \_Limit[5[INTEGER]]
-     *      \_MvExpand[salary{f}#147]
-     *        \_Eval[[languages{f}#143 + 5[INTEGER] AS lll]]
-     *          \_Filter[languages{f}#143 > 1[INTEGER]]
-     *            \_Limit[10[INTEGER]]
-     *              \_MvExpand[first_name{f}#142]
-     *                \_TopN[[Order[emp_no{f}#141,DESC,FIRST]],10[INTEGER]]
-     *                  \_Filter[emp_no{f}#141 &lt; 10006[INTEGER]]
-     *                    \_EsRelation[test][emp_no{f}#141, first_name{f}#142, languages{f}#1..]
+     * EsqlProject[[emp_no{f}#19, first_name{r}#29, languages{f}#22, lll{r}#8, salary{r}#30]]
+     * \_TopN[[Order[salary{r}#30,DESC,FIRST]],5[INTEGER]]
+     *   \_Limit[5[INTEGER]]
+     *     \_MvExpand[salary{f}#24,salary{r}#30,2147483647]
+     *       \_Eval[[languages{f}#22 + 5[INTEGER] AS lll]]
+     *         \_Limit[5[INTEGER]]
+     *           \_Filter[languages{f}#22 > 1[INTEGER]]
+     *             \_Limit[10[INTEGER]]
+     *               \_MvExpand[first_name{f}#20,first_name{r}#29,2147483647]
+     *                 \_TopN[[Order[emp_no{f}#19,DESC,FIRST]],10[INTEGER]]
+     *                   \_Filter[emp_no{f}#19 &le; 10006[INTEGER]]
+     *                     \_EsRelation[test][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
      */
     public void testMultipleMvExpandWithSortAndLimit() {
         LogicalPlan plan = optimizedPlan("""
@@ -1003,7 +1004,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(limit.limit().fold(), equalTo(5));
         var mvExp = as(limit.child(), MvExpand.class);
         var eval = as(mvExp.child(), Eval.class);
-        var filter = as(eval.child(), Filter.class);
+        var limit5 = as(eval.child(), Limit.class);
+        var filter = as(limit5.child(), Filter.class);
         limit = as(filter.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(10));
         mvExp = as(limit.child(), MvExpand.class);
@@ -2452,6 +2454,70 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(expand.expanded().semanticEquals(filterProp));
         assertFalse(expand.target().semanticEquals(filterProp));
         var row = as(expand.child(), Row.class);
+    }
+
+    /**
+     * Expected:
+     * Limit[500[INTEGER]]
+     * \_MvExpand[a{r}#2,a{r}#6,2147483647]
+     *   \_TopN[[Order[a{r}#2,ASC,LAST]],500[INTEGER]]
+     *     \_Row[[1[INTEGER] AS a]]
+     */
+    public void testSortMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            row a = 1
+            | sort a
+            | mv_expand a""");
+
+        var limit = as(plan, Limit.class);
+        var expand = as(limit.child(), MvExpand.class);
+        var topN = as(expand.child(), TopN.class);
+        var row = as(topN.child(), Row.class);
+    }
+
+    /**
+     * Expected:
+     * Limit[20[INTEGER]]
+     * \_MvExpand[emp_no{f}#4,emp_no{r}#14,-1]
+     *   \_TopN[[Order[emp_no{f}#4,ASC,LAST]],20[INTEGER]]
+     *     \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
+     */
+    public void testSortMvExpandLimit() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | mv_expand emp_no
+            | limit 20""");
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), is(20));
+        var expand = as(limit.child(), MvExpand.class);
+        var topN = as(expand.child(), TopN.class);
+        assertThat(topN.limit().fold(), is(20));
+        var row = as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected:
+     * Limit[500[INTEGER]]
+     * \_MvExpand[b{r}#4,b{r}#8,-1]
+     *   \_Limit[500[INTEGER]]
+     *     \_Row[[1[INTEGER] AS a, -15[INTEGER] AS b]]
+     *
+     *  see https://github.com/elastic/elasticsearch/issues/102084
+     */
+    public void testWhereMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            row  a = 1, b = -15
+            | where b < 3
+            | mv_expand b""");
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), is(500));
+        var expand = as(limit.child(), MvExpand.class);
+        var limit2 = as(expand.child(), Limit.class);
+        assertThat(limit2.limit().fold(), is(500));
+        var row = as(limit2.child(), Row.class);
     }
 
     /**

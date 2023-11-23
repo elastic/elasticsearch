@@ -781,7 +781,8 @@ public final class PlanNamedTypes {
     }
 
     static MvExpand readMvExpand(PlanStreamInput in) throws IOException {
-        return new MvExpand(in.readSource(), in.readLogicalPlanNode(), in.readNamedExpression(), in.readAttribute());
+        // last parameter (limit) is a local value that is needed only during the logical planning, no need to serialize/deserialize it
+        return new MvExpand(in.readSource(), in.readLogicalPlanNode(), in.readNamedExpression(), in.readAttribute(), -1);
     }
 
     static void writeMvExpand(PlanStreamOutput out, MvExpand mvExpand) throws IOException {

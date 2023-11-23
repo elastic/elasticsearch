@@ -306,3 +306,29 @@ a:long      | b:long      | c:long      | gender:keyword | str:keyword   | x:key
 57          |57           |57           |M               |"57,M"         |M              
 0           |10           |10           |null            |null         |null           
 ;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102061
+sortMvExpand#[skip:-8.11.99]
+row a = 1 | sort a | mv_expand a;
+
+a:integer
+1
+;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102061
+limitSortMvExpand#[skip:-8.11.99]
+row a = 1 | limit 1 | sort a | mv_expand a;
+
+a:integer
+1
+;
+
+
+//see https://github.com/elastic/elasticsearch/issues/102084
+whereMvExpand#[skip:-8.11.99]
+row  a = 1, b = -15 | where b > 3   | mv_expand b;
+
+a:integer | b:integer
+;

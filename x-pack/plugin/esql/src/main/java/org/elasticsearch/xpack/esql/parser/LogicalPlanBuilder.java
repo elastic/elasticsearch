@@ -151,7 +151,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
         String identifier = visitSourceIdentifier(ctx.sourceIdentifier());
         Source src = source(ctx);
-        return child -> new MvExpand(src, child, new UnresolvedAttribute(src, identifier), new UnresolvedAttribute(src, identifier));
+        return child -> new MvExpand(src, child, new UnresolvedAttribute(src, identifier), new UnresolvedAttribute(src, identifier), -1);
 
     }
 

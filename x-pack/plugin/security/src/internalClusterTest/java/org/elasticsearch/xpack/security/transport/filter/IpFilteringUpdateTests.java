@@ -145,7 +145,7 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
                     expectThrows(
                         IllegalArgumentException.class,
                         settingName,
-                        () -> clusterAdmin().prepareUpdateSettings().setPersistentSettings(settings).execute().actionGet()
+                        () -> clusterAdmin().prepareUpdateSettings().setPersistentSettings(settings).get()
                     ).getMessage(),
                     allOf(containsString("invalid IP filter"), containsString(invalidValue))
                 );

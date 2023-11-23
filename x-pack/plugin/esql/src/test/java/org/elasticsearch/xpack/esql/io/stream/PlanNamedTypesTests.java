@@ -511,14 +511,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
     }
 
-    static EsIndex randomEmptyEsIndex() {
-        return new EsIndex(
-            randomAlphaOfLength(randomIntBetween(1, 25)),
-            Collections.emptyMap(),
-            Set.of(randomAlphaOfLength(randomIntBetween(1, 25)), randomAlphaOfLength(randomIntBetween(1, 25)))
-        );
-    }
-
     static EsIndex randomEsIndex() {
         return new EsIndex(
             randomAlphaOfLength(randomIntBetween(1, 25)),

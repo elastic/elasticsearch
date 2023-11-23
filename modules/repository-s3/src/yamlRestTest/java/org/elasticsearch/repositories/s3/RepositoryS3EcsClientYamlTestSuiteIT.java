@@ -15,13 +15,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 public class RepositoryS3EcsClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
-    private static final S3HttpFixtureWithECS s3Ecs = new S3HttpFixtureWithECS(USE_FIXTURE);
+    private static final S3HttpFixtureWithECS s3Ecs = new S3HttpFixtureWithECS();
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
@@ -31,11 +30,6 @@ public class RepositoryS3EcsClientYamlTestSuiteIT extends AbstractRepositoryS3Cl
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(s3Ecs).around(cluster);
-
-    @BeforeClass
-    public static void onlyWhenRunWithTestFixture() {
-        assumeTrue("Only run with fixture enabled", USE_FIXTURE);
-    }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {

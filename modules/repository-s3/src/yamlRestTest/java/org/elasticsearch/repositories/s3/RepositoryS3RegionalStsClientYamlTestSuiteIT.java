@@ -14,7 +14,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 public class RepositoryS3RegionalStsClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
@@ -30,11 +29,6 @@ public class RepositoryS3RegionalStsClientYamlTestSuiteIT extends AbstractReposi
         .environment("AWS_STS_REGIONAL_ENDPOINTS", "regional")
         .environment("AWS_REGION", "ap-southeast-2")
         .build();
-
-    @BeforeClass
-    public static void onlyWhenRunWithTestFixture() {
-        assumeTrue("Only run with fixture enabled", USE_FIXTURE);
-    }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {

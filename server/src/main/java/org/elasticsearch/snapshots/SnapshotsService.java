@@ -844,11 +844,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             assert endingSnapshots.contains(snapshot) == false : snapshot;
                         }
                     }
+                    final Exception cause = new NotMasterException("no longer master");
                     for (final Iterator<List<ActionListener<Void>>> it = snapshotDeletionListeners.values().iterator(); it.hasNext();) {
                         final List<ActionListener<Void>> listeners = it.next();
-                        readyToResolveListeners.add(
-                            () -> failListenersIgnoringException(listeners, new NotMasterException("no longer master"))
-                        );
+                        readyToResolveListeners.add(() -> failListenersIgnoringException(listeners, cause));
                         it.remove();
                     }
                 }
@@ -1912,9 +1911,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         assert repositoryOperations.assertNotQueued(snapshot);
     }
 
-    private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e, Consumer<Runnable> consumer) {
+    private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e, Consumer<Runnable> failingListenersConsumer) {
         final List<ActionListener<SnapshotInfo>> listeners = endAndGetListenersToResolve(snapshot);
-        consumer.accept(() -> failListenersIgnoringException(listeners, e));
+        failingListenersConsumer.accept(() -> failListenersIgnoringException(listeners, e));
         assert repositoryOperations.assertNotQueued(snapshot);
     }
 

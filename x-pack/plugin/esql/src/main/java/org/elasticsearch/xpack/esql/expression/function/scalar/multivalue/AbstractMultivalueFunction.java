@@ -64,12 +64,15 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
          * that it's producing an "array vector" because it only ever emits single
          * valued fields and no null values. Building an array vector directly is
          * generally faster than building it via a {@link Block.Builder}.
+         *
+         * @return the returned Block has its own reference and the caller is responsible for the releasing it.
          */
         protected abstract Block evalNotNullable(Block fieldVal);
 
         /**
-         * Called to evaluate single valued fields when the target block does not
-         * have null values.
+         * Called to evaluate single valued fields when the target block does not have null values.
+         *
+         * @return the returned Block has its own reference and the caller is responsible for the releasing it.
          */
         protected Block evalSingleValuedNotNullable(Block fieldRef) {
             fieldRef.incRef();
@@ -109,12 +112,13 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
 
         /**
          * Called when evaluating a {@link Block} that contains null values.
+         * @return the returned Block has its own reference and the caller is responsible for the releasing it.
          */
         protected abstract Block evalNullable(Block fieldVal);
 
         /**
-         * Called to evaluate single valued fields when the target block has null
-         * values.
+         * Called to evaluate single valued fields when the target block has null values.
+         * @return the returned Block has its own reference and the caller is responsible for the releasing it.
          */
         protected Block evalSingleValuedNullable(Block fieldRef) {
             fieldRef.incRef();

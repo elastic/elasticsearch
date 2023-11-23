@@ -540,7 +540,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         AcknowledgedResponse putPipelineResponse = putPipelineListener.actionGet();
         assertTrue(putPipelineResponse.isAcknowledged());
 
-        client().prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
+        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
 
         String simulateSource = Strings.format("""
             {
@@ -569,7 +569,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // Inference against the previous pipeline should still work
         try {
-            client().prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
+            prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
         } catch (ElasticsearchSecurityException ex) {
             fail(ex.getMessage());
         }
@@ -590,10 +590,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // Inference against the new pipeline should fail since it has never previously succeeded
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            client().prepareIndex("infer_license_test")
-                .setPipeline("test_infer_license_pipeline_again")
-                .setSource("{}", XContentType.JSON)
-                .get();
+            prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline_again").setSource("{}", XContentType.JSON).get();
         });
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
         assertThat(e.getMessage(), containsString("non-compliant"));
@@ -636,11 +633,8 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // both ingest pipelines should work
 
-        client().prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("infer_license_test")
-            .setPipeline("test_infer_license_pipeline_again")
-            .setSource("{}", XContentType.JSON)
-            .get();
+        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
+        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline_again").setSource("{}", XContentType.JSON).get();
     }
 
     public void testMachineLearningInferModelRestricted() {

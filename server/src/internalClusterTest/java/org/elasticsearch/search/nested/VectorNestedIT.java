@@ -47,8 +47,7 @@ public class VectorNestedIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startArray("nested")

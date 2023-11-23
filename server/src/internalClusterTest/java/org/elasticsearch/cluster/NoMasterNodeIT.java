@@ -224,8 +224,8 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         prepareCreate("test1").setSettings(indexSettings(1, 2)).get();
         prepareCreate("test2").setSettings(indexSettings(3, 0)).get();
         clusterAdmin().prepareHealth("_all").setWaitForGreenStatus().get();
-        client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
-        client().prepareIndex("test2").setId("1").setSource("field", "value1").get();
+        prepareIndex("test1").setId("1").setSource("field", "value1").get();
+        prepareIndex("test2").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureSearchable("test1", "test2");
@@ -300,7 +300,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         prepareCreate("test1").setSettings(indexSettings(1, 1)).get();
         clusterAdmin().prepareHealth("_all").setWaitForGreenStatus().get();
-        client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
+        prepareIndex("test1").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureGreen("test1");

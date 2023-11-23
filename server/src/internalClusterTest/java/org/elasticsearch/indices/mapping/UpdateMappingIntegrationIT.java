@@ -74,8 +74,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             String type = "type";
             String fieldName = "field_" + type + "_" + rec;
             indexRequests.add(
-                client().prepareIndex("test")
-                    .setId(Integer.toString(rec))
+                prepareIndex("test").setId(Integer.toString(rec))
                     .setTimeout(TimeValue.timeValueMinutes(5))
                     .setSource(fieldName, "some_value")
             );

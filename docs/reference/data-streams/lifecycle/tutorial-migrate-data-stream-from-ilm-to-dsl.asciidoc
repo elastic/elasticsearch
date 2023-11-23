@@ -16,7 +16,7 @@ a time.
 [discrete]
 [[migrate-dsl-ilm-tldr]]
 ==== TL;DR
-To migrate a data stream from {ilm-init} to  data stream lifecycle we'll have to execute
+To migrate a data stream from {ilm-init} to data stream lifecycle we'll have to execute
 two steps:
 
 1. Update the index template that's backing the data stream to set <<index-lifecycle-prefer-ilm, prefer_ilm>> 

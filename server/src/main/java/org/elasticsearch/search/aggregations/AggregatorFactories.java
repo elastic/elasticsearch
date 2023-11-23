@@ -275,7 +275,7 @@ public class AggregatorFactories {
      * A mutable collection of {@link AggregationBuilder}s and
      * {@link PipelineAggregationBuilder}s.
      */
-    public static class Builder implements Writeable, ToXContentObject {
+    public static final class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
 
         // Using LinkedHashSets to preserve the order of insertion, that makes the results
@@ -291,7 +291,6 @@ public class AggregatorFactories {
         /**
          * Read from a stream.
          */
-        @SuppressWarnings("this-escape")
         public Builder(StreamInput in) throws IOException {
             int factoriesSize = in.readVInt();
             for (int i = 0; i < factoriesSize; i++) {
@@ -368,7 +367,6 @@ public class AggregatorFactories {
         public ActionRequestValidationException validate(ActionRequestValidationException e) {
             PipelineAggregationBuilder.ValidationContext context = PipelineAggregationBuilder.ValidationContext.forTreeRoot(
                 aggregationBuilders,
-                pipelineAggregatorBuilders,
                 e
             );
             validatePipelines(context);

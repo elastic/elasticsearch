@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
@@ -142,6 +143,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
+    private static final String IGNORED_CSV_FILE_NAMES_PATTERN = "-IT_tests_only";
 
     private final String fileName;
     private final String groupName;
@@ -160,7 +162,9 @@ public class CsvTests extends ESTestCase {
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/*.csv-spec").stream().filter(x -> x.toString().contains("-ignoreCsvTests") == false).toList();
+        List<URL> urls = classpathResources("/*.csv-spec").stream()
+            .filter(x -> x.toString().contains(IGNORED_CSV_FILE_NAMES_PATTERN) == false)
+            .toList();
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
         return SpecReader.readScriptSpec(urls, specParser());
     }
@@ -212,7 +216,7 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
-            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName));
+            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);
@@ -225,7 +229,7 @@ public class CsvTests extends ESTestCase {
     }
 
     public boolean logResults() {
-        return false;
+        return true;
     }
 
     private void doTest() throws Exception {

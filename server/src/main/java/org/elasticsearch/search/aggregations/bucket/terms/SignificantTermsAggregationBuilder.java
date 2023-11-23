@@ -187,14 +187,6 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return bucketCountThresholds;
     }
 
-    public SignificantTermsAggregationBuilder bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
-        if (bucketCountThresholds == null) {
-            throw new IllegalArgumentException("[bucketCountThresholds] must not be null: [" + name + "]");
-        }
-        this.bucketCountThresholds = bucketCountThresholds;
-        return this;
-    }
-
     /**
      * Sets the size - indicating how many term buckets should be returned
      * (defaults to 10)
@@ -257,23 +249,12 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return this;
     }
 
-    /**
-     * Expert: gets an execution hint to the aggregation.
-     */
-    public String executionHint() {
-        return executionHint;
-    }
-
     public SignificantTermsAggregationBuilder backgroundFilter(QueryBuilder backgroundFilter) {
         if (backgroundFilter == null) {
             throw new IllegalArgumentException("[backgroundFilter] must not be null: [" + name + "]");
         }
         this.backgroundFilter = backgroundFilter;
         return this;
-    }
-
-    public QueryBuilder backgroundFilter() {
-        return backgroundFilter;
     }
 
     /**
@@ -378,11 +359,6 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     @Override
     public String getType() {
         return NAME;
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
     }
 
     @Override

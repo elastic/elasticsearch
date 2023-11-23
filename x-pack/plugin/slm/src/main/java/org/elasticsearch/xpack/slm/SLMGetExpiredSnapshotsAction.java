@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
@@ -125,7 +126,12 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
                             perRepositoryListener -> SubscribableListener
 
                                 // Get repository data
-                                .newForked(repository::getRepositoryData)
+                                .<RepositoryData>newForked(
+                                    l -> repository.getRepositoryData(
+                                        EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO use retentionExecutor, see #101445?
+                                        l
+                                    )
+                                )
 
                                 // Collect snapshot details by policy, and get any missing details by reading SnapshotInfo
                                 .<SnapshotDetailsByPolicy>andThen(

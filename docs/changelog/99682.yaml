@@ -1,5 +1,0 @@
-pr: 99682
-summary: Increase the max vector dims to 4096
-area: Vector Search
-type: enhancement
-issues: []

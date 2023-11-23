@@ -973,6 +973,34 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection());
+            searchSourceBuilder.sort(SortBuilders.fieldSort("field"));
+            assertFalse(searchSourceBuilder.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection());
+            searchSourceBuilder.sort(SortBuilders.geoDistanceSort("field", 0, 0));
+            assertFalse(searchSourceBuilder.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection());
+            searchSourceBuilder.sort(SortBuilders.pitTiebreaker());
+            assertFalse(searchSourceBuilder.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection());
+            searchSourceBuilder.sort(SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
+            assertFalse(searchSourceBuilder.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.profile(true);
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }

@@ -76,7 +76,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         return (UnsignedLongFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
         private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
@@ -102,7 +102,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             this(name, IGNORE_MALFORMED_SETTING.get(settings), mode);
         }
 
-        @SuppressWarnings("this-escape")
         public Builder(String name, boolean ignoreMalformedByDefault, IndexMode mode) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(
@@ -320,12 +319,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
                 // Counters are not supported by ESQL so we load them in null
-                return BlockDocValuesReader.nulls();
+                return BlockLoader.CONSTANT_NULLS;
             }
             if (hasDocValues()) {
-                return BlockDocValuesReader.longs(name());
+                return new BlockDocValuesReader.LongsBlockLoader(name());
             }
-            return BlockSourceReader.longs(new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
+            return new BlockSourceReader.LongsBlockLoader(new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -438,7 +437,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          *         null, if a value represents some other number
          *         throws an exception if a value is wrongly formatted number
          */
-        protected static Long parseTerm(Object value) {
+        static Long parseTerm(Object value) {
             if (value instanceof Number) {
                 if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
                     long lv = ((Number) value).longValue();
@@ -472,7 +471,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          *      null, if value is higher than the maximum allowed value for unsigned long
          *      throws an exception is value represents wrongly formatted number
          */
-        protected static Long parseLowerRangeTerm(Object value, boolean include) {
+        static Long parseLowerRangeTerm(Object value, boolean include) {
             if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
                 long longValue = ((Number) value).longValue();
                 if (longValue < 0) return 0L; // limit lowerTerm to min value for unsigned long: 0
@@ -509,7 +508,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          *      -1 (unsigned long of 18446744073709551615) for values greater than 18446744073709551615
          *      throws an exception is value represents wrongly formatted number
          */
-        protected static Long parseUpperRangeTerm(Object value, boolean include) {
+        static Long parseUpperRangeTerm(Object value, boolean include) {
             if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
                 long longValue = ((Number) value).longValue();
                 if ((longValue < 0) || (longValue == 0 && include == false)) return null; // upperTerm is below minimum

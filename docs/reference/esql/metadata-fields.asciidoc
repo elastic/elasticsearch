@@ -34,11 +34,11 @@ like the other index fields:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/metadata-ignoreCsvTests.csv-spec[tag=multipleIndices]
+include::{esql-specs}/metadata-IT_tests_only.csv-spec[tag=multipleIndices]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/metadata-ignoreCsvTests.csv-spec[tag=multipleIndices-result]
+include::{esql-specs}/metadata-IT_tests_only.csv-spec[tag=multipleIndices-result]
 |===
 
 Also, similar to the index fields, once an aggregation is performed, a
@@ -47,9 +47,9 @@ used as grouping field:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/metadata-ignoreCsvTests.csv-spec[tag=metaIndexInAggs]
+include::{esql-specs}/metadata-IT_tests_only.csv-spec[tag=metaIndexInAggs]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/metadata-ignoreCsvTests.csv-spec[tag=metaIndexInAggs-result]
+include::{esql-specs}/metadata-IT_tests_only.csv-spec[tag=metaIndexInAggs-result]
 |===

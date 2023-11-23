@@ -118,9 +118,4 @@ public class EvalOperatorTests extends OperatorTestCase {
     protected ByteSizeValue smallEnoughToCircuitBreak() {
         return ByteSizeValue.ofBytes(between(1, 8000));
     }
-
-    @Override
-    protected DriverContext driverContext() { // TODO remove this when the parent uses a breaking block factory
-        return breakingDriverContext();
-    }
 }

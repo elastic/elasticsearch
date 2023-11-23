@@ -37,14 +37,13 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
-public class Case extends ScalarFunction implements EvaluatorMapper {
+public final class Case extends ScalarFunction implements EvaluatorMapper {
     record Condition(Expression condition, Expression value) {}
 
     private final List<Condition> conditions;
     private final Expression elseValue;
     private DataType dataType;
 
-    @SuppressWarnings("this-escape")
     public Case(Source source, Expression first, List<Expression> rest) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
         int conditionCount = children().size() / 2;
@@ -233,9 +232,6 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (ConditionEvaluator condition : conditions) {
                             try (Block.Ref conditionRef = condition.condition.eval(limited)) {
-                                if (conditionRef.block().areAllValuesNull()) {
-                                    continue;
-                                }
                                 BooleanBlock b = (BooleanBlock) conditionRef.block();
                                 if (b.isNull(0)) {
                                     continue;

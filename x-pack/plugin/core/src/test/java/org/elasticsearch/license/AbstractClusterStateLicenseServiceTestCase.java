@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -72,7 +73,8 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
         when(state.metadata()).thenReturn(metadata);
         final DiscoveryNode mockNode = getLocalNode();
         when(discoveryNodes.getMasterNode()).thenReturn(mockNode);
-        when(discoveryNodes.stream()).thenAnswer(invocation -> Stream.of(mockNode));
+        when(discoveryNodes.stream()).thenAnswer(i -> Stream.of(mockNode));
+        when(discoveryNodes.iterator()).thenAnswer(i -> Iterators.single(mockNode));
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(false);
         when(discoveryNodes.getMinNodeVersion()).thenReturn(mockNode.getVersion());
         when(state.nodes()).thenReturn(discoveryNodes);

@@ -63,11 +63,7 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    IntBlock block = (IntBlock) uncastBlock;
+    IntBlock block = page.getBlock(channels.get(0));
     IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);

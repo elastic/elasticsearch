@@ -225,3 +225,84 @@ emp_no:integer |  job_positions:keyword
 10004          |Head Human Resources
 10004          |Reporting Analyst
 ;
+
+
+expandFoldable
+row a = "foobar", b = ["foo", "bar"], c = 12 | mv_expand b | where b LIKE "fo*";
+
+a:keyword   | b:keyword | c:integer
+foobar      | foo       | 12
+;
+
+expandEvalFoldable
+from employees | sort emp_no | limit 2 | eval foldable = "foo,bar" | eval generate_mv = split(foldable,",") | mv_expand generate_mv | keep emp_no, first_name, generate_mv | sort emp_no asc, generate_mv desc;
+
+emp_no:integer  | first_name:keyword | generate_mv:keyword
+10001           | Georgi             | foo
+10001           | Georgi             | bar
+10002           | Bezalel            | foo
+10002           | Bezalel            | bar
+;
+
+
+expandEvalFoldableWhere
+from employees | sort emp_no | limit 2 | eval foldable = "foo,bar" | eval generate_mv = split(foldable,",") | mv_expand generate_mv | keep emp_no, first_name, generate_mv | where generate_mv LIKE "fo*";
+
+emp_no:integer  | first_name:keyword | generate_mv:keyword
+10001           | Georgi             | foo
+10002           | Bezalel            | foo
+;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102120
+expandAfterDuplicateAggs#[skip:-8.11.99]
+row a = 1 |  stats  a = count(*), b = count(*) | mv_expand b;
+
+a:long | b:long 
+1      | 1
+;
+
+expandAfterDuplicateAggs2#[skip:-8.11.99]
+row a = 1 | stats a = count(*), b = count(*) | mv_expand a;
+
+a:long | b:long 
+1      | 1
+;
+
+
+expandAfterDuplicateAggsAndEval#[skip:-8.11.99]
+row a = 1 | stats  a = count(*), b = count(*) | eval c = 2 | mv_expand b;
+
+a:long | b:long | c:integer
+1      | 1      | 2
+;
+
+expandAfterDuplicateAggsComplex#[skip:-8.11.99]
+row x = [1, 2, 3] 
+| mv_expand x 
+| stats a = count(*), b = count(*), c = count(*) 
+| eval x  = a + c + b 
+| mv_expand a 
+| rename a AS a | drop a;
+
+b:long    | c:long    | x:long
+3         | 3         | 9
+;
+
+
+expandAfterDuplicateAggsMultirow#[skip:-8.11.99]
+from employees 
+| stats a = count(gender), b = count(*), c = count(*) by gender 
+| eval str = concat(to_string(b), ",", gender) 
+| mv_expand b 
+| eval x = split(str,",") 
+| mv_expand x 
+| sort x;
+
+a:long      | b:long      | c:long      | gender:keyword | str:keyword   | x:keyword       
+33          |33           |33           |F               |"33,F"         |33             
+57          |57           |57           |M               |"57,M"         |57             
+33          |33           |33           |F               |"33,F"         |F              
+57          |57           |57           |M               |"57,M"         |M              
+0           |10           |10           |null            |null         |null           
+;

@@ -29,7 +29,7 @@ import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
-import org.elasticsearch.compute.operator.ResultPageSinkOperator;
+import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,12 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase {
-
-    @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
-
     protected abstract AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels);
 
     protected final int aggregatorIntermediateBlockCount() {
@@ -110,7 +104,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
                 driverContext,
                 new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator()), blockFactory),
                 List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)),
-                new ResultPageSinkOperator(results::add),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {

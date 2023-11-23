@@ -31,7 +31,14 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
                 null,
                 new DataStreamLifecycle(),
-                randomBoolean() ? new NullPointerException("bad times").getMessage() : null
+                randomBoolean()
+                    ? new ErrorEntry(
+                        System.currentTimeMillis(),
+                        new NullPointerException("bad times").getMessage(),
+                        System.currentTimeMillis(),
+                        randomIntBetween(0, 30)
+                    )
+                    : null
             );
             assertThat(explainIndexDataStreamLifecycle.getGenerationTime(() -> now + 50L), is(nullValue()));
             explainIndexDataStreamLifecycle = new ExplainIndexDataStreamLifecycle(
@@ -41,7 +48,14 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
                 randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
                 TimeValue.timeValueMillis(now + 100),
                 new DataStreamLifecycle(),
-                randomBoolean() ? new NullPointerException("bad times").getMessage() : null
+                randomBoolean()
+                    ? new ErrorEntry(
+                        System.currentTimeMillis(),
+                        new NullPointerException("bad times").getMessage(),
+                        System.currentTimeMillis(),
+                        randomIntBetween(0, 30)
+                    )
+                    : null
             );
             assertThat(explainIndexDataStreamLifecycle.getGenerationTime(() -> now + 500L), is(TimeValue.timeValueMillis(400)));
         }
@@ -189,7 +203,14 @@ public class ExplainIndexDataStreamLifecycleTests extends AbstractWireSerializin
             randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
             TimeValue.timeValueMillis(now),
             lifecycle,
-            randomBoolean() ? new NullPointerException("bad times").getMessage() : null
+            randomBoolean()
+                ? new ErrorEntry(
+                    System.currentTimeMillis(),
+                    new NullPointerException("bad times").getMessage(),
+                    System.currentTimeMillis(),
+                    randomIntBetween(0, 30)
+                )
+                : null
         );
     }
 

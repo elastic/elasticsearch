@@ -52,6 +52,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class TransportHealthNodeActionTests extends ESTestCase {
     private static ThreadPool threadPool;
@@ -250,6 +251,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
             }
         }, null, request, listener);
         assertTrue(listener.isDone());
+        assertThat(transportService.getRequestHandler("internal:testAction").canTripCircuitBreaker(), is(false));
 
         if (healthOperationFailure) {
             try {
@@ -283,6 +285,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
+        assertThat(transportService.getRequestHandler("internal:testAction").canTripCircuitBreaker(), is(false));
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
@@ -303,6 +306,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         final CancellableTask task = (CancellableTask) taskManager.register("type", "internal:testAction", request);
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), task, request, listener);
+        assertThat(transportService.getRequestHandler("internal:testAction").canTripCircuitBreaker(), is(false));
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
@@ -327,6 +331,8 @@ public class TransportHealthNodeActionTests extends ESTestCase {
             listener
         );
         assertTrue(listener.isDone());
+        assertThat(transportService.getRequestHandler("internal:testAction").canTripCircuitBreaker(), is(false));
+
         try {
             listener.get();
             fail("A simulated RuntimeException should be thrown");

@@ -70,6 +70,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.util.CombinedBitSet;
+import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
@@ -96,6 +97,7 @@ import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectSc
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -279,7 +281,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
         doTestContextIndexSearcher(true, true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94615")
     public void testContextIndexSearcherDenseWithDeletions() throws IOException {
         doTestContextIndexSearcher(false, true);
     }
@@ -332,7 +333,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         if (sparse) {
             assertThat(bitSet, instanceOf(SparseFixedBitSet.class));
         } else {
-            assertThat(bitSet, instanceOf(FixedBitSet.class));
+            assertThat(bitSet, anyOf(instanceOf(FixedBitSet.class), instanceOf(MatchAllBitSet.class)));
         }
 
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);

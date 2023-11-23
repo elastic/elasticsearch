@@ -37,6 +37,7 @@ dependencies {
   clusterModules project(":modules:rest-root")
   clusterModules project(":modules:reindex")
   clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:health-shards-availability')
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
@@ -227,8 +228,9 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 }
 
 tasks.register('enforceYamlTestConvention').configure {
+  def tree = fileTree('src/main/resources/rest-api-spec/test')
   doLast {
-    if (fileTree('src/main/resources/rest-api-spec/test').files) {
+    if (tree.files) {
       throw new GradleException("There are YAML tests in src/main source set. These should be moved to src/yamlRestTest.")
     }
   }

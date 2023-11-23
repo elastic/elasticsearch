@@ -31,12 +31,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
-
-    @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
-
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         long max = randomLongBetween(1, Long.MAX_VALUE / size);

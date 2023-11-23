@@ -39,9 +39,6 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref inputRef = input.eval(page)) {
-      if (inputRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock inputBlock = (BytesRefBlock) inputRef.block();
       BytesRefVector inputVector = inputBlock.asVector();
       if (inputVector == null) {
@@ -52,7 +49,7 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock inputBlock) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (inputBlock.isNull(p) || inputBlock.getValueCount(p) != 1) {
@@ -66,7 +63,7 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector inputVector) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(RegexMatch.process(inputVector.getBytesRef(p, inputScratch), pattern));

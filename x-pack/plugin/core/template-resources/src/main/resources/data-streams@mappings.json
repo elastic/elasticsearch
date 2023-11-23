@@ -63,5 +63,6 @@
     "description": "general mapping conventions for data streams",
     "managed": true
   },
-  "version": ${xpack.stack.template.version}
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
 }

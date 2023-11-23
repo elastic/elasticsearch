@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -28,6 +32,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -72,7 +77,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
-
     long epoch = System.currentTimeMillis();
 
     @Before
@@ -1239,8 +1243,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testStatsNestFields() {
-        String node1 = internalCluster().startDataOnlyNode();
-        String node2 = internalCluster().startDataOnlyNode();
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
         assertAcked(
             client().admin()
                 .indices()
@@ -1273,8 +1284,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testStatsMissingFields() {
-        String node1 = internalCluster().startDataOnlyNode();
-        String node2 = internalCluster().startDataOnlyNode();
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
         assertAcked(
             client().admin()
                 .indices()
@@ -1289,7 +1307,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
                 .setMapping("bar_int", "type=integer", "bar_long", "type=long", "bar_float", "type=float", "bar_double", "type=double")
         );
-
         var fields = List.of("foo_int", "foo_long", "foo_float", "foo_double");
         var functions = List.of("sum", "count", "avg", "count_distinct");
         for (String field : fields) {
@@ -1463,5 +1480,52 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .get();
         }
         ensureYellow(indexName);
+    }
+
+    public void testDefaultTruncationSizeSetting() {
+        ClusterAdminClient client = admin().cluster();
+
+        Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getKey(), 1).build();
+
+        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(settings);
+
+        client.updateSettings(settingsRequest).actionGet();
+        try (EsqlQueryResponse results = run("from test")) {
+            logger.info(results);
+            assertEquals(1, getValuesList(results).size());
+        } finally {
+            clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE);
+        }
+    }
+
+    public void testMaxTruncationSizeSetting() {
+        ClusterAdminClient client = admin().cluster();
+
+        Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getKey(), 10).build();
+
+        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(settings);
+
+        client.updateSettings(settingsRequest).actionGet();
+        try (EsqlQueryResponse results = run("from test | limit 40")) {
+            logger.info(results);
+            assertEquals(10, getValuesList(results).size());
+        } finally {
+            clearPersistentSettings(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        }
+    }
+
+    private void clearPersistentSettings(Setting<?>... settings) {
+        Settings.Builder clearedSettings = Settings.builder();
+
+        for (Setting<?> s : settings) {
+            clearedSettings.putNull(s.getKey());
+        }
+
+        var clearSettingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(clearedSettings.build());
+        admin().cluster().updateSettings(clearSettingsRequest).actionGet();
+    }
+
+    private DiscoveryNode randomDataNode() {
+        return randomFrom(clusterService().state().nodes().getDataNodes().values());
     }
 }

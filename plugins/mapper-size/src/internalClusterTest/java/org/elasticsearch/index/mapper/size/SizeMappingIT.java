@@ -100,7 +100,7 @@ public class SizeMappingIT extends ESIntegTestCase {
     public void testBasic() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         GetResponse getResponse = client().prepareGet("test", "1").setStoredFields("_size").get();
         assertNotNull(getResponse.getField("_size"));
         assertEquals(source.length(), (int) getResponse.getField("_size").getValue());
@@ -109,7 +109,7 @@ public class SizeMappingIT extends ESIntegTestCase {
     public void testGetWithFields() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         assertResponse(
             prepareSearch("test").addFetchField("_size"),
             response -> assertEquals(
@@ -134,7 +134,7 @@ public class SizeMappingIT extends ESIntegTestCase {
     public void testWildCardWithFieldsWhenDisabled() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=false"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         assertResponse(
             prepareSearch("test").addFetchField("_size"),
             response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
@@ -154,7 +154,7 @@ public class SizeMappingIT extends ESIntegTestCase {
     public void testWildCardWithFieldsWhenNotProvided() throws Exception {
         assertAcked(prepareCreate("test"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         assertResponse(
             prepareSearch("test").addFetchField("_size"),
             response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))

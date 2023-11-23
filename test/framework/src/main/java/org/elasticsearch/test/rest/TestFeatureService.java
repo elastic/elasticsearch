@@ -25,17 +25,21 @@ class TestFeatureService {
     TestFeatureService(List<? extends FeatureSpecification> specs, Collection<Version> nodeVersions, Set<String> clusterStateFeatures) {
 
         var minNodeVersion = nodeVersions.stream().min(Version::compareTo);
-        this.historicalFeaturesPredicate = minNodeVersion.<Predicate<String>>map(v -> {
-            var featureData = FeatureData.createFromSpecifications(specs);
-            var historicalFeatures = featureData.getHistoricalFeatures();
-            return featureId -> hasHistoricalFeature(historicalFeatures, v, featureId);
-        }).orElse(f -> false);
+        var featureData = FeatureData.createFromSpecifications(specs);
+        var historicalFeatures = featureData.getHistoricalFeatures();
+        var allHistoricalFeatures = historicalFeatures.lastEntry() == null ? Set.of() : historicalFeatures.lastEntry().getValue();
+        this.historicalFeaturesPredicate = minNodeVersion.<Predicate<String>>map(v -> featureId -> {
+            assert allHistoricalFeatures.contains(featureId) : "Unknown historical feature " + featureId;
+            return hasHistoricalFeature(historicalFeatures, v, featureId);
+        }).orElse(featureId -> {
+            // We can safely assume that new non-semantic versions (serverless) support all historical features
+            assert allHistoricalFeatures.contains(featureId) : "Unknown historical feature " + featureId;
+            return true;
+        });
         this.clusterStateFeatures = clusterStateFeatures;
     }
 
     private static boolean hasHistoricalFeature(NavigableMap<Version, Set<String>> historicalFeatures, Version version, String featureId) {
-        var allHistoricalFeatures = historicalFeatures.lastEntry().getValue();
-        assert allHistoricalFeatures != null && allHistoricalFeatures.contains(featureId) : "Unknown historical feature " + featureId;
         var features = historicalFeatures.floorEntry(version);
         return features != null && features.getValue().contains(featureId);
     }

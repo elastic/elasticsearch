@@ -149,7 +149,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.getIndexTemplates(), hasSize(2));
 
         // index something into test_index, will match on both templates
-        client().prepareIndex("test_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         SearchResponse searchResponse = prepareSearch("test_index").setQuery(termQuery("field1", "value1"))
@@ -162,7 +162,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // field2 is not stored.
         assertThat(searchResponse.getHits().getAt(0).field("field2"), nullValue());
 
-        client().prepareIndex("text_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("text_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
         // now only match on one template (template_1)
@@ -486,11 +486,11 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
-        client().prepareIndex("test_index").setId("1").setSource("type", "type1", "field", "A value").get();
-        client().prepareIndex("test_index").setId("2").setSource("type", "type2", "field", "B value").get();
-        client().prepareIndex("test_index").setId("3").setSource("type", "typeX", "field", "C value").get();
-        client().prepareIndex("test_index").setId("4").setSource("type", "typeY", "field", "D value").get();
-        client().prepareIndex("test_index").setId("5").setSource("type", "typeZ", "field", "E value").get();
+        prepareIndex("test_index").setId("1").setSource("type", "type1", "field", "A value").get();
+        prepareIndex("test_index").setId("2").setSource("type", "type2", "field", "B value").get();
+        prepareIndex("test_index").setId("3").setSource("type", "typeX", "field", "C value").get();
+        prepareIndex("test_index").setId("4").setSource("type", "typeY", "field", "D value").get();
+        prepareIndex("test_index").setId("5").setSource("type", "typeZ", "field", "E value").get();
 
         GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases().setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -540,8 +540,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(1));
 
-        client().prepareIndex("test_index").setId("1").setSource("field", "value1").get();
-        client().prepareIndex("test_index").setId("2").setSource("field", "value2").get();
+        prepareIndex("test_index").setId("1").setSource("field", "value1").get();
+        prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
         assertHitCount(prepareSearch("test_index"), 2L);
@@ -575,8 +575,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(3));
 
-        client().prepareIndex("test_index").setId("1").setSource("field", "value1").get();
-        client().prepareIndex("test_index").setId("2").setSource("field", "value2").get();
+        prepareIndex("test_index").setId("1").setSource("field", "value1").get();
+        prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
         assertHitCount(prepareSearch("test_index"), 2L);
@@ -711,7 +711,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .addAlias(new Alias("alias4").filter(termQuery("field", "value")))
             .get();
 
-        client().prepareIndex("a1").setId("test").setSource("{}", XContentType.JSON).get();
+        prepareIndex("a1").setId("test").setSource("{}", XContentType.JSON).get();
         BulkResponse response = client().prepareBulk().add(new IndexRequest("a2").id("test").source("{}", XContentType.JSON)).get();
         assertThat(response.hasFailures(), is(false));
         assertThat(response.getItems()[0].isFailed(), equalTo(false));
@@ -727,7 +727,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // So the aliases defined in the index template for this index will not fail
         // even though the fields in the alias fields don't exist yet and indexing into
         // an index that doesn't exist yet will succeed
-        client().prepareIndex("b1").setId("test").setSource("{}", XContentType.JSON).get();
+        prepareIndex("b1").setId("test").setSource("{}", XContentType.JSON).get();
 
         response = client().prepareBulk().add(new IndexRequest("b2").id("test").source("{}", XContentType.JSON)).get();
         assertThat(response.hasFailures(), is(false));
@@ -830,9 +830,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("ax").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("ax").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
-        client().prepareIndex("bx").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("bx").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
 
@@ -981,7 +981,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 """, XContentType.JSON)
             .get();
 
-        client().prepareIndex("test").setSource().get();
+        prepareIndex("test").setSource().get();
         FieldCapabilitiesResponse fieldCapabilitiesResponse = client().prepareFieldCaps("test").setFields("*location").get();
         {
             Map<String, FieldCapabilities> field = fieldCapabilitiesResponse.getField("kwm.source.geo.location");

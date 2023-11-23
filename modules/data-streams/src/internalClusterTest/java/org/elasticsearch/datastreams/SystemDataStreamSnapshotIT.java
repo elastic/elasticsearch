@@ -64,8 +64,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
 
         // Index a doc so that a concrete backing index will be created
-        DocWriteResponse indexRepsonse = client().prepareIndex(SYSTEM_DATA_STREAM_NAME)
-            .setId("42")
+        DocWriteResponse indexRepsonse = prepareIndex(SYSTEM_DATA_STREAM_NAME).setId("42")
             .setSource("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
@@ -162,16 +161,14 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
 
         // Index a doc so that a concrete backing index will be created
-        DocWriteResponse indexToDataStreamResponse = client().prepareIndex(SYSTEM_DATA_STREAM_NAME)
-            .setId("42")
+        DocWriteResponse indexToDataStreamResponse = prepareIndex(SYSTEM_DATA_STREAM_NAME).setId("42")
             .setSource("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
         assertThat(indexToDataStreamResponse.status().getStatus(), oneOf(200, 201));
 
         // Index a doc so that a concrete backing index will be created
-        DocWriteResponse indexResponse = client().prepareIndex("my-index")
-            .setId("42")
+        DocWriteResponse indexResponse = prepareIndex("my-index").setId("42")
             .setSource("{ \"name\": \"my-name\" }", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();

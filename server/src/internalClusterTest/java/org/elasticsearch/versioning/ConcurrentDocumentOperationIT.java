@@ -31,7 +31,7 @@ public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(numberOfUpdates);
         for (int i = 0; i < numberOfUpdates; i++) {
-            client().prepareIndex("test").setId("1").setSource("field1", i).execute(new ActionListener<>() {
+            prepareIndex("test").setId("1").setSource("field1", i).execute(new ActionListener<>() {
                 @Override
                 public void onResponse(DocWriteResponse response) {
                     latch.countDown();

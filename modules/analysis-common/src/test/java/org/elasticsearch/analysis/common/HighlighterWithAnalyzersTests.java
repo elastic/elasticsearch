@@ -109,7 +109,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                         .putList("analysis.analyzer.search_autocomplete.filter", "lowercase", "wordDelimiter")
                 )
         );
-        client().prepareIndex("test").setId("1").setSource("name", "ARCOTEL Hotels Deutschland").get();
+        prepareIndex("test").setId("1").setSource("name", "ARCOTEL Hotels Deutschland").get();
         refresh();
         assertResponse(
             prepareSearch("test").setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
@@ -151,8 +151,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         );
 
         ensureGreen();
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 "body",
                 "Test: http://www.facebook.com http://elasticsearch.org "
@@ -212,7 +211,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test").setId("0").setSource("field1", "The quick brown fox jumps over the lazy dog").get();
+        prepareIndex("test").setId("0").setSource("field1", "The quick brown fox jumps over the lazy dog").get();
         refresh();
         for (String highlighterType : new String[] { "plain", "fvh", "unified" }) {
             logger.info("--> highlighting (type=" + highlighterType + ") and searching on field1");
@@ -249,14 +248,10 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
 
         ensureGreen();
 
-        client().prepareIndex("first_test_index")
-            .setId("0")
+        prepareIndex("first_test_index").setId("0")
             .setSource("field0", "The quick brown fox jumps over the lazy dog", "field1", "The quick brown fox jumps over the lazy dog")
             .get();
-        client().prepareIndex("first_test_index")
-            .setId("1")
-            .setSource("field1", "The quick browse button is a fancy thing, right bro?")
-            .get();
+        prepareIndex("first_test_index").setId("1").setSource("field1", "The quick browse button is a fancy thing, right bro?").get();
         refresh();
         logger.info("--> highlighting and searching on field0");
 
@@ -329,8 +324,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                     "type=text,analyzer=synonym"
                 )
         );
-        client().prepareIndex("second_test_index")
-            .setId("0")
+        prepareIndex("second_test_index").setId("0")
             .setSource(
                 "type",
                 "type2",
@@ -340,11 +334,10 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                 "The quick brown fox jumps over the lazy dog"
             )
             .get();
-        client().prepareIndex("second_test_index")
-            .setId("1")
+        prepareIndex("second_test_index").setId("1")
             .setSource("type", "type2", "field4", "The quick browse button is a fancy thing, right bro?")
             .get();
-        client().prepareIndex("second_test_index").setId("2").setSource("type", "type2", "field4", "a quick fast blue car").get();
+        prepareIndex("second_test_index").setId("2").setSource("type", "type2", "field4", "a quick fast blue car").get();
         refresh();
 
         assertResponse(

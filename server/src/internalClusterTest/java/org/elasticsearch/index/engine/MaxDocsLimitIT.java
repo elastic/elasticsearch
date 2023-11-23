@@ -165,7 +165,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
                 phaser.arriveAndAwaitAdvance();
                 while (completedRequests.incrementAndGet() <= numRequests) {
                     try {
-                        final DocWriteResponse resp = client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
+                        final DocWriteResponse resp = prepareIndex("test").setSource("{}", XContentType.JSON).get();
                         numSuccess.incrementAndGet();
                         assertThat(resp.status(), equalTo(RestStatus.CREATED));
                     } catch (IllegalArgumentException e) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
+import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -170,17 +171,19 @@ public final class ConnectorTestUtils {
     }
 
     /**
-     * Minute (0 - 59) Hour (0 - 23) Day of month (1 - 28) Month (1 - 12) Day of week (0 - 6)
+     * Second (0 - 59) Minute (0 - 59) Hour (0 - 23) Day of month (1 - 31) Month (1 - 12)
      */
-    private static String getRandomCronExpression() {
-        return String.format(
-            Locale.ROOT,
-            "%d %d %d %d %d",
-            randomInt(60),
-            randomInt(24),
-            randomInt(28) + 1,
-            randomInt(12) + 1,
-            randomInt(7)
+    private static Cron getRandomCronExpression() {
+        return new Cron(
+            String.format(
+                Locale.ROOT,
+                "%d %d %d %d %d ?",
+                randomInt(59),
+                randomInt(59),
+                randomInt(23),
+                randomInt(30) + 1,
+                randomInt(11) + 1
+            )
         );
     }
 

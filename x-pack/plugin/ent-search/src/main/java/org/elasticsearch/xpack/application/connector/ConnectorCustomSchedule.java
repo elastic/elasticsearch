@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -30,7 +31,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
 
     private final ConfigurationOverrides configurationOverrides;
     private final boolean enabled;
-    private final String interval;
+    private final Cron interval;
     @Nullable
     private final Instant lastSynced;
     private final String name;
@@ -47,7 +48,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
     private ConnectorCustomSchedule(
         ConfigurationOverrides configurationOverrides,
         boolean enabled,
-        String interval,
+        Cron interval,
         Instant lastSynced,
         String name
     ) {
@@ -61,7 +62,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
     public ConnectorCustomSchedule(StreamInput in) throws IOException {
         this.configurationOverrides = new ConfigurationOverrides(in);
         this.enabled = in.readBoolean();
-        this.interval = in.readString();
+        this.interval = new Cron(in.readString());
         this.lastSynced = in.readOptionalInstant();
         this.name = in.readString();
     }
@@ -78,7 +79,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         true,
         args -> new Builder().setConfigurationOverrides((ConfigurationOverrides) args[0])
             .setEnabled((Boolean) args[1])
-            .setInterval((String) args[2])
+            .setInterval(new Cron((String) args[2]))
             .setLastSynced((Instant) args[3])
             .setName((String) args[4])
             .build()
@@ -121,7 +122,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeWriteable(configurationOverrides);
         out.writeBoolean(enabled);
-        out.writeString(interval);
+        out.writeString(interval.toString());
         out.writeOptionalInstant(lastSynced);
         out.writeString(name);
     }
@@ -147,7 +148,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
 
         private ConfigurationOverrides configurationOverrides;
         private boolean enabled;
-        private String interval;
+        private Cron interval;
         private Instant lastSynced;
         private String name;
 
@@ -161,7 +162,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setInterval(String interval) {
+        public Builder setInterval(Cron interval) {
             this.interval = interval;
             return this;
         }

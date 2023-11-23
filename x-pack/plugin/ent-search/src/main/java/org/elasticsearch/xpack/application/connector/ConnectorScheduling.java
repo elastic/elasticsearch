@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -148,7 +149,7 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
 
     public static class ScheduleConfig implements Writeable, ToXContentObject {
         private final boolean enabled;
-        private final String interval;
+        private final Cron interval;
 
         private static final ParseField ENABLED_FIELD = new ParseField("enabled");
         private static final ParseField INTERVAL_FIELD = new ParseField("interval");
@@ -157,20 +158,20 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
          * @param enabled  flag to disable/enable scheduling
          * @param interval CRON expression representing the sync schedule
          */
-        private ScheduleConfig(boolean enabled, String interval) {
+        private ScheduleConfig(boolean enabled, Cron interval) {
             this.enabled = enabled;
             this.interval = Objects.requireNonNull(interval, INTERVAL_FIELD.getPreferredName());
         }
 
         public ScheduleConfig(StreamInput in) throws IOException {
             this.enabled = in.readBoolean();
-            this.interval = in.readString();
+            this.interval = new Cron(in.readString());
         }
 
         private static final ConstructingObjectParser<ScheduleConfig, Void> PARSER = new ConstructingObjectParser<>(
             "schedule_config",
             true,
-            args -> new Builder().setEnabled((boolean) args[0]).setInterval((String) args[1]).build()
+            args -> new Builder().setEnabled((boolean) args[0]).setInterval(new Cron((String) args[1])).build()
         );
 
         static {
@@ -200,7 +201,7 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(enabled);
-            out.writeString(interval);
+            out.writeString(interval.toString());
         }
 
         @Override
@@ -219,14 +220,14 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
         public static class Builder {
 
             private boolean enabled;
-            private String interval;
+            private Cron interval;
 
             public Builder setEnabled(boolean enabled) {
                 this.enabled = enabled;
                 return this;
             }
 
-            public Builder setInterval(String interval) {
+            public Builder setInterval(Cron interval) {
                 this.interval = interval;
                 return this;
             }
@@ -239,10 +240,10 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
 
     public static ConnectorScheduling getDefaultConnectorScheduling() {
         return new ConnectorScheduling.Builder().setAccessControl(
-            new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval("0 0 0 * * ?").build()
+            new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron("0 0 0 * * ?")).build()
         )
-            .setFull(new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval("0 0 0 * * ?").build())
-            .setIncremental(new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval("0 0 0 * * ?").build())
+            .setFull(new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron("0 0 0 * * ?")).build())
+            .setIncremental(new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(false).setInterval(new Cron("0 0 0 * * ?")).build())
             .build();
     }
 }

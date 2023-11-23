@@ -210,6 +210,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         SearchResponse searchResponse1 = mock(SearchResponse.class);
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
+        when(searchResponse1.hasReferences()).thenReturn(true);
         BytesArray source = new BytesArray("{}");
         SearchHit hit = new SearchHit(0, "first_foo");
         hit.version(1L);
@@ -512,6 +513,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         RefreshResponse refreshResponse = mock(RefreshResponse.class);
         when(refreshResponse.getTotalShards()).thenReturn(total);
         when(refreshResponse.getSuccessfulShards()).thenReturn(successful);
+        when(refreshResponse.hasReferences()).thenReturn(true);
         return refreshResponse;
     }
 }

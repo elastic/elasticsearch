@@ -46,7 +46,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(titleFields.get("not_analyzed"), notNullValue());
         assertThat(((Map<String, Object>) titleFields.get("not_analyzed")).get("type").toString(), equalTo("keyword"));
 
-        client().prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
 
         assertHitCount(client().prepareSearch("my-index").setQuery(matchQuery("title", "multi")), 1);
         assertHitCount(client().prepareSearch("my-index").setQuery(matchQuery("title.not_analyzed", "Multi fields")), 1);
@@ -65,7 +65,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(titleFields.get("uncased"), notNullValue());
         assertThat(((Map<String, Object>) titleFields.get("uncased")).get("analyzer").toString(), equalTo("whitespace"));
 
-        client().prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
 
         assertHitCount(client().prepareSearch("my-index").setQuery(matchQuery("title.uncased", "Multi")), 1);
     }
@@ -89,7 +89,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(bField.get("type").toString(), equalTo("keyword"));
 
         GeoPoint point = new GeoPoint(51, 19);
-        client().prepareIndex("my-index").setId("1").setSource("a", point.toString()).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("my-index").setId("1").setSource("a", point.toString()).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse countResponse = prepareSearch("my-index").setSize(0)
             .setQuery(constantScoreQuery(geoDistanceQuery("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS)))
             .get();
@@ -115,7 +115,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(bField.size(), equalTo(1));
         assertThat(bField.get("type").toString(), equalTo("keyword"));
 
-        client().prepareIndex("my-index").setId("1").setSource("a", "complete me").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("my-index").setId("1").setSource("a", "complete me").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse countResponse = prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "complete me")).get();
         assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
     }
@@ -137,7 +137,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(bField.size(), equalTo(1));
         assertThat(bField.get("type").toString(), equalTo("keyword"));
 
-        client().prepareIndex("my-index").setId("1").setSource("a", "127.0.0.1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("my-index").setId("1").setSource("a", "127.0.0.1").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse countResponse = prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "127.0.0.1")).get();
         assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
     }

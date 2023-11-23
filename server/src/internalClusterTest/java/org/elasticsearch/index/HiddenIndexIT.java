@@ -37,7 +37,7 @@ public class HiddenIndexIT extends ESIntegTestCase {
 
     public void testHiddenIndexSearch() {
         assertAcked(indicesAdmin().prepareCreate("hidden-index").setSettings(Settings.builder().put("index.hidden", true).build()).get());
-        client().prepareIndex("hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         // default not visible to wildcard expansion
         assertResponse(
@@ -67,7 +67,7 @@ public class HiddenIndexIT extends ESIntegTestCase {
 
         // implicit based on use of pattern starting with . and a wildcard
         assertAcked(indicesAdmin().prepareCreate(".hidden-index").setSettings(Settings.builder().put("index.hidden", true).build()).get());
-        client().prepareIndex(".hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        prepareIndex(".hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         assertResponse(prepareSearch(randomFrom(".*", ".hidden-*")).setSize(1000).setQuery(QueryBuilders.matchAllQuery()), response -> {
             boolean matchedHidden = Arrays.stream(response.getHits().getHits()).anyMatch(hit -> ".hidden-index".equals(hit.getIndex()));
             assertTrue(matchedHidden);

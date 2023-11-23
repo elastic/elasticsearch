@@ -86,14 +86,11 @@ public final class RefCountingRunnable implements Releasable {
      * will be ignored otherwise. This deviates from the contract of {@link java.io.Closeable}.
      */
     public Releasable acquire() {
-        if (refCounted.tryIncRef()) {
-            // All refs are considered equal so there's no real need to allocate a new object here, although note that this deviates
-            // (subtly) from the docs for Closeable#close() which indicate that it should be idempotent. But only if assertions are
-            // disabled, and if assertions are enabled then we are asserting that we never double-close these things anyway.
-            return Releasables.assertOnce(this);
-        }
-        assert false : ALREADY_CLOSED_MESSAGE;
-        throw new IllegalStateException(ALREADY_CLOSED_MESSAGE);
+        refCounted.mustIncRef();
+        // All refs are considered equal so there's no real need to allocate a new object here, although note that this deviates (subtly)
+        // from the docs for Closeable#close() which indicate that it should be idempotent. But only if assertions are disabled, and if
+        // assertions are enabled then we are asserting that we never double-close these things anyway.
+        return Releasables.assertOnce(this);
     }
 
     /**

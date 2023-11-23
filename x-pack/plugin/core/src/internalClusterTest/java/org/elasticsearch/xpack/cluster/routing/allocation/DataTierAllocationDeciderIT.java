@@ -417,7 +417,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     private DataTiersFeatureSetUsage getUsage() {
-        XPackUsageResponse usages = new XPackUsageRequestBuilder(client()).execute().actionGet();
+        XPackUsageResponse usages = new XPackUsageRequestBuilder(client()).get();
         return usages.getUsages()
             .stream()
             .filter(u -> u instanceof DataTiersFeatureSetUsage)

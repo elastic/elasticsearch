@@ -310,7 +310,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
     }
 
     public void testDistanceQuery() throws Exception {
-        indicesAdmin().prepareCreate("test_distance").setMapping("location", "type=shape").execute().actionGet();
+        indicesAdmin().prepareCreate("test_distance").setMapping("location", "type=shape").get();
         ensureGreen();
 
         Circle circle = new Circle(1, 0, 10);

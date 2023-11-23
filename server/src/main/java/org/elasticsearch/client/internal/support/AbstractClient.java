@@ -326,6 +326,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class AbstractClient implements Client {
 
@@ -1607,10 +1609,28 @@ public abstract class AbstractClient implements Client {
      * @param <R> reference counted result type
      */
     private static class RefCountedFuture<R extends RefCounted> extends PlainActionFuture<R> {
+
         @Override
         public final void onResponse(R result) {
             result.incRef();
             super.onResponse(result);
+            assert result.hasReferences();
+            if (set(result)) {
+                result.incRef();
+            }
+        }
+
+        private final AtomicBoolean getCalled = new AtomicBoolean(false);
+
+        @Override
+        public R get() throws InterruptedException, ExecutionException {
+            final boolean firstCall = getCalled.compareAndSet(false, true);
+            if (firstCall == false) {
+                final IllegalStateException ise = new IllegalStateException("must only call .get() once per instance to avoid leaks");
+                assert false : ise;
+                throw ise;
+            }
+            return super.get();
         }
     }
 }

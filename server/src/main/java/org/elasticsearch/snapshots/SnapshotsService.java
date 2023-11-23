@@ -836,13 +836,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     // the cluster state).
                     for (final Snapshot snapshot : snapshotCompletionListeners.keySet()) {
                         if (endingSnapshots.add(snapshot)) {
-                            // inline `failSnapshotCompletionListeners` to collect listeners
-                            final List<ActionListener<SnapshotInfo>> listeners = snapshotCompletionListeners.remove(snapshot);
-                            endingSnapshots.remove(snapshot);
-                            readyToResolveListeners.add(
-                                () -> failListenersIgnoringException(listeners, new SnapshotException(snapshot, "no longer master"))
+                            failSnapshotCompletionListeners(
+                                snapshot,
+                                new SnapshotException(snapshot, "no longer master"),
+                                readyToResolveListeners::add
                             );
-                            assert repositoryOperations.assertNotQueued(snapshot);
                             assert endingSnapshots.contains(snapshot) == false : snapshot;
                         }
                     }
@@ -1914,6 +1912,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         assert repositoryOperations.assertNotQueued(snapshot);
     }
 
+    private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e, Consumer<Runnable> consumer) {
+        final List<ActionListener<SnapshotInfo>> listeners = endAndGetListenersToResolve(snapshot);
+        consumer.accept(() -> failListenersIgnoringException(listeners, e));
+        assert repositoryOperations.assertNotQueued(snapshot);
+    }
+
     /**
      * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them.
      *
@@ -2483,13 +2487,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
                 repositoryOperations.clear();
                 for (final Snapshot snapshot : snapshotCompletionListeners.keySet()) {
-                    // inline code of `endAndGetListenersToResolve` to collect listeners
-                    final List<ActionListener<SnapshotInfo>> listeners = snapshotCompletionListeners.remove(snapshot);
-                    endingSnapshots.remove(snapshot);
-                    readyToResolveListeners.add(
-                        () -> failListenersIgnoringException(listeners, new SnapshotException(snapshot, "no longer master"))
+                    failSnapshotCompletionListeners(
+                        snapshot,
+                        new SnapshotException(snapshot, "no longer master"),
+                        readyToResolveListeners::add
                     );
-                    assert repositoryOperations.assertNotQueued(snapshot);
                 }
                 final Exception wrapped = new RepositoryException("_all", "Failed to update cluster state during repository operation", e);
                 for (final Iterator<List<ActionListener<Void>>> it = snapshotDeletionListeners.values().iterator(); it.hasNext();) {
@@ -3581,10 +3583,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
                 leaveRepoLoop(repository);
                 for (Snapshot snapshot : snapshotsToFail) {
-                    // inline code of `failSnapshotCompletionListeners` and collect listenrs
-                    final List<ActionListener<SnapshotInfo>> listeners = endAndGetListenersToResolve(snapshot);
-                    readyToResolveListeners.add(() -> failListenersIgnoringException(listeners, failure));
-                    assert repositoryOperations.assertNotQueued(snapshot);
+                    failSnapshotCompletionListeners(snapshot, failure, readyToResolveListeners::add);
                 }
                 for (String delete : deletionsToFail) {
                     final List<ActionListener<Void>> listeners = snapshotDeletionListeners.remove(delete);

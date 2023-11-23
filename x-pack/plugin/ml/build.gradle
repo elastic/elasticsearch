@@ -1,5 +1,4 @@
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.dra.DraResolvePlugin
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -86,6 +85,7 @@ dependencies {
   testImplementation project(':modules:reindex')
   testImplementation project(':modules:analysis-common')
   testImplementation project(':modules:mapper-extras')
+  testImplementation project(':modules:lang-mustache')
   // This should not be here
   testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation project(path: xpackModule('wildcard'))

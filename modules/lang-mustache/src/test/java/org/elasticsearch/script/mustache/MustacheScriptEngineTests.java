@@ -33,7 +33,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
     @Before
     public void setup() {
         qe = new MustacheScriptEngine();
-        factory = new CustomMustacheFactory();
+        factory = new CustomMustacheFactory.Builder().build();
     }
 
     public void testSimpleParameterReplace() {

@@ -11,7 +11,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -26,13 +29,17 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractor
 import org.elasticsearch.xpack.core.ml.utils.QueryProviderTests;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
-import org.junit.AssumptionViolatedException;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.doAnswer;
@@ -41,8 +48,8 @@ import static org.mockito.Mockito.verify;
 
 public class LearnToRankServiceTests extends ESTestCase {
     public static final String GOOD_MODEL = "modelId";
-
     public static final String BAD_MODEL = "badModel";
+    public static final String TEMPLATED_GOOD_MODEL = "templatedModelId";
     public static final TrainedModelConfig GOOD_MODEL_CONFIG = TrainedModelConfig.builder()
         .setModelId(GOOD_MODEL)
         .setInput(new TrainedModelInput(List.of("field1", "field2")))
@@ -68,6 +75,20 @@ public class LearnToRankServiceTests extends ESTestCase {
         .setInferenceConfig(new RegressionConfig(null, null))
         .build();
 
+    public static final TrainedModelConfig TEMPLATED_GOOD_MODEL_CONFIG = new TrainedModelConfig.Builder(GOOD_MODEL_CONFIG).setModelId(
+        TEMPLATED_GOOD_MODEL
+    )
+        .setInferenceConfig(
+            new LearnToRankConfig(
+                2,
+                List.of(
+                    new QueryExtractorBuilder("feature_1", QueryProviderTests.createRandomValidQueryProvider("field_1", "{{foo_param}}")),
+                    new QueryExtractorBuilder("feature_2", QueryProviderTests.createRandomValidQueryProvider("field_2", "{{bar_param}}"))
+                )
+            )
+        )
+        .build();
+
     @SuppressWarnings("unchecked")
     public void testLoadLearnToRankConfig() throws Exception {
         LearnToRankService learnToRankService = new LearnToRankService(
@@ -78,7 +99,7 @@ public class LearnToRankServiceTests extends ESTestCase {
         );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
         learnToRankService.loadLearnToRankConfig(GOOD_MODEL, Collections.emptyMap(), listener);
-        assertBusy(() -> { verify(listener).onResponse(eq((LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig())); });
+        assertBusy(() -> verify(listener).onResponse(eq((LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig())));
     }
 
     @SuppressWarnings("unchecked")
@@ -91,7 +112,7 @@ public class LearnToRankServiceTests extends ESTestCase {
         );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
         learnToRankService.loadLearnToRankConfig("non-existing-model", Collections.emptyMap(), listener);
-        assertBusy(() -> { verify(listener).onFailure(isA(ResourceNotFoundException.class)); });
+        assertBusy(() -> verify(listener).onFailure(isA(ResourceNotFoundException.class)));
     }
 
     @SuppressWarnings("unchecked")
@@ -104,12 +125,46 @@ public class LearnToRankServiceTests extends ESTestCase {
         );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
         learnToRankService.loadLearnToRankConfig(BAD_MODEL, Collections.emptyMap(), listener);
-        assertBusy(() -> { verify(listener).onFailure(isA(ElasticsearchStatusException.class)); });
+        assertBusy(() -> verify(listener).onFailure(isA(ElasticsearchStatusException.class)));
     }
 
-    public void testLoadLearnToRankConfigWithTemplate() {
-        // TODO: write the test.
-        throw new AssumptionViolatedException("Test to be written");
+    @SuppressWarnings("unchecked")
+    public void testLoadLearnToRankConfigWithTemplate() throws Exception {
+        LearnToRankService learnToRankService = new LearnToRankService(
+            mockModelLoadingService(),
+            mockTrainedModelProvider(),
+            mockScriptService(),
+            xContentRegistry()
+        );
+
+        // When no parameters are provided we expect the templated queries not being part of the retrieved config.
+        ActionListener<LearnToRankConfig> noParamsListener = mock(ActionListener.class);
+        learnToRankService.loadLearnToRankConfig(TEMPLATED_GOOD_MODEL, Collections.emptyMap(), noParamsListener);
+        assertBusy(() -> verify(noParamsListener).onResponse(argThat(retrievedConfig -> {
+            assertThat(retrievedConfig.getFeatureExtractorBuilders(), empty());
+            return true;
+        })));
+
+        // Now testing when providing all the params of the template.
+        ActionListener<LearnToRankConfig> allParamsListener = mock(ActionListener.class);
+        learnToRankService.loadLearnToRankConfig(
+            TEMPLATED_GOOD_MODEL,
+            Map.ofEntries(Map.entry("foo_param", "foo"), Map.entry("bar_param", "bar")),
+            allParamsListener
+        );
+        assertBusy(() -> verify(allParamsListener).onResponse(argThat(retrievedConfig -> {
+            assertThat(retrievedConfig.getFeatureExtractorBuilders(), hasSize(2));
+            assertEquals(retrievedConfig, GOOD_MODEL_CONFIG.getInferenceConfig());
+            return true;
+        })));
+
+        // Also testing when providing only half of the params of the template.
+        ActionListener<LearnToRankConfig> partialParamsListener = mock(ActionListener.class);
+        learnToRankService.loadLearnToRankConfig(TEMPLATED_GOOD_MODEL, Map.ofEntries(Map.entry("foo_param", "foo")), partialParamsListener);
+        assertBusy(() -> verify(partialParamsListener).onResponse(argThat(retrievedConfig -> {
+            assertThat(retrievedConfig.getFeatureExtractorBuilders(), hasSize(1));
+            return true;
+        })));
     }
 
     @Override
@@ -132,12 +187,11 @@ public class LearnToRankServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             String modelId = invocation.getArgument(0);
             ActionListener<TrainedModelConfig> l = invocation.getArgument(3, ActionListener.class);
-            if (modelId.equals(GOOD_MODEL)) {
-                l.onResponse(GOOD_MODEL_CONFIG);
-            } else if (modelId.equals(BAD_MODEL)) {
-                l.onResponse(BAD_MODEL_CONFIG);
-            } else {
-                l.onFailure(new ResourceNotFoundException("missing model"));
+            switch (modelId) {
+                case GOOD_MODEL -> l.onResponse(GOOD_MODEL_CONFIG);
+                case TEMPLATED_GOOD_MODEL -> l.onResponse(TEMPLATED_GOOD_MODEL_CONFIG);
+                case BAD_MODEL -> l.onResponse(BAD_MODEL_CONFIG);
+                default -> l.onFailure(new ResourceNotFoundException("missing model"));
             }
             return null;
 
@@ -147,6 +201,24 @@ public class LearnToRankServiceTests extends ESTestCase {
     }
 
     private ScriptService mockScriptService() {
-        return mock(ScriptService.class);
+        ScriptEngine scriptEngine = new MustacheScriptEngine();
+        // when(scriptEngine.getType()).thenReturn(DEFAULT_TEMPLATE_LANG);
+        // doAnswer(compileInvocation -> {
+        // TemplateScript.Factory scriptFactory = mock(TemplateScript.Factory.class);
+        // doAnswer(instantiateInvocation -> {
+        // TemplateScript compiledScript = mock(TemplateScript.class);
+        // String templateSource = compileInvocation.getArgument(1);
+        // Map<String, String> params = instantiateInvocation.getArgument(0);
+        // String result = templateSource;
+        // for (Map.Entry<String, String> e : params.entrySet()) {
+        // result = result.replace("{{" + e.getKey() + "}}", e.getValue());
+        // }
+        // when(compiledScript.execute()).thenReturn(result);
+        // return compiledScript;
+        // }).when(scriptFactory).newInstance(any());
+        // return scriptFactory;
+        // }).when(scriptEngine).compile(any(), any(), any(), any());
+
+        return new ScriptService(Settings.EMPTY, Map.of(DEFAULT_TEMPLATE_LANG, scriptEngine), ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 }

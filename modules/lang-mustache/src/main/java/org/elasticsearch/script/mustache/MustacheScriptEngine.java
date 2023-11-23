@@ -72,10 +72,20 @@ public final class MustacheScriptEngine implements ScriptEngine {
     }
 
     private static CustomMustacheFactory createMustacheFactory(Map<String, String> options) {
-        if (options == null || options.isEmpty() || options.containsKey(Script.CONTENT_TYPE_OPTION) == false) {
-            return new CustomMustacheFactory();
+        CustomMustacheFactory.Builder factoryBuilder = new CustomMustacheFactory.Builder();
+
+        if (options == null || options.isEmpty()) {
+            return factoryBuilder.build();
         }
-        return new CustomMustacheFactory(options.get(Script.CONTENT_TYPE_OPTION));
+        if (options.containsKey(Script.CONTENT_TYPE_OPTION)) {
+            factoryBuilder.mediaType(options.get(Script.CONTENT_TYPE_OPTION));
+        }
+
+        if (options.containsKey(Script.ALLOW_MISSING_OR_NULL_PARAMS)) {
+            factoryBuilder.allowMissingOrNullParams(Boolean.valueOf(options.get(Script.ALLOW_MISSING_OR_NULL_PARAMS)));
+        }
+
+        return factoryBuilder.build();
     }
 
     @Override
@@ -107,7 +117,9 @@ public final class MustacheScriptEngine implements ScriptEngine {
             try {
                 template.execute(writer, params);
             } catch (Exception e) {
-                logger.error(() -> format("Error running %s", template), e);
+                if (e.getCause() instanceof CustomMustacheFactory.MissingOrNullParamException == false) {
+                    logger.error(() -> format("Error running %s", template), e);
+                }
                 throw new GeneralScriptException("Error running " + template, e);
             }
             return writer.toString();

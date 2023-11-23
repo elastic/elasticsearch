@@ -95,6 +95,11 @@ public final class Script implements ToXContentObject, Writeable {
     public static final String CONTENT_TYPE_OPTION = "content_type";
 
     /**
+     * Compiler option for {@link XContentType} used for templates.
+     */
+    public static final String ALLOW_MISSING_OR_NULL_PARAMS = "ALLOW_MISSING_OR_NULL_PARAMS";
+
+    /**
      * Standard {@link ParseField} for outer level of script queries.
      */
     public static final ParseField SCRIPT_PARSE_FIELD = new ParseField("script");

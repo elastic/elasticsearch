@@ -17,6 +17,7 @@ import com.github.mustachejava.MustacheVisitor;
 import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
+import com.github.mustachejava.codes.ValueCode;
 import com.github.mustachejava.codes.WriteCode;
 
 import org.elasticsearch.common.Strings;
@@ -63,14 +64,13 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
 
     private final Encoder encoder;
 
-    public CustomMustacheFactory(String mediaType) {
+    private final boolean allowMissingOrNullParams;
+
+    public CustomMustacheFactory(String mediaType, boolean allowMissingOrNullParams) {
         super();
         setObjectHandler(new CustomReflectionObjectHandler());
         this.encoder = createEncoder(mediaType);
-    }
-
-    public CustomMustacheFactory() {
-        this(DEFAULT_MEDIA_TYPE);
+        this.allowMissingOrNullParams = allowMissingOrNullParams;
     }
 
     @Override
@@ -96,9 +96,22 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
     }
 
     class CustomMustacheVisitor extends DefaultMustacheVisitor {
-
-        CustomMustacheVisitor(DefaultMustacheFactory df) {
+        CustomMustacheVisitor(CustomMustacheFactory df) {
             super(df);
+        }
+
+        @Override
+        public void value(TemplateContext tc, final String variable, boolean encoded) {
+            list.add(new ValueCode(tc, df, variable, encoded) {
+                @Override
+                public Object get(List<Object> scopes) {
+                    Object result = super.get(scopes);
+                    if (allowMissingOrNullParams == false && result == null) {
+                        throw new MissingOrNullParamException("Param [" + getName() + "] is missing or null");
+                    }
+                    return result;
+                }
+            });
         }
 
         @Override
@@ -358,6 +371,31 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
         @Override
         public void encode(String s, Writer writer) throws IOException {
             writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8));
+        }
+    }
+
+    static class MissingOrNullParamException extends MustacheException {
+        MissingOrNullParamException(String message) {
+            super(message);
+        }
+    }
+
+    static class Builder {
+        private String mediaType = DEFAULT_MEDIA_TYPE;
+        private boolean allowMissingOrNullParams = true;
+
+        public CustomMustacheFactory build() {
+            return new CustomMustacheFactory(mediaType, allowMissingOrNullParams);
+        }
+
+        public Builder mediaType(String mediaType) {
+            this.mediaType = mediaType;
+            return this;
+        }
+
+        public Builder allowMissingOrNullParams(boolean allowMissingOrNullParams) {
+            this.allowMissingOrNullParams = allowMissingOrNullParams;
+            return this;
         }
     }
 }

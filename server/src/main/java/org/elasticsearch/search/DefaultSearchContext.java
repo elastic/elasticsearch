@@ -218,18 +218,20 @@ final class DefaultSearchContext extends SearchContext {
 
     static long getFieldCardinality(String field, IndexService indexService, DirectoryReader directoryReader) {
         MappedFieldType mappedFieldType = indexService.mapperService().fieldType(field);
-        IndexFieldData<?> indexFieldData = indexService.loadFielddata(
-            mappedFieldType,
-            FieldDataContext.noRuntimeFields("field cardinality")
-        );
-        if (indexFieldData instanceof IndexOrdinalsFieldData indexOrdinalsFieldData) {
-            if (indexOrdinalsFieldData.supportsGlobalOrdinalsMapping()) {
-                IndexOrdinalsFieldData global = indexOrdinalsFieldData.loadGlobal(directoryReader);
-                OrdinalMap ordinalMap = global.getOrdinalMap();
-                if (ordinalMap == null) {
-                    return global.load(directoryReader.leaves().get(0)).getOrdinalsValues().getValueCount();
+        if (mappedFieldType != null) {
+            IndexFieldData<?> indexFieldData = indexService.loadFielddata(
+                mappedFieldType,
+                FieldDataContext.noRuntimeFields("field cardinality")
+            );
+            if (indexFieldData instanceof IndexOrdinalsFieldData indexOrdinalsFieldData) {
+                if (indexOrdinalsFieldData.supportsGlobalOrdinalsMapping()) {
+                    IndexOrdinalsFieldData global = indexOrdinalsFieldData.loadGlobal(directoryReader);
+                    OrdinalMap ordinalMap = global.getOrdinalMap();
+                    if (ordinalMap == null) {
+                        return global.load(directoryReader.leaves().get(0)).getOrdinalsValues().getValueCount();
+                    }
+                    return ordinalMap.getValueCount();
                 }
-                return ordinalMap.getValueCount();
             }
         }
         return -1L;

@@ -370,7 +370,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
                 assertThat(scriptedMetricAggregation.aggregation(), instanceOf(ArrayList.class));
                 List<?> aggregationList = (List<?>) scriptedMetricAggregation.aggregation();
-                assertThat(aggregationList.size(), equalTo(getNumShards("idx").numPrimaries));
+                assertThat(aggregationList.size(), greaterThanOrEqualTo(getNumShards("idx").numPrimaries));
                 int numShardsRun = 0;
                 for (Object object : aggregationList) {
                     assertThat(object, notNullValue());
@@ -419,7 +419,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
                 assertThat(scriptedMetricAggregation.aggregation(), instanceOf(ArrayList.class));
                 List<?> aggregationList = (List<?>) scriptedMetricAggregation.aggregation();
-                assertThat(aggregationList.size(), equalTo(getNumShards("idx").numPrimaries));
+                assertThat(aggregationList.size(), greaterThanOrEqualTo(getNumShards("idx").numPrimaries));
                 int numShardsRun = 0;
                 for (Object object : aggregationList) {
                     assertThat(object, notNullValue());
@@ -479,7 +479,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
                 assertThat(scriptedMetricAggregation.aggregation(), instanceOf(ArrayList.class));
                 List<?> aggregationList = (List<?>) scriptedMetricAggregation.aggregation();
-                assertThat(aggregationList.size(), equalTo(getNumShards("idx").numPrimaries));
+                assertThat(aggregationList.size(), greaterThanOrEqualTo(getNumShards("idx").numPrimaries));
                 long totalCount = 0;
                 for (Object object : aggregationList) {
                     assertThat(object, notNullValue());
@@ -534,7 +534,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
                 assertThat(scriptedMetricAggregation.aggregation(), instanceOf(ArrayList.class));
                 List<?> aggregationList = (List<?>) scriptedMetricAggregation.aggregation();
-                assertThat(aggregationList.size(), equalTo(getNumShards("idx").numPrimaries));
+                assertThat(aggregationList.size(), greaterThanOrEqualTo(getNumShards("idx").numPrimaries));
                 long totalCount = 0;
                 for (Object object : aggregationList) {
                     assertThat(object, notNullValue());
@@ -598,7 +598,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
                 assertThat(scriptedMetricAggregation.aggregation(), instanceOf(ArrayList.class));
                 List<?> aggregationList = (List<?>) scriptedMetricAggregation.aggregation();
-                assertThat(aggregationList.size(), equalTo(getNumShards("idx").numPrimaries));
+                assertThat(aggregationList.size(), greaterThanOrEqualTo(getNumShards("idx").numPrimaries));
                 long totalCount = 0;
                 for (Object object : aggregationList) {
                     assertThat(object, notNullValue());

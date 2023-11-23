@@ -192,10 +192,6 @@ setup:
   - match: { hits.hits.4._score: 1.0 }
 ---
 "Test rescore with stored model and chained rescorers":
-  - skip:
-      version: all
-      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/80703"
-
   - do:
       search:
         index: store

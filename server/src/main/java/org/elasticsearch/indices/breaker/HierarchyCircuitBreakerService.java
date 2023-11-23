@@ -492,9 +492,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         if (trackRealMemoryUsage && jvmInfo.useG1GC().equals("true")
         // messing with GC is "dangerous" so we apply an escape hatch. Not intended to be used.
             && Booleans.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.g1_over_limit_strategy.enabled"), true)) {
-            TimeValue lockTimeout = TimeValue.timeValueMillis(
-                Integer.parseInt(System.getProperty("es.real_memory_circuit_breaker.g1_over_limit_strategy.lock_timeout_ms", "500"))
+
+            long lockTimeoutInMillis = Integer.parseInt(
+                System.getProperty("es.real_memory_circuit_breaker.g1_over_limit_strategy.lock_timeout_ms", "500")
             );
+            TimeValue lockTimeout = TimeValue.timeValueMillis(lockTimeoutInMillis);
+            // TODO: consider a separate property for the lock timeout under full GC
+            TimeValue fullGCLockTimeout = TimeValue.timeValueMillis(lockTimeoutInMillis * 2);
             // hardcode interval, do not want any tuning of it outside code changes.
             return new G1OverLimitStrategy(
                 jvmInfo,
@@ -502,7 +506,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 createYoungGcCountSupplier(),
                 System::currentTimeMillis,
                 500,
-                lockTimeout
+                5000,
+                lockTimeout,
+                fullGCLockTimeout
             );
         } else {
             return memoryUsed -> memoryUsed;
@@ -535,10 +541,18 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         private final LongSupplier gcCountSupplier;
         private final LongSupplier timeSupplier;
         private final TimeValue lockTimeout;
+
+        // The lock acquisition timeout when we are running a full GC
+        private final TimeValue fullGCLockTimeout;
+        private volatile TimeValue currentLockTimeout;
         private final long maxHeap;
 
         private long lastCheckTime = Long.MIN_VALUE;
+        private long lastFullGCTime = Long.MIN_VALUE;
         private final long minimumInterval;
+
+        // Minimum interval before triggering another full GC
+        private final long fullGCMinimumInterval;
 
         private long blackHole;
         private final ReleasableLock lock = new ReleasableLock(new ReentrantLock());
@@ -551,14 +565,19 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             LongSupplier gcCountSupplier,
             LongSupplier timeSupplier,
             long minimumInterval,
-            TimeValue lockTimeout
+            long fullGCMinimumInterval,
+            TimeValue lockTimeout,
+            TimeValue fullGCLockTimeout
         ) {
             this.lockTimeout = lockTimeout;
+            this.fullGCLockTimeout = fullGCLockTimeout;
+            this.currentLockTimeout = lockTimeout;
             assert minimumInterval > 0;
             this.currentMemoryUsageSupplier = currentMemoryUsageSupplier;
             this.gcCountSupplier = gcCountSupplier;
             this.timeSupplier = timeSupplier;
             this.minimumInterval = minimumInterval;
+            this.fullGCMinimumInterval = fullGCMinimumInterval;
             this.maxHeap = jvmInfo.getMem().getHeapMax().getBytes();
             long g1RegionSize = jvmInfo.getG1RegionSize();
             if (g1RegionSize <= 0) {
@@ -592,7 +611,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             long allocationDuration = 0;
             long begin = 0;
             int attemptNoCopy = 0;
-            try (ReleasableLock locked = lock.tryAcquire(lockTimeout)) {
+            var currentLockTimeoutCopy = currentLockTimeout;
+            try (ReleasableLock locked = lock.tryAcquire(currentLockTimeoutCopy)) {
                 if (locked != null) {
                     attemptNoCopy = ++this.attemptNo;
                     begin = timeSupplier.getAsLong();
@@ -624,11 +644,32 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         blackHole += localBlackHole;
                         logger.trace("black hole [{}]", blackHole);
 
-                        long now = timeSupplier.getAsLong();
-                        this.lastCheckTime = now;
-                        allocationDuration = now - begin;
+                        this.lastCheckTime = timeSupplier.getAsLong();
                         this.attemptNo = 0;
                     }
+
+                    if (currentMemoryUsageSupplier.getAsLong() >= memoryUsed.baseUsage) {
+                        // We did not bring down memory usage this time
+                        long now = timeSupplier.getAsLong();
+                        var canPerformFullGC = now >= lastFullGCTime + fullGCMinimumInterval;
+                        if (canPerformFullGC) {
+                            // Enough time passed between 2 full GC fallbacks
+                            // Increase the lock timeout: threads coming here to this method after we decided a full GC is needed will be
+                            // able to wait for longer. Threads already holding the lock will wait the normal timeout.
+                            currentLockTimeout = fullGCLockTimeout;
+                            logger.info("Attempt to trigger young GC failed to bring memory down, triggering full GC");
+                            System.gc();
+                            this.lastFullGCTime = timeSupplier.getAsLong();
+                        }
+                    }
+                    // Reset the lock timeout to its base value
+                    currentLockTimeout = lockTimeout;
+                    allocationDuration = timeSupplier.getAsLong() - begin;
+                } else {
+                    logger.info(
+                        "could not acquire lock within {} when attempting to trigger G1GC due to high heap usage",
+                        currentLockTimeoutCopy
+                    );
                 }
             } catch (InterruptedException e) {
                 logger.info("could not acquire lock when attempting to trigger G1GC due to high heap usage");

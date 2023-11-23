@@ -723,6 +723,9 @@ public class IndexResolver {
             final InvalidMappedField invalidField = validityVerifier.apply(fieldName, types);
             // apply verification for fields belonging to index aliases
             Map<String, InvalidMappedField> invalidFieldsForAliases = getInvalidFieldsForAliases(fieldName, types, aliases);
+            // For ESQL there are scenarios where there is no field asked from field_caps and the field_caps response only contains
+            // the list of indices. To be able to still have an "indices" list properly built (even if empty), the metadata fields are
+            // accepted but not actually added to each index hierarchy.
             var isMetadataField = allowedMetadataFields != null && allowedMetadataFields.contains(fieldName);
 
             // check each type

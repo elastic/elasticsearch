@@ -199,6 +199,8 @@ public class EsqlSession {
                 listener,
                 EsqlSession::specificValidity,
                 IndexResolver.PRESERVE_PROPERTIES,
+                // TODO no matter what metadata fields are asked in a query, the "allowedMetadataFields" is always _index, does it make
+                // sense to reflect the actual list of metadata fields instead?
                 IndexResolver.INDEX_METADATA_FIELD
             );
         } else {
@@ -268,7 +270,7 @@ public class EsqlSession {
         references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.qualifiedName()));
         Set<String> fieldNames = references.names();
         if (fieldNames.isEmpty()) {
-            // return IndexResolver.ALL_FIELDS;
+            // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return IndexResolver.INDEX_METADATA_FIELD;
         } else {
             fieldNames.addAll(subfields(fieldNames));

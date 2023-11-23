@@ -1,7 +1,3 @@
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-  plugin ':x-pack:qa:freeze-plugin'
+dependencies {
+  clusterPlugins project(':x-pack:qa:freeze-plugin')
 }
-

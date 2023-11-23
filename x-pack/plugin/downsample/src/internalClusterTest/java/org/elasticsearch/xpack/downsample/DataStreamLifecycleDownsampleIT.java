@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cluster.metadata.ClusterChangedEventUtils.indicesCreated;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.getBackingIndices;
 import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.putTSDBIndexTemplate;
@@ -82,11 +83,11 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
-            if (event.indicesCreated().contains(oneSecondDownsampleIndex)
+            if (indicesCreated(event).contains(oneSecondDownsampleIndex)
                 || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(oneSecondDownsampleIndex))) {
                 witnessedDownsamplingIndices.add(oneSecondDownsampleIndex);
             }
-            if (event.indicesCreated().contains(tenSecondsDownsampleIndex)) {
+            if (indicesCreated(event).contains(tenSecondsDownsampleIndex)) {
                 witnessedDownsamplingIndices.add(tenSecondsDownsampleIndex);
             }
         });
@@ -152,11 +153,11 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
-            if (event.indicesCreated().contains(oneSecondDownsampleIndex)
+            if (indicesCreated(event).contains(oneSecondDownsampleIndex)
                 || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(oneSecondDownsampleIndex))) {
                 witnessedDownsamplingIndices.add(oneSecondDownsampleIndex);
             }
-            if (event.indicesCreated().contains(tenSecondsDownsampleIndex)) {
+            if (indicesCreated(event).contains(tenSecondsDownsampleIndex)) {
                 witnessedDownsamplingIndices.add(tenSecondsDownsampleIndex);
             }
         });
@@ -217,11 +218,11 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
-            if (event.indicesCreated().contains(oneSecondDownsampleIndex)
+            if (indicesCreated(event).contains(oneSecondDownsampleIndex)
                 || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(oneSecondDownsampleIndex))) {
                 witnessedDownsamplingIndices.add(oneSecondDownsampleIndex);
             }
-            if (event.indicesCreated().contains(tenSecondsDownsampleIndex)) {
+            if (indicesCreated(event).contains(tenSecondsDownsampleIndex)) {
                 witnessedDownsamplingIndices.add(tenSecondsDownsampleIndex);
             }
         });

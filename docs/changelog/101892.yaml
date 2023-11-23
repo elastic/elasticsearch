@@ -1,6 +1,0 @@
-pr: 101892
-summary: Dry up `AsyncTaskIndexService` memory management and fix inefficient circuit
-  breaker use
-area: Search
-type: bug
-issues: []

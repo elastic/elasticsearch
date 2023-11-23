@@ -333,18 +333,20 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
                 assertThat(parsedProgress.get().get(0), equalTo(new PhaseProgress("reindexing", 100)));
             }
 
-            verify(client).execute(
-                same(UpdatePersistentTaskStatusAction.INSTANCE),
-                eq(
-                    new UpdatePersistentTaskStatusAction.Request(
-                        "task-id",
-                        42,
-                        new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.FAILED, 42, "some exception")
-                    )
-                ),
-                any()
+            ArgumentCaptor<UpdatePersistentTaskStatusAction.Request> captor = ArgumentCaptor.forClass(
+                UpdatePersistentTaskStatusAction.Request.class
             );
+
+            verify(client).execute(same(UpdatePersistentTaskStatusAction.INSTANCE), captor.capture(), any());
+
+            UpdatePersistentTaskStatusAction.Request request = captor.getValue();
+            assertThat(request.getTaskId(), equalTo("task-id"));
+            DataFrameAnalyticsTaskState state = (DataFrameAnalyticsTaskState) request.getState();
+            assertThat(state.getState(), equalTo(DataFrameAnalyticsState.FAILED));
+            assertThat(state.getAllocationId(), equalTo(42L));
+            assertThat(state.getReason(), equalTo("some exception"));
         }
+
         verifyNoMoreInteractions(client, analyticsManager, auditor, taskManager);
     }
 

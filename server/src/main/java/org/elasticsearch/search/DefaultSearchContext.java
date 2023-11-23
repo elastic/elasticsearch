@@ -125,7 +125,6 @@ final class DefaultSearchContext extends SearchContext {
     private Query query;
     private ParsedQuery postFilter;
     private Query aliasFilter;
-    private int[] docIdsToLoad;
     private SearchContextAggregations aggregations;
     private SearchHighlightContext highlight;
     private SuggestionSearchContext suggest;
@@ -151,52 +150,61 @@ final class DefaultSearchContext extends SearchContext {
         this.readerContext = readerContext;
         this.request = request;
         this.fetchPhase = fetchPhase;
-        this.searchType = request.searchType();
-        this.shardTarget = shardTarget;
-        this.indexService = readerContext.indexService();
-        this.indexShard = readerContext.indexShard();
+        boolean success = false;
+        try {
+            this.searchType = request.searchType();
+            this.shardTarget = shardTarget;
+            this.indexService = readerContext.indexService();
+            this.indexShard = readerContext.indexShard();
 
-        Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
-        if (executor == null) {
-            this.searcher = new ContextIndexSearcher(
-                engineSearcher.getIndexReader(),
-                engineSearcher.getSimilarity(),
-                engineSearcher.getQueryCache(),
-                engineSearcher.getQueryCachingPolicy(),
-                lowLevelCancellation
+            Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
+            if (executor == null) {
+                this.searcher = new ContextIndexSearcher(
+                    engineSearcher.getIndexReader(),
+                    engineSearcher.getSimilarity(),
+                    engineSearcher.getQueryCache(),
+                    engineSearcher.getQueryCachingPolicy(),
+                    lowLevelCancellation
+                );
+            } else {
+                this.searcher = new ContextIndexSearcher(
+                    engineSearcher.getIndexReader(),
+                    engineSearcher.getSimilarity(),
+                    engineSearcher.getQueryCache(),
+                    engineSearcher.getQueryCachingPolicy(),
+                    lowLevelCancellation,
+                    executor,
+                    maximumNumberOfSlices,
+                    minimumDocsPerSlice
+                );
+            }
+            releasables.addAll(List.of(engineSearcher, searcher));
+
+            this.relativeTimeSupplier = relativeTimeSupplier;
+            this.timeout = timeout;
+            searchExecutionContext = indexService.newSearchExecutionContext(
+                request.shardId().id(),
+                request.shardRequestIndex(),
+                searcher,
+                request::nowInMillis,
+                shardTarget.getClusterAlias(),
+                request.getRuntimeMappings(),
+                request.source() == null ? null : request.source().size()
             );
-        } else {
-            this.searcher = new ContextIndexSearcher(
-                engineSearcher.getIndexReader(),
-                engineSearcher.getSimilarity(),
-                engineSearcher.getQueryCache(),
-                engineSearcher.getQueryCachingPolicy(),
-                lowLevelCancellation,
-                executor,
-                maximumNumberOfSlices,
-                minimumDocsPerSlice
-            );
+            queryBoost = request.indexBoost();
+            this.lowLevelCancellation = lowLevelCancellation;
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
         }
-        releasables.addAll(List.of(engineSearcher, searcher));
-
-        this.relativeTimeSupplier = relativeTimeSupplier;
-        this.timeout = timeout;
-        searchExecutionContext = indexService.newSearchExecutionContext(
-            request.shardId().id(),
-            request.shardRequestIndex(),
-            searcher,
-            request::nowInMillis,
-            shardTarget.getClusterAlias(),
-            request.getRuntimeMappings(),
-            request.source() == null ? null : request.source().size()
-        );
-        queryBoost = request.indexBoost();
-        this.lowLevelCancellation = lowLevelCancellation;
     }
 
     @Override
     public void addFetchResult() {
         this.fetchResult = new FetchSearchResult(this.readerContext.id(), this.shardTarget);
+        addReleasable(fetchResult::decRef);
     }
 
     @Override
@@ -472,11 +480,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFetchSourceContext() {
-        return fetchSourceContext != null;
-    }
-
-    @Override
     public FetchSourceContext fetchSourceContext() {
         return this.fetchSourceContext;
     }
@@ -725,17 +728,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
         this.seqAndPrimaryTerm = seqNoAndPrimaryTerm;
-    }
-
-    @Override
-    public int[] docIdsToLoad() {
-        return docIdsToLoad;
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        this.docIdsToLoad = docIdsToLoad;
-        return this;
     }
 
     @Override

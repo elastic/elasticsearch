@@ -135,6 +135,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.Index;
@@ -146,8 +147,10 @@ import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.IndicesFeatures;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.IndicesServiceBuilder;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -1220,7 +1223,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private RepositoryData getRepositoryData(Repository repository) {
-        final PlainActionFuture<RepositoryData> res = PlainActionFuture.newFuture();
+        final PlainActionFuture<RepositoryData> res = new PlainActionFuture<>();
         repository.getRepositoryData(deterministicTaskQueue::scheduleNow, res);
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(res.isDone());
@@ -1754,43 +1757,39 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
                 );
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
-                indicesService = new IndicesService(
-                    settings,
-                    mock(PluginsService.class),
-                    nodeEnv,
-                    namedXContentRegistry,
-                    new AnalysisRegistry(
-                        environment,
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap()
-                    ),
-                    indexNameExpressionResolver,
-                    mapperRegistry,
-                    namedWriteableRegistry,
-                    threadPool,
-                    indexScopedSettings,
-                    new NoneCircuitBreakerService(),
-                    bigArrays,
-                    scriptService,
-                    clusterService,
-                    client,
-                    new MetaStateService(nodeEnv, namedXContentRegistry),
-                    Collections.emptyList(),
-                    emptyMap(),
-                    null,
-                    emptyMap(),
-                    List.of(),
-                    emptyMap(),
-                    null,
-                    () -> DocumentParsingObserver.EMPTY_INSTANCE
-                );
+
+                indicesService = new IndicesServiceBuilder().settings(settings)
+                    .pluginsService(mock(PluginsService.class))
+                    .nodeEnvironment(nodeEnv)
+                    .xContentRegistry(namedXContentRegistry)
+                    .analysisRegistry(
+                        new AnalysisRegistry(
+                            environment,
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap()
+                        )
+                    )
+                    .indexNameExpressionResolver(indexNameExpressionResolver)
+                    .mapperRegistry(mapperRegistry)
+                    .namedWriteableRegistry(namedWriteableRegistry)
+                    .threadPool(threadPool)
+                    .indexScopedSettings(indexScopedSettings)
+                    .circuitBreakerService(new NoneCircuitBreakerService())
+                    .bigArrays(bigArrays)
+                    .scriptService(scriptService)
+                    .clusterService(clusterService)
+                    .client(client)
+                    .featureService(new FeatureService(List.of(new IndicesFeatures())))
+                    .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
+                    .documentParsingObserverSupplier(() -> DocumentParsingObserver.EMPTY_INSTANCE)
+                    .build();
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
                     settings,
@@ -2201,7 +2200,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     LeaderHeartbeatService.NO_OP,
                     StatefulPreVoteCollector::new,
                     CompatibilityVersionsUtils.staticCurrent(),
-                    Set.of()
+                    new FeatureService(List.of())
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

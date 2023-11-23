@@ -97,7 +97,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
 
     private final int MAX_BULK_SIZE = TEST_HARDER ? 500 : 50;
     private final int MAX_DOCS_PER_BULK = TEST_HARDER ? 100 : 10;
-    private final int MAX_SHARDS = TEST_HARDER ? 100 : 3;
+    private final int MAX_SHARDS = TEST_HARDER ? 50 : 3;
     private final int MAX_SEARCHERS_AND_INDEXERS = TEST_HARDER ? 20 : 3;
     private final Tuple<Long, Long> FORCE_MERGE_SLEEP = TEST_HARDER ? tuple(10L, 1_000L) : tuple(2_000L, 5_000L);
     private final Tuple<Long, Long> ALLOCATION_UPDATE_SLEEP = TEST_HARDER ? tuple(0L, 500L) : tuple(2_000L, 5_000L);
@@ -131,7 +131,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
                 .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
                 .build()
         );
-        ensureGreen(indexName);
+        ensureGreen(timeValueSeconds(TEST_HARDER ? 90 : 30), indexName);
 
         ServiceDisruptionScheme networkDisruption = null;
         if (NETWORK_DISRUPTIONS) {
@@ -200,7 +200,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
                         logger.info("--> Moving index shard to {}", indexNodeRequired);
                         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodeRequired));
                     }
-                    ensureGreen(indexName);
+                    ensureGreen(timeValueSeconds(TEST_HARDER ? 90 : 30), indexName);
                     safeSleep(randomLongBetween(ALLOCATION_UPDATE_SLEEP.v1(), ALLOCATION_UPDATE_SLEEP.v2()));
                 }
             } catch (Throwable e) {

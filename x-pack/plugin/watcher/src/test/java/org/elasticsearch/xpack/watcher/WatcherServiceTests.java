@@ -163,6 +163,7 @@ public class WatcherServiceTests extends ESTestCase {
 
         // response setup, successful refresh response
         RefreshResponse refreshResponse = mock(RefreshResponse.class);
+        when(refreshResponse.hasReferences()).thenReturn(true);
         when(refreshResponse.getSuccessfulShards()).thenReturn(
             clusterState.getMetadata().getIndices().get(Watch.INDEX).getNumberOfShards()
         );

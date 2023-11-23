@@ -670,8 +670,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }, 60, TimeUnit.SECONDS);
 
         for (ActionFuture<SnapshotsStatusResponse> status : statuses) {
-            assertThat(status.get().getSnapshots(), hasSize(snapshots));
-            for (SnapshotStatus snapshot : status.get().getSnapshots()) {
+            var statusResponse = status.get();
+            assertThat(statusResponse.getSnapshots(), hasSize(snapshots));
+            for (SnapshotStatus snapshot : statusResponse.getSnapshots()) {
                 assertThat(snapshot.getState(), allOf(not(SnapshotsInProgress.State.FAILED), not(SnapshotsInProgress.State.ABORTED)));
                 for (final var shard : snapshot.getShards()) {
                     if (shard.getStage() == SnapshotIndexShardStage.DONE) {

@@ -1,6 +1,7 @@
 {
   "connector.put": {
     "documentation": {
+      "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
       "description": "Creates or updates a connector."
     },
     "stability": "experimental",

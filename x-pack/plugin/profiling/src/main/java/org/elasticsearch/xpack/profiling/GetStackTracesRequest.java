@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.profiling;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -34,12 +36,14 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
  * A request to get profiling details
  */
 public class GetStackTracesRequest extends ActionRequest implements IndicesRequest {
+    private static final Logger log = LogManager.getLogger(GetStackTracesRequest.class);
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids");
     public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
     public static final ParseField CUSTOM_COST_FACTOR_FIELD = new ParseField("custom_cost_factor");
+    private static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private QueryBuilder query;
     private Integer sampleSize;
@@ -95,7 +99,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     }
 
     public Integer getSampleSize() {
-        return sampleSize;
+        return sampleSize != null ? sampleSize : DEFAULT_SAMPLE_SIZE;
     }
 
     public Double getRequestedDuration() {
@@ -152,22 +156,14 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 } else if (CUSTOM_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.customCostFactor = parser.doubleValue();
                 } else {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                        parser.getTokenLocation()
-                    );
+                    log.warn("Unknown key for a " + token + " in [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.query = parseTopLevelQuery(parser);
                 }
             } else {
-                throw new ParsingException(
-                    parser.getTokenLocation(),
-                    "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                    parser.getTokenLocation()
-                );
+                log.warn("Unknown key for a " + token + " in [" + currentFieldName + "].");
             }
         }
 
@@ -201,16 +197,13 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     validationException
                 );
             }
-            if (sampleSize == null) {
-                validationException = addValidationError(
-                    "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] is mandatory",
-                    validationException
-                );
-            } else if (sampleSize <= 0) {
-                validationException = addValidationError(
-                    "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] must be greater or equals than 1, got: " + sampleSize,
-                    validationException
-                );
+            if (sampleSize != null) {
+                if (sampleSize <= 0) {
+                    validationException = addValidationError(
+                        "[" + SAMPLE_SIZE_FIELD.getPreferredName() + "] must be greater or equals than 1, got: " + sampleSize,
+                        validationException
+                    );
+                }
             }
         }
         if (requestedDuration != null) {

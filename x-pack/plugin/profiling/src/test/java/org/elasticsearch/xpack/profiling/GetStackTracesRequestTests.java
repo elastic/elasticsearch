@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.profiling;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -119,8 +118,10 @@ public class GetStackTracesRequestTests extends ESTestCase {
         )) {
 
             GetStackTracesRequest request = new GetStackTracesRequest();
-            ParsingException ex = expectThrows(ParsingException.class, () -> request.parseXContent(content));
-            assertEquals("Unknown key for a VALUE_NUMBER in [sample-size].", ex.getMessage());
+            request.parseXContent(content);
+
+            // Expect the default value
+            assertEquals(Integer.valueOf(20_000), request.getSampleSize());
         }
     }
 

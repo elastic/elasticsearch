@@ -135,7 +135,7 @@ class S3Service implements Closeable {
                 return existing;
             }
             final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings));
-            clientReference.incRef();
+            clientReference.mustIncRef();
             clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientSettings, clientReference);
             return clientReference;
         }

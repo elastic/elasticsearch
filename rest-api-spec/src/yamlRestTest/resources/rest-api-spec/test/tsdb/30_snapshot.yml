@@ -2,7 +2,7 @@
 setup:
   - skip:
       version: "8.7.00 - 8.11.99"
-      reason: "Introduce TSID hashing"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       snapshot.create_repository:

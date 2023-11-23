@@ -2,13 +2,13 @@
 setup:
   - skip:
       version: "8.7.00 - 8.11.99"
-      reason: "Introduce TSID hashing"
+      reason: _tsid hasing introduced in 8.12
 
 ---
 add dimensions with put_mapping:
   - skip:
-      version: " - 8.10.99"
-      reason: _tsid hasing introduced in 8.11
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       indices.create:
@@ -60,8 +60,8 @@ add dimensions with put_mapping:
 ---
 add dimensions to no dims with dynamic_template over index:
   - skip:
-      version: " - 8.10.99"
-      reason: _tsid hasing introduced in 8.11
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       indices.create:
@@ -108,8 +108,8 @@ add dimensions to no dims with dynamic_template over index:
 ---
 add dimensions to no dims with dynamic_template over bulk:
   - skip:
-      version: " - 8.10.99"
-      reason: _tsid hasing introduced in 8.11
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       indices.create:
@@ -156,8 +156,8 @@ add dimensions to no dims with dynamic_template over bulk:
 ---
 add dimensions to some dims with dynamic_template over index:
   - skip:
-      version: " - 8.10.99"
-      reason: _tsid hasing introduced in 8.11
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       indices.create:
@@ -208,8 +208,8 @@ add dimensions to some dims with dynamic_template over index:
 ---
 add dimensions to some dims with dynamic_template over bulk:
   - skip:
-      version: " - 8.10.99"
-      reason: _tsid hasing introduced in 8.11
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       indices.create:

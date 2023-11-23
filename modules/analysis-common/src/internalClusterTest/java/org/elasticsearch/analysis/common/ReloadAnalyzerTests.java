@@ -91,7 +91,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                 .setMapping("field", "type=text,analyzer=standard,search_analyzer=" + SYNONYM_ANALYZER_NAME)
         );
 
-        client().prepareIndex(INDEX_NAME).setId("1").setSource("field", "Foo").get();
+        prepareIndex(INDEX_NAME).setId("1").setSource("field", "Foo").get();
         assertNoFailures(indicesAdmin().prepareRefresh(INDEX_NAME).get());
 
         assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
@@ -161,7 +161,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                 .setMapping("field", "type=text,analyzer=standard,search_analyzer=" + SYNONYM_ANALYZER_NAME)
         );
 
-        client().prepareIndex(INDEX_NAME).setId("1").setSource("field", "foo").get();
+        prepareIndex(INDEX_NAME).setId("1").setSource("field", "foo").get();
         assertNoFailures(indicesAdmin().prepareRefresh(INDEX_NAME).get());
 
         assertHitCount(client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);

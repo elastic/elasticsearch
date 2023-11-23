@@ -34,10 +34,9 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
         assertAcked(createIndexResponse);
 
         // indexing, by default, will work (waiting for one shard copy only)
-        client().prepareIndex("test").setId("1").setSource(source("1", "test"), XContentType.JSON).get();
+        prepareIndex("test").setId("1").setSource(source("1", "test"), XContentType.JSON).get();
         try {
-            client().prepareIndex("test")
-                .setId("1")
+            prepareIndex("test").setId("1")
                 .setSource(source("1", "test"), XContentType.JSON)
                 .setWaitForActiveShards(2) // wait for 2 active shard copies
                 .setTimeout(timeValueMillis(100))
@@ -64,16 +63,14 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         // this should work, since we now have two
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(source("1", "test"), XContentType.JSON)
             .setWaitForActiveShards(2)
             .setTimeout(timeValueSeconds(1))
             .get();
 
         try {
-            client().prepareIndex("test")
-                .setId("1")
+            prepareIndex("test").setId("1")
                 .setSource(source("1", "test"), XContentType.JSON)
                 .setWaitForActiveShards(ActiveShardCount.ALL)
                 .setTimeout(timeValueMillis(100))
@@ -103,8 +100,7 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         // this should work, since we now have all shards started
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(source("1", "test"), XContentType.JSON)
             .setWaitForActiveShards(ActiveShardCount.ALL)
             .setTimeout(timeValueSeconds(1))

@@ -43,7 +43,7 @@ public class ForceMergeBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("test", "init").get();
+            prepareIndex("test").setId("" + i).setSource("test", "init").get();
         }
 
         // Request is not blocked

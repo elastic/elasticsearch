@@ -100,18 +100,21 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
 
         /**
          * Called when evaluating a {@link Block} that contains null values.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         protected abstract Block evalBlock(Block b);
 
         /**
          * Called when evaluating a {@link Block} that does not contain null values.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         protected abstract Block evalVector(Vector v);
 
-        public Block.Ref eval(Page page) {
-            try (Block.Ref ref = fieldEvaluator.eval(page)) {
-                Vector vector = ref.block().asVector();
-                return Block.Ref.floating(vector == null ? evalBlock(ref.block()) : evalVector(vector));
+        @Override
+        public final Block eval(Page page) {
+            try (Block block = fieldEvaluator.eval(page)) {
+                Vector vector = block.asVector();
+                return vector == null ? evalBlock(block) : evalVector(vector);
             }
         }
 

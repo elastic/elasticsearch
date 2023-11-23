@@ -430,8 +430,8 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         );
         indexRandom(
             true,
-            client().prepareIndex("test-index").setSource("f", "2014-03-10T00:00:00.000Z"),
-            client().prepareIndex("test-index").setSource("f", "2014-05-13T00:00:00.000Z")
+            prepareIndex("test-index").setSource("f", "2014-03-10T00:00:00.000Z"),
+            prepareIndex("test-index").setSource("f", "2014-05-13T00:00:00.000Z")
         );
         ensureSearchable("test-index");
 

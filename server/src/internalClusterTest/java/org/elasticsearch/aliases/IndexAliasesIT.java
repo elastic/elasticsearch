@@ -1137,7 +1137,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         final int numDocs = scaledRandomIntBetween(5, 52);
         for (int i = 1; i <= numDocs; i++) {
-            client().prepareIndex("my-index").setSource("timestamp", "2016-12-12").get();
+            prepareIndex("my-index").setSource("timestamp", "2016-12-12").get();
             if (i % 2 == 0) {
                 refresh();
                 assertHitCount(prepareSearch("filter1"), i);
@@ -1233,7 +1233,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testRemoveIndexAndReplaceWithAlias() throws InterruptedException, ExecutionException {
         assertAcked(indicesAdmin().prepareCreate("test"));
-        indexRandom(true, client().prepareIndex("test_2").setId("test").setSource("test", "test"));
+        indexRandom(true, prepareIndex("test_2").setId("test").setSource("test", "test"));
         assertAliasesVersionIncreases(
             "test_2",
             () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test_2", "test").removeIndex("test"))

@@ -100,7 +100,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                     .field("counts", counts.toArray(new Integer[counts.size()]))
                     .endObject()
                     .endObject();
-                client().prepareIndex("pre_agg").setSource(preAggDoc).get();
+                prepareIndex("pre_agg").setSource(preAggDoc).get();
                 histogram.reset();
             }
         }
@@ -205,7 +205,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                     .endObject()
                     .endObject()
                     .endObject();
-                client().prepareIndex("pre_agg").setSource(preAggDoc).get();
+                prepareIndex("pre_agg").setSource(preAggDoc).get();
                 histogram = TDigestState.create(compression);
             }
         }

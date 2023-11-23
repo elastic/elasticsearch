@@ -263,7 +263,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         int docs = between(10, 100);
         IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];
         for (int i = 0; i < docs; i++) {
-            builder[i] = client().prepareIndex("test").setId("" + i).setSource("test", "init");
+            builder[i] = prepareIndex("test").setId("" + i).setSource("test", "init");
         }
         indexRandom(true, builder);
         if (randomBoolean()) {
@@ -285,7 +285,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("test", "init").get();
+            prepareIndex("test").setId("" + i).setSource("test", "init").get();
         }
 
         for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
@@ -341,7 +341,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         final int nbDocs = randomIntBetween(0, 50);
         int uncommittedOps = 0;
         for (long i = 0; i < nbDocs; i++) {
-            final DocWriteResponse indexResponse = client().prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
+            final DocWriteResponse indexResponse = prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
             assertThat(indexResponse.status(), is(RestStatus.CREATED));
 
             if (rarely()) {

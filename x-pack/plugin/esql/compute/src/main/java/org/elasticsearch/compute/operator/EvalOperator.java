@@ -67,7 +67,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
         /**
          * Evaluate the expression.
-         * @return the returned Block has its own reference and the caller is responsible for the releasing it.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         Block eval(Page page);
     }

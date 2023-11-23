@@ -100,13 +100,13 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
 
         /**
          * Called when evaluating a {@link Block} that contains null values.
-         * @return the returned Block has its own reference and the caller is responsible for the releasing it.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         protected abstract Block evalBlock(Block b);
 
         /**
          * Called when evaluating a {@link Block} that does not contain null values.
-         * @return the returned Block has its own reference and the caller is responsible for the releasing it.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         protected abstract Block evalVector(Vector v);
 

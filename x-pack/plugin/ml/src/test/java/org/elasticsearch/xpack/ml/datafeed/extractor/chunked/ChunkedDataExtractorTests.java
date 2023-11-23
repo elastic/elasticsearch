@@ -71,6 +71,10 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             super(client, dataExtractorFactory, createContext(start, end), timingStatsReporter);
         }
 
+        TestDataExtractor(long start, long end, QueryBuilder query) {
+            super(client, dataExtractorFactory, createContext(start, end, query), timingStatsReporter);
+        }
+
         TestDataExtractor(long start, long end, boolean hasAggregations, Long histogramInterval) {
             super(client, dataExtractorFactory, createContext(start, end, hasAggregations, histogramInterval), timingStatsReporter);
         }
@@ -100,7 +104,6 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         jobId = "test-job";
         timeField = "time";
         indices = Arrays.asList("index-1", "index-2");
-        query = QueryBuilders.matchAllQuery();
         scrollSize = 1000;
         chunkSpan = null;
         dataExtractorFactory = mock(DataExtractorFactory.class);
@@ -127,10 +130,10 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream inputStream3 = mock(InputStream.class);
 
         DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(1000L, 2000L), inputStream1, inputStream2);
-        when(dataExtractorFactory.newExtractor(1000L, 2000L)).thenReturn(subExtactor1);
+        when(dataExtractorFactory.newExtractor(1000L, 2000L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor1);
 
         DataExtractor subExtactor2 = new StubSubExtractor(new SearchInterval(2000L, 2300L), inputStream3);
-        when(dataExtractorFactory.newExtractor(2000L, 2300L)).thenReturn(subExtactor2);
+        when(dataExtractorFactory.newExtractor(2000L, 2300L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor2);
 
         assertThat(extractor.hasNext(), is(true));
         DataExtractor.Result result = extractor.next();
@@ -149,8 +152,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(result.searchInterval(), equalTo(new SearchInterval(2000L, 2300L)));
         assertThat(result.data().isPresent(), is(false));
 
-        verify(dataExtractorFactory).newExtractor(1000L, 2000L);
-        verify(dataExtractorFactory).newExtractor(2000L, 2300L);
+        verify(dataExtractorFactory).newExtractor(1000L, 2000L, QueryBuilders.matchAllQuery());
+        verify(dataExtractorFactory).newExtractor(2000L, 2300L, QueryBuilders.matchAllQuery());
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -185,10 +188,10 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream inputStream3 = mock(InputStream.class);
 
         DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(1000L, 2000L), inputStream1, inputStream2);
-        when(dataExtractorFactory.newExtractor(1000L, 2000L)).thenReturn(subExtactor1);
+        when(dataExtractorFactory.newExtractor(1000L, 2000L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor1);
 
         DataExtractor subExtactor2 = new StubSubExtractor(new SearchInterval(2000L, 2300L), inputStream3);
-        when(dataExtractorFactory.newExtractor(2000L, 2300L)).thenReturn(subExtactor2);
+        when(dataExtractorFactory.newExtractor(2000L, 2300L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor2);
 
         assertThat(extractor.hasNext(), is(true));
         DataExtractor.Result result = extractor.next();
@@ -207,8 +210,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(result.searchInterval(), equalTo(new SearchInterval(2000L, 2300L)));
         assertThat(result.data().isPresent(), is(false));
 
-        verify(dataExtractorFactory).newExtractor(1000L, 2000L);
-        verify(dataExtractorFactory).newExtractor(2000L, 2300L);
+        verify(dataExtractorFactory).newExtractor(1000L, 2000L, QueryBuilders.matchAllQuery());
+        verify(dataExtractorFactory).newExtractor(2000L, 2300L, QueryBuilders.matchAllQuery());
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -244,10 +247,10 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
         // 200 * 1_000 == 200_000
         DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(100_000L, 300_000L), inputStream1);
-        when(dataExtractorFactory.newExtractor(100_000L, 300_000L)).thenReturn(subExtactor1);
+        when(dataExtractorFactory.newExtractor(100_000L, 300_000L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor1);
 
         DataExtractor subExtactor2 = new StubSubExtractor(new SearchInterval(300_000L, 450_000L), inputStream2);
-        when(dataExtractorFactory.newExtractor(300_000L, 450_000L)).thenReturn(subExtactor2);
+        when(dataExtractorFactory.newExtractor(300_000L, 450_000L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor2);
 
         assertThat(extractor.hasNext(), is(true));
         DataExtractor.Result result = extractor.next();
@@ -262,8 +265,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(result.data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
-        verify(dataExtractorFactory).newExtractor(100_000L, 300_000L);
-        verify(dataExtractorFactory).newExtractor(300_000L, 450_000L);
+        verify(dataExtractorFactory).newExtractor(100_000L, 300_000L, QueryBuilders.matchAllQuery());
+        verify(dataExtractorFactory).newExtractor(300_000L, 450_000L, QueryBuilders.matchAllQuery());
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -295,10 +298,10 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream inputStream2 = mock(InputStream.class);
 
         DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(100_000L, 300_000L), inputStream1);
-        when(dataExtractorFactory.newExtractor(100_000L, 300_000L)).thenReturn(subExtactor1);
+        when(dataExtractorFactory.newExtractor(100_000L, 300_000L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor1);
 
         DataExtractor subExtactor2 = new StubSubExtractor(new SearchInterval(300_000L, 450_000L), inputStream2);
-        when(dataExtractorFactory.newExtractor(300_000L, 450_000L)).thenReturn(subExtactor2);
+        when(dataExtractorFactory.newExtractor(300_000L, 450_000L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor2);
 
         assertThat(extractor.hasNext(), is(true));
         assertEquals(inputStream1, extractor.next().data().get());
@@ -307,17 +310,29 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
-        verify(dataExtractorFactory).newExtractor(100000L, 300000L);
-        verify(dataExtractorFactory).newExtractor(300000L, 450000L);
+        verify(dataExtractorFactory).newExtractor(100000L, 300000L, QueryBuilders.matchAllQuery());
+        verify(dataExtractorFactory).newExtractor(300000L, 450000L, QueryBuilders.matchAllQuery());
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
     }
 
     public void testExtractionGivenAutoChunkAndScrollSize500() throws IOException {
+        testExtractionGivenAutoChunkAndScrollSize500withQuery(null);
+    }
+
+    public void testExtractionGivenAutoChunkAndScrollSize500AndQuery() throws IOException {
+        testExtractionGivenAutoChunkAndScrollSize500withQuery(QueryBuilders.termsQuery("_tier", "data_hot"));
+    }
+
+    private void testExtractionGivenAutoChunkAndScrollSize500withQuery(QueryBuilder query) throws IOException {
+        QueryBuilder expectedQuery = query == null ? QueryBuilders.matchAllQuery() : query;
+
         chunkSpan = null;
         scrollSize = 500;
-        TestDataExtractor extractor = new TestDataExtractor(100000L, 450000L);
+        TestDataExtractor extractor = query == null
+            ? new TestDataExtractor(100000L, 450000L)
+            : new TestDataExtractor(100000L, 450000L, query);
 
         // 300K millis * 500 * 10 / 15K docs = 100000
         extractor.setNextResponse(createSearchResponse(15000L, 100000L, 400000L));
@@ -326,10 +341,10 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream inputStream2 = mock(InputStream.class);
 
         DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(100_000L, 200_000L), inputStream1);
-        when(dataExtractorFactory.newExtractor(100000L, 200000L)).thenReturn(subExtactor1);
+        when(dataExtractorFactory.newExtractor(100000L, 200000L, expectedQuery)).thenReturn(subExtactor1);
 
         DataExtractor subExtactor2 = new StubSubExtractor(new SearchInterval(200_000L, 300_000L), inputStream2);
-        when(dataExtractorFactory.newExtractor(200000L, 300000L)).thenReturn(subExtactor2);
+        when(dataExtractorFactory.newExtractor(200000L, 300000L, expectedQuery)).thenReturn(subExtactor2);
 
         assertThat(extractor.hasNext(), is(true));
         assertEquals(inputStream1, extractor.next().data().get());
@@ -337,8 +352,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertEquals(inputStream2, extractor.next().data().get());
         assertThat(extractor.hasNext(), is(true));
 
-        verify(dataExtractorFactory).newExtractor(100000L, 200000L);
-        verify(dataExtractorFactory).newExtractor(200000L, 300000L);
+        verify(dataExtractorFactory).newExtractor(100000L, 200000L, expectedQuery);
+        verify(dataExtractorFactory).newExtractor(200000L, 300000L, expectedQuery);
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
     }
@@ -355,10 +370,10 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream inputStream2 = mock(InputStream.class);
 
         DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(100_000L, 160_000L), inputStream1);
-        when(dataExtractorFactory.newExtractor(100000L, 160000L)).thenReturn(subExtactor1);
+        when(dataExtractorFactory.newExtractor(100000L, 160000L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor1);
 
         DataExtractor subExtactor2 = new StubSubExtractor(new SearchInterval(160_000L, 220_000L), inputStream2);
-        when(dataExtractorFactory.newExtractor(160000L, 220000L)).thenReturn(subExtactor2);
+        when(dataExtractorFactory.newExtractor(160000L, 220000L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor2);
 
         assertThat(extractor.hasNext(), is(true));
         assertEquals(inputStream1, extractor.next().data().get());
@@ -366,8 +381,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertEquals(inputStream2, extractor.next().data().get());
         assertThat(extractor.hasNext(), is(true));
 
-        verify(dataExtractorFactory).newExtractor(100000L, 160000L);
-        verify(dataExtractorFactory).newExtractor(160000L, 220000L);
+        verify(dataExtractorFactory).newExtractor(100000L, 160000L, QueryBuilders.matchAllQuery());
+        verify(dataExtractorFactory).newExtractor(160000L, 220000L, QueryBuilders.matchAllQuery());
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -383,7 +398,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream inputStream1 = mock(InputStream.class);
 
         DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(300L, 500L), inputStream1);
-        when(dataExtractorFactory.newExtractor(300L, 500L)).thenReturn(subExtactor1);
+        when(dataExtractorFactory.newExtractor(300L, 500L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor1);
 
         assertThat(extractor.hasNext(), is(true));
         assertEquals(inputStream1, extractor.next().data().get());
@@ -391,7 +406,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
-        verify(dataExtractorFactory).newExtractor(300L, 500L);
+        verify(dataExtractorFactory).newExtractor(300L, 500L, QueryBuilders.matchAllQuery());
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -408,7 +423,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream inputStream1 = mock(InputStream.class);
 
         DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(1L, 10L), inputStream1);
-        when(dataExtractorFactory.newExtractor(1L, 101L)).thenReturn(subExtactor1);
+        when(dataExtractorFactory.newExtractor(1L, 101L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor1);
 
         assertThat(extractor.hasNext(), is(true));
         assertEquals(inputStream1, extractor.next().data().get());
@@ -416,7 +431,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
-        verify(dataExtractorFactory).newExtractor(1L, 101L);
+        verify(dataExtractorFactory).newExtractor(1L, 101L, QueryBuilders.matchAllQuery());
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -433,11 +448,11 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream inputStream1 = mock(InputStream.class);
 
         DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(100_000L, 200_000L), inputStream1);
-        when(dataExtractorFactory.newExtractor(100000L, 200000L)).thenReturn(subExtactor1);
+        when(dataExtractorFactory.newExtractor(100000L, 200000L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor1);
 
         // This one is empty
         DataExtractor subExtactor2 = new StubSubExtractor(new SearchInterval(200_000L, 300_000L));
-        when(dataExtractorFactory.newExtractor(200000, 300000L)).thenReturn(subExtactor2);
+        when(dataExtractorFactory.newExtractor(200000, 300000L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor2);
 
         assertThat(extractor.hasNext(), is(true));
         assertEquals(inputStream1, extractor.next().data().get());
@@ -449,15 +464,15 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         // This is the last one
         InputStream inputStream2 = mock(InputStream.class);
         DataExtractor subExtactor3 = new StubSubExtractor(new SearchInterval(200_000L, 400_000L), inputStream2);
-        when(dataExtractorFactory.newExtractor(200000, 400000)).thenReturn(subExtactor3);
+        when(dataExtractorFactory.newExtractor(200000, 400000, QueryBuilders.matchAllQuery())).thenReturn(subExtactor3);
 
         assertEquals(inputStream2, extractor.next().data().get());
         assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
-        verify(dataExtractorFactory).newExtractor(100000L, 200000L);
-        verify(dataExtractorFactory).newExtractor(200000L, 300000L);
-        verify(dataExtractorFactory).newExtractor(200000L, 400000L);
+        verify(dataExtractorFactory).newExtractor(100000L, 200000L, QueryBuilders.matchAllQuery());
+        verify(dataExtractorFactory).newExtractor(200000L, 300000L, QueryBuilders.matchAllQuery());
+        verify(dataExtractorFactory).newExtractor(200000L, 400000L, QueryBuilders.matchAllQuery());
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
 
         assertThat(capturedSearchRequests.size(), equalTo(2));
@@ -496,7 +511,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream inputStream2 = mock(InputStream.class);
 
         DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(1000L, 2000L), inputStream1, inputStream2);
-        when(dataExtractorFactory.newExtractor(1000L, 2000L)).thenReturn(subExtactor1);
+        when(dataExtractorFactory.newExtractor(1000L, 2000L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor1);
 
         assertThat(extractor.hasNext(), is(true));
         assertEquals(inputStream1, extractor.next().data().get());
@@ -510,7 +525,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
-        verify(dataExtractorFactory).newExtractor(1000L, 2000L);
+        verify(dataExtractorFactory).newExtractor(1000L, 2000L, QueryBuilders.matchAllQuery());
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 
@@ -522,7 +537,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream inputStream1 = mock(InputStream.class);
 
         DataExtractor subExtactor1 = new StubSubExtractor(new SearchInterval(1000L, 3000L), inputStream1);
-        when(dataExtractorFactory.newExtractor(1000L, 2000L)).thenReturn(subExtactor1);
+        when(dataExtractorFactory.newExtractor(1000L, 2000L, QueryBuilders.matchAllQuery())).thenReturn(subExtactor1);
 
         assertThat(extractor.hasNext(), is(true));
         assertEquals(inputStream1, extractor.next().data().get());
@@ -534,7 +549,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
-        verify(dataExtractorFactory).newExtractor(1000L, 2000L);
+        verify(dataExtractorFactory).newExtractor(1000L, 2000L, QueryBuilders.matchAllQuery());
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 
@@ -597,15 +612,29 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     }
 
     private ChunkedDataExtractorContext createContext(long start, long end) {
-        return createContext(start, end, false, null);
+        return createContext(start, end, false, null, null);
+    }
+
+    private ChunkedDataExtractorContext createContext(long start, long end, QueryBuilder query) {
+        return createContext(start, end, false, null, query);
     }
 
     private ChunkedDataExtractorContext createContext(long start, long end, boolean hasAggregations, Long histogramInterval) {
+        return createContext(start, end, hasAggregations, histogramInterval, null);
+    }
+
+    private ChunkedDataExtractorContext createContext(
+        long start,
+        long end,
+        boolean hasAggregations,
+        Long histogramInterval,
+        QueryBuilder query
+    ) {
         return new ChunkedDataExtractorContext(
             jobId,
             timeField,
             indices,
-            query,
+            query == null ? QueryBuilders.matchAllQuery() : query,
             scrollSize,
             start,
             end,

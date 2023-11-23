@@ -305,14 +305,18 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // search with versioning
         for (int i = 0; i < 10; i++) {
             // TODO: ADD SEQ NO!
-            assertResponse(prepareSearch().setQuery(matchAllQuery()).setVersion(true), response ->
-            assertThat(response.getHits().getAt(0).getVersion(), equalTo(2L)));
+            assertResponse(
+                prepareSearch().setQuery(matchAllQuery()).setVersion(true),
+                response -> assertThat(response.getHits().getAt(0).getVersion(), equalTo(2L))
+            );
         }
 
         // search without versioning
         for (int i = 0; i < 10; i++) {
-            assertResponse(prepareSearch().setQuery(matchAllQuery()), response ->
-            assertThat(response.getHits().getAt(0).getVersion(), equalTo(Versions.NOT_FOUND)));
+            assertResponse(
+                prepareSearch().setQuery(matchAllQuery()),
+                response -> assertThat(response.getHits().getAt(0).getVersion(), equalTo(Versions.NOT_FOUND))
+            );
         }
 
         DeleteResponse deleteResponse = client().prepareDelete("test", "1").setIfSeqNo(1).setIfPrimaryTerm(1).get();

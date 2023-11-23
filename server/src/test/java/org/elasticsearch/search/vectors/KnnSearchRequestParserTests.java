@@ -30,11 +30,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
@@ -93,7 +89,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
             query.addFilterQueries(filterQueries);
         }
         assertEquals(query, searchRequest.source().query());
-        assertEquals(knnSearch.k, searchRequest.source().size());
+        assertEquals((int) knnSearch.k, searchRequest.source().size());
 
         assertEquals(searchSource.fetchSource(), searchRequest.source().fetchSource());
         assertEquals(searchSource.fetchFields(), searchRequest.source().fetchFields());

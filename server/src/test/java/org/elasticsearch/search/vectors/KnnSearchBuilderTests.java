@@ -193,7 +193,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         }
 
         QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, numCands, similarity).addFilterQueries(filterQueries).boost(boost);
-        assertEquals(expected, builder.toQueryBuilder(createSearchExecutionContext(DEFAULT_SIZE)));
+        assertEquals(expected, builder.toQueryBuilder(createSearchExecutionContext(k)));
     }
 
     public void testNumCandsLessThanK() {

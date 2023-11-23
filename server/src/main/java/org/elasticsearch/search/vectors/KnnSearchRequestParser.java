@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A builder used in {@link RestKnnSearchAction} to convert the kNN REST request
@@ -207,14 +208,14 @@ public class KnnSearchRequestParser {
             for (int i = 0; i < vector.size(); i++) {
                 vectorArray[i] = vector.get(i);
             }
-            return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3]);
+            return new KnnSearch((String) args[0], vectorArray, (Integer) args[2], (Integer) args[3]);
         });
 
         static {
             PARSER.declareString(constructorArg(), FIELD_FIELD);
             PARSER.declareFloatArray(constructorArg(), QUERY_VECTOR_FIELD);
-            PARSER.declareInt(constructorArg(), K_FIELD);
-            PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
+            PARSER.declareInt(optionalConstructorArg(), K_FIELD);
+            PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
         }
 
         public static KnnSearch parse(XContentParser parser) throws IOException {
@@ -223,8 +224,8 @@ public class KnnSearchRequestParser {
 
         final String field;
         final float[] queryVector;
-        final int k;
-        final int numCands;
+        Integer k;
+        Integer numCands;
 
         /**
          * Defines a kNN search.
@@ -234,7 +235,7 @@ public class KnnSearchRequestParser {
          * @param k the final number of nearest neighbors to return as top hits
          * @param numCands the number of nearest neighbor candidates to consider per shard
          */
-        KnnSearch(String field, float[] queryVector, int k, int numCands) {
+        KnnSearch(String field, float[] queryVector, Integer k, Integer numCands) {
             this.field = field;
             this.queryVector = queryVector;
             this.k = k;
@@ -244,15 +245,15 @@ public class KnnSearchRequestParser {
         public KnnVectorQueryBuilder toQueryBuilder() {
             // We perform validation here instead of the constructor because it makes the errors
             // much clearer. Otherwise, the error message is deeply nested under parsing exceptions.
-            if (k < 1) {
+            if (k != null && k < 1) {
                 throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
             }
-            if (numCands < k) {
+            if (numCands != null && k != null && numCands < k) {
                 throw new IllegalArgumentException(
                     "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
                 );
             }
-            if (numCands > NUM_CANDS_LIMIT) {
+            if (numCands != null && numCands > NUM_CANDS_LIMIT) {
                 throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
             }
             return new KnnVectorQueryBuilder(field, queryVector, numCands, null);
@@ -263,8 +264,8 @@ public class KnnSearchRequestParser {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             KnnSearch that = (KnnSearch) o;
-            return k == that.k
-                && numCands == that.numCands
+            return Objects.equals(k, that.k)
+                && Objects.equals(numCands, that.numCands)
                 && Objects.equals(field, that.field)
                 && Arrays.equals(queryVector, that.queryVector);
         }

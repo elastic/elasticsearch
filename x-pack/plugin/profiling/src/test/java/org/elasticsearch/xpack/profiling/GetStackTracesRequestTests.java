@@ -28,7 +28,7 @@ import static java.util.Collections.emptyList;
 
 public class GetStackTracesRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
-        Integer sampleSize = randomBoolean() ? randomIntBetween(0, Integer.MAX_VALUE) : null;
+        Integer sampleSize = randomIntBetween(1, Integer.MAX_VALUE);
         Double requestedDuration = randomBoolean() ? randomDoubleBetween(0.001d, Double.MAX_VALUE, true) : null;
         Double customCostFactor = randomBoolean() ? randomDoubleBetween(0.1d, 5.0d, true) : null;
         QueryBuilder query = randomBoolean() ? new BoolQueryBuilder() : null;

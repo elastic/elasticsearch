@@ -30,7 +30,7 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<MinioT
     private static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
 
     private static final boolean CI = Boolean.parseBoolean(System.getProperty("CI", "false"));
-    private static final boolean EXCLUDED_OS = CI == false || isExcludedOs();
+    private static final boolean EXCLUDED_OS_FOUND = CI == false || isExcludedOsFound();
 
     protected static final Logger LOGGER = LoggerFactory.getLogger(DockerEnvironmentAwareTestContainer.class);
 
@@ -45,14 +45,14 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<MinioT
     }
 
     private boolean shouldDockerBeAvailable() {
-        return CI == false || (EXCLUDED_OS == false);
+        return CI == false || EXCLUDED_OS_FOUND;
     }
 
     static String deriveId(Map<String, String> values) {
         return values.get("ID") + "-" + values.get("VERSION_ID");
     }
 
-    private static boolean isExcludedOs() {
+    private static boolean isExcludedOsFound() {
         if (System.getProperty("os.name").toLowerCase().startsWith("windows")) {
             return true;
         }
@@ -75,6 +75,8 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<MinioT
             }
 
             return excluded;
+        } else {
+            LOGGER.warn("No release info found at /etc/os-release");
         }
 
         return false;

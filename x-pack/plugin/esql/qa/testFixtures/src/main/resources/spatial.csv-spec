@@ -31,13 +31,19 @@ wkt:keyword                                                                     
 ;
 
 simpleLoad#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
-from airports | limit 10 | sort abbrev | where length(name) > 8;
+FROM airports | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
 
-abbrev:keyword | location:geo_point                       | name:text                   | scalerank:i | type:k     
-HOD            | POINT(42.97109630194 14.7552534413725)   | Hodeidah Int'l              | 9           | mid              
-IDR            | POINT(75.8092915005895 22.727749187571)  | Devi Ahilyabai Holkar Int'l | 9           | mid              
-ISK            | POINT(73.8105674924689 19.9660205672806) | Gandhinagar                 | 9           | mid              
-IXC            | POINT(76.8017261105242 30.6707248949667) | Chandigarh Int'l            | 9           | [major,military] 
-IXR            | POINT(85.3235970368767 23.3177245989962) | Birsa Munda                 | 9           | mid              
-IXU            | POINT(75.3958432922005 19.8672969621082) | Aurangabad                  | 9           | mid              
+abbrev:keyword | location:geo_point                           | name:text                   | scalerank:i | type:k     
+CJJ            | POINT(127.49591611325741 36.72202274668962)  | Cheongju Int'l              | 9           | major
+HOD            | POINT(42.97109629958868 14.7552534006536)    | Hodeidah Int'l              | 9           | mid
+IDR            | POINT(75.80929149873555 22.72774917539209)   | Devi Ahilyabai Holkar Int'l | 9           | mid
+IXC            | POINT(76.80172610096633 30.6707248929888)    | Chandigarh Int'l            | 9           | [major, military]
+LYP            | POINT(72.98781909048557 31.362743536010385)  | Faisalabad Int'l            | 9           | [mid, military]
+MLG            | POINT(112.71141858771443 -7.9299800377339125)| Abdul Rachman Saleh         | 9           | [mid, military]
+OMS            | POINT(73.3163595199585 54.95764828752726)    | Omsk Tsentralny             | 9           | mid
+OVB            | POINT(82.6671524439007 55.00958469696343)    | Novosibirsk Tolmachev       | 9           | mid
+OZH            | POINT(35.301872827112675 47.87326351739466)  | Zaporozhye Int'l            | 9           | [mid, military]
+TRZ            | POINT(78.7089578434825 10.760357128456235)   | Tiruchirappalli             | 9           | mid
+WIIT           | POINT(105.17606039531529 -5.242566782981157) | Radin Inten II              | 9           | mid
+ZAH            | POINT(60.9007085300982 29.47529417462647)    | Zahedan Int'l               | 9           | mid
 ;

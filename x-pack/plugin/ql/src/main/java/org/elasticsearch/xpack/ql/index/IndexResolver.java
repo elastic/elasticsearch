@@ -379,8 +379,9 @@ public class IndexResolver {
         client.fieldCaps(
             fieldRequest,
             listener.delegateFailureAndWrap(
-                (l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response, specificValidityVerifier, fieldUpdater,
-                    allowedMetadataFields))
+                (l, response) -> l.onResponse(
+                    mergedMappings(typeRegistry, indexWildcard, response, specificValidityVerifier, fieldUpdater, allowedMetadataFields)
+                )
             )
         );
     }
@@ -712,7 +713,8 @@ public class IndexResolver {
         for (Entry<String, Map<String, FieldCapabilities>> entry : fieldCaps.entrySet()) {
             String fieldName = entry.getKey();
             // skip metadata field!
-            if ((allowedMetadataFields != null && allowedMetadataFields.contains(fieldName)) || fieldCapsResponse.isMetadataField(fieldName) == false) {
+            if ((allowedMetadataFields != null && allowedMetadataFields.contains(fieldName))
+                || fieldCapsResponse.isMetadataField(fieldName) == false) {
                 sortedFields.put(fieldName, entry.getValue());
             }
         }
@@ -759,7 +761,8 @@ public class IndexResolver {
                         Fields indexFields = indices.computeIfAbsent(indexName, k -> new Fields());
                         EsField field = indexFields.flattedMapping.get(fieldName);
                         // create field hierarchy or update it in case of an invalid field
-                        if (isMetadataField == false && (field == null || (invalidField != null && (field instanceof InvalidMappedField) == false))) {
+                        if (isMetadataField == false
+                            && (field == null || (invalidField != null && (field instanceof InvalidMappedField) == false))) {
                             createField(typeRegistry, fieldName, indexFields, fieldCaps, invalidField, typeCap);
 
                             // In evolving mappings, it is possible for a field to be promoted to an object in new indices

@@ -1433,7 +1433,7 @@ public class AnalyzerTests extends ESTestCase {
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
-    
+
     private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
         IndexResolution resolution = IndexResolver.mergedMappings(
             EsqlDataTypeRegistry.INSTANCE,

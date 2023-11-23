@@ -287,6 +287,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         return nodeRoutingTable.values().stream().mapToInt(RoutingInfo::getTargetAllocations).sum();
     }
 
+    public int totalFailedAllocations() {
+        return nodeRoutingTable.values().stream().mapToInt(RoutingInfo::getFailedAllocations).sum();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

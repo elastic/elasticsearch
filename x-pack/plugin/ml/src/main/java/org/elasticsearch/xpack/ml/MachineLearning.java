@@ -72,6 +72,7 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -884,6 +885,7 @@ public class MachineLearning extends Plugin
         Environment environment = services.environment();
         NamedXContentRegistry xContentRegistry = services.xContentRegistry();
         IndexNameExpressionResolver indexNameExpressionResolver = services.indexNameExpressionResolver();
+        TelemetryProvider telemetryProvider = services.telemetryProvider();
 
         if (enabled == false) {
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
@@ -1220,6 +1222,14 @@ public class MachineLearning extends Plugin
             machineLearningExtension.get().isNlpEnabled()
         );
 
+        MlMetrics mlMetrics = new MlMetrics(
+            telemetryProvider.getMeterRegistry(),
+            clusterService,
+            settings,
+            autodetectProcessManager,
+            dataFrameAnalyticsManager
+        );
+
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),
@@ -1251,7 +1261,8 @@ public class MachineLearning extends Plugin
             trainedModelAllocationClusterServiceSetOnce.get(),
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
-            new MachineLearningExtensionHolder(machineLearningExtension.get())
+            new MachineLearningExtensionHolder(machineLearningExtension.get()),
+            mlMetrics
         );
     }
 

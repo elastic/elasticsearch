@@ -229,6 +229,10 @@ public final class MlTasks {
 
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetadata tasks) {
         PersistentTasksCustomMetadata.PersistentTask<?> task = getDatafeedTask(datafeedId, tasks);
+        return getDatafeedState(task);
+    }
+
+    public static DatafeedState getDatafeedState(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         if (task == null) {
             // If we haven't started a datafeed then there will be no persistent task,
             // which is the same as if the datafeed was't started

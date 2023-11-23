@@ -1062,4 +1062,23 @@ public class AutodetectProcessManager implements ClusterStateListener {
         resetInProgress = MlMetadata.getMlMetadata(event.state()).isResetMode();
     }
 
+    /**
+     * Finds the memory used by open autodetect processes on the current node.
+     * @return Memory used by open autodetect processes on the current node.
+     */
+    public ByteSizeValue getOpenProcessMemoryUsage() {
+        long memoryUsedBytes = 0;
+        for (ProcessContext processContext : processByAllocation.values()) {
+            if (processContext.getState() == ProcessContext.ProcessStateName.RUNNING) {
+                ModelSizeStats modelSizeStats = processContext.getAutodetectCommunicator().getModelSizeStats();
+                memoryUsedBytes += switch (modelSizeStats.getAssignmentMemoryBasis()) {
+                    case MODEL_MEMORY_LIMIT -> modelSizeStats.getModelBytesMemoryLimit();
+                    case CURRENT_MODEL_BYTES -> modelSizeStats.getModelBytes();
+                    case PEAK_MODEL_BYTES -> Optional.ofNullable(modelSizeStats.getPeakModelBytes()).orElse(modelSizeStats.getModelBytes());
+                };
+                memoryUsedBytes += Job.PROCESS_MEMORY_OVERHEAD.getBytes();
+            }
+        }
+        return ByteSizeValue.ofBytes(memoryUsedBytes);
+    }
 }

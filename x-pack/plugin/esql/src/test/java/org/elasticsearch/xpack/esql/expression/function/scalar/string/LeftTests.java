@@ -201,12 +201,12 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
             EvalOperator.ExpressionEvaluator eval = evaluator(
                 new Left(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, length, DataTypes.INTEGER))
             ).get(driverContext());
-            Block.Ref ref = eval.eval(row(List.of(new BytesRef(str))))
+            Block block = eval.eval(row(List.of(new BytesRef(str))))
         ) {
-            if (ref.block().isNull(0)) {
+            if (block.isNull(0)) {
                 return null;
             }
-            BytesRef resultByteRef = ((BytesRef) toJavaObject(ref.block(), 0));
+            BytesRef resultByteRef = ((BytesRef) toJavaObject(block, 0));
             return resultByteRef == null ? null : resultByteRef.utf8ToString();
         }
     }

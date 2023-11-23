@@ -124,7 +124,7 @@ tasks.register("extractNativeLicenses", Copy) {
 tasks.named('generateNotice').configure {
   dependsOn "extractNativeLicenses"
   inputs.dir("${project.buildDir}/extractedNativeLicenses/platform/licenses")
-  licensesDir new File("${project.buildDir}/extractedNativeLicenses/platform/licenses")
+  licenseDirs.add(tasks.named("extractNativeLicenses").map {new File(it.destinationDir, "platform/licenses") })
 }
 
 tasks.named("dependencyLicenses").configure {

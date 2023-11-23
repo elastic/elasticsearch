@@ -69,13 +69,15 @@ public abstract class StandaloneRestIntegTestTask extends Test implements TestCl
     @Override
     @Internal
     public List<ResourceLock> getSharedResources() {
+        // Since we need to have the buildservice registered for configuration cache compatibility,
+        // we already get one lock for throttle service
         List<ResourceLock> locks = new ArrayList<>(super.getSharedResources());
         BuildServiceRegistryInternal serviceRegistry = getServices().get(BuildServiceRegistryInternal.class);
         BuildServiceProvider<?, ?> serviceProvider = serviceRegistry.consume(THROTTLE_SERVICE_NAME, TestClustersThrottle.class);
         SharedResource resource = serviceRegistry.forService(serviceProvider);
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
-            for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages()); i++) {
+            for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages() - 1); i++) {
                 locks.add(resource.getResourceLock());
             }
         }
@@ -88,7 +90,7 @@ public abstract class StandaloneRestIntegTestTask extends Test implements TestCl
 
     @Override
     public void beforeStart() {
-        getTasksService().get().register(this);
+        TestClustersAware.super.beforeStart();
         if (debugServer) {
             enableDebug();
         }

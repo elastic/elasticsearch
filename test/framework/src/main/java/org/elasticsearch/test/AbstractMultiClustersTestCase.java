@@ -239,7 +239,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(clusters.values());
+            IOUtils.close(CloseableTestClusterWrapper.wrap(clusters.values()));
         }
     }
 

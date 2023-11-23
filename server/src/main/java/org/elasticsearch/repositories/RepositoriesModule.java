@@ -35,7 +35,7 @@ import java.util.function.BiConsumer;
  */
 public final class RepositoriesModule {
 
-    public static final String METRIC_REQUESTS_COUNT = "repositories.requests.count";
+    public static final String METRIC_REQUESTS_COUNT = "es.repositories.requests.count";
     private final RepositoriesService repositoriesService;
 
     public RepositoriesModule(

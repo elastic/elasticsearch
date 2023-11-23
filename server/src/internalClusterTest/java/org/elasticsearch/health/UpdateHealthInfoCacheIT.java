@@ -21,7 +21,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -35,78 +34,66 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
     private static final DiskHealthInfo GREEN = new DiskHealthInfo(HealthStatus.GREEN, null);
 
     public void testNodesReportingHealth() throws Exception {
-        try (InternalTestCluster internalCluster = internalCluster()) {
-            decreasePollingInterval(internalCluster);
-            String[] nodeIds = getNodes(internalCluster).keySet().toArray(new String[0]);
-            DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
-            assertThat(healthNode, notNullValue());
-            assertBusy(() -> assertResultsCanBeFetched(internalCluster, healthNode, List.of(nodeIds), null));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
-        }
+        final InternalTestCluster internalCluster = internalCluster();
+        decreasePollingInterval(internalCluster);
+        String[] nodeIds = getNodes(internalCluster).keySet().toArray(new String[0]);
+        DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
+        assertThat(healthNode, notNullValue());
+        assertBusy(() -> assertResultsCanBeFetched(internalCluster, healthNode, List.of(nodeIds), null));
     }
 
     public void testNodeLeavingCluster() throws Exception {
-        try (InternalTestCluster internalCluster = internalCluster()) {
-            decreasePollingInterval(internalCluster);
-            Collection<DiscoveryNode> nodes = getNodes(internalCluster).values();
-            DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
-            assertThat(healthNode, notNullValue());
-            DiscoveryNode nodeToLeave = nodes.stream().filter(node -> {
-                boolean isMaster = node.getName().equals(internalCluster.getMasterName());
-                boolean isHealthNode = node.getId().equals(healthNode.getId());
-                // We have dedicated tests for master and health node
-                return isMaster == false && isHealthNode == false;
-            }).findAny().orElseThrow();
-            internalCluster.stopNode(nodeToLeave.getName());
-            assertBusy(
-                () -> assertResultsCanBeFetched(
-                    internalCluster,
-                    healthNode,
-                    nodes.stream().filter(node -> node.equals(nodeToLeave) == false).map(DiscoveryNode::getId).toList(),
-                    nodeToLeave.getId()
-                )
-            );
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
-        }
+        final InternalTestCluster internalCluster = internalCluster();
+        decreasePollingInterval(internalCluster);
+        Collection<DiscoveryNode> nodes = getNodes(internalCluster).values();
+        DiscoveryNode healthNode = waitAndGetHealthNode(internalCluster);
+        assertThat(healthNode, notNullValue());
+        DiscoveryNode nodeToLeave = nodes.stream().filter(node -> {
+            boolean isMaster = node.getName().equals(internalCluster.getMasterName());
+            boolean isHealthNode = node.getId().equals(healthNode.getId());
+            // We have dedicated tests for master and health node
+            return isMaster == false && isHealthNode == false;
+        }).findAny().orElseThrow();
+        internalCluster.stopNode(nodeToLeave.getName());
+        assertBusy(
+            () -> assertResultsCanBeFetched(
+                internalCluster,
+                healthNode,
+                nodes.stream().filter(node -> node.equals(nodeToLeave) == false).map(DiscoveryNode::getId).toList(),
+                nodeToLeave.getId()
+            )
+        );
     }
 
     @TestLogging(value = "org.elasticsearch.health.node:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/97213")
     public void testHealthNodeFailOver() throws Exception {
-        try (InternalTestCluster internalCluster = internalCluster()) {
-            decreasePollingInterval(internalCluster);
-            String[] nodeIds = getNodes(internalCluster).keySet().toArray(new String[0]);
-            DiscoveryNode healthNodeToBeShutDown = waitAndGetHealthNode(internalCluster);
-            assertThat(healthNodeToBeShutDown, notNullValue());
-            internalCluster.restartNode(healthNodeToBeShutDown.getName());
-            ensureStableCluster(nodeIds.length);
-            DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
-            assertThat(newHealthNode, notNullValue());
-            logger.info("Previous health node {}, new health node {}.", healthNodeToBeShutDown, newHealthNode);
-            assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
-        }
+        final InternalTestCluster internalCluster = internalCluster();
+        decreasePollingInterval(internalCluster);
+        String[] nodeIds = getNodes(internalCluster).keySet().toArray(new String[0]);
+        DiscoveryNode healthNodeToBeShutDown = waitAndGetHealthNode(internalCluster);
+        assertThat(healthNodeToBeShutDown, notNullValue());
+        internalCluster.restartNode(healthNodeToBeShutDown.getName());
+        ensureStableCluster(nodeIds.length);
+        DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
+        assertThat(newHealthNode, notNullValue());
+        logger.info("Previous health node {}, new health node {}.", healthNodeToBeShutDown, newHealthNode);
+        assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null));
     }
 
     @TestLogging(value = "org.elasticsearch.health.node:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/97213")
     public void testMasterFailure() throws Exception {
-        try (InternalTestCluster internalCluster = internalCluster()) {
-            decreasePollingInterval(internalCluster);
-            String[] nodeIds = getNodes(internalCluster).keySet().toArray(new String[0]);
-            DiscoveryNode healthNodeBeforeIncident = waitAndGetHealthNode(internalCluster);
-            assertThat(healthNodeBeforeIncident, notNullValue());
-            String masterName = internalCluster.getMasterName();
-            logger.info("Restarting elected master node {}.", masterName);
-            internalCluster.restartNode(masterName);
-            ensureStableCluster(nodeIds.length);
-            DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
-            assertThat(newHealthNode, notNullValue());
-            assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to close internal cluster: " + e.getMessage(), e);
-        }
+        final InternalTestCluster internalCluster = internalCluster();
+        decreasePollingInterval(internalCluster);
+        String[] nodeIds = getNodes(internalCluster).keySet().toArray(new String[0]);
+        DiscoveryNode healthNodeBeforeIncident = waitAndGetHealthNode(internalCluster);
+        assertThat(healthNodeBeforeIncident, notNullValue());
+        String masterName = internalCluster.getMasterName();
+        logger.info("Restarting elected master node {}.", masterName);
+        internalCluster.restartNode(masterName);
+        ensureStableCluster(nodeIds.length);
+        DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
+        assertThat(newHealthNode, notNullValue());
+        assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null));
     }
 
     /**

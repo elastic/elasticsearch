@@ -1,0 +1,6 @@
+pr: 102388
+summary: Add support for `index_filter` to open pit
+area: Search
+type: enhancement
+issues:
+ - 99740

@@ -51,7 +51,7 @@ import static org.elasticsearch.action.search.SearchPhaseController.setShardInde
  * needed to reduce the aggregations is estimated and a {@link CircuitBreakingException} is thrown if it
  * exceeds the maximum memory allowed in this breaker.
  */
-public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> implements Releasable {
+public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
     private static final Logger logger = LogManager.getLogger(QueryPhaseResultConsumer.class);
 
     private final Executor executor;
@@ -104,8 +104,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     @Override
-    public void close() {
-        pendingMerges.close();
+    protected void doClose() {
+        try {
+            super.doClose();
+        } finally {
+            pendingMerges.close();
+        }
     }
 
     @Override

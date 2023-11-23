@@ -47,7 +47,7 @@ public class SearchShardsIT extends ESIntegTestCase {
             );
             int numDocs = randomIntBetween(1, 10);
             for (int j = 0; j < numDocs; j++) {
-                client().prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
+                prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
             }
             indicesAdmin().prepareRefresh(index).get();
         }
@@ -115,7 +115,7 @@ public class SearchShardsIT extends ESIntegTestCase {
             );
             int numDocs = randomIntBetween(10, 1000);
             for (int j = 0; j < numDocs; j++) {
-                client().prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
+                prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
             }
             indicesAdmin().prepareRefresh(index).get();
         }
@@ -169,7 +169,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 totalShards += numShards;
                 int numDocs = randomIntBetween(10, 100);
                 for (int j = 0; j < numDocs; j++) {
-                    client().prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
+                    prepareIndex(index).setSource("value", i).setId(Integer.toString(i)).get();
                 }
                 indicesAdmin().prepareRefresh(index).get();
             }

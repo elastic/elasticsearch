@@ -180,15 +180,11 @@ public class GeoIpDownloaderTests extends ESTestCase {
     public void testIndexChunksNoData() throws IOException {
         client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<FlushResponse> flushResponseActionListener) -> {
             assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
-            var flushResponse = mock(FlushResponse.class);
-            when(flushResponse.hasReferences()).thenReturn(true);
-            flushResponseActionListener.onResponse(flushResponse);
+            flushResponseActionListener.onResponse(mock(FlushResponse.class));
         });
         client.addHandler(RefreshAction.INSTANCE, (RefreshRequest request, ActionListener<RefreshResponse> flushResponseActionListener) -> {
             assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
-            var refreshResponse = mock(RefreshResponse.class);
-            when(refreshResponse.hasReferences()).thenReturn(true);
-            flushResponseActionListener.onResponse(refreshResponse);
+            flushResponseActionListener.onResponse(mock(RefreshResponse.class));
         });
 
         InputStream empty = new ByteArrayInputStream(new byte[0]);
@@ -198,15 +194,11 @@ public class GeoIpDownloaderTests extends ESTestCase {
     public void testIndexChunksMd5Mismatch() {
         client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<FlushResponse> flushResponseActionListener) -> {
             assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
-            var flushResponse = mock(FlushResponse.class);
-            when(flushResponse.hasReferences()).thenReturn(true);
-            flushResponseActionListener.onResponse(flushResponse);
+            flushResponseActionListener.onResponse(mock(FlushResponse.class));
         });
         client.addHandler(RefreshAction.INSTANCE, (RefreshRequest request, ActionListener<RefreshResponse> flushResponseActionListener) -> {
             assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
-            var refreshResponse = mock(RefreshResponse.class);
-            when(refreshResponse.hasReferences()).thenReturn(true);
-            flushResponseActionListener.onResponse(refreshResponse);
+            flushResponseActionListener.onResponse(mock(RefreshResponse.class));
         });
 
         IOException exception = expectThrows(
@@ -238,21 +230,15 @@ public class GeoIpDownloaderTests extends ESTestCase {
             assertEquals("test", source.get("name"));
             assertArrayEquals(chunksData[chunk], (byte[]) source.get("data"));
             assertEquals(chunk + 15, source.get("chunk"));
-            var indexResponse = mock(IndexResponse.class);
-            when(indexResponse.hasReferences()).thenReturn(true);
-            listener.onResponse(indexResponse);
+            listener.onResponse(mock(IndexResponse.class));
         });
         client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<FlushResponse> flushResponseActionListener) -> {
             assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
-            var flushResponse = mock(FlushResponse.class);
-            when(flushResponse.hasReferences()).thenReturn(true);
-            flushResponseActionListener.onResponse(flushResponse);
+            flushResponseActionListener.onResponse(mock(FlushResponse.class));
         });
         client.addHandler(RefreshAction.INSTANCE, (RefreshRequest request, ActionListener<RefreshResponse> flushResponseActionListener) -> {
             assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
-            var refreshResponse = mock(RefreshResponse.class);
-            when(refreshResponse.hasReferences()).thenReturn(true);
-            flushResponseActionListener.onResponse(refreshResponse);
+            flushResponseActionListener.onResponse(mock(RefreshResponse.class));
         });
 
         InputStream big = new ByteArrayInputStream(bigArray);

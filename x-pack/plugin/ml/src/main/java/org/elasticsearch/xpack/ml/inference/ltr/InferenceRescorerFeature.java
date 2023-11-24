@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.rescorer;
+package org.elasticsearch.xpack.ml.inference.ltr;
 
 import org.elasticsearch.common.util.FeatureFlag;
 
@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.FeatureFlag;
  *
  * Upon removal, ensure transport serialization is all corrected for future BWC.
  *
- * See {@link InferenceRescorerBuilder}
+ * See {@link LearnToRankRescorerBuilder}
  */
 public class InferenceRescorerFeature {
 

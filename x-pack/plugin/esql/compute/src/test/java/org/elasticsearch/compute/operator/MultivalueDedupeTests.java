@@ -218,7 +218,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     public void testBatchEncodeAll() {
         int initCapacity = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
         BasicBlockTests.RandomBlock b = randomBlock();
-        var encoder = (BatchEncoder.MVEncoder) MultivalueDedupe.batchEncoder(Block.Ref.floating(b.block()), initCapacity, false);
+        var encoder = (BatchEncoder.MVEncoder) MultivalueDedupe.batchEncoder(b.block(), initCapacity, false);
 
         int valueOffset = 0;
         for (int p = 0, positionOffset = Integer.MAX_VALUE; p < b.block().getPositionCount(); p++, positionOffset++) {
@@ -235,7 +235,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     public void testBatchEncoderStartSmall() {
         assumeFalse("Booleans don't grow in the same way", elementType == ElementType.BOOLEAN);
         BasicBlockTests.RandomBlock b = randomBlock();
-        var encoder = (BatchEncoder.MVEncoder) MultivalueDedupe.batchEncoder(Block.Ref.floating(b.block()), 0, false);
+        var encoder = (BatchEncoder.MVEncoder) MultivalueDedupe.batchEncoder(b.block(), 0, false);
 
         /*
          * We run can't fit the first non-null position into our 0 bytes.

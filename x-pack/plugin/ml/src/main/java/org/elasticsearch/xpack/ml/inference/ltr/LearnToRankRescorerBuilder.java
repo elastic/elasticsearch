@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.rescorer;
+package org.elasticsearch.xpack.ml.inference.ltr;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
@@ -41,9 +41,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerBuilder> {
+public class LearnToRankRescorerBuilder extends RescorerBuilder<LearnToRankRescorerBuilder> {
 
-    public static final String NAME = "inference";
+    public static final String NAME = "learn_to_rank";
     private static final ParseField MODEL = new ParseField("model_id");
     private static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
     private static final ParseField INTERNAL_INFERENCE_CONFIG = new ParseField("_internal_inference_config");
@@ -62,7 +62,10 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         );
     }
 
-    public static InferenceRescorerBuilder fromXContent(XContentParser parser, Supplier<ModelLoadingService> modelLoadingServiceSupplier) {
+    public static LearnToRankRescorerBuilder fromXContent(
+        XContentParser parser,
+        Supplier<ModelLoadingService> modelLoadingServiceSupplier
+    ) {
         return PARSER.apply(parser, null).build(modelLoadingServiceSupplier);
     }
 
@@ -75,7 +78,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     private final Supplier<LearnToRankConfig> inferenceConfigSupplier;
     private boolean rescoreOccurred;
 
-    public InferenceRescorerBuilder(
+    public LearnToRankRescorerBuilder(
         String modelId,
         LearnToRankConfigUpdate inferenceConfigUpdate,
         Supplier<ModelLoadingService> modelLoadingServiceSupplier
@@ -89,7 +92,11 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         this.inferenceConfig = null;
     }
 
-    InferenceRescorerBuilder(String modelId, LearnToRankConfig inferenceConfig, Supplier<ModelLoadingService> modelLoadingServiceSupplier) {
+    LearnToRankRescorerBuilder(
+        String modelId,
+        LearnToRankConfig inferenceConfig,
+        Supplier<ModelLoadingService> modelLoadingServiceSupplier
+    ) {
         this.modelId = Objects.requireNonNull(modelId);
         this.inferenceConfigUpdate = null;
         this.inferenceDefinition = null;
@@ -99,7 +106,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         this.inferenceConfig = Objects.requireNonNull(inferenceConfig);
     }
 
-    private InferenceRescorerBuilder(
+    private LearnToRankRescorerBuilder(
         String modelId,
         LearnToRankConfigUpdate update,
         Supplier<ModelLoadingService> modelLoadingServiceSupplier,
@@ -114,7 +121,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         this.inferenceConfig = null;
     }
 
-    private InferenceRescorerBuilder(
+    private LearnToRankRescorerBuilder(
         String modelId,
         LearnToRankConfig inferenceConfig,
         Supplier<ModelLoadingService> modelLoadingServiceSupplier,
@@ -129,7 +136,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         this.inferenceConfig = inferenceConfig;
     }
 
-    InferenceRescorerBuilder(String modelId, LearnToRankConfig inferenceConfig, LocalModel inferenceDefinition) {
+    LearnToRankRescorerBuilder(String modelId, LearnToRankConfig inferenceConfig, LocalModel inferenceDefinition) {
         this.modelId = modelId;
         this.inferenceConfigUpdate = null;
         this.inferenceDefinition = inferenceDefinition;
@@ -139,7 +146,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         this.inferenceConfig = inferenceConfig;
     }
 
-    public InferenceRescorerBuilder(StreamInput input, Supplier<ModelLoadingService> modelLoadingServiceSupplier) throws IOException {
+    public LearnToRankRescorerBuilder(StreamInput input, Supplier<ModelLoadingService> modelLoadingServiceSupplier) throws IOException {
         super(input);
         this.modelId = input.readString();
         this.inferenceConfigUpdate = (LearnToRankConfigUpdate) input.readOptionalNamedWriteable(InferenceConfigUpdate.class);
@@ -170,10 +177,10 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
      * This can and be done on the coordinator as it not only validates if the stored model is of the appropriate type, it allows
      * any stored logic to rewrite on the coordinator level if possible.
      * @param ctx QueryRewriteContext
-     * @return rewritten InferenceRescorerBuilder or self if no changes
+     * @return rewritten LearnToRankRescorerBuilder or self if no changes
      * @throws IOException when rewrite fails
      */
-    private RescorerBuilder<InferenceRescorerBuilder> doRewrite(QueryRewriteContext ctx) throws IOException {
+    private RescorerBuilder<LearnToRankRescorerBuilder> doRewrite(QueryRewriteContext ctx) throws IOException {
         // Awaiting fetch
         if (inferenceConfigSupplier != null && inferenceConfigSupplier.get() == null) {
             return this;
@@ -183,7 +190,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
             if (rewrittenConfig == inferenceConfig) {
                 return this;
             }
-            InferenceRescorerBuilder builder = new InferenceRescorerBuilder(modelId, rewrittenConfig, modelLoadingServiceSupplier);
+            LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(modelId, rewrittenConfig, modelLoadingServiceSupplier);
             if (windowSize != null) {
                 builder.windowSize(windowSize);
             }
@@ -192,7 +199,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         // We have requested for the stored config and fetch is completed, get the config and rewrite further if required
         if (inferenceConfigSupplier != null) {
             LearnToRankConfig rewrittenConfig = Rewriteable.rewrite(inferenceConfigSupplier.get(), ctx);
-            InferenceRescorerBuilder builder = new InferenceRescorerBuilder(modelId, rewrittenConfig, modelLoadingServiceSupplier);
+            LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(modelId, rewrittenConfig, modelLoadingServiceSupplier);
             if (windowSize != null) {
                 builder.windowSize(windowSize);
             }
@@ -232,7 +239,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
                 }, l::onFailure)
             )
         );
-        InferenceRescorerBuilder builder = new InferenceRescorerBuilder(
+        LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(
             modelId,
             inferenceConfigUpdate,
             modelLoadingServiceSupplier,
@@ -249,7 +256,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
      * @param ctx Rewrite context
      * @return A rewritten rescorer with a model definition or a model definition supplier populated
      */
-    private RescorerBuilder<InferenceRescorerBuilder> doDataNodeRewrite(QueryRewriteContext ctx) {
+    private RescorerBuilder<LearnToRankRescorerBuilder> doDataNodeRewrite(QueryRewriteContext ctx) {
         assert inferenceConfig != null;
         // We already have an inference definition, no need to do any rewriting
         if (inferenceDefinition != null) {
@@ -261,7 +268,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         }
         if (inferenceDefinitionSupplier != null) {
             LocalModel inferenceDefinition = inferenceDefinitionSupplier.get();
-            InferenceRescorerBuilder builder = new InferenceRescorerBuilder(modelId, inferenceConfig, inferenceDefinition);
+            LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(modelId, inferenceConfig, inferenceDefinition);
             if (windowSize() != null) {
                 builder.windowSize(windowSize());
             }
@@ -275,7 +282,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
             inferenceDefinitionSetOnce.set(lm);
             l.onResponse(null);
         }, l::onFailure)));
-        InferenceRescorerBuilder builder = new InferenceRescorerBuilder(
+        LearnToRankRescorerBuilder builder = new LearnToRankRescorerBuilder(
             modelId,
             inferenceConfig,
             modelLoadingServiceSupplier,
@@ -293,7 +300,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
      * @return A rewritten rescorer with a model definition or a model definition supplier populated
      * @throws IOException If fetching, parsing, or overall rewrite failures occur
      */
-    private RescorerBuilder<InferenceRescorerBuilder> doSearchRewrite(QueryRewriteContext ctx) throws IOException {
+    private RescorerBuilder<LearnToRankRescorerBuilder> doSearchRewrite(QueryRewriteContext ctx) throws IOException {
         if (inferenceConfig == null) {
             return this;
         }
@@ -301,9 +308,9 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         if (rewrittenConfig == inferenceConfig) {
             return this;
         }
-        InferenceRescorerBuilder builder = inferenceDefinition == null
-            ? new InferenceRescorerBuilder(modelId, rewrittenConfig, modelLoadingServiceSupplier)
-            : new InferenceRescorerBuilder(modelId, rewrittenConfig, inferenceDefinition);
+        LearnToRankRescorerBuilder builder = inferenceDefinition == null
+            ? new LearnToRankRescorerBuilder(modelId, rewrittenConfig, modelLoadingServiceSupplier)
+            : new LearnToRankRescorerBuilder(modelId, rewrittenConfig, inferenceDefinition);
         if (windowSize != null) {
             builder.windowSize(windowSize);
         }
@@ -311,7 +318,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     }
 
     @Override
-    public RescorerBuilder<InferenceRescorerBuilder> rewrite(QueryRewriteContext ctx) throws IOException {
+    public RescorerBuilder<LearnToRankRescorerBuilder> rewrite(QueryRewriteContext ctx) throws IOException {
         if (ctx.convertToDataRewriteContext() != null) {
             return doDataNodeRewrite(ctx);
         }
@@ -354,9 +361,9 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     }
 
     @Override
-    protected InferenceRescorerContext innerBuildContext(int windowSize, SearchExecutionContext context) {
+    protected LearnToRankRescorerContext innerBuildContext(int windowSize, SearchExecutionContext context) {
         rescoreOccurred = true;
-        return new InferenceRescorerContext(windowSize, InferenceRescorer.INSTANCE, inferenceConfig, inferenceDefinition, context);
+        return new LearnToRankRescorerContext(windowSize, LearnToRankRescorer.INSTANCE, inferenceConfig, inferenceDefinition, context);
     }
 
     @Override
@@ -364,7 +371,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        InferenceRescorerBuilder that = (InferenceRescorerBuilder) o;
+        LearnToRankRescorerBuilder that = (LearnToRankRescorerBuilder) o;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(inferenceDefinition, that.inferenceDefinition)
             && Objects.equals(inferenceConfigUpdate, that.inferenceConfigUpdate)
@@ -437,12 +444,12 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
             );
         }
 
-        InferenceRescorerBuilder build(Supplier<ModelLoadingService> modelLoadingServiceSupplier) {
+        LearnToRankRescorerBuilder build(Supplier<ModelLoadingService> modelLoadingServiceSupplier) {
             assert inferenceConfig == null || inferenceConfigUpdate == null;
             if (inferenceConfig != null) {
-                return new InferenceRescorerBuilder(modelId, inferenceConfig, modelLoadingServiceSupplier);
+                return new LearnToRankRescorerBuilder(modelId, inferenceConfig, modelLoadingServiceSupplier);
             } else {
-                return new InferenceRescorerBuilder(modelId, inferenceConfigUpdate, modelLoadingServiceSupplier);
+                return new LearnToRankRescorerBuilder(modelId, inferenceConfigUpdate, modelLoadingServiceSupplier);
             }
         }
     }

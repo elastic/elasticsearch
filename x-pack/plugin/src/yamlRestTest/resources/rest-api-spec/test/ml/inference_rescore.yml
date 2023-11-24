@@ -146,7 +146,7 @@ setup:
           {
             "rescore": {
               "window_size": 10,
-              "inference": { "model_id": "ltr-model" }
+              "learn_to_rank": { "model_id": "ltr-model" }
             }
           }
   - match: { hits.hits.0._score: 17.0 }
@@ -162,7 +162,7 @@ setup:
             "query": {"term": {"product": "Laptop"}},
             "rescore": {
               "window_size": 10,
-              "inference": { "model_id": "ltr-model" }
+              "learn_to_rank": { "model_id": "ltr-model" }
             }
           }
   - match: { hits.hits.0._score: 6.0 }
@@ -182,7 +182,7 @@ setup:
           {
             "rescore": {
               "window_size": 2,
-              "inference": { "model_id": "ltr-model" }
+              "learn_to_rank": { "model_id": "ltr-model" }
             }
           }
   - match: { hits.hits.0._score: 17.0 }
@@ -209,7 +209,7 @@ setup:
             },
             {
               "window_size": 3,
-              "inference": { "model_id": "ltr-model" }
+              "learn_to_rank": { "model_id": "ltr-model" }
             },
             {
               "window_size": 2,
@@ -232,7 +232,7 @@ setup:
           {
             "rescore": {
               "window_size": 10,
-              "inference": { "model_id": "ltr-missing" }
+              "learn_to_rank": { "model_id": "ltr-missing" }
             }
           }
 ---
@@ -245,7 +245,7 @@ setup:
             "query": {"term": {"product": "Speaker"}},
             "rescore": {
               "window_size": 10,
-              "inference": { "model_id": "ltr-model" }
+              "learn_to_rank": { "model_id": "ltr-model" }
             }
           }
   - length: { hits.hits: 0 }

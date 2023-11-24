@@ -185,12 +185,12 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNam
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
+import org.elasticsearch.xpack.core.ml.ltr.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportAuditMlNotificationAction;
@@ -322,13 +322,13 @@ import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentSer
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
+import org.elasticsearch.xpack.ml.inference.ltr.InferenceRescorerFeature;
+import org.elasticsearch.xpack.ml.inference.ltr.LearnToRankRescorerBuilder;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
-import org.elasticsearch.xpack.ml.inference.rescorer.InferenceRescorerBuilder;
-import org.elasticsearch.xpack.ml.inference.rescorer.InferenceRescorerFeature;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
@@ -867,9 +867,9 @@ public class MachineLearning extends Plugin
             // Inference rescorer requires access to the model loading service
             return List.of(
                 new RescorerSpec<>(
-                    InferenceRescorerBuilder.NAME,
-                    in -> new InferenceRescorerBuilder(in, modelLoadingService::get),
-                    parser -> InferenceRescorerBuilder.fromXContent(parser, modelLoadingService::get)
+                    LearnToRankRescorerBuilder.NAME,
+                    in -> new LearnToRankRescorerBuilder(in, modelLoadingService::get),
+                    parser -> LearnToRankRescorerBuilder.fromXContent(parser, modelLoadingService::get)
                 )
             );
         }

@@ -2,7 +2,7 @@
 // tag::cloud[]
 include::{docs-root}/shared/cloud/ess-getting-started.asciidoc[tag=generic]
 
-. Click **Continue** to open {kib}, AKA the user interface for {ecloud}.
+. Click **Continue** to open {kib}, the user interface for {ecloud}.
 
 . Click **Explore on my own**.
 // end::cloud[]

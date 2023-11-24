@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.job.retention;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -75,7 +77,11 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         LOGGER.debug("Removing forecasts that expire before [{}]", cutoffEpochMs);
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(
             searchResponse -> deleteForecasts(searchResponse, requestsPerSec, listener, isTimedOutSupplier),
-            e -> listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e))
+            e -> {
+                listener.onFailure(new ElasticsearchStatusException("An error occurred while searching forecasts to delete",
+                    RestStatus.TOO_MANY_REQUESTS,
+                    e));
+            }
         );
 
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -143,7 +149,14 @@ public class ExpiredForecastsRemover implements MlDataRemover {
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchException("Failed to remove expired forecasts", e));
+                if (e instanceof ElasticsearchStatusException){
+                    listener.onFailure(new ElasticsearchStatusException(
+                        "Failed to remove expired forecasts",
+                        ((ElasticsearchStatusException) e).status(),
+                        e));
+                } else {
+                    listener.onFailure(new ElasticsearchException("Failed to remove expired forecasts", e));
+                }
             }
         });
     }

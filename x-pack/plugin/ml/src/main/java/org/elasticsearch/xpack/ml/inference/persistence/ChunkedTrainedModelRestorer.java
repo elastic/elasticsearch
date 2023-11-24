@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -238,13 +240,14 @@ public class ChunkedTrainedModelRestorer {
                      * This intentionally prevents that code from attempting to retry loading the entire model. If the retry logic here
                      * fails after the set retries we should not retry loading the entire model to avoid additional strain on the cluster.
                      */
-                    throw new ElasticsearchException(
+                    throw new ElasticsearchStatusException(
                         format(
                             "loading model [%s] failed after [%s] retries. The deployment is now in a failed state, "
                                 + "the error may be transient please stop the deployment and restart",
                             modelId,
                             retries
                         ),
+                        RestStatus.TOO_MANY_REQUESTS,
                         e
                     );
                 }

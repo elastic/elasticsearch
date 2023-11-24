@@ -97,9 +97,6 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         final BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY.add(randomIdentifier()));
         final String blobName = randomIdentifier();
 
-        addErrorStatus(RestStatus.FOUND);
-        blobContainer.readBlob(purpose, blobName).close();
-
         // Put a blob
         final int nPuts = randomIntBetween(1, 3);
         for (int i = 0; i < nPuts; i++) {

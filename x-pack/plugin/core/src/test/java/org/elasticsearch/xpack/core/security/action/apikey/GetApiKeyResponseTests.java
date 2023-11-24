@@ -237,7 +237,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   %s
                   "creation": 100000,
                   "invalidated": true,
-                  "invalidation_time": 100000000,
+                  "invalidation": 100000000,
                   "username": "user-c",
                   "realm": "realm-z",
                   "metadata": {
@@ -304,7 +304,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   %s
                   "creation": 100000,
                   "invalidated": true,
-                  "invalidation_time": 100000000,
+                  "invalidation": 100000000,
                   "username": "user-c",
                   "realm": "realm-z",
                   "metadata": {

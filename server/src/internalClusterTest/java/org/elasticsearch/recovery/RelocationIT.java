@@ -363,7 +363,6 @@ public class RelocationIT extends ESIntegTestCase {
             long[] expectedCount = new long[] { -1 };
             for (Client client : clients()) {
                 assertNoFailuresAndResponse(client.prepareSearch("test").setPreference("_local").setSize(0), response -> {
-                    assertNoFailures(response);
                     if (expectedCount[0] < 0) {
                         expectedCount[0] = response.getHits().getTotalHits().value;
                     } else {

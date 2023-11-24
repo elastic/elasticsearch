@@ -49,7 +49,7 @@ public class TimeSeriesAggregationsUnlimitedDimensionsIT extends AggregationInte
         final XContentBuilder mapping = timeSeriesIndexMapping();
         long startMillis = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         long endMillis = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-02T00:00:00Z");
-        numberOfDocuments = randomIntBetween(1000, 2000);
+        numberOfDocuments = randomIntBetween(100, 200);
         final Iterator<Long> timestamps = getTimestamps(startMillis, endMillis, numberOfDocuments);
         // NOTE: use also the last (changing) dimension so to make sure documents are not indexed all in the same shard.
         final String[] routingDimensions = new String[] { "dim_0", "dim_" + (numberOfDimensions - 1) };

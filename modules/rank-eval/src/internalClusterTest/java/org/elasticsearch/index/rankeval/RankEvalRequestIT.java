@@ -49,18 +49,15 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         createIndex(TEST_INDEX);
         ensureGreen();
 
-        client().prepareIndex(TEST_INDEX)
-            .setId("1")
-            .setSource("id", 1, "text", "berlin", "title", "Berlin, Germany", "population", 3670622)
-            .get();
-        client().prepareIndex(TEST_INDEX).setId("2").setSource("id", 2, "text", "amsterdam", "population", 851573).get();
-        client().prepareIndex(TEST_INDEX).setId("3").setSource("id", 3, "text", "amsterdam", "population", 851573).get();
-        client().prepareIndex(TEST_INDEX).setId("4").setSource("id", 4, "text", "amsterdam", "population", 851573).get();
-        client().prepareIndex(TEST_INDEX).setId("5").setSource("id", 5, "text", "amsterdam", "population", 851573).get();
-        client().prepareIndex(TEST_INDEX).setId("6").setSource("id", 6, "text", "amsterdam", "population", 851573).get();
+        prepareIndex(TEST_INDEX).setId("1").setSource("id", 1, "text", "berlin", "title", "Berlin, Germany", "population", 3670622).get();
+        prepareIndex(TEST_INDEX).setId("2").setSource("id", 2, "text", "amsterdam", "population", 851573).get();
+        prepareIndex(TEST_INDEX).setId("3").setSource("id", 3, "text", "amsterdam", "population", 851573).get();
+        prepareIndex(TEST_INDEX).setId("4").setSource("id", 4, "text", "amsterdam", "population", 851573).get();
+        prepareIndex(TEST_INDEX).setId("5").setSource("id", 5, "text", "amsterdam", "population", 851573).get();
+        prepareIndex(TEST_INDEX).setId("6").setSource("id", 6, "text", "amsterdam", "population", 851573).get();
 
         // add another index for testing closed indices etc...
-        client().prepareIndex("test2").setId("7").setSource("id", 7, "text", "amsterdam", "population", 851573).get();
+        prepareIndex("test2").setId("7").setSource("id", 7, "text", "amsterdam", "population", 851573).get();
         refresh();
 
         // set up an alias that can also be used in tests

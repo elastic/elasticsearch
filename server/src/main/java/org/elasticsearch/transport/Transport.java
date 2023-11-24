@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -126,13 +125,6 @@ public interface Transport extends LifecycleComponent {
         void addCloseListener(ActionListener<Void> listener);
 
         boolean isClosed();
-
-        /**
-         * Returns the version of the node on the other side of this channel.
-         */
-        default Version getVersion() {
-            return getNode().getVersion();
-        }
 
         /**
          * Returns the version of the data to communicate in this channel.

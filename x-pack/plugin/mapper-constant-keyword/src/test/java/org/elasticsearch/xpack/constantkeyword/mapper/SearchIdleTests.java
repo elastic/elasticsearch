@@ -116,8 +116,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             "type=keyword"
         );
 
-        assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
         assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
@@ -185,8 +185,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             "type=keyword"
         );
 
-        assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
         assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
@@ -251,8 +251,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             "type=keyword"
         );
 
-        assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
-        assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", randomAlphaOfLength(10)).get().status());
         assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(
@@ -310,8 +310,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             "type=constant_keyword,value=test2_value"
         );
 
-        assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", "value").get().status());
-        assertEquals(RestStatus.CREATED, client().prepareIndex(activeIndex).setSource("keyword", "value").get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(idleIndex).setSource("keyword", "value").get().status());
+        assertEquals(RestStatus.CREATED, prepareIndex(activeIndex).setSource("keyword", "value").get().status());
         assertEquals(RestStatus.OK, indicesAdmin().prepareRefresh(idleIndex, activeIndex).get().getStatus());
 
         waitUntil(

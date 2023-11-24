@@ -61,8 +61,7 @@ public class RepositoryThrottlingStatsIT extends AbstractSnapshotIntegTestCase {
             .setRenamePattern("test-")
             .setRenameReplacement("test2-")
             .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertDocCount("test-idx", 100);
 

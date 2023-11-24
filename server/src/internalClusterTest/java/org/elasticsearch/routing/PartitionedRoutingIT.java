@@ -40,8 +40,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                             .put("index.routing_partition_size", partitionSize)
                     )
                     .setMapping("{\"_routing\":{\"required\":true}}")
-                    .execute()
-                    .actionGet();
+                    .get();
                 ensureGreen();
 
                 Map<String, Set<String>> routingToDocumentIds = generateRoutedDocumentIds(index);
@@ -69,8 +68,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                     .put("index.routing_partition_size", partitionSize)
             )
             .setMapping("{\"_routing\":{\"required\":true}}")
-            .execute()
-            .actionGet();
+            .get();
         ensureGreen();
 
         Map<String, Set<String>> routingToDocumentIds = generateRoutedDocumentIds(index);
@@ -149,8 +147,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 .setRouting(routing)
                 .setIndices(index)
                 .setSize(100)
-                .execute()
-                .actionGet();
+                .get();
 
             logger.info(
                 "--> routed search on index ["
@@ -185,8 +182,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             SearchResponse response = prepareSearch().setQuery(QueryBuilders.termQuery("_routing", routing))
                 .setIndices(index)
                 .setSize(100)
-                .execute()
-                .actionGet();
+                .get();
 
             assertEquals(expectedShards, response.getTotalShards());
             assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
@@ -203,7 +199,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             String routing = routingEntry.getKey();
 
             for (String id : routingEntry.getValue()) {
-                assertTrue(client().prepareGet(index, id).setRouting(routing).execute().actionGet().isExists());
+                assertTrue(client().prepareGet(index, id).setRouting(routing).get().isExists());
             }
         }
     }
@@ -221,7 +217,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 String id = routingValue + "_" + String.valueOf(k);
                 routingToDocumentIds.get(routingValue).add(id);
 
-                client().prepareIndex(index).setId(id).setRouting(routingValue).setSource("foo", "bar").get();
+                prepareIndex(index).setId(id).setRouting(routingValue).setSource("foo", "bar").get();
             }
         }
 

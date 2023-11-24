@@ -334,6 +334,18 @@ public class AggregatorFactoriesTests extends ESTestCase {
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(new TermsAggregationBuilder("terms"));
+            assertTrue(builder.supportsParallelCollection(field -> 0));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.subAggregation(new TermsAggregationBuilder("name") {
+                @Override
+                public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+                    return false;
+                }
+            });
+            builder.addAggregator(terms);
             assertFalse(builder.supportsParallelCollection(field -> 0));
         }
         {

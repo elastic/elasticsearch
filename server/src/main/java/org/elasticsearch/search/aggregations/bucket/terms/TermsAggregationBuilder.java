@@ -150,7 +150,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
                 return false;
             }
             BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
-            return cardinality <= adjusted.getShardSize();
+            if (cardinality <= adjusted.getShardSize()) {
+                return super.supportsParallelCollection(fieldCardinalityResolver);
+            }
         }
         return false;
     }

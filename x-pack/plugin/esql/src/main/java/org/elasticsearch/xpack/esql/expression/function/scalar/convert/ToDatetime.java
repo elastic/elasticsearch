@@ -23,6 +23,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 public class ToDatetime extends AbstractConvertFunction {
@@ -31,6 +32,7 @@ public class ToDatetime extends AbstractConvertFunction {
         Map.entry(DATETIME, (field, source) -> field),
         Map.entry(LONG, (field, source) -> field),
         Map.entry(KEYWORD, ToDatetimeFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToDatetimeFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new) // CastIntToLongEvaluator would be a candidate, but not MV'd

@@ -42,7 +42,7 @@ public class ToIPTests extends AbstractFunctionTestCase {
         // convert from IP to IP
         TestCaseSupplier.forUnaryIp(suppliers, read, DataTypes.IP, v -> v, List.of());
 
-        // convert any kind of string to IP, with warnings.
+        // convert any kind of string to IP `null`, with warnings.
         for (TestCaseSupplier.TypedDataSupplier supplier : stringCases(DataTypes.KEYWORD)) {
             suppliers.add(new TestCaseSupplier(supplier.name(), List.of(supplier.type()), () -> {
                 BytesRef value = (BytesRef) supplier.supplier().get();

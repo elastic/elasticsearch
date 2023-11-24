@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
@@ -30,11 +31,17 @@ public class JwtAuthenticatorAccessTokenTypeTests extends JwtAuthenticatorTests 
 
     public void testAccessTokenTypeMandatesAllowedSubjects() {
         allowedSubject = null;
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildJwtAuthenticator());
+        final SettingsException e = expectThrows(SettingsException.class, () -> buildJwtAuthenticator());
 
         assertThat(
             e.getMessage(),
-            containsString("Invalid empty list for [" + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS) + "]")
+            containsString(
+                "One of either ["
+                    + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS)
+                    + "] or ["
+                    + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
+                    + "] must be specified."
+            )
         );
     }
 

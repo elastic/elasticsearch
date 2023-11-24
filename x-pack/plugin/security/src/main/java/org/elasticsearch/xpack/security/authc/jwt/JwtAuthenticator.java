@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -127,15 +128,11 @@ public class JwtAuthenticator implements Releasable {
         final Clock clock = Clock.systemUTC();
 
         final JwtStringClaimValidator subjectClaimValidator;
-        if (realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECTS)) {
-            subjectClaimValidator = new JwtStringClaimValidator(
-                "sub",
-                true,
-                realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS),
-                realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
-            );
+        if (realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECTS)
+            || realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)) {
+            subjectClaimValidator = getSubjectClaimValidator(realmConfig, null);
         } else {
-            // Allow any value for the sub claim as long as there is a non-null value
+            // Allows any non-null value for the sub claim
             subjectClaimValidator = JwtStringClaimValidator.ALLOW_ALL_SUBJECTS;
         }
 
@@ -163,13 +160,7 @@ public class JwtAuthenticator implements Releasable {
         return List.of(
             JwtTypeValidator.INSTANCE,
             new JwtStringClaimValidator("iss", true, List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), List.of()),
-            new JwtStringClaimValidator(
-                "sub",
-                true,
-                fallbackClaimLookup,
-                realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS),
-                realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
-            ),
+            getSubjectClaimValidator(realmConfig, fallbackClaimLookup),
             new JwtStringClaimValidator(
                 "aud",
                 false,
@@ -189,5 +180,59 @@ public class JwtAuthenticator implements Releasable {
             final List<String> allowedValues = requiredClaims.getAsList(name);
             return new JwtStringClaimValidator(name, false, allowedValues, List.of());
         }).toList();
+    }
+
+    private static JwtStringClaimValidator getSubjectClaimValidator(RealmConfig realmConfig, Map<String, String> fallbackClaimLookup) {
+        validateAllowedSubjectsSettings(realmConfig);
+        return new JwtStringClaimValidator(
+            "sub",
+            true,
+            fallbackClaimLookup,
+            realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS),
+            realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
+        );
+    }
+
+    private static void validateAllowedSubjectsSettings(RealmConfig realmConfig) {
+        if (realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECTS) == false
+            && realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS) == false) {
+            throw new SettingsException(
+                "One of either ["
+                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECTS).getKey()
+                    + "] or ["
+                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS).getKey()
+                    + "] must be specified."
+            );
+        }
+        if (realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECTS) == false
+            && realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS).isEmpty()) {
+            throw new SettingsException(
+                "["
+                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS).getKey()
+                    + "] cannot be empty if ["
+                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECTS).getKey()
+                    + "] is left unspecified."
+            );
+        }
+        if (realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS) == false
+            && realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS).isEmpty()) {
+            throw new SettingsException(
+                "["
+                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECTS).getKey()
+                    + "] cannot be empty if ["
+                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS).getKey()
+                    + "] is left unspecified."
+            );
+        }
+        if (realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS).isEmpty()
+            && realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS).isEmpty()) {
+            throw new SettingsException(
+                "One of either ["
+                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECTS).getKey()
+                    + "] or ["
+                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS).getKey()
+                    + "] must be non-empty."
+            );
+        }
     }
 }

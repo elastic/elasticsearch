@@ -260,13 +260,17 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<List<String>> ALLOWED_SUBJECTS = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "allowed_subjects",
-        key -> Setting.stringListSetting(key, values -> verifyNonNullNotEmpty(key, values, null), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, allowedSubjects -> {
+            allowedSubjects.forEach(allowedSubject -> verifyNonNullNotEmpty(key, allowedSubject, null));
+        }, Setting.Property.NodeScope)
     );
 
     public static final Setting.AffixSetting<List<String>> ALLOWED_SUBJECT_PATTERNS = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "allowed_subject_patterns",
-        key -> Setting.stringListSetting(key, values -> verifyNonNullNotEmpty(key, values, null), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, allowedSubjectPatterns -> {
+            allowedSubjectPatterns.forEach(allowedSubjectPattern -> verifyNonNullNotEmpty(key, allowedSubjectPattern, null));
+        }, Setting.Property.NodeScope)
     );
 
     // Registered claim names from the JWT spec https://www.rfc-editor.org/rfc/rfc7519#section-4.1.

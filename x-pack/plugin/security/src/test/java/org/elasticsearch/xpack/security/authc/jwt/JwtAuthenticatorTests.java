@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -35,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -109,12 +107,6 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         final JwtAuthenticator jwtAuthenticator = buildJwtAuthenticator();
         jwtAuthenticator.authenticate(jwtAuthenticationToken, future);
         assertThat(future.actionGet(), equalTo(claimsSet));
-    }
-
-    public void testInvalidAllowedSubjectClaimPattern() {
-        allowedSubject = "/invalid pattern";
-        final SettingsException e = expectThrows(SettingsException.class, () -> buildJwtAuthenticator());
-        assertThat(e.getMessage(), containsString("Invalid pattern for allowed claim values for [sub]."));
     }
 
     public void testMismatchedRequiredClaims() throws ParseException {
@@ -238,9 +230,14 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(
-            e,
-            throwableWithMessage(
-                "string claim [iss] has value [" + invalidIssuer + "] which does not match allowed claim values [" + allowedIssuer + "]"
+            e.getMessage(),
+            containsString(
+                "string claim [iss] has value ["
+                    + invalidIssuer
+                    + "] which does not match allowed claim "
+                    + "values ["
+                    + allowedIssuer
+                    + "]"
             )
         );
     }

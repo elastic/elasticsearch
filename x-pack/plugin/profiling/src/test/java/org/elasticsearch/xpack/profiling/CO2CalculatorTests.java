@@ -50,7 +50,7 @@ public class CO2CalculatorTests extends ESTestCase {
                     // unknown datacenter, known provider and region, aarch64
                     new InstanceType(
                         "azure",
-                        "North Central US",
+                        "northcentralus",
                         "" // Doesn't matter for unknown datacenters.
                     ),
                     "aarch64"

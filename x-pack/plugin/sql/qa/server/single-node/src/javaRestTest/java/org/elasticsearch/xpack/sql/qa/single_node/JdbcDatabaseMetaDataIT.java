@@ -21,6 +21,7 @@ public class JdbcDatabaseMetaDataIT extends DatabaseMetaDataTestCase {
 
     @Override
     protected String clusterName() {
-        return "javaRestTest";
+        // `GET /` on Serverless returns a response with `cluster_name: <project_id>`, so we need to use a fixed string.
+        return SqlTestCluster.CLUSTER_NAME;
     }
 }

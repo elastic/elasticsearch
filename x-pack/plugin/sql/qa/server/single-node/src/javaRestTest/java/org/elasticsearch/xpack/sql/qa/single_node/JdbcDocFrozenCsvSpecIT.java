@@ -28,21 +28,9 @@ import static org.elasticsearch.xpack.ql.SpecReader.Parser;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.csvConnection;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.executeCsvQuery;
 
-/**
- * CSV test specification for DOC examples.
- * While we could use the existing tests, their purpose is to test corner-cases which
- * gets reflected in the dataset structure.
- * The doc tests while redundant, try to be expressive first and foremost and sometimes
- * the dataset isn't exactly convenient.
- *
- * Also looking around for the tests across the test files isn't trivial.
- *
- * That's not to say the two cannot be merged however that felt like too much of an effort
- * at this stage and, to not keep things stalling, started with this approach.
- */
-public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
+public class JdbcDocFrozenCsvSpecIT extends SpecBaseIntegrationTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(true);
 
     @Override
     protected String getTestRestCluster() {
@@ -58,16 +46,16 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
 
     @Override
     protected void loadDataset(RestClient client) throws Exception {
-        DataLoader.loadDocsDatasetIntoEs(client, false);
+        DataLoader.loadDocsDatasetIntoEs(client, true);
     }
 
     @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecTestCase.PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = specParser();
-        return readScriptSpec("/docs/docs.csv-spec", parser);
+        return readScriptSpec("/docs/docs-frozen.csv-spec", parser);
     }
 
-    public JdbcDocCsvSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
+    public JdbcDocFrozenCsvSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
         super(fileName, groupName, testName, lineNumber);
         this.testCase = testCase;
     }
@@ -76,10 +64,6 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
     protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {
         Logger log = logEsResultSet() ? logger : null;
 
-        //
-        // uncomment this to printout the result set and create new CSV tests
-        //
-        // JdbcTestUtils.logLikeCLI(elastic, log);
         JdbcAssert.assertResultSets(expected, elastic, log, true, true);
     }
 

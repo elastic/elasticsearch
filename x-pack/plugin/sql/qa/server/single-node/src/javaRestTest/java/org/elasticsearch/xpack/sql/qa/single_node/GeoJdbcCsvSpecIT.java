@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.sql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.geo.GeoCsvSpecTestCase;
+import org.elasticsearch.xpack.sql.qa.jdbc.DataLoader;
 import org.junit.ClassRule;
 
 import java.util.ArrayList;
@@ -20,9 +22,13 @@ import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 
 public class GeoJdbcCsvSpecIT extends GeoCsvSpecTestCase {
-    // TODO: separate out tests that really require frozen indexes
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(true);
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+
+    @Override
+    protected void loadDataset(RestClient client) throws Exception {
+        DataLoader.loadDatasetIntoEs(client, false);
+    }
 
     @Override
     protected String getTestRestCluster() {

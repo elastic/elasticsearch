@@ -11,10 +11,12 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
 public class SqlTestCluster {
+    public static String CLUSTER_NAME = "javaRestTest";
+
     public static ElasticsearchCluster getCluster(boolean enableFreezing) {
         var settings = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .name("javaRestTest")
+            .name(CLUSTER_NAME)
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.watcher.enabled", "false")
             .setting("xpack.security.enabled", "false")

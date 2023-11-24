@@ -1402,7 +1402,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Executes the given flush request against the engine.
      *
      * @param request the flush request
-     * @param listener to notify after fully durability has been achieved.
+     * @param listener to notify after full durability has been achieved.
      *                 <code>false</code> if <code>waitIfOngoing==false</code>
      *                 and an ongoing request is detected, else <code>true</code>.
      *                 If <code>false</code> is returned, no flush happened.
@@ -3787,8 +3787,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 }
                             }
                         });
-                        afterWriteOperation();
                         flushOrRollRunning.compareAndSet(true, false);
+                        afterWriteOperation();
                     });
                 } else if (shouldRollTranslogGeneration()) {
                     logger.debug("submitting async roll translog generation request");

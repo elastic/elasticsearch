@@ -62,6 +62,8 @@ public class MetricsApmIT extends ESRestTestCase {
             Map.ofEntries(
                 assertion("testDoubleCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
                 assertion("testLongCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("testAsyncDoubleCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("testAsyncLongCounter", m -> (Integer) m.get("value"), equalTo(1)),
                 assertion("testDoubleGauge", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
                 assertion("testLongGauge", m -> (Integer) m.get("value"), equalTo(1)),
                 assertion(

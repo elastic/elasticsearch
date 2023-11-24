@@ -288,7 +288,7 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
         String indexName = modelId + "-index";
 
         var e = expectThrows(ResponseException.class, () -> textEmbeddingSearch(indexName, "the machine is leaking", modelId, "embedding"));
-        assertThat(e.getMessage(), containsString("Could not find trained model [missing-model]"));
+        assertThat(e.getMessage(), containsString("Model not found [missing-model]"));
     }
 
     @SuppressWarnings("unchecked")

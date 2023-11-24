@@ -25,10 +25,11 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentStateUtils;
 import org.elasticsearch.xpack.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,7 +71,7 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
     protected void doExecute(Task task, CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
         if (request.getModelHost() == CoordinatedInferenceAction.Request.ModelHost.FOR_NLP_MODEL) {
             // must be an inference service model or ml hosted model
-            forNlp(request);
+            forNlp(request, listener);
         } else {
             if (request.hasInferenceConfig() || request.hasObjects()) {
                 tryInClusterModel(request, listener);
@@ -80,9 +81,7 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
         }
     }
 
-    private void forNlp(CoordinatedInferenceAction.Request request) {
 
-    }
 
     private boolean hasTrainedModelAssignment(String modelId, ClusterState state) {
         String concreteModelId = Optional.ofNullable(ModelAliasMetadata.fromState(clusterService.state()).getModelId(request.getId()))
@@ -96,10 +95,39 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
         if (assignment == null) {
             // look up by model
             assignments = trainedModelAssignmentMetadata.getDeploymentsUsingModel(concreteModelId);
-        } else {
-            assignments = List.of(assignment);
         }
     }
+
+
+    private void forNlp(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
+        var clusterState = clusterService.state();
+        var assignments = TrainedModelAssignmentStateUtils.modelAssignments(request.getModelId(), clusterState);
+        if (assignments == null || assignments.isEmpty()) {
+            doInferenceServiceModel(request, listener);
+        } else {
+            doInClusterModel(request, listener);
+        }
+    }
+
+
+    private void doInferenceServiceModel(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
+        ActionListener<ModelRegistry.ModelConfigMap> modelMapListener = ActionListener.wrap(modelConfigMap -> {
+            var unparsedModel = UnparsedModel.unparsedModelFromMap(modelConfigMap.config(), modelConfigMap.secrets());
+            executeAsyncWithOrigin(
+                client,
+                INFERENCE_ORIGIN,
+                InferenceAction.INSTANCE,
+                new InferenceAction.Request(unparsedModel.taskType(), request.getModelId(), request.getInputs(), request.getTaskSettings()),
+                ActionListener.wrap(
+                    r -> translateInferenceServiceResponse(r.getResults(), listener),
+                    listener::onFailure
+                )
+            );
+        }, listener::onFailure);
+
+        modelRegistry.getUnparsedModelMap(request.getModelId(), modelMapListener);
+    }
+
 
     private void tryInferenceServiceModel(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
         ActionListener<ModelRegistry.ModelConfigMap> modelMapListener = ActionListener.wrap(modelConfigMap -> {
@@ -117,6 +145,34 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
         }, listener::onFailure);
 
         modelRegistry.getUnparsedModelMap(request.getModelId(), modelMapListener);
+    }
+
+    private void doInClusterModel(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
+        var inferModelRequest = request.hasObjects()
+            ? InferModelAction.Request.forIngestDocs(
+            request.getModelId(),
+            request.getObjectsToInfer(),
+            request.getInferenceConfigUpdate(),
+            request.getPreviouslyLicensed(),
+            request.getInferenceTimeout() // TODO is this timeout right
+        )
+            : InferModelAction.Request.forTextInput(
+            request.getModelId(),
+            request.getInferenceConfigUpdate(),
+            request.getInputs(),
+            request.getPreviouslyLicensed(),
+            request.getInferenceTimeout()
+        );
+        inferModelRequest.setPrefixType(request.getPrefixType());
+        inferModelRequest.setHighPriority(request.getHighPriority());
+
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            InferModelAction.INSTANCE,
+            inferModelRequest,
+            listener
+        );
     }
 
     private void tryInClusterModel(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {

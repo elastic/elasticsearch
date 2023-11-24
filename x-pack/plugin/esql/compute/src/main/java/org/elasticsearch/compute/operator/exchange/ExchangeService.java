@@ -195,8 +195,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             final String exchangeId = request.exchangeId();
             ActionListener<ExchangeResponse> closingListener = new ChannelActionListener<>(channel).delegateFailure(
                 (listener, response) -> {
-                    listener.onResponse(response);
-                    response.decRef();
+                    try {
+                        listener.onResponse(response);
+                    } finally {
+                        response.decRef();
+                    }
                 }
             );
             final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);

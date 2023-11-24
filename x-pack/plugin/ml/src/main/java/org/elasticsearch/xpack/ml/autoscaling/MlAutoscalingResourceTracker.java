@@ -373,6 +373,7 @@ public final class MlAutoscalingResourceTracker {
             return false;
         }
 
+        // Note: we check least loaded based _only_ on memory...
         Optional<MlJobRequirements> leastLoadedNodeRequirements = perNodeJobRequirements.values()
             .stream()
             .map(

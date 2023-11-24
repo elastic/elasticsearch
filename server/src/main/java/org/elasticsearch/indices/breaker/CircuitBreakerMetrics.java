@@ -23,9 +23,10 @@ import java.util.Objects;
  * breakers).
  *
  * The circuit breaker name is part of the (long) counter metric name instead of being an attribute because aggregating distinct circuit
- * breakers trip counter values does not make sense, as for instance, summing field_data.trip_count and in_flight_requests.trip_count.
+ * breakers trip counter values does not make sense, as for instance, summing es.breaker.field_data.trip.total and
+ * es.breaker.in_flight_requests.trip.total.
  * Those counters trip for different reasons even if the underlying reason is "too much memory usage". Aggregating them together results in
- * losing the ability to understand where the underlying issue is (too much field data?, too many concurrent requests, too large concurrent
+ * losing the ability to understand where the underlying issue is (too much field data, too many concurrent requests, too large concurrent
  * requests?). Aggregating each one of them separately to get, for instance, cluster level or cloud region level statistics is perfectly
  * fine, instead.
  *

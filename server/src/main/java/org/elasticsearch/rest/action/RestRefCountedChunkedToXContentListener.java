@@ -11,6 +11,7 @@ package org.elasticsearch.rest.action;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.RestChannel;
 
 /**
@@ -25,6 +26,7 @@ public class RestRefCountedChunkedToXContentListener<Response extends ChunkedToX
 
     @Override
     protected Releasable releasableFromResponse(Response response) {
-        return response::decRef;
+        response.mustIncRef();
+        return Releasables.assertOnce(response::decRef);
     }
 }

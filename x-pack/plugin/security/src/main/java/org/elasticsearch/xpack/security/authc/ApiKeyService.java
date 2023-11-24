@@ -1996,6 +1996,7 @@ public class ApiKeyService {
             Instant.ofEpochMilli(apiKeyDoc.creationTime),
             apiKeyDoc.expirationTime != -1 ? Instant.ofEpochMilli(apiKeyDoc.expirationTime) : null,
             apiKeyDoc.invalidated,
+            apiKeyDoc.invalidation != -1 ? Instant.ofEpochMilli(apiKeyDoc.invalidation) : null,
             (String) apiKeyDoc.creator.get("principal"),
             (String) apiKeyDoc.creator.get("realm"),
             metadata,
@@ -2183,6 +2184,7 @@ public class ApiKeyService {
             builder.declareLong(constructorArg(), new ParseField("creation_time"));
             builder.declareLongOrNull(constructorArg(), -1, new ParseField("expiration_time"));
             builder.declareBoolean(constructorArg(), new ParseField("api_key_invalidated"));
+            builder.declareLong(optionalConstructorArg(), new ParseField("invalidation_time"));
             builder.declareString(constructorArg(), new ParseField("api_key_hash"));
             builder.declareStringOrNull(optionalConstructorArg(), new ParseField("name"));
             builder.declareInt(constructorArg(), new ParseField("version"));
@@ -2198,6 +2200,7 @@ public class ApiKeyService {
         final long creationTime;
         final long expirationTime;
         final Boolean invalidated;
+        final long invalidation;
         final String hash;
         @Nullable
         final String name;
@@ -2214,6 +2217,7 @@ public class ApiKeyService {
             long creationTime,
             long expirationTime,
             Boolean invalidated,
+            @Nullable Long invalidation,
             String hash,
             @Nullable String name,
             int version,
@@ -2232,6 +2236,7 @@ public class ApiKeyService {
             this.creationTime = creationTime;
             this.expirationTime = expirationTime;
             this.invalidated = invalidated;
+            this.invalidation = (invalidation == null) ? -1 : invalidation;
             this.hash = hash;
             this.name = name;
             this.version = version;
@@ -2253,6 +2258,7 @@ public class ApiKeyService {
                 creationTime,
                 expirationTime,
                 invalidated,
+                invalidation,
                 hash,
                 name,
                 version,
@@ -2278,6 +2284,7 @@ public class ApiKeyService {
         final long creationTime;
         final long expirationTime;
         final Boolean invalidated;
+        final long invalidation;
         final String hash;
         final String name;
         final int version;
@@ -2292,6 +2299,7 @@ public class ApiKeyService {
             long creationTime,
             long expirationTime,
             Boolean invalidated,
+            long invalidation,
             String hash,
             String name,
             int version,
@@ -2304,6 +2312,7 @@ public class ApiKeyService {
             this.creationTime = creationTime;
             this.expirationTime = expirationTime;
             this.invalidated = invalidated;
+            this.invalidation = invalidation;
             this.hash = hash;
             this.name = name;
             this.version = version;
@@ -2320,6 +2329,7 @@ public class ApiKeyService {
                 creationTime,
                 expirationTime,
                 invalidated,
+                invalidation,
                 hash,
                 name,
                 version,

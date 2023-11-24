@@ -1240,7 +1240,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 return true;
                             }
                             ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.shardId()).primaryShard();
-                            if (shardRouting != null && (shardRouting.started() || shardRouting.unassigned())) {
+                            if (shardRouting != null
+                                && (shardRouting.started() && snapshotsInProgress.isNodeIdForRemoval(shardRouting.currentNodeId()) == false
+                                    || shardRouting.unassigned())) {
                                 return true;
                             }
                         }

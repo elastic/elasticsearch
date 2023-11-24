@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 public class ParsedTimeSeries extends ParsedMultiBucketAggregation<ParsedTimeSeries.ParsedBucket> {
 
@@ -63,7 +62,7 @@ public class ParsedTimeSeries extends ParsedMultiBucketAggregation<ParsedTimeSer
 
     static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket {
 
-        private Map<String, Object> key;
+        private Object key;
 
         @Override
         public Object getKey() {
@@ -76,7 +75,7 @@ public class ParsedTimeSeries extends ParsedMultiBucketAggregation<ParsedTimeSer
         }
 
         static ParsedTimeSeries.ParsedBucket fromXContent(XContentParser parser, boolean keyed) throws IOException {
-            return parseXContent(parser, keyed, ParsedTimeSeries.ParsedBucket::new, (p, bucket) -> bucket.key = new TreeMap<>(p.map()));
+            return parseXContent(parser, keyed, ParsedTimeSeries.ParsedBucket::new, (p, bucket) -> bucket.key = p.text());
         }
     }
 

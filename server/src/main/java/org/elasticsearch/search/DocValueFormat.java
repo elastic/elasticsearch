@@ -739,6 +739,7 @@ public interface DocValueFormat extends NamedWriteable {
             }
 
             try {
+                // NOTE: we can decode the tsid only if it is not hashed (represented as a map)
                 return builder.withoutHash().toBytesRef();
             } catch (IOException e) {
                 throw new IllegalArgumentException(e);

@@ -85,16 +85,16 @@ search an alias:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: "AgtrOHMucG9kLnVpZHMkOTQ3ZTRjZWQtMTc4Ni00ZTUzLTllMGMtNWM0NDdlOTU5NTA3CW1ldHJpY3NldHMDcG9k"}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: "AgtrOHMucG9kLnVpZHMkOTQ3ZTRjZWQtMTc4Ni00ZTUzLTllMGMtNWM0NDdlOTU5NTA3CW1ldHJpY3NldHMDcG9k"}
+  - match: {aggregations.tsids.buckets.1.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---
 index into alias:
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.11.99"
+      reason: _tsid hasing introduced in 8.12
 
   - do:
       indices.put_alias:
@@ -129,10 +129,10 @@ index into alias:
                   _key: asc
 
   - match: {hits.total.value: 12}
-  - match: {aggregations.tsids.buckets.0.key: {_tsid: "KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: {_tsid: "KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}}
+  - match: {aggregations.tsids.buckets.1.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
-  - match: {aggregations.tsids.buckets.2.key: {_tsid: "KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAC-lKWy--qoyFLYl-AccAdq5LSYmdi4qYg"}}
+  - match: {aggregations.tsids.buckets.2.key: "KCjEJ9R_BgO8TRX2QOd6dpS-lKWy--qoyFLYl-AccAdq5LSYmdi4qYg"}
   - match: {aggregations.tsids.buckets.2.doc_count: 4}
 

@@ -91,10 +91,10 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
     @Override
     @SuppressWarnings("unchecked")
     protected void assertReduced(InternalTimeSeries reduced, List<InternalTimeSeries> inputs) {
-        Map<Map<String, Object>, Long> keys = new HashMap<>();
+        Map<String, Long> keys = new HashMap<>();
         for (InternalTimeSeries in : inputs) {
             for (InternalBucket bucket : in.getBuckets()) {
-                keys.compute((Map<String, Object>) bucket.getKey(), (k, v) -> {
+                keys.compute((String) bucket.getKey(), (k, v) -> {
                     if (v == null) {
                         return bucket.docCount;
                     } else {

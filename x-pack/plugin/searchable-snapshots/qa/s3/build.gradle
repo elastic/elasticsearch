@@ -8,7 +8,6 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
   javaRestTestImplementation project(":test:framework")
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
-  javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 }
 
 restResources {

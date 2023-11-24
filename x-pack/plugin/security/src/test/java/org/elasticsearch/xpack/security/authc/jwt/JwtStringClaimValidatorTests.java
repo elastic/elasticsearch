@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
 
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.ParseException;
@@ -46,7 +47,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
 
     public void testClaimIsNotSingleValued() throws ParseException {
         final String claimName = randomAlphaOfLengthBetween(10, 18);
-        final String fallbackClaimName = randomAlphaOfLength(12);
+        final String fallbackClaimName = randomAlphaOfLength(8);
 
         final JwtStringClaimValidator validator;
         final JWTClaimsSet jwtClaimsSet;
@@ -69,7 +70,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
 
     public void testClaimDoesNotExist() throws ParseException {
         final String claimName = randomAlphaOfLengthBetween(10, 18);
-        final String fallbackClaimName = randomAlphaOfLength(12);
+        final String fallbackClaimName = randomAlphaOfLength(8);
 
         final JwtStringClaimValidator validator;
         final JWTClaimsSet jwtClaimsSet;
@@ -89,7 +90,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
 
     public void testMatchingClaimValues() throws ParseException {
         final String claimName = randomAlphaOfLengthBetween(10, 18);
-        final String fallbackClaimName = randomAlphaOfLength(12);
+        final String fallbackClaimName = randomAlphaOfLength(8);
         final String claimValue = randomAlphaOfLength(10);
         final boolean singleValuedClaim = randomBoolean();
         final List<String> allowedClaimValues = List.of(claimValue, randomAlphaOfLengthBetween(11, 20));
@@ -136,7 +137,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
 
     public void testValueAllowSettingDoesNotSupportWildcardOrRegex() throws ParseException {
         final String claimName = randomAlphaOfLengthBetween(10, 18);
-        final String fallbackClaimName = randomAlphaOfLength(12);
+        final String fallbackClaimName = randomAlphaOfLength(8);
         final String claimValue = randomFrom("*", "/.*/");
 
         final JwtStringClaimValidator validator;
@@ -181,7 +182,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
 
     public void testSinglePatternSingleClaim() throws ParseException {
         final String claimName = randomAlphaOfLengthBetween(10, 18);
-        final String fallbackClaimName = randomAlphaOfLength(12);
+        final String fallbackClaimName = randomAlphaOfLength(8);
         final String claimPattern = randomFrom("a*", "/a.*/");
         final JwtStringClaimValidator validator;
         final JWTClaimsSet singleValueClaimSet;
@@ -232,7 +233,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
 
     public void testPatternListSingleClaim() throws ParseException {
         final String claimName = randomAlphaOfLengthBetween(10, 18);
-        final String fallbackClaimName = randomAlphaOfLength(12);
+        final String fallbackClaimName = randomAlphaOfLength(8);
         final List<String> claimPatterns = List.of("a*", "/b.*b/");
         final JwtStringClaimValidator validator;
         final JWTClaimsSet singleValueClaimSet;
@@ -297,7 +298,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
 
     public void testPatternListClaimList() throws ParseException {
         final String claimName = randomAlphaOfLengthBetween(10, 18);
-        final String fallbackClaimName = randomAlphaOfLength(12);
+        final String fallbackClaimName = randomAlphaOfLength(8);
         final List<String> claimPatterns = List.of("a*", "/b.*b/");
         final JwtStringClaimValidator validator;
         final JWTClaimsSet singleValueClaimSet;
@@ -356,6 +357,74 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
                 assertThat(e.getMessage(), containsString("does not match allowed claim values"));
             }
         }
+    }
+
+    public void testBothPatternAndSimpleValue() {
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
+        final String fallbackClaimName = randomFrom(randomAlphaOfLength(8), null);
+        final List<String> claimPatterns = List.of("a*", "/.*Z.*/", "*b");
+        final List<String> claimValues = List.of("c", "dd", "eZe");
+        final JwtStringClaimValidator singleValueValidator = new JwtStringClaimValidator(
+            claimName,
+            randomBoolean(),
+            fallbackClaimName == null ? null : Map.of(claimName, fallbackClaimName),
+            claimValues,
+            claimPatterns
+        );
+        for (String claimValue : List.of("a_claim", "anotZer_claim", "Z", "claim_b", "c", "dd", "eZe")) {
+            if (fallbackClaimName != null) {
+                try {
+                    singleValueValidator.validate(
+                        getJwsHeader(),
+                        JWTClaimsSet.parse(Map.of(fallbackClaimName, claimValue, "something", "else"))
+                    );
+                } catch (Exception e) {
+                    throw new AssertionError("validation should have passed without exception", e);
+                }
+            } else {
+                try {
+                    singleValueValidator.validate(getJwsHeader(), JWTClaimsSet.parse(Map.of(claimName, claimValue, "something", "else")));
+                } catch (Exception e) {
+                    throw new AssertionError("validation should have passed without exception", e);
+                }
+            }
+        }
+        for (String invalidClaimValue : List.of("invalid", "cc", "ca", "dda", "ba")) {
+            IllegalArgumentException e;
+            if (fallbackClaimName != null) {
+                e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> singleValueValidator.validate(
+                        getJwsHeader(),
+                        JWTClaimsSet.parse(Map.of(fallbackClaimName, invalidClaimValue, "something", "else"))
+                    )
+                );
+            } else {
+                e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> singleValueValidator.validate(
+                        getJwsHeader(),
+                        JWTClaimsSet.parse(Map.of(claimName, invalidClaimValue, "something", "else"))
+                    )
+                );
+            }
+            assertThat(e.getMessage(), containsString("does not match allowed claim values"));
+        }
+    }
+
+    public void testInvalidPatternThrows() {
+        String claimName = randomAlphaOfLength(4);
+        SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> new JwtStringClaimValidator(
+                claimName,
+                randomBoolean(),
+                randomBoolean() ? null : Map.of(randomAlphaOfLength(4), randomAlphaOfLength(8)),
+                randomBoolean() ? List.of() : List.of("dummy"),
+                List.of("/invalid pattern")
+            )
+        );
+        assertThat(e.getMessage(), containsString("Invalid patterns for allowed claim values for [" + claimName + "]."));
     }
 
     public void testAllowAllSubjects() {

@@ -264,7 +264,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 // generating description lazily since the query could be large
                 StringBuilder sb = new StringBuilder();
                 appendField(sb, "indices", indices);
-                appendField(sb, "stackTraceIds", stackTraceIds);
+                appendField(sb, "stacktrace_ids", stackTraceIds);
                 appendField(sb, "sample_size", sampleSize);
                 appendField(sb, "requested_duration", requestedDuration);
                 appendField(sb, "custom_cost_factor", customCostFactor);

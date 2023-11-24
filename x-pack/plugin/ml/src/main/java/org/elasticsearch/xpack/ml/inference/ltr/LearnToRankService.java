@@ -126,11 +126,6 @@ public class LearnToRankService {
             return config;
         }
 
-        if (params == null || params.isEmpty()) {
-            // TODO: better handling of missing parameters.
-            return config;
-        }
-
         List<LearnToRankFeatureExtractorBuilder> featureExtractorBuilders = new ArrayList<>();
 
         for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : config.getFeatureExtractorBuilders()) {
@@ -178,6 +173,8 @@ public class LearnToRankService {
 
         Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, templateSource, Collections.emptyMap());
         String parsedTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(params).execute();
+        System.out.println(templateSource);
+        System.out.println(parsedTemplate);
         // TODO: handle missing params.
         XContentParser parser = XContentType.JSON.xContent().createParser(parserConfiguration, parsedTemplate);
 

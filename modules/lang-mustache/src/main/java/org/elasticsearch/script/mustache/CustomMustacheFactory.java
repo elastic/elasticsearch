@@ -63,14 +63,10 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
 
     private final Encoder encoder;
 
-    public CustomMustacheFactory(String mediaType) {
+    private CustomMustacheFactory(String mediaType, boolean detectMissingParams) {
         super();
-        setObjectHandler(new CustomReflectionObjectHandler());
+        setObjectHandler(new CustomReflectionObjectHandler(detectMissingParams));
         this.encoder = createEncoder(mediaType);
-    }
-
-    public CustomMustacheFactory() {
-        this(DEFAULT_MEDIA_TYPE);
     }
 
     @Override
@@ -95,12 +91,15 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
         return new CustomMustacheVisitor(this);
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     class CustomMustacheVisitor extends DefaultMustacheVisitor {
 
         CustomMustacheVisitor(DefaultMustacheFactory df) {
             super(df);
         }
-
         @Override
         public void iterable(TemplateContext templateContext, String variable, Mustache mustache) {
             if (ToJsonCode.match(variable)) {
@@ -358,6 +357,29 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
         @Override
         public void encode(String s, Writer writer) throws IOException {
             writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * Build a new {@link CustomMustacheFactory} object.
+     */
+    static class Builder {
+        private String mediaType = DEFAULT_MEDIA_TYPE;
+        private boolean detectMissingParams = false;
+
+        private Builder() {}
+
+        public Builder mediaType(String mediaType) {
+            this.mediaType = mediaType;
+            return this;
+        }
+
+        public Builder detectMissingParams(boolean detectMissingParams) {
+            this.detectMissingParams = detectMissingParams;
+            return this;
+        }
+        public CustomMustacheFactory build() {
+            return new CustomMustacheFactory(mediaType, detectMissingParams);
         }
     }
 }

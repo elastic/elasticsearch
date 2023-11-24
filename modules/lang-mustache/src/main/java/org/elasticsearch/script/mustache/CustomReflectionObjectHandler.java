@@ -8,7 +8,9 @@
 
 package org.elasticsearch.script.mustache;
 
+import com.github.mustachejava.reflect.MissingWrapper;
 import com.github.mustachejava.reflect.ReflectionObjectHandler;
+import com.github.mustachejava.util.Wrapper;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
@@ -19,10 +21,16 @@ import java.lang.reflect.Array;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
+    private final boolean detectMissingParams;
+
+    CustomReflectionObjectHandler(boolean detectMissingParams) {
+        this.detectMissingParams = detectMissingParams;
+    }
 
     @Override
     public Object coerce(Object object) {
@@ -39,6 +47,16 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         } else {
             return super.coerce(object);
         }
+    }
+
+    public Wrapper find(String name, List<Object> scopes) {
+        Wrapper wrapper = super.find(name, scopes);
+
+        if (detectMissingParams && wrapper instanceof MissingWrapper) {
+            throw new MustacheScriptEngine.InvalidParameterException("Parameter [" + name + "] is missing");
+        }
+
+        return wrapper;
     }
 
     @Override

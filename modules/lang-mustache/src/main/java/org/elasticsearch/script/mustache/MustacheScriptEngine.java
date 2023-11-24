@@ -72,10 +72,20 @@ public final class MustacheScriptEngine implements ScriptEngine {
     }
 
     private static CustomMustacheFactory createMustacheFactory(Map<String, String> options) {
-        if (options == null || options.isEmpty() || options.containsKey(Script.CONTENT_TYPE_OPTION) == false) {
-            return new CustomMustacheFactory();
+        CustomMustacheFactory.Builder builder = CustomMustacheFactory.builder();
+        if (options == null || options.isEmpty()) {
+            return builder.build();
         }
-        return new CustomMustacheFactory(options.get(Script.CONTENT_TYPE_OPTION));
+
+        if (options.containsKey(Script.CONTENT_TYPE_OPTION)) {
+            builder.mediaType(options.get(Script.CONTENT_TYPE_OPTION));
+        }
+
+        if (options.containsKey(Script.DETECT_MISSING_PARAMS_OPTION)) {
+            builder.detectMissingParams(Boolean.valueOf(options.get(Script.DETECT_MISSING_PARAMS_OPTION)));
+        }
+
+        return builder.build();
     }
 
     @Override
@@ -107,10 +117,25 @@ public final class MustacheScriptEngine implements ScriptEngine {
             try {
                 template.execute(writer, params);
             } catch (Exception e) {
-                logger.error(() -> format("Error running %s", template), e);
+                if (logException(e)) {
+                    logger.error(() -> format("Error running %s", template), e);
+                }
                 throw new GeneralScriptException("Error running " + template, e);
             }
             return writer.toString();
+        }
+
+        public boolean logException(Throwable e) {
+            if (e instanceof InvalidParameterException) {
+                return false;
+            }
+            return e.getCause() == null || logException(e.getCause());
+        }
+    }
+
+    static class InvalidParameterException extends MustacheException {
+        InvalidParameterException(String message) {
+            super(message, null, null);
         }
     }
 }

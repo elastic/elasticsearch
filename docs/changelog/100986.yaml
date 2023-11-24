@@ -1,0 +1,6 @@
+pr: 100986
+summary: Synchronize Coordinator#onClusterStateApplied
+area: Cluster Coordination
+type: bug
+issues:
+ - 99023

@@ -79,11 +79,11 @@ public class LearnToRankRescorerBuilderSerializationTests extends AbstractBWCSer
         LearnToRankRescorerBuilder builder = randomBoolean()
             ? createXContextTestInstance(null)
             : new LearnToRankRescorerBuilder(
-            randomAlphaOfLength(10),
-            randomLearnToRankConfig(),
-            randomBoolean() ? randomParams() : null,
-            learnToRankService
-        );
+                randomAlphaOfLength(10),
+                randomLearnToRankConfig(),
+                randomBoolean() ? randomParams() : null,
+                learnToRankService
+            );
 
         if (randomBoolean()) {
             builder.windowSize(randomIntBetween(1, 10000));

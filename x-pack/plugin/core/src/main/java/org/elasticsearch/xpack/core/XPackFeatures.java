@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -23,5 +25,10 @@ public class XPackFeatures implements FeatureSpecification {
         return Set.of(
             NodesDataTiersUsageTransportAction.LOCALLY_PRECALCULATED_STATS_FEATURE // Added in 8.12
         );
+    }
+
+    @Override
+    public Map<NodeFeature, Version> getHistoricalFeatures() {
+        return Map.of(HealthApiUsageTransportAction.SUPPORTS_HEALTH_STATS, Version.V_8_7_0);
     }
 }

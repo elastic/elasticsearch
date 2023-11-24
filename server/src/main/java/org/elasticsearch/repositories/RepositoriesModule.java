@@ -40,6 +40,7 @@ public final class RepositoriesModule {
     public static final String METRIC_THROTTLES_COUNT = "es.repositories.throttles.count";
     public static final String METRIC_EXCEPTIONS_HISTOGRAM = "es.repositories.exceptions.histogram";
     public static final String METRIC_THROTTLES_HISTOGRAM = "es.repositories.throttles.histogram";
+
     private final RepositoriesService repositoriesService;
 
     public RepositoriesModule(

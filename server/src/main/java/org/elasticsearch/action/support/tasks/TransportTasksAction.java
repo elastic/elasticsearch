@@ -290,7 +290,7 @@ public abstract class TransportTasksAction<
 
         protected NodeTaskRequest(TasksRequest tasksRequest) {
             super();
-            tasksRequest.incRef();
+            tasksRequest.mustIncRef();
             this.tasksRequest = tasksRequest;
         }
 

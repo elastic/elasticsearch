@@ -193,16 +193,21 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void messageReceived(ExchangeRequest request, TransportChannel channel, Task task) {
             final String exchangeId = request.exchangeId();
-            ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
+            ActionListener<ExchangeResponse> closingListener = new ChannelActionListener<>(channel).delegateFailure(
+                (listener, response) -> {
+                    listener.onResponse(response);
+                    response.decRef();
+                }
+            );
             final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
             if (sinkHandler == null) {
-                listener.onResponse(new ExchangeResponse(null, true));
+                closingListener.onResponse(new ExchangeResponse(null, true));
             } else {
                 // the data-node request hasn't arrived yet; use the task framework to cancel the request if needed.
                 if (sinkHandler.hasData() == false) {
                     ((CancellableTask) task).addListener(() -> sinkHandler.onFailure(new TaskCancelledException("task cancelled")));
                 }
-                sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
+                sinkHandler.fetchPageAsync(request.sourcesFinished(), closingListener);
             }
         }
     }

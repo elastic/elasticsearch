@@ -100,6 +100,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
         CustomMustacheVisitor(DefaultMustacheFactory df) {
             super(df);
         }
+
         @Override
         public void iterable(TemplateContext templateContext, String variable, Mustache mustache) {
             if (ToJsonCode.match(variable)) {
@@ -378,6 +379,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
             this.detectMissingParams = detectMissingParams;
             return this;
         }
+
         public CustomMustacheFactory build() {
             return new CustomMustacheFactory(mediaType, detectMissingParams);
         }

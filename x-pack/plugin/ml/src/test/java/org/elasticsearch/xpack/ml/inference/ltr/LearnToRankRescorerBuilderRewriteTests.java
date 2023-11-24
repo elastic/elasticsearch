@@ -34,9 +34,9 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigTests.randomLearnToRankConfig;
-import static org.elasticsearch.xpack.ml.ltr.LearnToRankServiceTests.BAD_MODEL;
-import static org.elasticsearch.xpack.ml.ltr.LearnToRankServiceTests.GOOD_MODEL;
-import static org.elasticsearch.xpack.ml.ltr.LearnToRankServiceTests.GOOD_MODEL_CONFIG;
+import static org.elasticsearch.xpack.ml.inference.ltr.LearnToRankServiceTests.BAD_MODEL;
+import static org.elasticsearch.xpack.ml.inference.ltr.LearnToRankServiceTests.GOOD_MODEL;
+import static org.elasticsearch.xpack.ml.inference.ltr.LearnToRankServiceTests.GOOD_MODEL_CONFIG;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;

@@ -158,3 +158,11 @@ emp_no:integer | a:keyword            | b:keyword         | c:keyword
 10005          | null                 | null              | null 
 10006          | [Principal, Senior]  | [Support, Team]   | [Engineer, Lead]
 ;
+
+emptyPattern#[skip:-8.11.99]
+ROW a="b c d"| DISSECT a "%{b} %{} %{d}";
+
+a:keyword | b:keyword | d:keyword
+b c d     | b         | d
+;
+

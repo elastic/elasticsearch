@@ -136,6 +136,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
                 List<Attribute> keys = parser.outputKeys()
                     .stream()
+                    .filter(x -> x.isEmpty() == false)
                     .map(x -> new ReferenceAttribute(src, x, DataTypes.KEYWORD))
                     .map(Attribute.class::cast)
                     .toList();

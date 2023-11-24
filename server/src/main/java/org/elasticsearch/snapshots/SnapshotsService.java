@@ -930,17 +930,17 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * disconnect of a data node that was executing a snapshot) or a routing change that started shards whose snapshot state is
      * {@link SnapshotsInProgress.ShardState#WAITING}.
      *
-     * @param changedNodes true iff either a master fail-over occurred or a data node that was doing snapshot work got removed from the
+     * @param changedNodes true if either a master fail-over occurred or a data node that was doing snapshot work was removed from the
      *                     cluster
-     * @param startShards  true iff any waiting shards were started due to a routing change
+     * @param changedShards  true if any waiting shards changed state in the routing table
      */
-    private void processExternalChanges(boolean changedNodes, boolean startShards) {
-        if (changedNodes == false && startShards == false) {
+    private void processExternalChanges(boolean changedNodes, boolean changedShards) {
+        if (changedNodes == false && changedShards == false) {
             // nothing to do, no relevant external change happened
             return;
         }
-        final String source = "update snapshot after shards started ["
-            + startShards
+        final String source = "update snapshot after shards changed ["
+            + changedShards
             + "] or node configuration changed ["
             + changedNodes
             + "]";

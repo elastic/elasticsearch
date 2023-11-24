@@ -68,10 +68,24 @@ public class LearnToRankService {
         this.parserConfiguration = parserConfiguration;
     }
 
+    /**
+     * Asynchronously load a regression model to be used for learn to rank.
+     *
+     * @param modelId The model id to be loaded.
+     * @param listener Response listener.
+     */
     public void loadLocalModel(String modelId, ActionListener<LocalModel> listener) {
         modelLoadingService.getModelForLearnToRank(modelId, listener);
     }
 
+    /**
+     * Asynchronously load the learn to rank config by model id.
+     * Once the model is loaded, templates are executed using params provided.
+     *
+     * @param modelId Id of the model.
+     * @param params Templates params.
+     * @param listener Response listener.
+     */
     public void loadLearnToRankConfig(String modelId, Map<String, Object> params, ActionListener<LearnToRankConfig> listener) {
         trainedModelProvider.getTrainedModel(
             modelId,
@@ -98,6 +112,15 @@ public class LearnToRankService {
         );
     }
 
+    /**
+     * Applies templates params to a {@link LearnToRankConfig} object.
+     *
+     * @param config Original config.
+     * @param params Templates params.
+     * @return A {@link LearnToRankConfig} object with templates applied.
+     *
+     * @throws IOException
+     */
     private LearnToRankConfig applyParams(LearnToRankConfig config, Map<String, Object> params) throws IOException {
         if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) == false) {
             return config;
@@ -117,6 +140,15 @@ public class LearnToRankService {
         return LearnToRankConfig.builder(config).setLearnToRankFeatureExtractorBuilders(featureExtractorBuilders).build();
     }
 
+    /**
+     * Applies templates to features extractors.
+     *
+     * @param featureExtractorBuilder Source feature extractor builder.
+     * @param params Templates params.
+     * @return A new feature extractor with templates applied.
+     *
+     * @throws IOException
+     */
     private LearnToRankFeatureExtractorBuilder applyParams(
         LearnToRankFeatureExtractorBuilder featureExtractorBuilder,
         Map<String, Object> params
@@ -128,6 +160,15 @@ public class LearnToRankService {
         return featureExtractorBuilder;
     }
 
+    /**
+     * Applies templates to a {@link QueryExtractorBuilder} object.
+     *
+     * @param queryExtractorBuilder Source query extractor builder.
+     * @param params Templates params.
+     * @return A {@link QueryExtractorBuilder} with templates applied.
+     *
+     * @throws IOException
+     */
     private QueryExtractorBuilder applyParams(QueryExtractorBuilder queryExtractorBuilder, Map<String, Object> params) throws IOException {
         String templateSource = templateSource(queryExtractorBuilder.query());
 

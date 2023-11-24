@@ -545,12 +545,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         // The lock acquisition timeout when we are running a full GC
         private final TimeValue fullGCLockTimeout;
-        private volatile TimeValue currentLockTimeout;
         private final long maxHeap;
 
         private long lastCheckTime = Long.MIN_VALUE;
         private long lastFullGCTime = Long.MIN_VALUE;
         private final long minimumInterval;
+        private volatile boolean performingFullGC = false;
 
         // Minimum interval before triggering another full GC
         private final long fullGCMinimumInterval;
@@ -572,7 +572,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         ) {
             this.lockTimeout = lockTimeout;
             this.fullGCLockTimeout = fullGCLockTimeout;
-            this.currentLockTimeout = lockTimeout;
             assert minimumInterval > 0;
             this.currentMemoryUsageSupplier = currentMemoryUsageSupplier;
             this.gcCountSupplier = gcCountSupplier;
@@ -612,73 +611,16 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         @Override
         public MemoryUsage overLimit(MemoryUsage memoryUsed) {
-            boolean leader = false;
-            int allocationIndex = 0;
-            long allocationDuration = 0;
-            long begin = 0;
+
+            TriggerGCResult result = TriggerGCResult.EMPTY;
             int attemptNoCopy = 0;
-            var currentLockTimeoutCopy = currentLockTimeout;
-            try (ReleasableLock locked = lock.tryAcquire(currentLockTimeoutCopy)) {
+
+            try (ReleasableLock locked = lock.tryAcquire(lockTimeout)) {
                 if (locked != null) {
                     attemptNoCopy = ++this.attemptNo;
-                    begin = timeSupplier.getAsLong();
-                    leader = begin >= lastCheckTime + minimumInterval;
-                    overLimitTriggered(leader);
-
-                    boolean gcTriggeredSuccessfully = false;
-                    if (leader) {
-                        long initialCollectionCount = gcCountSupplier.getAsLong();
-                        logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
-                        long localBlackHole = 0;
-                        // number of allocations, corresponding to (approximately) number of free regions + 1
-                        int allocationCount = Math.toIntExact((maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1);
-                        // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
-                        int allocationSize = (int) (g1RegionSize >> 1);
-                        long maxUsageObserved = memoryUsed.baseUsage;
-                        for (; allocationIndex < allocationCount; ++allocationIndex) {
-                            long current = currentMemoryUsageSupplier.getAsLong();
-                            if (current >= maxUsageObserved) {
-                                maxUsageObserved = current;
-                            } else {
-                                // we observed a memory drop, so some GC must have occurred
-                                gcTriggeredSuccessfully = true;
-                                break;
-                            }
-                            if (initialCollectionCount != gcCountSupplier.getAsLong()) {
-                                gcTriggeredSuccessfully = true;
-                                break;
-                            }
-                            localBlackHole += new byte[allocationSize].hashCode();
-                        }
-
-                        blackHole += localBlackHole;
-                        logger.trace("black hole [{}]", blackHole);
-
-                        this.lastCheckTime = timeSupplier.getAsLong();
-                        this.attemptNo = 0;
-                    }
-
-                    if (gcTriggeredSuccessfully == false) {
-                        long now = timeSupplier.getAsLong();
-                        var canPerformFullGC = now >= lastFullGCTime + fullGCMinimumInterval;
-                        if (canPerformFullGC) {
-                            // Enough time passed between 2 full GC fallbacks
-                            // Increase the lock timeout: threads coming here to this method after we decided a full GC is needed will be
-                            // able to wait for longer. Threads already holding the lock will wait the normal timeout.
-                            currentLockTimeout = fullGCLockTimeout;
-                            logger.info("Attempt to trigger young GC failed to bring memory down, triggering full GC");
-                            performFullGC();
-                            this.lastFullGCTime = timeSupplier.getAsLong();
-                        }
-                    }
-                    // Reset the lock timeout to its base value
-                    currentLockTimeout = lockTimeout;
-                    allocationDuration = timeSupplier.getAsLong() - begin;
+                    result = tryTriggerGC(memoryUsed);
                 } else {
-                    logger.info(
-                        "could not acquire lock within {} when attempting to trigger G1GC due to high heap usage",
-                        currentLockTimeoutCopy
-                    );
+                    logger.info("could not acquire lock within {} when attempting to trigger G1GC due to high heap usage", lockTimeout);
                 }
             } catch (InterruptedException e) {
                 logger.info("could not acquire lock when attempting to trigger G1GC due to high heap usage");
@@ -686,20 +628,45 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 // fallthrough
             }
 
+            if (performingFullGC && attemptNoCopy == 0) {
+                // Another thread is currently performing a full GC, and we were not able to try (lock acquire timeout)
+                // Since the full GC thread may hold the lock for longer, try again with an increased timeout
+                logger.info(
+                    "could not acquire lock within {} while another thread was performing a full GC, waiting again for {}",
+                    lockTimeout,
+                    fullGCLockTimeout
+                );
+                try (ReleasableLock locked = lock.tryAcquire(fullGCLockTimeout)) {
+                    if (locked != null) {
+                        attemptNoCopy = ++this.attemptNo;
+                        result = tryTriggerGC(memoryUsed);
+                    } else {
+                        logger.info(
+                            "could not acquire lock within {} when attempting to trigger G1GC due to high heap usage",
+                            fullGCLockTimeout
+                        );
+                    }
+                } catch (InterruptedException e) {
+                    logger.info("could not acquire lock when attempting to trigger G1GC due to high heap usage");
+                    Thread.currentThread().interrupt();
+                    // fallthrough
+                }
+            }
+
             final long current = currentMemoryUsageSupplier.getAsLong();
             if (current < memoryUsed.baseUsage) {
-                if (leader) {
+                if (result.gcAttempted()) {
                     logger.info(
                         "GC did bring memory usage down, before [{}], after [{}], allocations [{}], duration [{}]",
                         memoryUsed.baseUsage,
                         current,
-                        allocationIndex,
-                        allocationDuration
+                        result.allocationIndex(),
+                        result.allocationDuration()
                     );
                 } else if (attemptNoCopy < 10 || Long.bitCount(attemptNoCopy) == 1) {
                     logger.info(
                         "memory usage down after [{}], before [{}], after [{}]",
-                        begin - lastCheckTime,
+                        result.timeSinceLastCheck(),
                         memoryUsed.baseUsage,
                         current
                     );
@@ -711,18 +678,18 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                     memoryUsed.permanentChildUsage
                 );
             } else {
-                if (leader) {
+                if (result.gcAttempted()) {
                     logger.info(
                         "GC did not bring memory usage down, before [{}], after [{}], allocations [{}], duration [{}]",
                         memoryUsed.baseUsage,
                         current,
-                        allocationIndex,
-                        allocationDuration
+                        result.allocationIndex(),
+                        result.allocationDuration()
                     );
                 } else if (attemptNoCopy < 10 || Long.bitCount(attemptNoCopy) == 1) {
                     logger.info(
                         "memory usage not down after [{}], before [{}], after [{}]",
-                        begin - lastCheckTime,
+                        result.timeSinceLastCheck(),
                         memoryUsed.baseUsage,
                         current
                     );
@@ -730,6 +697,68 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 // prefer original measurement when reporting if heap usage was not brought down.
                 return memoryUsed;
             }
+        }
+
+        private TriggerGCResult tryTriggerGC(MemoryUsage memoryUsed) {
+            long begin = timeSupplier.getAsLong();
+            boolean canPerformGC = begin >= lastCheckTime + minimumInterval;
+            int allocationIndex = 0;
+
+            overLimitTriggered(canPerformGC);
+
+            boolean gcTriggeredSuccessfully = false;
+            if (canPerformGC) {
+                long initialCollectionCount = gcCountSupplier.getAsLong();
+                logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
+                long localBlackHole = 0;
+                // number of allocations, corresponding to (approximately) number of free regions + 1
+                int allocationCount = Math.toIntExact((maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1);
+                // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
+                int allocationSize = (int) (g1RegionSize >> 1);
+                long maxUsageObserved = memoryUsed.baseUsage;
+                for (; allocationIndex < allocationCount; ++allocationIndex) {
+                    long current = currentMemoryUsageSupplier.getAsLong();
+                    if (current >= maxUsageObserved) {
+                        maxUsageObserved = current;
+                    } else {
+                        // we observed a memory drop, so some GC must have occurred
+                        gcTriggeredSuccessfully = true;
+                        break;
+                    }
+                    if (initialCollectionCount != gcCountSupplier.getAsLong()) {
+                        gcTriggeredSuccessfully = true;
+                        break;
+                    }
+                    localBlackHole += new byte[allocationSize].hashCode();
+                }
+
+                blackHole += localBlackHole;
+                logger.trace("black hole [{}]", blackHole);
+
+                this.lastCheckTime = timeSupplier.getAsLong();
+                this.attemptNo = 0;
+            }
+
+            boolean canPerformFullGC = false;
+            if (gcTriggeredSuccessfully == false) {
+                long now = timeSupplier.getAsLong();
+                canPerformFullGC = now >= lastFullGCTime + fullGCMinimumInterval;
+                if (canPerformFullGC) {
+                    performingFullGC = true;
+                    // Enough time passed between 2 full GC fallbacks
+                    logger.info("Attempt to trigger young GC failed to bring memory down, triggering full GC");
+                    performFullGC();
+                    performingFullGC = false;
+                    this.lastFullGCTime = timeSupplier.getAsLong();
+                }
+            }
+            long allocationDuration = timeSupplier.getAsLong() - begin;
+            boolean gcAttempted = canPerformGC || canPerformFullGC;
+            return new TriggerGCResult(gcAttempted, allocationIndex, allocationDuration, begin - lastCheckTime);
+        }
+
+        private record TriggerGCResult(boolean gcAttempted, int allocationIndex, long allocationDuration, long timeSinceLastCheck) {
+            private static final TriggerGCResult EMPTY = new TriggerGCResult(false, 0, 0, 0);
         }
 
         void overLimitTriggered(boolean leader) {

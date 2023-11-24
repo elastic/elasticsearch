@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -23,8 +24,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,10 +68,36 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
-        if (request.hasInferenceConfig() || request.hasObjects()) {
-            tryInClusterModel(request, listener);
+        if (request.getModelHost() == CoordinatedInferenceAction.Request.ModelHost.FOR_NLP_MODEL) {
+            // must be an inference service model or ml hosted model
+            forNlp(request);
         } else {
-            tryInferenceServiceModel(request, listener);
+            if (request.hasInferenceConfig() || request.hasObjects()) {
+                tryInClusterModel(request, listener);
+            } else {
+                tryInferenceServiceModel(request, listener);
+            }
+        }
+    }
+
+    private void forNlp(CoordinatedInferenceAction.Request request) {
+
+    }
+
+    private boolean hasTrainedModelAssignment(String modelId, ClusterState state) {
+        String concreteModelId = Optional.ofNullable(ModelAliasMetadata.fromState(clusterService.state()).getModelId(request.getId()))
+            .orElse(request.getId());
+
+        responseBuilder.setId(concreteModelId);
+
+        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(clusterService.state());
+        TrainedModelAssignment assignment = trainedModelAssignmentMetadata.getDeploymentAssignment(concreteModelId);
+        List<TrainedModelAssignment> assignments;
+        if (assignment == null) {
+            // look up by model
+            assignments = trainedModelAssignmentMetadata.getDeploymentsUsingModel(concreteModelId);
+        } else {
+            assignments = List.of(assignment);
         }
     }
 

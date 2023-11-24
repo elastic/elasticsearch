@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
@@ -93,25 +94,27 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public void buildVector(Client client, ActionListener<float[]> listener) {
-        InferModelAction.Request inferRequest = InferModelAction.Request.forTextInput(
+        CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
             modelId,
-            TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
             List.of(modelText),
+            TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
             false,
             InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
         );
         inferRequest.setHighPriority(true);
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+        // The model is hosted either on a ml node or in an inference service
+        inferRequest.setModelHost(CoordinatedInferenceAction.Request.ModelHost.FOR_NLP_MODEL);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, InferModelAction.INSTANCE, inferRequest, ActionListener.wrap(response -> {
+        executeAsyncWithOrigin(client, ML_ORIGIN, CoordinatedInferenceAction.INSTANCE, inferRequest, ActionListener.wrap(response -> {
             if (response.getInferenceResults().isEmpty()) {
                 listener.onFailure(new IllegalStateException("text embedding inference response contain no results"));
                 return;
             }
 
-            if (response.getInferenceResults().get(0) instanceof TextEmbeddingResults textEmbeddingResults) {
+            if (response.getInferenceResults().get(0)instanceof TextEmbeddingResults textEmbeddingResults) {
                 listener.onResponse(textEmbeddingResults.getInferenceAsFloat());
-            } else if (response.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
+            } else if (response.getInferenceResults().get(0)instanceof WarningInferenceResults warning) {
                 listener.onFailure(new IllegalStateException(warning.getWarning()));
             } else {
                 throw new IllegalStateException(

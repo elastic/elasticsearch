@@ -126,17 +126,66 @@ include::../ingest/processors/dissect.asciidoc[tag=dissect-key-modifiers]
 ====== Right padding modifier (`->`)
 include::../ingest/processors/dissect.asciidoc[tag=dissect-modifier-skip-right-padding]
 
+For example:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectRightPaddingModifier]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectRightPaddingModifier-result]
+|===
+
+include::../ingest/processors/dissect.asciidoc[tag=dissect-modifier-empty-right-padding]
+
+For example:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectEmptyRightPaddingModifier]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectEmptyRightPaddingModifier-result]
+|===
+
 [[esql-append-modifier]]
 ====== Append modifier (`+`)
 include::../ingest/processors/dissect.asciidoc[tag=append-modifier]
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectAppendModifier]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectAppendModifier-result]
+|===
 
 [[esql-append-order-modifier]]
 ====== Append with order modifier (`+` and `/n`)
 include::../ingest/processors/dissect.asciidoc[tag=append-order-modifier]
 
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectAppendWithOrderModifier]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectAppendWithOrderModifier-result]
+|===
+
 [[esql-named-skip-key]]
 ====== Named skip key (`?`)
 include::../ingest/processors/dissect.asciidoc[tag=named-skip-key]
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectNamedSkipKey]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectNamedSkipKey-result]
+|===
 
 [[esql-dissect-limitations]]
 ===== Limitations

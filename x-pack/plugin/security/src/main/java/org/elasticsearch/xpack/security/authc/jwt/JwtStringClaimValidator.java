@@ -36,11 +36,11 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
     public static JwtStringClaimValidator ALLOW_ALL_SUBJECTS = new JwtStringClaimValidator("sub", true, List.of(), List.of("*"));
 
     private final String claimName;
+    // Whether the claim should be a single string
+    private final boolean singleValuedClaim;
     @Nullable
     private final Map<String, String> fallbackClaimNames;
     private final Predicate<String> allowedClaimValuesPredicate;
-    // Whether the claim should be a single string
-    private final boolean singleValuedClaim;
 
     public JwtStringClaimValidator(
         String claimName,
@@ -109,7 +109,7 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
         try {
             return Automatons.predicate(patterns);
         } catch (Exception e) {
-            throw new SettingsException("Invalid pattern for allowed claim values for [" + claimName + "].", e);
+            throw new SettingsException("Invalid patterns for allowed claim values for [" + claimName + "].", e);
         }
     }
 }

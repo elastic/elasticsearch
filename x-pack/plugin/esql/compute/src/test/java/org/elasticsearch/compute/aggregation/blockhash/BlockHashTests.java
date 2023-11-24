@@ -498,12 +498,12 @@ public class BlockHashTests extends ESTestCase {
                 assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=1, size="));
                 assertOrds(ordsAndKeys.ords, 0, 0, 0, 0);
                 assertKeys(ordsAndKeys.keys, true);
-                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(0).build()));
+                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(0).build().asBlock()));
             } else {
                 assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=false, seenTrue=true, seenNull=false}"));
                 assertOrds(ordsAndKeys.ords, 2, 2, 2, 2);
                 assertKeys(ordsAndKeys.keys, true);
-                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(2).build()));
+                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(2).build().asBlock()));
             }
         }, blockFactory.newBooleanArrayVector(values, values.length).asBlock());
     }
@@ -514,11 +514,11 @@ public class BlockHashTests extends ESTestCase {
             if (forcePackedHash) {
                 assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=1, size="));
                 assertOrds(ordsAndKeys.ords, 0, 0, 0, 0);
-                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(0).build()));
+                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(0).build().asBlock()));
             } else {
                 assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=false, seenNull=false}"));
                 assertOrds(ordsAndKeys.ords, 1, 1, 1, 1);
-                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(1).build()));
+                assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(1).build().asBlock()));
             }
             assertKeys(ordsAndKeys.keys, false);
         }, blockFactory.newBooleanArrayVector(values, values.length).asBlock());
@@ -1083,7 +1083,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    record OrdsAndKeys(String description, int positionOffset, IntBlock ords, Block[] keys, IntVector nonEmpty) {}
+    record OrdsAndKeys(String description, int positionOffset, IntBlock ords, Block[] keys, IntBlock nonEmpty) {}
 
     /**
      * Hash some values into a single block of group ids. If the hash produces
@@ -1148,7 +1148,7 @@ public class BlockHashTests extends ESTestCase {
                     positionOffset,
                     groupIds,
                     collectKeys ? blockHash.getKeys() : null,
-                    blockHash.nonEmpty()
+                    blockHash.nonEmpty().asBlock()
                 );
 
                 try {
@@ -1261,7 +1261,7 @@ public class BlockHashTests extends ESTestCase {
         return breakerService;
     }
 
-    IntVector intRange(int startInclusive, int endExclusive) {
-        return IntVector.range(startInclusive, endExclusive, BlockFactory.getNonBreakingInstance());
+    IntBlock intRange(int startInclusive, int endExclusive) {
+        return IntVector.range(startInclusive, endExclusive, BlockFactory.getNonBreakingInstance()).asBlock();
     }
 }

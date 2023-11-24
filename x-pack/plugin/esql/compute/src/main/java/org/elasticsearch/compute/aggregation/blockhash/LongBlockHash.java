@@ -62,20 +62,20 @@ final class LongBlockHash extends BlockHash {
                     addInput.add(0, groupIds);
                 }
             } else {
-                try (IntVector groupIds = add(longVector)) {
-                    addInput.add(0, groupIds);
+                try (IntBlock groupIds = add(longVector)) {
+                    addInput.add(0, groupIds.asVector());
                 }
             }
         }
     }
 
-    private IntVector add(LongVector vector) {
+    private IntBlock add(LongVector vector) {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(vector.getLong(i)))));
             }
-            return builder.build();
+            return builder.build().asBlock();
         }
     }
 

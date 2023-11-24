@@ -1091,39 +1091,6 @@ public class BasicBlockTests extends ESTestCase {
         expectThrows(AssertionError.class, b::incRef);
     }
 
-    public void testReleasedVectorInvalidatesBlockState() {
-        Vector vector = randomNonDocVector();
-        Block block = vector.asBlock();
-
-        int numRefs = randomIntBetween(1, 10);
-        for (int i = 0; i < numRefs - 1; i++) {
-            block.incRef();
-        }
-
-        vector.close();
-//        assertEquals(false, block.tryIncRef());
-//        expectThrows(IllegalStateException.class, block::close);
-//        expectThrows(IllegalStateException.class, block::incRef);
-        assert(block.isReleased());
-    }
-
-    public void testReleasedDocVectorInvalidatesBlockState() {
-        int positionCount = randomIntBetween(0, 100);
-        DocVector vector = new DocVector(intVector(positionCount), intVector(positionCount), intVector(positionCount), true);
-        DocBlock block = vector.asBlock();
-
-        int numRefs = randomIntBetween(1, 10);
-        for (int i = 0; i < numRefs - 1; i++) {
-            block.incRef();
-        }
-
-        vector.close();
-//        assertEquals(false, block.tryIncRef());
-//        expectThrows(IllegalStateException.class, block::close);
-//        expectThrows(IllegalStateException.class, block::incRef);
-        assert(block.isReleased());
-    }
-
     private IntVector intVector(int positionCount) {
         return blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
     }

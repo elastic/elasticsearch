@@ -558,11 +558,8 @@ public class BlockFactoryTests extends ESTestCase {
     public void testReleaseVector() {
         int positionCount = randomIntBetween(1, 10);
         IntVector vector = blockFactory.newIntArrayVector(new int[positionCount], positionCount);
-        if (randomBoolean()) {
-            vector.asBlock().close();
-        } else {
-            vector.close();
-        }
+        vector.asBlock().close();
+
         assertTrue(vector.isReleased());
         assertTrue(vector.asBlock().isReleased());
         assertThat(breaker.getUsed(), equalTo(0L));

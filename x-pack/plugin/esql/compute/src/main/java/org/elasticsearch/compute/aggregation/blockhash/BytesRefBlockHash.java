@@ -68,20 +68,20 @@ final class BytesRefBlockHash extends BlockHash {
                     addInput.add(0, groupIds);
                 }
             } else {
-                try (IntVector groupIds = add(bytesVector)) {
-                    addInput.add(0, groupIds);
+                try (IntBlock groupIds = add(bytesVector)) {
+                    addInput.add(0, groupIds.asVector());
                 }
             }
         }
     }
 
-    private IntVector add(BytesRefVector vector) {
+    private IntBlock add(BytesRefVector vector) {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(bytesRefHash.add(vector.getBytesRef(i, bytes)))));
             }
-            return builder.build();
+            return builder.build().asBlock();
         }
     }
 

@@ -75,11 +75,6 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
-    public boolean isReleased() {
-        return super.isReleased() || vector.isReleased();
-    }
-
-    @Override
     public void closeInternal() {
         assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);

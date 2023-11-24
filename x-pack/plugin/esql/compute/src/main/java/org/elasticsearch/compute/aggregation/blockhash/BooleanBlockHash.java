@@ -51,20 +51,20 @@ final class BooleanBlockHash extends BlockHash {
                     addInput.add(0, groupIds);
                 }
             } else {
-                try (IntBlock groupIds = add(booleanVector).asBlock()) {
+                try (IntBlock groupIds = add(booleanVector)) {
                     addInput.add(0, groupIds.asVector());
                 }
             }
         }
     }
 
-    private IntVector add(BooleanVector vector) {
+    private IntBlock add(BooleanVector vector) {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendInt(MultivalueDedupeBoolean.hashOrd(everSeen, vector.getBoolean(i)));
             }
-            return builder.build();
+            return builder.build().asBlock();
         }
     }
 

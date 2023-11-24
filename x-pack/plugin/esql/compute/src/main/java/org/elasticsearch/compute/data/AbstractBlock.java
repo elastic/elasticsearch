@@ -96,7 +96,7 @@ abstract class AbstractBlock extends AbstractRefCounted implements Block {
     }
 
     @Override
-    public boolean isReleased() {
+    public final boolean isReleased() {
         return hasReferences() == false;
     }
 

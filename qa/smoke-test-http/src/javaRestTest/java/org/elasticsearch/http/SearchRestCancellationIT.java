@@ -98,7 +98,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Response> future = new PlainActionFuture<>();
         Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);
@@ -141,7 +141,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Response> future = new PlainActionFuture<>();
         Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);
@@ -186,7 +186,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
             // Make sure we have a few segments
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < 20; j++) {
-                bulkRequestBuilder.add(client().prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
+                bulkRequestBuilder.add(prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
             }
             assertNoFailures(bulkRequestBuilder.get());
         }

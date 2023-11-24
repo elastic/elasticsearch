@@ -69,6 +69,12 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
     println "Using an external service to test " + project.name
   }
   setting 'xpack.security.enabled', 'false'
+
+  // Additional tracing related to investigation into https://github.com/elastic/elasticsearch/issues/102294
+  setting 'logger.org.elasticsearch.repositories.s3', 'TRACE'
+  setting 'logger.org.elasticsearch.repositories.blobstore.testkit', 'TRACE'
+  setting 'logger.com.amazonaws.request', 'DEBUG'
+  setting 'logger.org.apache.http.wire', 'DEBUG'
 }
 
 tasks.register("s3ThirdPartyTest") {

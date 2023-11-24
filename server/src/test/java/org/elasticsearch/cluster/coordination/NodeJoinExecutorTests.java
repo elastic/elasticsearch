@@ -33,6 +33,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -72,7 +74,7 @@ import static org.mockito.Mockito.when;
 
 public class NodeJoinExecutorTests extends ESTestCase {
 
-    private static final ActionListener<Void> NOT_COMPLETED_LISTENER = ActionTestUtils.assertNoFailureListener(t -> {});
+    private static final ActionListener<Void> NO_FAILURE_LISTENER = ActionTestUtils.assertNoFailureListener(t -> {});
 
     public void testPreventJoinClusterWithNewerIndices() {
         Settings.builder().build();
@@ -157,6 +159,74 @@ public class NodeJoinExecutorTests extends ESTestCase {
         }
     }
 
+    public void testPreventJoinClusterWithMissingFeatures() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("f2"));
+            }
+        }));
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(Map.of(masterNode.getId(), Set.of("f1", "f2"), otherNode.getId(), Set.of("f1", "f2")))
+            .build();
+
+        DiscoveryNode newNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    newNode,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1"),
+                    TEST_REASON,
+                    ActionListener.wrap(
+                        o -> fail("Should have failed"),
+                        t -> assertThat(t.getMessage(), containsString("is missing required features [f2]"))
+                    ),
+                    0L
+                )
+            )
+        );
+    }
+
+    public void testCanJoinClusterWithMissingIncompleteFeatures() throws Exception {
+        AllocationService allocationService = createAllocationService();
+        RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+        FeatureService featureService = new FeatureService(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1"), new NodeFeature("f2"));
+            }
+        }));
+
+        NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, featureService);
+
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        DiscoveryNode otherNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(otherNode))
+            .nodeFeatures(Map.of(masterNode.getId(), Set.of("f1", "f2"), otherNode.getId(), Set.of("f1")))
+            .build();
+
+        DiscoveryNode newNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, NO_FAILURE_LISTENER, 0L)
+            )
+        );
+    }
+
     public void testSuccess() {
         Settings.builder().build();
         Metadata.Builder metaBuilder = Metadata.builder();
@@ -205,7 +275,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
-        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
 
@@ -226,14 +296,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             clusterState,
             executor,
             List.of(
-                JoinTask.singleNode(
-                    actualNode,
-                    CompatibilityVersionsUtils.staticCurrent(),
-                    Set.of(),
-                    TEST_REASON,
-                    NOT_COMPLETED_LISTENER,
-                    0L
-                )
+                JoinTask.singleNode(actualNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, NO_FAILURE_LISTENER, 0L)
             )
         );
 
@@ -245,7 +308,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomLongBetween(0L, Long.MAX_VALUE - 1);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -270,7 +333,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 CompatibilityVersionsUtils.staticCurrent(),
                                 Set.of(),
                                 TEST_REASON,
-                                NOT_COMPLETED_LISTENER,
+                                NO_FAILURE_LISTENER,
                                 executorTerm
                             )
                         )
@@ -282,7 +345,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                         CompatibilityVersionsUtils.staticCurrent(),
                                         Set.of(),
                                         TEST_REASON,
-                                        NOT_COMPLETED_LISTENER
+                                        NO_FAILURE_LISTENER
                                     )
                                 ),
                                 executorTerm
@@ -301,7 +364,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomNonNegativeLong();
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var localNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
@@ -334,7 +397,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 CompatibilityVersionsUtils.staticCurrent(),
                                 Set.of(),
                                 TEST_REASON,
-                                NOT_COMPLETED_LISTENER,
+                                NO_FAILURE_LISTENER,
                                 executorTerm
                             )
                         )
@@ -346,7 +409,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                         CompatibilityVersionsUtils.staticCurrent(),
                                         Set.of(),
                                         TEST_REASON,
-                                        NOT_COMPLETED_LISTENER
+                                        NO_FAILURE_LISTENER
                                     )
                                 ),
                                 executorTerm
@@ -365,7 +428,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomNonNegativeLong();
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -389,7 +452,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                             CompatibilityVersionsUtils.staticCurrent(),
                             Set.of(),
                             TEST_REASON,
-                            NOT_COMPLETED_LISTENER,
+                            NO_FAILURE_LISTENER,
                             executorTerm
                         )
                     ),
@@ -406,7 +469,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomLongBetween(1, Long.MAX_VALUE);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var otherNodeOld = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
@@ -438,14 +501,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
                             CompatibilityVersionsUtils.staticCurrent(),
                             Set.of(),
                             TEST_REASON,
-                            NOT_COMPLETED_LISTENER
+                            NO_FAILURE_LISTENER
                         ),
                         new JoinTask.NodeJoinTask(
                             otherNodeNew,
                             CompatibilityVersionsUtils.staticCurrent(),
                             Set.of(),
                             TEST_REASON,
-                            NOT_COMPLETED_LISTENER
+                            NO_FAILURE_LISTENER
                         )
                     ),
                     executorTerm
@@ -472,7 +535,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         CompatibilityVersionsUtils.staticCurrent(),
                         Set.of(),
                         TEST_REASON,
-                        NOT_COMPLETED_LISTENER,
+                        NO_FAILURE_LISTENER,
                         executorTerm
                     ),
                     JoinTask.singleNode(
@@ -497,7 +560,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomLongBetween(1, Long.MAX_VALUE);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var otherNode = DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID(random()))
@@ -540,14 +603,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 CompatibilityVersionsUtils.staticCurrent(),
                                 Set.of(),
                                 TEST_REASON,
-                                NOT_COMPLETED_LISTENER
+                                NO_FAILURE_LISTENER
                             ),
                             new JoinTask.NodeJoinTask(
                                 otherNode,
                                 CompatibilityVersionsUtils.staticCurrent(),
                                 Set.of(),
                                 TEST_REASON,
-                                NOT_COMPLETED_LISTENER
+                                NO_FAILURE_LISTENER
                             )
                         ),
                         executorTerm
@@ -566,7 +629,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 CompatibilityVersionsUtils.staticCurrent(),
                                 Set.of(),
                                 TEST_REASON,
-                                NOT_COMPLETED_LISTENER
+                                NO_FAILURE_LISTENER
                             )
                         ),
                         executorTerm
@@ -582,7 +645,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         CompatibilityVersionsUtils.staticCurrent(),
                         Set.of(),
                         TEST_REASON,
-                        NOT_COMPLETED_LISTENER,
+                        NO_FAILURE_LISTENER,
                         executorTerm
                     )
                 )
@@ -602,7 +665,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long currentTerm = randomLongBetween(100, 1000);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -630,7 +693,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testDesiredNodesMembershipIsUpgradedWhenNewNodesJoin() throws Exception {
         final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var actualizedDesiredNodes = randomList(0, 5, this::createActualizedDesiredNode);
         final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
@@ -656,7 +719,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     CompatibilityVersionsUtils.staticCurrent(),
                     Set.of(),
                     TEST_REASON,
-                    NOT_COMPLETED_LISTENER,
+                    NO_FAILURE_LISTENER,
                     0L
                 )
             )
@@ -678,7 +741,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public void testDesiredNodesMembershipIsUpgradedWhenANewMasterIsElected() throws Exception {
         final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
-        final var executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final var executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final var actualizedDesiredNodes = randomList(1, 5, this::createPendingDesiredNode);
         final var pendingDesiredNodes = randomList(0, 5, this::createPendingDesiredNode);
@@ -701,7 +764,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         CompatibilityVersionsUtils.staticCurrent(),
                         Set.of(),
                         TEST_REASON,
-                        NOT_COMPLETED_LISTENER
+                        NO_FAILURE_LISTENER
                     )
                 ),
             1L
@@ -729,7 +792,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
-        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -811,7 +874,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
-        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final long term = randomLongBetween(0, Long.MAX_VALUE - 1);
         final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
@@ -835,7 +898,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                             CompatibilityVersionsUtils.staticCurrent(),
                             Set.of(),
                             TEST_REASON,
-                            NOT_COMPLETED_LISTENER
+                            NO_FAILURE_LISTENER
                         )
                     ),
                     randomLongBetween(term + 1, Long.MAX_VALUE)
@@ -851,7 +914,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final AllocationService allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
-        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService);
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService, createFeatureService());
 
         final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
 
@@ -875,7 +938,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     CompatibilityVersionsUtils.staticCurrent(),
                     Set.of("f1", "f2"),
                     TEST_REASON,
-                    NOT_COMPLETED_LISTENER,
+                    NO_FAILURE_LISTENER,
                     0L
                 )
             )
@@ -895,16 +958,10 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     private static JoinTask createRandomTask(DiscoveryNode node, long term) {
         return randomBoolean()
-            ? JoinTask.singleNode(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, NOT_COMPLETED_LISTENER, term)
+            ? JoinTask.singleNode(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, NO_FAILURE_LISTENER, term)
             : JoinTask.completingElection(
                 Stream.of(
-                    new JoinTask.NodeJoinTask(
-                        node,
-                        CompatibilityVersionsUtils.staticCurrent(),
-                        Set.of(),
-                        TEST_REASON,
-                        NOT_COMPLETED_LISTENER
-                    )
+                    new JoinTask.NodeJoinTask(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, NO_FAILURE_LISTENER)
                 ),
                 term
             );
@@ -917,6 +974,10 @@ public class NodeJoinExecutorTests extends ESTestCase {
             invocationOnMock -> invocationOnMock.getArguments()[0]
         );
         return allocationService;
+    }
+
+    private static FeatureService createFeatureService() {
+        return new FeatureService(List.of());
     }
 
     // Hard-coding the class name here because it is also mentioned in the troubleshooting docs, so should not be renamed without care.

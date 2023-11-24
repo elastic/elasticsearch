@@ -144,9 +144,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         SearchRequestBuilder searchRequest = client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC);
 
         String errMsg = "Data too large, data for [test] would be";
-        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
+        assertFailures(searchRequest, RestStatus.TOO_MANY_REQUESTS, containsString(errMsg));
         errMsg = "which is larger than the limit of [100/100b]";
-        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
+        assertFailures(searchRequest, RestStatus.TOO_MANY_REQUESTS, containsString(errMsg));
 
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
         long breaks = 0;
@@ -210,9 +210,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         SearchRequestBuilder searchRequest = client.prepareSearch("ramtest").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC);
 
         String errMsg = "Data too large, data for [test] would be";
-        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
+        assertFailures(searchRequest, RestStatus.TOO_MANY_REQUESTS, containsString(errMsg));
         errMsg = "which is larger than the limit of [100/100b]";
-        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
+        assertFailures(searchRequest, RestStatus.TOO_MANY_REQUESTS, containsString(errMsg));
 
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
         long breaks = 0;
@@ -293,7 +293,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
     /** Issues a cache clear and waits 30 seconds for the field data breaker to be cleared */
     public void clearFieldData() throws Exception {
-        indicesAdmin().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+        indicesAdmin().prepareClearCache().setFieldDataCache(true).get();
         assertBusy(() -> {
             NodesStatsResponse resp = clusterAdmin().prepareNodesStats().clear().setBreaker(true).get(new TimeValue(15, TimeUnit.SECONDS));
             for (NodeStats nStats : resp.getNodes()) {

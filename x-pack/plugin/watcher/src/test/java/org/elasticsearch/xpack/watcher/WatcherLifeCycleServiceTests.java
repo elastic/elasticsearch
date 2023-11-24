@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -622,10 +621,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeName) {
-        return newNode(nodeName, Version.CURRENT);
-    }
-
-    private static DiscoveryNode newNode(String nodeName, Version version) {
-        return DiscoveryNodeUtils.builder(nodeName).version(version).build();
+        return DiscoveryNodeUtils.builder(nodeName).build();
     }
 }

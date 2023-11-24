@@ -21,12 +21,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.sql.qa.cli.CliIntegrationTestCase.elasticsearchAddress;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CliSecurityIT extends SqlSecurityTestCase {
-
     @Override
     public void testDescribeWorksAsFullAccess() {}
 
@@ -64,7 +62,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
     /**
      * Perform security test actions using the CLI.
      */
-    private static class CliActions implements Actions {
+    private class CliActions implements Actions {
         @Override
         public String minimalPermissionsForAllActions() {
             return "cli_or_drivers_minimal";
@@ -227,7 +225,14 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         }
     }
 
+    private final Actions actions;
+
+    @Override
+    Actions actions() {
+        return actions;
+    }
+
     public CliSecurityIT() {
-        super(new CliActions());
+        actions = new CliActions();
     }
 }

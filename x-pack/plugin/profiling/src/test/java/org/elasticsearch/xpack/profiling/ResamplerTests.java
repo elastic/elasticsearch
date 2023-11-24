@@ -30,7 +30,7 @@ public class ResamplerTests extends ESTestCase {
         int requestedSamples = 20_000;
         int actualTotalSamples = 10_000;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, 1.0d, 1.0d, null, null, null);
         request.setAdjustSampleCount(false);
 
         Resampler resampler = createResampler(request, sampleRate, actualTotalSamples);
@@ -45,7 +45,7 @@ public class ResamplerTests extends ESTestCase {
         int requestedSamples = 20_000;
         int actualTotalSamples = 10_000;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, 1.0d, 1.0d, null, null, null);
         request.setAdjustSampleCount(true);
 
         Resampler resampler = createResampler(request, sampleRate, actualTotalSamples);
@@ -60,7 +60,7 @@ public class ResamplerTests extends ESTestCase {
         int requestedSamples = 20_000;
         int actualTotalSamples = 40_000;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, 1.0d, 1.0d, null, null, null);
         request.setAdjustSampleCount(false);
 
         Resampler resampler = createResampler(request, sampleRate, actualTotalSamples);
@@ -78,9 +78,13 @@ public class ResamplerTests extends ESTestCase {
 
         GetStackTracesRequest request = new GetStackTracesRequest(
             requestedSamples,
+            1.0d,
+            1.0d,
             new BoolQueryBuilder().filter(
-                new RangeQueryBuilder("@timestamp").lt("2023-10-19 15:33:00").gte("2023-10-19 15:31:52").format("yyyy-MM-dd HH:mm:ss")
-            )
+                new RangeQueryBuilder("@timestamp").lt("2023-10-19 15:33:00").gte("2023-09-20 15:31:52").format("yyyy-MM-dd HH:mm:ss")
+            ),
+            null,
+            null
         );
 
         request.setAdjustSampleCount(false);
@@ -96,7 +100,7 @@ public class ResamplerTests extends ESTestCase {
         int requestedSamples = 20_000;
         int actualTotalSamples = 40_000;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, 1.0d, 1.0d, null, null, null);
         request.setAdjustSampleCount(true);
 
         Resampler resampler = createResampler(request, sampleRate, actualTotalSamples);

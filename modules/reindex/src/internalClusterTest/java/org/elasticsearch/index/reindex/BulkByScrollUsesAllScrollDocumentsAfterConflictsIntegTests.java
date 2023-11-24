@@ -15,7 +15,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -53,6 +52,7 @@ import java.util.function.Function;
 import static org.elasticsearch.common.lucene.uid.Versions.MATCH_DELETED;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -181,7 +181,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
                 source.put(RETURN_NOOP_FIELD, true);
                 noopDocs++;
             }
-            indexRequests.add(client().prepareIndex(sourceIndex).setId(Integer.toString(i)).setSource(source));
+            indexRequests.add(prepareIndex(sourceIndex).setId(Integer.toString(i)).setSource(source));
         }
         indexRandom(true, indexRequests);
 
@@ -201,16 +201,18 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         // Ensure that the write thread blocking task is currently executing
         barrier.await();
 
-        final SearchResponse searchResponse = prepareSearch(sourceIndex).setSize(numDocs) // Get all indexed docs
-            .addSort(SORTING_FIELD, SortOrder.DESC)
-            .execute()
-            .actionGet();
-
-        // Modify a subset of the target documents concurrently
-        final List<SearchHit> originalDocs = Arrays.asList(searchResponse.getHits().getHits());
         int conflictingOps = randomIntBetween(maxDocs, numDocs);
-        final List<SearchHit> docsModifiedConcurrently = randomSubsetOf(conflictingOps, originalDocs);
-
+        final int finalConflictingOps = conflictingOps;
+        final List<SearchHit> docsModifiedConcurrently = new ArrayList<>();
+        assertResponse(
+            prepareSearch(sourceIndex).setSize(numDocs) // Get all indexed docs
+                .addSort(SORTING_FIELD, SortOrder.DESC),
+            response -> {
+                // Modify a subset of the target documents concurrently
+                final List<SearchHit> originalDocs = Arrays.asList(response.getHits().getHits());
+                docsModifiedConcurrently.addAll(randomSubsetOf(finalConflictingOps, originalDocs));
+            }
+        );
         BulkRequest conflictingUpdatesBulkRequest = new BulkRequest();
         for (SearchHit searchHit : docsModifiedConcurrently) {
             if (scriptEnabled && searchHit.getSourceAsMap().containsKey(RETURN_NOOP_FIELD)) {

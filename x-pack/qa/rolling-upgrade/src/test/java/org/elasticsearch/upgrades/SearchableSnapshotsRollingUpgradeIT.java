@@ -60,7 +60,6 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
 
     public void testMountPartialCopyAndRecoversCorrectly() throws Exception {
         final Storage storage = Storage.SHARED_CACHE;
-        assumeVersion(Version.V_7_12_0, Storage.SHARED_CACHE);
 
         if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
             assertBusy(() -> {
@@ -124,7 +123,6 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
 
     public void testBlobStoreCacheWithPartialCopyInMixedVersions() throws Exception {
         final Storage storage = Storage.SHARED_CACHE;
-        assumeVersion(Version.V_7_12_0, Storage.SHARED_CACHE);
 
         executeBlobCacheCreationTestCase(storage, 8765L);
     }
@@ -390,11 +388,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         Settings indexSettings
     ) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repositoryName + '/' + snapshotName + "/_mount");
-        if (isOriginalClusterVersionAtLeast(Version.V_7_12_0)) {
-            request.addParameter("storage", storage.storageName());
-        } else {
-            assertThat("Parameter 'storage' was introduced in 7.12.0 with " + Storage.SHARED_CACHE, storage, equalTo(Storage.FULL_COPY));
-        }
+        request.addParameter("storage", storage.storageName());
         request.setJsonEntity(Strings.format("""
             {
               "index": "%s",

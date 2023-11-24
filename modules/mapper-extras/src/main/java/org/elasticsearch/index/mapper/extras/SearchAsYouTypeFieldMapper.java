@@ -273,9 +273,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public int mapperSize() {
-            return super.mapperSize()
-                   + 1 // prefixField
-                   + maxShingleSize.getValue() - 1;
+            return super.mapperSize() + 1 // prefixField
+                + maxShingleSize.getValue() - 1;
         }
     }
 

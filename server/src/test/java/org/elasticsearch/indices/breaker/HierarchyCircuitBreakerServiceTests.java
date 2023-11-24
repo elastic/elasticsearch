@@ -340,6 +340,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicReference<Consumer<Boolean>> onOverLimit = new AtomicReference<>(leader -> {});
         AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE / 2, Long.MAX_VALUE / 2));
         long interval = randomLongBetween(1, 1000);
+        long fullGCInterval = randomLongBetween(500, 2000);
         final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
             clusterSettings,
             Collections.emptyList(),
@@ -350,6 +351,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 HierarchyCircuitBreakerService.createYoungGcCountSupplier(),
                 time::get,
                 interval,
+                fullGCInterval,
+                TimeValue.timeValueSeconds(30),
                 TimeValue.timeValueSeconds(30)
             ) {
 
@@ -473,6 +476,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         AtomicInteger nonLeaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
+        long fullGCInterval = randomLongBetween(500, 2000);
         AtomicLong memoryUsage = new AtomicLong();
 
         HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = new HierarchyCircuitBreakerService.G1OverLimitStrategy(
@@ -481,6 +485,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             () -> 0,
             time::get,
             interval,
+            fullGCInterval,
+            TimeValue.timeValueSeconds(30),
             TimeValue.timeValueSeconds(30)
         ) {
             @Override
@@ -527,6 +533,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         AtomicInteger nonLeaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
+        long fullGCInterval = randomLongBetween(500, 2000);
         AtomicLong memoryUsageCounter = new AtomicLong();
         AtomicLong gcCounter = new AtomicLong();
         LongSupplier memoryUsageSupplier = () -> {
@@ -539,6 +546,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             gcCounter::incrementAndGet,
             time::get,
             interval,
+            fullGCInterval,
+            TimeValue.timeValueSeconds(30),
             TimeValue.timeValueSeconds(30)
         ) {
 
@@ -568,6 +577,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE / 2, Long.MAX_VALUE / 2));
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
+        long fullGCInterval = randomLongBetween(500, 2000);
         AtomicLong memoryUsage = new AtomicLong();
         HierarchyCircuitBreakerService.G1OverLimitStrategy strategy = new HierarchyCircuitBreakerService.G1OverLimitStrategy(
             JvmInfo.jvmInfo(),
@@ -575,6 +585,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             () -> 0,
             time::get,
             interval,
+            fullGCInterval,
+            TimeValue.timeValueSeconds(30),
             TimeValue.timeValueSeconds(30)
         ) {
 
@@ -653,6 +665,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             gcCounter::incrementAndGet,
             () -> 0,
             1,
+            1,
+            TimeValue.timeValueMillis(randomFrom(0, 5, 10)),
             TimeValue.timeValueMillis(randomFrom(0, 5, 10))
         ) {
 

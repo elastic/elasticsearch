@@ -22,6 +22,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -604,6 +605,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             return regionSize;
         }
 
+        @SuppressForbidden(reason = "Prefer full GC to OOM or CBE")
+        private static void performFullGC() {
+            System.gc();
+        }
+
         @Override
         public MemoryUsage overLimit(MemoryUsage memoryUsed) {
             boolean leader = false;
@@ -658,7 +664,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                             // able to wait for longer. Threads already holding the lock will wait the normal timeout.
                             currentLockTimeout = fullGCLockTimeout;
                             logger.info("Attempt to trigger young GC failed to bring memory down, triggering full GC");
-                            System.gc();
+                            performFullGC();
                             this.lastFullGCTime = timeSupplier.getAsLong();
                         }
                     }

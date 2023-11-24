@@ -2060,23 +2060,19 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         final Response response = adminClient().performRequest(request);
 
-        Map<String, Set<String>> clusterFeatures = new HashMap<>();
-
         var responseData = responseAsMap(response);
-        if (responseData.containsKey("nodes_features")) {
-            List<?> features = (List<?>) responseData.get("nodes_features");
-            if (features != null) {
-                for (Object feature : features) {
-                    @SuppressWarnings("unchecked")
-                    var nodeFeatureMap = (Map<String, ?>) feature;
-                    var nodeId = nodeFeatureMap.get("node_id").toString();
-                    @SuppressWarnings("unchecked")
-                    var nodeFeatures = (List<String>) nodeFeatureMap.get("features");
-                    clusterFeatures.put(nodeId, new HashSet<>(nodeFeatures));
-                }
-            }
+        if (responseData.get("nodes_features") instanceof List<?> nodesFeatures) {
+            return nodesFeatures.stream()
+                .map(Map.class::cast)
+                .collect(Collectors.toUnmodifiableMap(
+                    nodeFeatureMap -> nodeFeatureMap.get("node_id").toString(),
+                    nodeFeatureMap -> {
+                        @SuppressWarnings("unchecked")
+                        var nodeFeatures = (List<String>) nodeFeatureMap.get("features");
+                        return new HashSet<>(nodeFeatures);
+                    }));
         }
-        return clusterFeatures;
+        return Map.of();
     }
 
     /**

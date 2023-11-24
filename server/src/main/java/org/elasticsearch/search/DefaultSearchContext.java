@@ -219,12 +219,9 @@ final class DefaultSearchContext extends SearchContext {
         if (mappedFieldType != null) {
             IndexFieldData<?> indexFieldData;
             try {
-                indexFieldData = indexService.loadFielddata(
-                    mappedFieldType,
-                    FieldDataContext.noRuntimeFields("field cardinality")
-                );
-            } catch(Exception e) {
-                //loading fielddata for runtime fields will fail, which is fine as we can't tell the cardinality without running the script
+                indexFieldData = indexService.loadFielddata(mappedFieldType, FieldDataContext.noRuntimeFields("field cardinality"));
+            } catch (Exception e) {
+                // loading fielddata for runtime fields will fail, which is fine as we can't tell the cardinality without running the script
                 return -1;
             }
             if (indexFieldData instanceof IndexOrdinalsFieldData indexOrdinalsFieldData) {

@@ -12,19 +12,23 @@ import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.telemetry.apm.internal.metrics.DoubleAsyncCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleGaugeAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleHistogramAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleUpDownCounterAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.LongAsyncCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongGaugeAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongHistogramAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongUpDownCounterAdapter;
+import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -48,6 +52,8 @@ public class APMMeterRegistry implements MeterRegistry {
     private final Registrar<DoubleGaugeAdapter> doubleGauges = new Registrar<>();
     private final Registrar<DoubleHistogramAdapter> doubleHistograms = new Registrar<>();
     private final Registrar<LongCounterAdapter> longCounters = new Registrar<>();
+    private final Registrar<LongAsyncCounterAdapter> longAsynchronousCounters = new Registrar<>();
+    private final Registrar<DoubleAsyncCounterAdapter> doubleAsynchronousCounters = new Registrar<>();
     private final Registrar<LongUpDownCounterAdapter> longUpDownCounters = new Registrar<>();
     private final Registrar<LongGaugeAdapter> longGauges = new Registrar<>();
     private final Registrar<LongHistogramAdapter> longHistograms = new Registrar<>();
@@ -128,6 +134,35 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
+    public LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
+        try (ReleasableLock lock = registerLock.acquire()) {
+            return longAsynchronousCounters.register(new LongAsyncCounterAdapter(meter, name, description, unit, observer));
+        }
+    }
+
+    @Override
+    public LongAsyncCounter getLongAsyncCounter(String name) {
+        return longAsynchronousCounters.get(name);
+    }
+
+    @Override
+    public DoubleAsyncCounter registerDoubleAsyncCounter(
+        String name,
+        String description,
+        String unit,
+        Supplier<DoubleWithAttributes> observer
+    ) {
+        try (ReleasableLock lock = registerLock.acquire()) {
+            return doubleAsynchronousCounters.register(new DoubleAsyncCounterAdapter(meter, name, description, unit, observer));
+        }
+    }
+
+    @Override
+    public DoubleAsyncCounter getDoubleAsyncCounter(String name) {
+        return doubleAsynchronousCounters.get(name);
+    }
+
+    @Override
     public LongCounter getLongCounter(String name) {
         return longCounters.get(name);
     }
@@ -179,6 +214,7 @@ public class APMMeterRegistry implements MeterRegistry {
 
     /**
      * A typed wrapper for a instrument that
+     *
      * @param <T>
      */
     private static class Registrar<T extends AbstractInstrument<?>> {

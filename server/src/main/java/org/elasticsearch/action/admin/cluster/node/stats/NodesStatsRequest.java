@@ -51,6 +51,11 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         nodesStatsRequestParameters = new NodesStatsRequestParameters();
     }
 
+    public NodesStatsRequest(NodesStatsRequestParameters nodesStatsRequestParameters, String... nodesIds) {
+        super(nodesIds);
+        this.nodesStatsRequestParameters = nodesStatsRequestParameters;
+    }
+
     /**
      * Sets all the request flags.
      */
@@ -180,4 +185,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         nodesStatsRequestParameters.writeTo(out);
     }
 
+    public NodesStatsRequestParameters getNodesStatsRequestParameters() {
+        return nodesStatsRequestParameters;
+    }
 }

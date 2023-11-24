@@ -460,9 +460,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return result;
     }
 
-    private Set<String> getObsoleteNodeIdsForRemoval(Set<String> nodeIdsMarkedForRemoval) {
+    private Set<String> getObsoleteNodeIdsForRemoval(Set<String> latestNodeIdsMarkedForRemoval) {
         final var obsoleteNodeIdsForRemoval = new HashSet<>(nodesIdsForRemoval);
-        obsoleteNodeIdsForRemoval.removeIf(nodeIdsMarkedForRemoval::contains);
+        obsoleteNodeIdsForRemoval.removeIf(latestNodeIdsMarkedForRemoval::contains);
         if (obsoleteNodeIdsForRemoval.isEmpty()) {
             return Set.of();
         }

@@ -82,7 +82,7 @@ fashion. This approach has proved to work significantly better in practice.
 
 .Elastic Search Labs
 ****
-Bookmark the https://search-labs.elastic.co/search-labs[Elastic Search Labs webpage] for technical content about building search experiences powered by {es}'s vector search capabilities and generative AI.
+Bookmark the https://www.elastic.co/search-labs[Elastic Search Labs webpage] for technical content about building search experiences powered by {es}'s vector search capabilities and generative AI.
 
 The companion https://github.com/elastic/elasticsearch-labs[`elasticearch-labs` GitHub repository] contains the source code for a number of sample apps, as well as executable Python notebooks.
 ****

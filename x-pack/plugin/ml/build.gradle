@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.dra.DraResolvePlugin
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'

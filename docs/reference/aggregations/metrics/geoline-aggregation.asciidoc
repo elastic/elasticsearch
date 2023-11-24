@@ -347,10 +347,8 @@ This query will result in:
   "aggregations": {
     "path": {
       "buckets": {
-        "{city=Paris}": {
-          "key": {
-            "city": "Paris"
-          },
+        "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA": {
+          "key": "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA",
           "doc_count": 2,
           "museum_tour": {
             "type": "Feature",
@@ -363,10 +361,8 @@ This query will result in:
             }
           }
         },
-        "{city=Antwerp}": {
-          "key": {
-            "city": "Antwerp"
-          },
+        "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw": {
+          "key": "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw",
           "doc_count": 3,
           "museum_tour": {
             "type": "Feature",
@@ -379,10 +375,8 @@ This query will result in:
             }
           }
         },
-        "{city=Amsterdam}": {
-          "key": {
-            "city": "Amsterdam"
-          },
+        "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA": {
+          "key": "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA",
           "doc_count": 5,
           "museum_tour": {
             "type": "Feature",

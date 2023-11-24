@@ -22,7 +22,7 @@ import java.util.Objects;
  * A class collecting trip counters for circuit breakers (parent, field data, request, in flight requests and custom child circuit
  * breakers).
  *
- * We decided to have the name as part of the (long) counter metric name instead of being an attribute because aggregating distinct circuit
+ * The circuit breaker name is part of the (long) counter metric name instead of being an attribute because aggregating distinct circuit
  * breakers trip counter values does not make sense, as for instance, summing field_data.trip_count and in_flight_requests.trip_count.
  * Those counters trip for different reasons even if the underlying reason is "too much memory usage". Aggregating them together results in
  * losing the ability to understand where the underlying issue is (too much field data?, too many concurrent requests, too large concurrent
@@ -37,6 +37,7 @@ import java.util.Objects;
  * trip counters.
  */
 public class CircuitBreakerMetrics {
+    public static final CircuitBreakerMetrics NOOP = new CircuitBreakerMetrics(TelemetryProvider.NOOP, Collections.emptyMap());
     public static final String ES_BREAKER_PARENT_TRIP_COUNT_TOTAL = "es.breaker.parent.trip.total";
     public static final String ES_BREAKER_FIELD_DATA_TRIP_COUNT_TOTAL = "es.breaker.field_data.trip.total";
     public static final String ES_BREAKER_REQUEST_TRIP_COUNT_TOTAL = "es.breaker.request.trip.total";
@@ -84,8 +85,6 @@ public class CircuitBreakerMetrics {
             customTripCounters
         );
     }
-
-    public static CircuitBreakerMetrics NOOP = new CircuitBreakerMetrics(TelemetryProvider.NOOP, Collections.emptyMap());
 
     public LongCounter getParentTripCountTotal() {
         return parentTripCountTotal;

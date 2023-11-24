@@ -172,25 +172,25 @@ public class Connector implements Writeable, ToXContentObject {
         this.syncNow = in.readBoolean();
     }
 
-    private static final ParseField ID_FIELD = new ParseField("connector_id");
-    private static final ParseField API_KEY_ID_FIELD = new ParseField("api_key_id");
-    private static final ParseField CONFIGURATION_FIELD = new ParseField("configuration");
-    private static final ParseField CUSTOM_SCHEDULING_FIELD = new ParseField("custom_scheduling");
-    private static final ParseField DESCRIPTION_FIELD = new ParseField("description");
-    private static final ParseField ERROR_FIELD = new ParseField("error");
-    private static final ParseField FEATURES_FIELD = new ParseField("features");
-    private static final ParseField FILTERING_FIELD = new ParseField("filtering");
-    private static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
-    private static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
-    private static final ParseField LANGUAGE_FIELD = new ParseField("language");
+    protected static final ParseField ID_FIELD = new ParseField("connector_id");
+    protected static final ParseField API_KEY_ID_FIELD = new ParseField("api_key_id");
+    protected static final ParseField CONFIGURATION_FIELD = new ParseField("configuration");
+    protected static final ParseField CUSTOM_SCHEDULING_FIELD = new ParseField("custom_scheduling");
+    protected static final ParseField DESCRIPTION_FIELD = new ParseField("description");
+    protected static final ParseField ERROR_FIELD = new ParseField("error");
+    protected static final ParseField FEATURES_FIELD = new ParseField("features");
+    protected static final ParseField FILTERING_FIELD = new ParseField("filtering");
+    protected static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
+    protected static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
+    protected static final ParseField LANGUAGE_FIELD = new ParseField("language");
 
-    private static final ParseField NAME_FIELD = new ParseField("name");
-    private static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
-    private static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
-    private static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
-    private static final ParseField STATUS_FIELD = new ParseField("status");
-    private static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
-    private static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
+    protected static final ParseField NAME_FIELD = new ParseField("name");
+    protected static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
+    protected static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
+    protected static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
+    protected static final ParseField STATUS_FIELD = new ParseField("status");
+    protected static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
+    protected static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

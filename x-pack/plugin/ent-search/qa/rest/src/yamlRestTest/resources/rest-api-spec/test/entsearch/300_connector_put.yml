@@ -18,7 +18,16 @@ setup:
 
   - match: { result: 'created' }
 
+  - do:
+      connector.get:
+        connector_id: test-connector
 
+  - match: { connector_id: test-connector }
+  - match: { index_name: search-test }
+  - match: { name: my-connector }
+  - match: { language: pl }
+  - match: { is_native: false }
+  - match: { service_type: super-connector }
 
 ---
 'Create Connector - Resource already exists':

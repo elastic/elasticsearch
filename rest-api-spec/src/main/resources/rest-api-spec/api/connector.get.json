@@ -1,44 +1,31 @@
 {
-  "connector.put": {
+  "connector.get": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
-      "description": "Creates or updates a connector."
+      "description": "Returns a connector document."
     },
     "stability": "experimental",
     "visibility": "public",
     "headers": {
       "accept": [
         "application/json"
-      ],
-      "content_type": [
-        "application/json"
       ]
     },
     "url": {
       "paths": [
         {
-          "path":"/_connector",
-          "methods":[
-            "POST"
-          ]
-        },
-        {
           "path": "/_connector/{connector_id}",
           "methods": [
-            "PUT"
+            "GET"
           ],
           "parts": {
             "connector_id": {
               "type": "string",
-              "description": "The unique identifier of the connector to be created or updated."
+              "description": "The unique identifier of the connector to be returned."
             }
           }
         }
       ]
-    },
-    "body": {
-      "description": "The connector configuration.",
-      "required": true
     }
   }
 }

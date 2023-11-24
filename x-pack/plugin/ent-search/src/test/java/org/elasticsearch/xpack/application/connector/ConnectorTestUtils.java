@@ -36,6 +36,18 @@ public final class ConnectorTestUtils {
         );
     }
 
+    public static PutConnectorAction.Request getRandomDeleteConnectorActionRequest() {
+        return new PutConnectorAction.Request(
+            randomAlphaOfLengthBetween(5, 15),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomBoolean()),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomAlphaOfLengthBetween(5, 15)),
+            randomFrom(randomAlphaOfLengthBetween(5, 15))
+        );
+    }
+
     public static ConnectorScheduling getRandomConnectorScheduling() {
         return new ConnectorScheduling.Builder().setAccessControl(
             new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(randomBoolean()).setInterval(getRandomCronExpression()).build()

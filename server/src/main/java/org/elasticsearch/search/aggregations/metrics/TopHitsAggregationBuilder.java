@@ -272,9 +272,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (this.sorts == null) {
             this.sorts = new ArrayList<>();
         }
-        for (SortBuilder<?> sort : sorts) {
-            this.sorts.add(sort);
-        }
+        this.sorts.addAll(sorts);
         return this;
     }
 

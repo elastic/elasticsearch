@@ -15,7 +15,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -123,9 +123,10 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        SearchResponse target = prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
-        assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        assertResponse(prepareSearch("target"), response -> {
+            assertEquals(1, response.getHits().getTotalHits().value);
+            assertFalse(response.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        });
     }
 
     public void testFinalPipelineOfNewDestinationIsInvoked() {
@@ -148,9 +149,10 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        SearchResponse target = prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
-        assertEquals(true, target.getHits().getAt(0).getSourceAsMap().get("final"));
+        assertResponse(prepareSearch("target"), response -> {
+            assertEquals(1, response.getHits().getTotalHits().value);
+            assertEquals(true, response.getHits().getAt(0).getSourceAsMap().get("final"));
+        });
     }
 
     public void testDefaultPipelineOfNewDestinationIsNotInvoked() {
@@ -173,9 +175,10 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        SearchResponse target = prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
-        assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        assertResponse(prepareSearch("target"), response -> {
+            assertEquals(1, response.getHits().getTotalHits().value);
+            assertFalse(response.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        });
     }
 
     public void testDefaultPipelineOfRerouteDestinationIsInvoked() {
@@ -198,9 +201,10 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        SearchResponse target = prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
-        assertTrue(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        assertResponse(prepareSearch("target"), response -> {
+            assertEquals(1, response.getHits().getTotalHits().value);
+            assertTrue(response.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        });
     }
 
     public void testAvoidIndexingLoop() {

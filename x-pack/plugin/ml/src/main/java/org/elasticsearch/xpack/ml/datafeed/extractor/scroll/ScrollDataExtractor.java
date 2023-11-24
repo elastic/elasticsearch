@@ -85,6 +85,12 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     @Override
+    public void destroy() {
+        cancel();
+        clearScroll();
+    }
+
+    @Override
     public long getEndTime() {
         return context.end;
     }

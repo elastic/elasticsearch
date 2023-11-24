@@ -41,8 +41,9 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<MinioT
      * */
     private static boolean isDockerAvailable() {
         try {
+            LOGGER.info("Probing docker environment...");
             DockerClientFactory.instance().client();
-            LOGGER.info("Probing docker successful");
+            LOGGER.info("Probing docker environment successful");
             return true;
         } catch (Throwable ex) {
             LOGGER.warn("Probing docker has failed; disabling test", ex);

@@ -96,6 +96,7 @@ public interface MeterRegistry {
      * @param name name of the counter
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
+     * @param observer a callback to provide a metric value upon observation (metric interval)
      */
     LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, Supplier<LongWithAttributes> observer);
 
@@ -111,6 +112,7 @@ public interface MeterRegistry {
      * @param name name of the counter
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
+     * @param observer a callback to provide a metric value upon observation (metric interval)
      */
     DoubleAsyncCounter registerDoubleAsyncCounter(String name, String description, String unit, Supplier<DoubleWithAttributes> observer);
 

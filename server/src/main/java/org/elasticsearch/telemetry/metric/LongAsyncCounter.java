@@ -9,8 +9,7 @@
 package org.elasticsearch.telemetry.metric;
 
 /**
- * A monotonically increasing metric that uses a long.  Useful for integral values such as the number of bytes received,
- * number of requests, etc.
+ * A monotonically increasing long metric based on a callback.
  */
 public interface LongAsyncCounter extends Instrument, AutoCloseable {
 

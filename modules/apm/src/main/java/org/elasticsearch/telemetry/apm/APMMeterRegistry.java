@@ -214,7 +214,6 @@ public class APMMeterRegistry implements MeterRegistry {
 
     /**
      * A typed wrapper for a instrument that
-     *
      * @param <T>
      */
     private static class Registrar<T extends AbstractInstrument<?>> {

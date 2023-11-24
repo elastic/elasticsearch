@@ -28,13 +28,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class DockerEnvironmentAwareTestContainer extends GenericContainer<MinioTestContainer> {
+    protected static final Logger LOGGER = LoggerFactory.getLogger(DockerEnvironmentAwareTestContainer.class);
+
     private static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
 
     private static final boolean CI = Boolean.parseBoolean(System.getProperty("CI", "false"));
     private static final boolean EXCLUDED_OS = isExcludedOs();
     private static final boolean DOCKER_PROBING_SUCCESSFUL = isDockerAvailable();
-
-    protected static final Logger LOGGER = LoggerFactory.getLogger(DockerEnvironmentAwareTestContainer.class);
 
     /**
      * see <a href="https://github.com/elastic/elasticsearch/issues/102532">https://github.com/elastic/elasticsearch/issues/102532</a>
@@ -42,6 +42,7 @@ public class DockerEnvironmentAwareTestContainer extends GenericContainer<MinioT
     private static boolean isDockerAvailable() {
         try {
             DockerClientFactory.instance().client();
+            LOGGER.info("Probing docker successful");
             return true;
         } catch (Throwable ex) {
             LOGGER.warn("Probing docker has failed; disabling test", ex);

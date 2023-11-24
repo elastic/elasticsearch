@@ -387,6 +387,12 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         // Create an invalidated API key
         createAndInvalidateApiKey("test-exists-4", authHeader);
 
+        // Get the invalidated API key
+        assertQuery(authHeader, """
+            {"query": {"exists": {"field": "invalidation" }}}""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("name")).toList(), containsInAnyOrder("test-exists-4"));
+        });
+
         // Ensure the short-lived key is expired
         final long elapsed = Instant.now().toEpochMilli() - startTime;
         if (elapsed < 10) {
@@ -401,6 +407,11 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                   "must": {
                     "term": {
                       "invalidated": false
+                    }
+                  },
+                  "must_not": {
+                    "exists": {
+                      "field": "invalidation"
                     }
                   },
                   "should": [

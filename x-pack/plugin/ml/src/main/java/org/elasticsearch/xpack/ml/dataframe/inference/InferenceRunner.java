@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.dataframe.inference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -117,6 +118,17 @@ public class InferenceRunner {
             LOGGER.error(() -> format("[%s] Error running inference on model [%s]", config.getId(), modelId), e);
 
             if (e instanceof ElasticsearchException) {
+                if (e instanceof ElasticsearchStatusException) {
+                    Throwable rootCause = ((ElasticsearchStatusException) e).getRootCause();
+                    throw new ElasticsearchStatusException(
+                        "[{}] failed running inference on model [{}]; cause was [{}]",
+                        ((ElasticsearchStatusException) e).status(),
+                        rootCause,
+                        config.getId(),
+                        modelId,
+                        rootCause.getMessage()
+                    );
+                }
                 Throwable rootCause = ((ElasticsearchException) e).getRootCause();
                 throw new ElasticsearchException(
                     "[{}] failed running inference on model [{}]; cause was [{}]",

@@ -145,8 +145,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         */
         if (script() == null
             && (executionHint == null || executionHint.equals(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString()))) {
-            long cardinality = fieldCardinalityResolver.applyAsLong(name);
-            if (cardinality <= 0) {
+            long cardinality = fieldCardinalityResolver.applyAsLong(field());
+            if (cardinality == -1) {
                 return false;
             }
             BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);

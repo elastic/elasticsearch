@@ -4178,6 +4178,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         int numberOfFlushes = randomIntBetween(5, 10);
         for (int i = 0; i < numberOfFlushes; i++) {
+            logger.info("--> Writing doc number {}", i);
             indexDoc(shard, "_doc", Integer.toString(i));
             shard.afterWriteOperation();
             safeAwait(flushExecutedBarrier);

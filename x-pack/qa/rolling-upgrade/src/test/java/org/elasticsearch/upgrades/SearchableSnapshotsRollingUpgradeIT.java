@@ -52,10 +52,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     }
 
     public void testMountFullCopyAndRecoversCorrectly() throws Exception {
-        final Storage storage = Storage.FULL_COPY;
-        assumeVersion(Version.V_7_10_0, storage);
-
-        executeMountAndRecoversCorrectlyTestCase(storage, 6789L);
+        executeMountAndRecoversCorrectlyTestCase(Storage.FULL_COPY, 6789L);
     }
 
     public void testMountPartialCopyAndRecoversCorrectly() throws Exception {
@@ -115,10 +112,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     }
 
     public void testBlobStoreCacheWithFullCopyInMixedVersions() throws Exception {
-        final Storage storage = Storage.FULL_COPY;
-        assumeVersion(Version.V_7_10_0, storage);
-
-        executeBlobCacheCreationTestCase(storage, 9876L);
+        executeBlobCacheCreationTestCase(Storage.FULL_COPY, 9876L);
     }
 
     public void testBlobStoreCacheWithPartialCopyInMixedVersions() throws Exception {
@@ -322,13 +316,6 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             }
             deleteRepository(repository);
         }
-    }
-
-    private static void assumeVersion(Version minSupportedVersion, Storage storageType) {
-        assumeTrue(
-            "Searchable snapshots with storage type [" + storageType + "] is supported since version [" + minSupportedVersion + ']',
-            isOriginalClusterVersionAtLeast(minSupportedVersion)
-        );
     }
 
     private static void indexDocs(String indexName, long numberOfDocs) throws IOException {

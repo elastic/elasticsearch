@@ -25,7 +25,7 @@ public class SearchTransportAPMMetrics {
         );
     }
 
-    public SearchTransportAPMMetrics(LongHistogram actionLatencies) {
+    private SearchTransportAPMMetrics(LongHistogram actionLatencies) {
         this.actionLatencies = actionLatencies;
     }
 

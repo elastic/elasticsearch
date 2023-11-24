@@ -624,6 +624,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                     begin = timeSupplier.getAsLong();
                     leader = begin >= lastCheckTime + minimumInterval;
                     overLimitTriggered(leader);
+
+                    boolean gcTriggeredSuccessfully = false;
                     if (leader) {
                         long initialCollectionCount = gcCountSupplier.getAsLong();
                         logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
@@ -639,9 +641,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                                 maxUsageObserved = current;
                             } else {
                                 // we observed a memory drop, so some GC must have occurred
+                                gcTriggeredSuccessfully = true;
                                 break;
                             }
                             if (initialCollectionCount != gcCountSupplier.getAsLong()) {
+                                gcTriggeredSuccessfully = true;
                                 break;
                             }
                             localBlackHole += new byte[allocationSize].hashCode();
@@ -654,8 +658,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         this.attemptNo = 0;
                     }
 
-                    if (currentMemoryUsageSupplier.getAsLong() >= memoryUsed.baseUsage) {
-                        // We did not bring down memory usage this time
+                    if (gcTriggeredSuccessfully == false) {
                         long now = timeSupplier.getAsLong();
                         var canPerformFullGC = now >= lastFullGCTime + fullGCMinimumInterval;
                         if (canPerformFullGC) {

@@ -621,8 +621,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     protected void addRandomDocuments(String name, int numDocs) throws InterruptedException {
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            indexRequestBuilders[i] = client().prepareIndex(name)
-                .setId(Integer.toString(i))
+            indexRequestBuilders[i] = prepareIndex(name).setId(Integer.toString(i))
                 .setRouting(randomAlphaOfLength(randomIntBetween(1, 10)))
                 .setSource("field", "value");
         }

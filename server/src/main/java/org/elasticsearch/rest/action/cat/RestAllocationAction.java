@@ -10,6 +10,7 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -65,7 +66,7 @@ public class RestAllocationAction extends AbstractCatAction {
                 NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
                 statsRequest.setIncludeShardsStats(false);
                 statsRequest.clear()
-                    .addMetric(NodesStatsRequest.Metric.FS.metricName())
+                    .addMetric(NodesStatsRequestParameters.Metric.FS.metricName())
                     .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
 
                 client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<NodesStatsResponse>(channel) {

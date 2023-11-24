@@ -357,7 +357,7 @@ class ClientTransformIndexer extends TransformIndexer {
                             + statsExc.getMessage()
                     );
 
-                    if (failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings()) == false) {
+                    if (failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings())) {
                         // get the current seqNo and primary term, however ignore the stored state
                         transformsConfigManager.getTransformStoredDoc(
                             transformConfig.getId(),

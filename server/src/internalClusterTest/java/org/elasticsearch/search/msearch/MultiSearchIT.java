@@ -39,8 +39,8 @@ public class MultiSearchIT extends ESIntegTestCase {
     public void testSimpleMultiSearch() {
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("test").setId("1").setSource("field", "xxx").get();
-        client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
+        prepareIndex("test").setId("1").setSource("field", "xxx").get();
+        prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
         MultiSearchResponse response = client().prepareMultiSearch()
             .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
@@ -66,7 +66,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         createIndex("test");
         int numDocs = randomIntBetween(0, 16);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
         refresh();
 
@@ -99,8 +99,8 @@ public class MultiSearchIT extends ESIntegTestCase {
         TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("test").setId("1").setSource("field", "xxx").get();
-        client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
+        prepareIndex("test").setId("1").setSource("field", "xxx").get();
+        prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
         MultiSearchResponse response = client().prepareMultiSearch()
             .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))

@@ -542,8 +542,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         verifyResolvability(
             dataStreamName,
-            client().prepareIndex(dataStreamName)
-                .setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+            prepareIndex(dataStreamName).setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
                 .setOpType(DocWriteRequest.OpType.CREATE),
             false
         );
@@ -586,8 +585,7 @@ public class DataStreamIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, request).actionGet();
         verifyResolvability(
             "logs-barbaz",
-            client().prepareIndex("logs-barbaz")
-                .setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+            prepareIndex("logs-barbaz").setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
                 .setOpType(DocWriteRequest.OpType.CREATE),
             false
         );
@@ -703,13 +701,11 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testDataSteamAliasWithFilter() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-*"));
         String dataStreamName = "logs-foobar";
-        client().prepareIndex(dataStreamName)
-            .setId("1")
+        prepareIndex(dataStreamName).setId("1")
             .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
-        client().prepareIndex(dataStreamName)
-            .setId("2")
+        prepareIndex(dataStreamName).setId("2")
             .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
@@ -778,13 +774,11 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testSearchFilteredAndUnfilteredAlias() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-*"));
         String dataStreamName = "logs-foobar";
-        client().prepareIndex(dataStreamName)
-            .setId("1")
+        prepareIndex(dataStreamName).setId("1")
             .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
-        client().prepareIndex(dataStreamName)
-            .setId("2")
+        prepareIndex(dataStreamName).setId("2")
             .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();

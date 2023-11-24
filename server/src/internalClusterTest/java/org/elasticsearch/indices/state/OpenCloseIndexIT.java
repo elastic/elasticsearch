@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -39,8 +38,7 @@ import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsClosed;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsOpened;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -263,7 +261,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         int docs = between(10, 100);
         IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];
         for (int i = 0; i < docs; i++) {
-            builder[i] = client().prepareIndex("test").setId("" + i).setSource("test", "init");
+            builder[i] = prepareIndex("test").setId("" + i).setSource("test", "init");
         }
         indexRandom(true, builder);
         if (randomBoolean()) {
@@ -274,9 +272,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         // check the index still contains the records that we indexed
         indicesAdmin().prepareOpen("test").execute().get();
         ensureGreen();
-        SearchResponse searchResponse = prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, docs);
+        assertHitCountAndNoFailures(prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")), docs);
     }
 
     public void testOpenCloseIndexWithBlocks() {
@@ -285,7 +281,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("test", "init").get();
+            prepareIndex("test").setId("" + i).setSource("test", "init").get();
         }
 
         for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
@@ -341,7 +337,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         final int nbDocs = randomIntBetween(0, 50);
         int uncommittedOps = 0;
         for (long i = 0; i < nbDocs; i++) {
-            final DocWriteResponse indexResponse = client().prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
+            final DocWriteResponse indexResponse = prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
             assertThat(indexResponse.status(), is(RestStatus.CREATED));
 
             if (rarely()) {

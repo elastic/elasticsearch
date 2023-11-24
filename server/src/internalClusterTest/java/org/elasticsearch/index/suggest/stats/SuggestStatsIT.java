@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -28,6 +27,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -66,16 +66,22 @@ public class SuggestStatsIT extends ESIntegTestCase {
 
         long startTime = System.currentTimeMillis();
         for (int i = 0; i < suggestAllIdx; i++) {
-            SearchResponse suggestResponse = addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch(), i).get();
-            assertAllSuccessful(suggestResponse);
+            assertResponse(
+                addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch(), i),
+                response -> assertAllSuccessful(response)
+            );
         }
         for (int i = 0; i < suggestIdx1; i++) {
-            SearchResponse suggestResponse = addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch("test1"), i).get();
-            assertAllSuccessful(suggestResponse);
+            assertResponse(
+                addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch("test1"), i),
+                response -> assertAllSuccessful(response)
+            );
         }
         for (int i = 0; i < suggestIdx2; i++) {
-            SearchResponse suggestResponse = addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch("test2"), i).get();
-            assertAllSuccessful(suggestResponse);
+            assertResponse(
+                addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch("test2"), i),
+                response -> assertAllSuccessful(response)
+            );
         }
         long endTime = System.currentTimeMillis();
 

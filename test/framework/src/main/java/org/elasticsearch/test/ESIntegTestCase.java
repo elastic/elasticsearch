@@ -521,16 +521,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
         TestCluster testCluster = clusters.remove(clazz); // remove this cluster first
         clearClusters(); // all leftovers are gone by now... this is really just a double safety if we miss something somewhere
         switch (currentClusterScope) {
-            case SUITE:
+            case SUITE -> {
                 if (testCluster == null) { // only build if it's not there yet
                     testCluster = buildWithPrivateContext(currentClusterScope, seed);
                 }
-                break;
-            case TEST:
+            }
+            case TEST -> {
                 // close the previous one and create a new one
-                IOUtils.closeWhileHandlingException(testCluster);
+                if (testCluster != null) {
+                    IOUtils.closeWhileHandlingException(testCluster::close);
+                }
                 testCluster = buildTestCluster(currentClusterScope, seed);
-                break;
+            }
         }
         clusters.put(clazz, testCluster);
         return testCluster;
@@ -538,7 +540,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static void clearClusters() throws Exception {
         if (clusters.isEmpty() == false) {
-            IOUtils.close(clusters.values());
+            IOUtils.close(CloseableTestClusterWrapper.wrap(clusters.values()));
             clusters.clear();
         }
         if (restClient != null) {
@@ -1387,6 +1389,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         NetworkDisruption.ensureFullyConnectedCluster(internalCluster());
     }
 
+    protected static IndexRequestBuilder prepareIndex(String index) {
+        return client().prepareIndex(index);
+    }
+
     /**
      * Syntactic sugar for:
      * <pre>
@@ -1394,7 +1400,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * </pre>
      */
     protected final DocWriteResponse index(String index, XContentBuilder source) {
-        return client().prepareIndex(index).setSource(source).get();
+        return prepareIndex(index).setSource(source).get();
     }
 
     /**
@@ -1404,7 +1410,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * </pre>
      */
     protected final DocWriteResponse index(String index, String id, Map<String, Object> source) {
-        return client().prepareIndex(index).setId(id).setSource(source).get();
+        return prepareIndex(index).setId(id).setSource(source).get();
     }
 
     /**
@@ -1414,7 +1420,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * </pre>
      */
     protected final DocWriteResponse index(String index, String id, XContentBuilder source) {
-        return client().prepareIndex(index).setId(id).setSource(source).get();
+        return prepareIndex(index).setId(id).setSource(source).get();
     }
 
     /**
@@ -1424,7 +1430,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * </pre>
      */
     protected final DocWriteResponse indexDoc(String index, String id, Object... source) {
-        return client().prepareIndex(index).setId(id).setSource(source).get();
+        return prepareIndex(index).setId(id).setSource(source).get();
     }
 
     /**
@@ -1436,7 +1442,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * where source is a JSON String.
      */
     protected final DocWriteResponse index(String index, String id, String source) {
-        return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).get();
+        return prepareIndex(index).setId(id).setSource(source, XContentType.JSON).get();
     }
 
     /**
@@ -1547,7 +1553,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public void indexRandom(boolean forceRefresh, String index, int numDocs) throws InterruptedException {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(index).setSource("field", "value");
+            builders[i] = prepareIndex(index).setSource("field", "value");
         }
         indexRandom(forceRefresh, Arrays.asList(builders));
     }
@@ -1630,7 +1636,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 String index = RandomPicks.randomFrom(random, indices);
                 bogusIds.add(Arrays.asList(index, id));
                 // We configure a routing key in case the mapping requires it
-                builders.add(client().prepareIndex().setIndex(index).setId(id).setSource("{}", XContentType.JSON).setRouting(id));
+                builders.add(prepareIndex(index).setId(id).setSource("{}", XContentType.JSON).setRouting(id));
             }
         }
         Collections.shuffle(builders, random());

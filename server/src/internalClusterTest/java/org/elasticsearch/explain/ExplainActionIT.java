@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
@@ -175,8 +176,10 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getExplanation().getValue(), equalTo(1.0f));
         assertThat(response.getGetResult().isExists(), equalTo(true));
         assertThat(response.getGetResult().getId(), equalTo("1"));
-        assertThat(response.getGetResult().getSource().size(), equalTo(1));
-        assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
+        GetResult documentFields12 = response.getGetResult();
+        assertThat(documentFields12.sourceAsMap().size(), equalTo(1));
+        GetResult documentFields11 = response.getGetResult();
+        assertThat(((Map<String, Object>) documentFields11.sourceAsMap().get("obj1")).get("field1").toString(), equalTo("value1"));
 
         response = client().prepareExplain(indexOrAlias(), "1")
             .setQuery(QueryBuilders.matchAllQuery())
@@ -184,7 +187,8 @@ public class ExplainActionIT extends ESIntegTestCase {
             .get();
         assertNotNull(response);
         assertTrue(response.isMatch());
-        assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
+        GetResult documentFields1 = response.getGetResult();
+        assertThat(((Map<String, Object>) documentFields1.sourceAsMap().get("obj1")).get("field1").toString(), equalTo("value1"));
     }
 
     public void testExplainWithFilteredAlias() {
@@ -227,8 +231,10 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getGetResult(), notNullValue());
         assertThat(response.getGetResult().getIndex(), equalTo("test"));
         assertThat(response.getGetResult().getId(), equalTo("1"));
-        assertThat(response.getGetResult().getSource(), notNullValue());
-        assertThat(response.getGetResult().getSource().get("field1"), equalTo("value1"));
+        GetResult documentFields11 = response.getGetResult();
+        assertThat(documentFields11.sourceAsMap(), notNullValue());
+        GetResult documentFields1 = response.getGetResult();
+        assertThat(documentFields1.sourceAsMap().get("field1"), equalTo("value1"));
     }
 
     public void testExplainDateRangeInQueryString() {

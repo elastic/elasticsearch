@@ -88,6 +88,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             cancellableClient.execute(MultiSearchAction.INSTANCE, multiSearchRequest, new RestChunkedToXContentListener<>(channel) {
                 @Override
                 protected void processResponse(MultiSearchResponse items) throws IOException {
+                    items.incRef();
                     channel.sendResponse(
                         RestResponse.chunked(
                             getRestStatus(items),

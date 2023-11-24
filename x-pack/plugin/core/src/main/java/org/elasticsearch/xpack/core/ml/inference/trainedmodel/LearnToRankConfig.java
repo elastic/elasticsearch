@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -17,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
@@ -91,6 +93,18 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
         return featureExtractorBuilders;
     }
 
+    public List<QueryExtractorBuilder> getQueryFeatureExtractorBuilders() {
+        List<QueryExtractorBuilder> queryExtractorBuilders = new ArrayList<>();
+        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : getFeatureExtractorBuilders()) {
+            if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
+                queryExtractorBuilders.add(queryExtractorBuilder);
+            }
+        }
+
+        return queryExtractorBuilders;
+    }
+
+
     @Override
     public String getResultsField() {
         return DEFAULT_RESULTS_FIELD;
@@ -161,6 +175,11 @@ public class LearnToRankConfig extends RegressionConfig implements Rewriteable<L
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), featureExtractorBuilders);
+    }
+
+    @Override
+    public final String toString() {
+        return Strings.toString(this);
     }
 
     @Override

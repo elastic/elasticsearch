@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.inference.ltr;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -37,11 +39,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_CONFIG_QUERY_BAD_FORMAT;
 
 public class LearnToRankService {
+    private static final Map<String, String> SCRIPT_OPTIONS = Map.ofEntries(
+        entry(Script.DETECT_MISSING_PARAMS_OPTION, Boolean.TRUE.toString())
+    );
     private final ModelLoadingService modelLoadingService;
     private final TrainedModelProvider trainedModelProvider;
     private final ScriptService scriptService;
@@ -171,17 +177,21 @@ public class LearnToRankService {
             return queryExtractorBuilder;
         }
 
-        Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, templateSource, Collections.emptyMap());
-        String parsedTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(params).execute();
-        System.out.println(templateSource);
-        System.out.println(parsedTemplate);
-        // TODO: handle missing params.
-        XContentParser parser = XContentType.JSON.xContent().createParser(parserConfiguration, parsedTemplate);
+        try {
+            Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, templateSource, SCRIPT_OPTIONS, Collections.emptyMap());
+            String parsedTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(params).execute();
+            XContentParser parser = XContentType.JSON.xContent().createParser(parserConfiguration, parsedTemplate);
 
-        return new QueryExtractorBuilder(
-            queryExtractorBuilder.featureName(),
-            QueryProvider.fromXContent(parser, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT)
-        );
+            return new QueryExtractorBuilder(
+                queryExtractorBuilder.featureName(),
+                QueryProvider.fromXContent(parser, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT)
+            );
+        } catch (GeneralScriptException e) {
+            return new QueryExtractorBuilder(
+                queryExtractorBuilder.featureName(),
+                QueryProvider.fromParsedQuery(new MatchNoneQueryBuilder())
+            );
+        }
     }
 
     private String templateSource(QueryProvider queryProvider) throws IOException {

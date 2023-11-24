@@ -19,6 +19,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -26,6 +27,7 @@ import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,6 +49,9 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 import static org.hamcrest.Matchers.equalTo;
 
+@SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+// Need to set up a new cluster for each test because cluster settings use randomized authentication settings
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTests {
 
     private final Queue<RestStatus> errorStatusQueue = new LinkedBlockingQueue<>();
@@ -154,7 +159,6 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_COUNT, Operation.DELETE_OBJECTS), equalTo(0L));
         assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.DELETE_OBJECTS), equalTo(0L));
         assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.DELETE_OBJECTS), equalTo(0L));
-
     }
 
     private void addErrorStatus(RestStatus... statuses) {

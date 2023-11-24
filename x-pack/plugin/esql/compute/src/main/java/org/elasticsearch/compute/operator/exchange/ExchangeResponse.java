@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public final class ExchangeResponse extends TransportResponse implements Releasable {
-    private final RefCounted counted = AbstractRefCounted.of(this::close);
+    private final RefCounted counted = AbstractRefCounted.of(this::closeInternal);
     private final Page page;
     private final boolean finished;
     private boolean pageTaken;
@@ -98,6 +98,10 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
 
     @Override
     public void close() {
+        counted.decRef();
+    }
+
+    private void closeInternal() {
         if (pageTaken == false && page != null) {
             page.releaseBlocks();
         }

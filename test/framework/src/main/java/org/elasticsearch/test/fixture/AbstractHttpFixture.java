@@ -65,8 +65,7 @@ public abstract class AbstractHttpFixture extends ExternalResource {
         this.workingDirectory = PathUtils.get(Objects.requireNonNull(workingDir));
     }
 
-    public AbstractHttpFixture() {
-    }
+    public AbstractHttpFixture() {}
 
     /**
      * Opens a {@link HttpServer} and start listening on a provided or random port.
@@ -166,7 +165,7 @@ public abstract class AbstractHttpFixture extends ExternalResource {
     protected abstract Response handle(Request request) throws IOException;
 
     protected void stop() {
-        if(httpServer != null) {
+        if (httpServer != null) {
             httpServer.stop(0);
         }
     }

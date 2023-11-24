@@ -2064,13 +2064,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (responseData.get("nodes_features") instanceof List<?> nodesFeatures) {
             return nodesFeatures.stream()
                 .map(Map.class::cast)
-                .collect(Collectors.toUnmodifiableMap(
-                    nodeFeatureMap -> nodeFeatureMap.get("node_id").toString(),
-                    nodeFeatureMap -> {
-                        @SuppressWarnings("unchecked")
-                        var nodeFeatures = (List<String>) nodeFeatureMap.get("features");
-                        return new HashSet<>(nodeFeatures);
-                    }));
+                .collect(Collectors.toUnmodifiableMap(nodeFeatureMap -> nodeFeatureMap.get("node_id").toString(), nodeFeatureMap -> {
+                    @SuppressWarnings("unchecked")
+                    var nodeFeatures = (List<String>) nodeFeatureMap.get("features");
+                    return new HashSet<>(nodeFeatures);
+                }));
         }
         return Map.of();
     }

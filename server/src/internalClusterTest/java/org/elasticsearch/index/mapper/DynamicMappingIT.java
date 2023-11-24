@@ -296,6 +296,12 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
     }
 
+    public void testIgnoreDynamicBeyondLimitSingleMultiField() throws Exception {
+        var fields = indexIgnoreDynamicBeyond(1, orderedMap("field1", "text")).getFields();
+        assertThat(fields.keySet(), equalTo(Set.of("_ignored")));
+        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field1")));
+    }
+
     public void testIgnoreDynamicBeyondLimitMultiField() throws Exception {
         var fields = indexIgnoreDynamicBeyond(2, orderedMap("field1", 1, "field2", "text")).getFields();
         assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));

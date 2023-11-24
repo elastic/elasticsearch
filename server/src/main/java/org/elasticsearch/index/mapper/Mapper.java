@@ -38,6 +38,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
 
+        /**
+         * Returns the size this mapper counts against the {@linkplain MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING field limit}.
+         * <p>
+         * Needs to be in sync with {@link Mapper#mapperSize()} which is based on {@link Mapper#iterator()}
+         */
         public abstract int mapperSize();
     }
 
@@ -138,6 +143,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         return fieldTypeDeduplicator.computeIfAbsent(fieldType, Function.identity());
     }
 
+    /**
+     * Returns the size this mapper counts against the {@linkplain MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING field limit}.
+     * <p>
+     * Needs to be in sync with {@link Mapper.Builder#mapperSize()} and {@link MappingLookup#getTotalFieldsCount()}.
+     */
     public int mapperSize() {
         int size = 1;
         for (Mapper mapper : this) {

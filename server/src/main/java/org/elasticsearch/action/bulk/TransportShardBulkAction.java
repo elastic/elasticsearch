@@ -47,6 +47,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -64,6 +65,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -370,12 +372,21 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
 
             try {
-                primary.mapperService()
+                DocumentMapper merged = primary.mapperService()
                     .merge(
                         MapperService.SINGLE_MAPPING_NAME,
                         new CompressedXContent(result.getRequiredMappingUpdate()),
                         MapperService.MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT
                     );
+                CompressedXContent previousSource = Optional.ofNullable(primary.mapperService().documentMapper())
+                    .map(DocumentMapper::mappingSource)
+                    .orElse(null);
+                if (merged.mappingSource().equals(previousSource)) {
+                    // don't bother the master node if the mapping update is a noop
+                    // this may happen if there was a concurrent mapping update that added the same field
+                    context.resetForNoopMappingUpdateRetry();
+                    return true;
+                }
             } catch (Exception e) {
                 logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
                 assert result.getId() != null;

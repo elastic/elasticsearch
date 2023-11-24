@@ -61,6 +61,7 @@ class BulkPrimaryExecutionContext {
     private DocWriteRequest<?> requestToExecute;
     private BulkItemResponse executionResult;
     private int updateRetryCounter;
+    private boolean noopMappingUpdateRetry;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
@@ -89,6 +90,7 @@ class BulkPrimaryExecutionContext {
         updateRetryCounter = 0;
         requestToExecute = null;
         executionResult = null;
+        noopMappingUpdateRetry = false;
         assert assertInvariants(ItemProcessingState.INITIAL);
     }
 
@@ -191,9 +193,21 @@ class BulkPrimaryExecutionContext {
         resetForExecutionRetry();
     }
 
+    public void resetForNoopMappingUpdateRetry() {
+        assert assertInvariants(ItemProcessingState.TRANSLATED);
+        if (noopMappingUpdateRetry) {
+            // maybe we added more dynamic mappers in DocumentParserContext.addDynamicMapper than possible according to the field limit
+            throw new IllegalStateException(
+                "On retry, this indexing request resulted in another noop mapping update. "
+                    + "Failing the indexing operation to prevent an infinite retry loop."
+            );
+        }
+        noopMappingUpdateRetry = true;
+        resetForExecutionRetry();
+    }
+
     /** resets the current item state, prepare for a new execution */
     private void resetForExecutionRetry() {
-        assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE, ItemProcessingState.EXECUTED);
         currentItemState = ItemProcessingState.INITIAL;
         requestToExecute = null;
         executionResult = null;

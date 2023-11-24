@@ -38,28 +38,25 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref ipRef = ip.eval(page)) {
-      BytesRefBlock ipBlock = (BytesRefBlock) ipRef.block();
-      Block.Ref[] cidrsRefs = new Block.Ref[cidrs.length];
-      try (Releasable cidrsRelease = Releasables.wrap(cidrsRefs)) {
-        BytesRefBlock[] cidrsBlocks = new BytesRefBlock[cidrs.length];
+  public Block eval(Page page) {
+    try (BytesRefBlock ipBlock = (BytesRefBlock) ip.eval(page)) {
+      BytesRefBlock[] cidrsBlocks = new BytesRefBlock[cidrs.length];
+      try (Releasable cidrsRelease = Releasables.wrap(cidrsBlocks)) {
         for (int i = 0; i < cidrsBlocks.length; i++) {
-          cidrsRefs[i] = cidrs[i].eval(page);
-          cidrsBlocks[i] = (BytesRefBlock) cidrsRefs[i].block();
+          cidrsBlocks[i] = (BytesRefBlock)cidrs[i].eval(page);
         }
         BytesRefVector ipVector = ipBlock.asVector();
         if (ipVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), ipBlock, cidrsBlocks));
+          return eval(page.getPositionCount(), ipBlock, cidrsBlocks);
         }
         BytesRefVector[] cidrsVectors = new BytesRefVector[cidrs.length];
         for (int i = 0; i < cidrsBlocks.length; i++) {
           cidrsVectors[i] = cidrsBlocks[i].asVector();
           if (cidrsVectors[i] == null) {
-            return Block.Ref.floating(eval(page.getPositionCount(), ipBlock, cidrsBlocks));
+            return eval(page.getPositionCount(), ipBlock, cidrsBlocks);
           }
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), ipVector, cidrsVectors).asBlock());
+        return eval(page.getPositionCount(), ipVector, cidrsVectors).asBlock();
       }
     }
   }

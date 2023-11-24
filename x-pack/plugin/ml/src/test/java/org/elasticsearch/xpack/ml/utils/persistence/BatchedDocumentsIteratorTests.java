@@ -140,9 +140,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ActionListener<ClearScrollResponse> listener = (ActionListener<ClearScrollResponse>) invocationOnMock.getArguments()[2];
             wasScrollCleared = true;
-            var clearScrollResponse = mock(ClearScrollResponse.class);
-            when(clearScrollResponse.hasReferences()).thenReturn(true);
-            listener.onResponse(clearScrollResponse);
+            listener.onResponse(mock(ClearScrollResponse.class));
             return null;
         }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(), any());
     }
@@ -173,7 +171,6 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
         protected SearchResponse createSearchResponseWithHits(String... hits) {
             SearchHits searchHits = createHits(hits);
             SearchResponse searchResponse = mock(SearchResponse.class);
-            when(searchResponse.hasReferences()).thenReturn(true);
             when(searchResponse.getScrollId()).thenReturn(SCROLL_ID);
             when(searchResponse.getHits()).thenReturn(searchHits);
             return searchResponse;

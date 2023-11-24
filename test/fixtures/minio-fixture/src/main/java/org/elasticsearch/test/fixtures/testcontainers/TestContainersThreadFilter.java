@@ -10,6 +10,10 @@ package org.elasticsearch.test.fixtures.testcontainers;
 
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 
+/**
+ * test container spawns extra threads, which causes our thread leak
+ * detection to fail. Filter these threads out since we can't clean them up.
+ */
 public class TestContainersThreadFilter implements ThreadFilter {
     @Override
     public boolean reject(Thread t) {

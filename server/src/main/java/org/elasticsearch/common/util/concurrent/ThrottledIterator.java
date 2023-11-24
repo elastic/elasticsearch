@@ -88,7 +88,7 @@ public class ThrottledIterator<T> implements Releasable {
                 }
             }
             try (var itemRefs = new ItemRefCounted()) {
-                itemRefs.incRef();
+                itemRefs.mustIncRef();
                 itemConsumer.accept(Releasables.releaseOnce(itemRefs::decRef), item);
             } catch (Exception e) {
                 logger.error(Strings.format("exception when processing [%s] with [%s]", item, itemConsumer), e);
@@ -108,7 +108,7 @@ public class ThrottledIterator<T> implements Releasable {
         private boolean isRecursive = true;
 
         ItemRefCounted() {
-            refs.incRef();
+            refs.mustIncRef();
         }
 
         @Override

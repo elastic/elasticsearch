@@ -137,12 +137,11 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
 
     @Override
     public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
-        // TODO unconditionally enable parallelism when ordered by key instead of count as precision is not affected
         /*
-        if (InternalOrder.isKeyOrder(order)) {
-            return true;
-        }
-        */
+         * we parallelize only if the cardinality of the field is lower than shard size, this is to minimize precision issues.
+         * When ordered by term, we still take cardinality into account to avoid overhead that concurrency may cause against
+         * high cardinality fields.
+         */
         if (script() == null
             && (executionHint == null || executionHint.equals(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString()))) {
             long cardinality = fieldCardinalityResolver.applyAsLong(field());

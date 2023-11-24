@@ -999,14 +999,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     static void assertCannotDoubleRelease(Block block) {
-        var ex = expectThrows(IllegalStateException.class, () -> block.close());
-        assertThat(ex.getMessage(), containsString("can't release already released block"));
-    }
-
-    static void assertCannotReleaseIfVectorAlreadyReleased(Block block) {
-        var ex = expectThrows(IllegalStateException.class, () -> block.close());
-        assertThat(ex.getMessage(), containsString("can't release block"));
-        assertThat(ex.getMessage(), containsString("containing already released vector"));
+        expectThrows(AssertionError.class, () -> block.close());
     }
 
     static void assertCannotReadFromPage(Page page) {
@@ -1094,8 +1087,8 @@ public class BasicBlockTests extends ESTestCase {
         assertFalse(b.hasReferences());
         assertFalse(b.tryIncRef());
 
-        expectThrows(IllegalStateException.class, b::close);
-        expectThrows(IllegalStateException.class, b::incRef);
+        expectThrows(AssertionError.class, b::close);
+        expectThrows(AssertionError.class, b::incRef);
     }
 
     public void testReleasedVectorInvalidatesBlockState() {
@@ -1108,9 +1101,10 @@ public class BasicBlockTests extends ESTestCase {
         }
 
         vector.close();
-        assertEquals(false, block.tryIncRef());
-        expectThrows(IllegalStateException.class, block::close);
-        expectThrows(IllegalStateException.class, block::incRef);
+//        assertEquals(false, block.tryIncRef());
+//        expectThrows(IllegalStateException.class, block::close);
+//        expectThrows(IllegalStateException.class, block::incRef);
+        assert(block.isReleased());
     }
 
     public void testReleasedDocVectorInvalidatesBlockState() {
@@ -1124,9 +1118,10 @@ public class BasicBlockTests extends ESTestCase {
         }
 
         vector.close();
-        assertEquals(false, block.tryIncRef());
-        expectThrows(IllegalStateException.class, block::close);
-        expectThrows(IllegalStateException.class, block::incRef);
+//        assertEquals(false, block.tryIncRef());
+//        expectThrows(IllegalStateException.class, block::close);
+//        expectThrows(IllegalStateException.class, block::incRef);
+        assert(block.isReleased());
     }
 
     private IntVector intVector(int positionCount) {

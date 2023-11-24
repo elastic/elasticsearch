@@ -188,7 +188,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         StringBuilder description = new StringBuilder("a time series document");
         IndexableField tsidField = context.doc().getField(TimeSeriesIdFieldMapper.NAME);
         if (tsidField != null) {
-            description.append(" with dimensions ").append(tsidDescription(tsidField));
+            description.append(" with tsid ").append(tsidDescription(tsidField));
         }
         IndexableField timestampField = context.doc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampField != null) {

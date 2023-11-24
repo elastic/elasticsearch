@@ -127,11 +127,7 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
         if (hasText(AUTH_USER) && hasText(AUTH_PASS)) {
             connectionProperties.put("user", AUTH_USER);
             connectionProperties.put("password", AUTH_PASS);
-        } else if (hasText(System.getProperty("tests.rest.cluster.username"))
-            && hasText(System.getProperty("tests.rest.cluster.password"))) {
-                connectionProperties.put("user", System.getProperty("tests.rest.cluster.username"));
-                connectionProperties.put("password", System.getProperty("tests.rest.cluster.password"));
-            }
+        }
         return connectionProperties;
     }
 

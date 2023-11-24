@@ -18,7 +18,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
+import static org.elasticsearch.xpack.sql.qa.rest.RemoteClusterAwareSqlRestTestCase.AUTH_PASS;
+import static org.elasticsearch.xpack.sql.qa.rest.RemoteClusterAwareSqlRestTestCase.AUTH_USER;
 
 public abstract class CliIntegrationTestCase extends ESRestTestCase {
     /**
@@ -53,12 +56,10 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
      * Override to add security configuration to the cli.
      */
     protected SecurityConfig securityConfig() {
-        if (System.getProperty("tests.rest.cluster.username") != null) {
-            String username = System.getProperty("tests.rest.cluster.username");
-            String password = System.getProperty("tests.rest.cluster.password");
-
-            return new SecurityConfig(false, username, password, null, null);
+        if (hasText(AUTH_USER) && hasText(AUTH_PASS)) {
+            return new SecurityConfig(false, AUTH_USER, AUTH_PASS, null, null);
         }
+
         return null;
     }
 

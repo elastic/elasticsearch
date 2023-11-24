@@ -160,13 +160,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.executor = executor;
         this.request = request;
         this.task = task;
-        this.listener = ActionListener.runAfter(listener, this::releaseContext);
+        this.listener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
         this.minTransportVersion = clusterState.getMinTransportVersion();
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
+        // register the release of the query consumer to free up the circuit breaker memory
+        // at the end of the search
+        addReleasable(resultConsumer::decRef);
         this.clusters = clusters;
     }
 
@@ -187,10 +190,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public void addReleasable(Releasable releasable) {
         releasables.add(releasable);
-    }
-
-    public void releaseContext() {
-        Releasables.close(releasables);
     }
 
     /**
@@ -260,7 +259,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (it.getTargetNodeIds().isEmpty() == false) {
                 boolean isCompatible = it.getTargetNodeIds().stream().anyMatch(nodeId -> {
                     Transport.Connection conn = getConnection(it.getClusterAlias(), nodeId);
-                    return conn == null ? true : conn.getVersion().onOrAfter(request.minCompatibleShardNode());
+                    return conn == null || conn.getNode().getVersion().onOrAfter(request.minCompatibleShardNode());
                 });
                 if (isCompatible == false) {
                     return false;
@@ -746,7 +745,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
         Transport.Connection conn = nodeIdToConnection.apply(clusterAlias, nodeId);
         Version minVersion = request.minCompatibleShardNode();
-        if (minVersion != null && conn != null && conn.getVersion().before(minVersion)) {
+        if (minVersion != null && conn != null && conn.getNode().getVersion().before(minVersion)) {
             throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]", minVersion);
         }
         return conn;

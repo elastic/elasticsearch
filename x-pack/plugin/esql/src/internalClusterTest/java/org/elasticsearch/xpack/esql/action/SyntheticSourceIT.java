@@ -36,7 +36,7 @@ public class SyntheticSourceIT extends AbstractEsqlIntegTestCase {
 
         int numDocs = between(10, 1000);
         for (int i = 0; i < numDocs; i++) {
-            IndexRequestBuilder indexRequest = client().prepareIndex("test").setSource("id", "i" + i, "field", "n" + i);
+            IndexRequestBuilder indexRequest = prepareIndex("test").setSource("id", "i" + i, "field", "n" + i);
             if (randomInt(100) < 5) {
                 indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             }

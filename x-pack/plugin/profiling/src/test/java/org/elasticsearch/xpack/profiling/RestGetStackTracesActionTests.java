@@ -48,7 +48,7 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 0,
-                1.0,
+                1.0d,
                 0
             );
         });
@@ -74,7 +74,7 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 0,
-                0.0,
+                0.0d,
                 0
             );
         });
@@ -83,6 +83,7 @@ public class RestGetStackTracesActionTests extends RestActionTestCase {
             .withContent(new BytesArray("""
                             {
                               "sample_size": 10000,
+                              "requested_duration": 3600,
                               "query": {
                                 "bool": {
                                   "filter": [

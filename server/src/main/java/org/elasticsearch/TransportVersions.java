@@ -9,6 +9,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -47,6 +48,7 @@ public class TransportVersions {
         return new TransportVersion(id);
     }
 
+    @UpdateForV9 // remove the transport versions with which v9 will not need to interact
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
     public static final TransportVersion V_7_0_1 = def(7_00_01_99);
@@ -173,7 +175,14 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_OPENAI_ADDED = def(8_542_00_0);
     public static final TransportVersion SHUTDOWN_MIGRATION_STATUS_INCLUDE_COUNTS = def(8_543_00_0);
     public static final TransportVersion TRANSFORM_GET_CHECKPOINT_QUERY_AND_CLUSTER_ADDED = def(8_544_00_0);
-    public static final TransportVersion VECTOR_OPS_COUNT_ADDED = def(8_545_00_0);
+    public static final TransportVersion GRANT_API_KEY_CLIENT_AUTHENTICATION_ADDED = def(8_545_00_0);
+    public static final TransportVersion PIT_WITH_INDEX_FILTER = def(8_546_00_0);
+
+    /*
+     * Transport versions added for features that require the next lucene minor version.
+     * Their id needs to be adjusted prior to merging lucene_snapshot into main.
+     */
+    public static final TransportVersion VECTOR_OPS_COUNT_ADDED = def(8_900_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

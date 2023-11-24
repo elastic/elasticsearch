@@ -497,8 +497,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 startNanos,
                 pendingCommit,
                 listener.delegateFailure((l, commit) -> {
-                    uploadedFileCount.getAndAdd(pendingCommit.getInternalFiles().size());
-                    uploadedFileBytes.getAndAdd(pendingCommit.getInternalFilesLength());
+                    for (String internalFile : pendingCommit.getInternalFiles()) {
+                        uploadedFileCount.getAndIncrement();
+                        uploadedFileBytes.getAndAdd(commitFilesToLength.get().get(internalFile));
+                        shardCommitState.markFileUploaded(internalFile, commit.commitFiles().get(internalFile));
+                    }
                     shardCommitState.markCommitUploaded(commit);
                     final long end = threadPool.relativeTimeInNanos();
                     logger.debug(
@@ -639,28 +642,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.allocationPrimaryTerm = allocationPrimaryTerm;
         }
 
-        private boolean assertBlobLocations(
-            String fileName,
-            CommitAndBlobLocation current,
-            BlobLocation blobLocation,
-            BlobReference blobReference
-        ) {
+        public void markFileUploaded(String fileName, BlobLocation blobLocation) {
+            assert isDeleted == false : "shard " + shardId + " is deleted when trying to mark uploaded file " + blobLocation;
+            blobLocations.compute(fileName, (ignored, commitAndBlobLocation) -> {
+                assert commitAndBlobLocation != null : fileName;
+                assert assertBlobLocations(fileName, commitAndBlobLocation, blobLocation);
+                return new CommitAndBlobLocation(commitAndBlobLocation.blobReference, blobLocation);
+            });
+        }
+
+        private boolean assertBlobLocations(String fileName, CommitAndBlobLocation current, BlobLocation uploaded) {
             if (current.blobLocation != null) {
                 assert isGenerationalFile(fileName) : fileName + ':' + current;
-                assert current.blobReference() != blobReference
-                    : "expected different instances but got " + current.blobReference() + " == " + blobReference;
-                assert current.blobLocation.compoundFileGeneration() < blobLocation.compoundFileGeneration()
-                    : fileName + ':' + current + " vs " + blobLocation;
-                assert blobLocation.primaryTerm() == blobReference.getPrimaryTermAndGeneration().primaryTerm()
-                    : blobLocation + " vs " + blobReference.getPrimaryTermAndGeneration();
-                assert blobLocation.compoundFileGeneration() == blobReference.getPrimaryTermAndGeneration().generation()
-                    : blobLocation + " vs " + blobReference.getPrimaryTermAndGeneration();
+                assert current.blobLocation.compoundFileGeneration() < uploaded.compoundFileGeneration()
+                    : fileName + ':' + current + " vs " + uploaded;
                 return true;
             }
-            assert current.blobReference() == blobReference
-                : "expected the exact same instance but " + current.blobReference() + " != " + blobReference;
-            assert current.blobReference().getPrimaryTermAndGeneration().generation() == blobLocation.compoundFileGeneration()
-                : fileName + ':' + current + " vs " + blobLocation;
+            assert current.blobReference().getPrimaryTermAndGeneration().generation() == uploaded.compoundFileGeneration()
+                : fileName + ':' + current + " vs " + uploaded;
             return true;
         }
 
@@ -873,21 +872,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         public void markCommitUploaded(StatelessCompoundCommit commit) {
-            assert isDeleted == false : "shard " + shardId + " is deleted when trying to mark commit as uploaded " + commit;
-
-            // resolve the BlobReference again after the file is uploaded because it may have been included in the commit we just uploaded
-            final var blobReference = blobReferences.get(new PrimaryTermAndGeneration(commit.primaryTerm(), commit.generation()));
-
-            // mark internal files as uploaded
-            for (String internalFile : commit.getInternalFiles()) {
-                var blobLocation = commit.commitFiles().get(internalFile);
-                blobLocations.compute(internalFile, (ignored, current) -> {
-                    assert current != null : internalFile;
-                    assert assertBlobLocations(internalFile, current, blobLocation, blobReference);
-                    return new CommitAndBlobLocation(blobReference, blobLocation);
-                });
-            }
-
             boolean removed = pendingUploadGenerations.remove(commit.generation());
             assert removed;
             handleUploadedCommit(commit);

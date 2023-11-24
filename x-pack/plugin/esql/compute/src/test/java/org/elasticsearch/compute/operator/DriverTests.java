@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DriverTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101095")
     public void testThreadContext() throws Exception {
         DriverContext driverContext = driverContext();
         int asyncActions = randomIntBetween(0, 5);

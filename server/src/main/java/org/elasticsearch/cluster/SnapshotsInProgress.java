@@ -1696,11 +1696,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final SnapshotsInProgress after;
 
         private final DiffableUtils.MapDiff<String, ByRepo, Map<String, ByRepo>> mapDiff;
-        private final Set<String> nodeIdsMarkedForRemoval;
+        private final Set<String> nodeIdsForRemoval;
 
         SnapshotInProgressDiff(SnapshotsInProgress before, SnapshotsInProgress after) {
             this.mapDiff = DiffableUtils.diff(before.entries, after.entries, DiffableUtils.getStringKeySerializer());
-            this.nodeIdsMarkedForRemoval = after.nodesIdsForRemoval;
+            this.nodeIdsForRemoval = after.nodesIdsForRemoval;
             this.after = after;
         }
 
@@ -1714,14 +1714,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), ByRepo.INT_DIFF_VALUE_SERIALIZER)
                 )
             );
-            this.nodeIdsMarkedForRemoval = readNodeIdsForRemoval(in);
+            this.nodeIdsForRemoval = readNodeIdsForRemoval(in);
             this.after = null;
         }
 
         @Override
         public SnapshotsInProgress apply(Custom part) {
             final var snapshotsInProgress = (SnapshotsInProgress) part;
-            return new SnapshotsInProgress(mapDiff.apply(snapshotsInProgress.entries), this.nodeIdsMarkedForRemoval);
+            return new SnapshotsInProgress(mapDiff.apply(snapshotsInProgress.entries), this.nodeIdsForRemoval);
         }
 
         @Override
@@ -1743,9 +1743,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 new SimpleDiffable.CompleteDiff<>(after).writeTo(out);
             }
             if (out.getTransportVersion().onOrAfter(SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED)) {
-                out.writeStringCollection(nodeIdsMarkedForRemoval);
+                out.writeStringCollection(nodeIdsForRemoval);
             } else {
-                assert nodeIdsMarkedForRemoval.isEmpty() : nodeIdsMarkedForRemoval;
+                assert nodeIdsForRemoval.isEmpty() : nodeIdsForRemoval;
             }
         }
     }

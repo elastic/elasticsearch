@@ -1,5 +1,5 @@
 pr: 102492
-summary: Respect `ChunkedDataExtractor's` query in the wrapped `ScrollDataExtractor`
+summary: Ensure datafeed previews with no start or end time don't search the cold or frozen tiers
 area: Machine Learning
 type: bug
 issues: []

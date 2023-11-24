@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -115,7 +116,13 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchException("Failed to remove expired results for job [" + job.getId() + "]", e));
+                if (e instanceof ElasticsearchStatusException){
+                    listener.onFailure(new ElasticsearchStatusException("Failed to remove expired results for job [" + job.getId() + "]",
+                        ((ElasticsearchStatusException) e).status(),
+                        e));
+                } else {
+                    listener.onFailure(new ElasticsearchException("Failed to remove expired results for job [" + job.getId() + "]", e));
+                }
             }
         });
     }

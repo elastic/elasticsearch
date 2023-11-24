@@ -31,8 +31,8 @@ public class JwtAuthenticatorAccessTokenTypeTests extends JwtAuthenticatorTests 
 
     public void testAccessTokenTypeMandatesAllowedSubjects() {
         allowedSubject = null;
+        allowedSubjectPattern = null;
         final SettingsException e = expectThrows(SettingsException.class, () -> buildJwtAuthenticator());
-
         assertThat(
             e.getMessage(),
             containsString(

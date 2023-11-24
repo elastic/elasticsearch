@@ -134,7 +134,7 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("does not match allowed claim values"));
     }
 
-    public void testDoesNotSupportWildcardOrRegex() throws ParseException {
+    public void testValueAllowSettingDoesNotSupportWildcardOrRegex() throws ParseException {
         final String claimName = randomAlphaOfLengthBetween(10, 18);
         final String fallbackClaimName = randomAlphaOfLength(12);
         final String claimValue = randomFrom("*", "/.*/");
@@ -176,6 +176,57 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
             validator.validate(getJwsHeader(), validJwtClaimsSet);
         } catch (Exception e2) {
             throw new AssertionError("validation should have passed without exception", e2);
+        }
+    }
+
+    public void testSinglePatternSingleClaim() throws ParseException {
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
+        final String fallbackClaimName = randomAlphaOfLength(12);
+        final String claimPattern = randomFrom("a*", "/a.*/");
+        final JwtStringClaimValidator validator;
+        final JWTClaimsSet singleValueClaimSet;
+        final boolean noFallback = randomBoolean();
+        if (noFallback) {
+            validator = new JwtStringClaimValidator(claimName, randomBoolean(), List.of(), List.of(claimPattern));
+            singleValueClaimSet = JWTClaimsSet.parse(
+                Map.of(claimName, "a_claim", fallbackClaimName, randomFrom(List.of("invalid", "invalid2"), "invalid"), "something", "else")
+            );
+        } else {
+            validator = new JwtStringClaimValidator(
+                claimName,
+                randomBoolean(),
+                Map.of(claimName, fallbackClaimName),
+                List.of(),
+                List.of(claimPattern)
+            );
+            singleValueClaimSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, "a_fallback_claim", "something", "else"));
+        }
+        try {
+            validator.validate(getJwsHeader(), singleValueClaimSet);
+        } catch (Exception e) {
+            throw new AssertionError("validation should have passed without exception", e);
+        }
+        {
+            JWTClaimsSet invalidClaimSet = JWTClaimsSet.parse(
+                Map.of(claimName, "invalid", fallbackClaimName, randomFrom(List.of("a_claim", "a_claim2"), "a_claim"), "something", "else")
+            );
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> validator.validate(getJwsHeader(), invalidClaimSet)
+            );
+            assertThat(e.getMessage(), containsString("does not match allowed claim values"));
+        }
+        {
+            JWTClaimsSet invalidClaimSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, "invalid", "something", "else"));
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> validator.validate(getJwsHeader(), invalidClaimSet)
+            );
+            if (noFallback) {
+                assertThat(e.getMessage(), containsString("missing required string claim"));
+            } else {
+                assertThat(e.getMessage(), containsString("does not match allowed claim values"));
+            }
         }
     }
 

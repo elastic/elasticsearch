@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -49,6 +50,7 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
     protected String allowedIssuer;
     @Nullable
     protected String allowedSubject;
+    protected String allowedSubjectPattern;
     protected String allowedAudience;
     protected String fallbackSub;
     protected String fallbackAud;
@@ -63,10 +65,17 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         allowedAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC);
         if (getTokenType() == JwtRealmSettings.TokenType.ID_TOKEN) {
             allowedSubject = randomBoolean() ? randomAlphaOfLength(8) : null;
+            allowedSubjectPattern = randomBoolean() ? randomAlphaOfLength(8) : null;
             fallbackSub = null;
             fallbackAud = null;
         } else {
-            allowedSubject = randomAlphaOfLength(8);
+            if (randomBoolean()) {
+                allowedSubject = randomAlphaOfLength(8);
+                allowedSubjectPattern = randomBoolean() ? randomAlphaOfLength(8) : null;
+            } else {
+                allowedSubject = randomBoolean() ? randomAlphaOfLength(8) : null;
+                allowedSubjectPattern = randomAlphaOfLength(8);
+            }
             fallbackSub = randomBoolean() ? "_" + randomAlphaOfLength(5) : null;
             fallbackAud = randomBoolean() ? "_" + randomAlphaOfLength(8) : null;
         }
@@ -82,7 +91,7 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
                 "iss",
                 allowedIssuer,
                 "sub",
-                allowedSubject == null ? randomAlphaOfLengthBetween(10, 18) : allowedSubject,
+                getValidSubClaimValue(),
                 "aud",
                 allowedAudience,
                 requiredClaim.v1(),
@@ -120,7 +129,7 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
                 "iss",
                 allowedIssuer,
                 "sub",
-                allowedSubject == null ? randomAlphaOfLengthBetween(10, 18) : allowedSubject,
+                getValidSubClaimValue(),
                 "aud",
                 allowedAudience,
                 requiredClaim.v1(),
@@ -165,7 +174,7 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
                 "iss",
                 allowedIssuer,
                 "sub",
-                allowedSubject == null ? randomAlphaOfLengthBetween(10, 18) : allowedSubject,
+                getValidSubClaimValue(),
                 "aud",
                 allowedAudience,
                 "iat",
@@ -242,6 +251,12 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         );
     }
 
+    public void testInvalidAllowedSubjectClaimPattern() {
+        allowedSubjectPattern = "/invalid pattern";
+        final SettingsException e = expectThrows(SettingsException.class, () -> buildJwtAuthenticator());
+        assertThat(e.getMessage(), containsString("Invalid patterns for allowed claim values for [sub]."));
+    }
+
     protected JwtAuthenticator buildJwtAuthenticator() {
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(JwtRealmSettings.TYPE, realmName);
         final MockSecureSettings secureSettings = new MockSecureSettings();
@@ -256,6 +271,9 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
 
         if (allowedSubject != null) {
             builder.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS), allowedSubject);
+        }
+        if (allowedSubjectPattern != null) {
+            builder.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS), allowedSubjectPattern);
         }
 
         if (getTokenType() == JwtRealmSettings.TokenType.ID_TOKEN) {
@@ -301,5 +319,18 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         }).when(jwtAuthenticator).validateSignature(any(), any(), anyActionListener());
 
         return jwtAuthenticator;
+    }
+
+    private String getValidSubClaimValue() {
+        if (allowedSubject == null && allowedSubjectPattern == null) {
+            // any subject is valid
+            return randomAlphaOfLengthBetween(10, 18);
+        } else if (allowedSubject == null) {
+            return allowedSubjectPattern;
+        } else if (allowedSubjectPattern == null) {
+            return allowedSubject;
+        } else {
+            return randomFrom(allowedSubject, allowedSubjectPattern);
+        }
     }
 }

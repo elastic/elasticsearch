@@ -225,10 +225,12 @@ final class DefaultSearchContext extends SearchContext {
                 if (indexOrdinalsFieldData.supportsGlobalOrdinalsMapping()) {
                     IndexOrdinalsFieldData global = indexOrdinalsFieldData.loadGlobal(directoryReader);
                     OrdinalMap ordinalMap = global.getOrdinalMap();
-                    if (ordinalMap == null) {
+                    if (ordinalMap != null) {
+                        return ordinalMap.getValueCount();
+                    }
+                    if (directoryReader.leaves().size() > 0) {
                         return global.load(directoryReader.leaves().get(0)).getOrdinalsValues().getValueCount();
                     }
-                    return ordinalMap.getValueCount();
                 }
             }
         }

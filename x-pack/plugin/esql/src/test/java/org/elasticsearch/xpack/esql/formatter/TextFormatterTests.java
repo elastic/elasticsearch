@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.formatter;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
@@ -18,12 +17,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.ql.util.SpatialUtils;
 
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
+import static org.elasticsearch.xpack.esql.type.SpatialCoordinateTypes.Geo;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.arrayWithSize;
 
@@ -58,10 +57,7 @@ public class TextFormatterTests extends ESTestCase {
                         UTC_DATE_TIME_FORMATTER.parseMillis("2000-03-15T21:34:37.443Z") },
                     2
                 ).asBlock(),
-                new LongArrayVector(
-                    new long[] { SpatialUtils.geoPointAsLong(new GeoPoint(56, 12)), SpatialUtils.geoPointAsLong(new GeoPoint(26, -97)) },
-                    2
-                ).asBlock(),
+                new LongArrayVector(new long[] { Geo.pointAsLong(12, 56), Geo.pointAsLong(-97, 26) }, 2).asBlock(),
                 Block.constantNullBlock(2)
             )
         ),
@@ -123,12 +119,7 @@ public class TextFormatterTests extends ESTestCase {
                             UTC_DATE_TIME_FORMATTER.parseMillis("2231-12-31T23:59:59.999Z") },
                         2
                     ).asBlock(),
-                    new LongArrayVector(
-                        new long[] {
-                            SpatialUtils.geoPointAsLong(new GeoPoint(56, 12)),
-                            SpatialUtils.geoPointAsLong(new GeoPoint(26, -97)) },
-                        2
-                    ).asBlock(),
+                    new LongArrayVector(new long[] { Geo.pointAsLong(12, 56), Geo.pointAsLong(-97, 26) }, 2).asBlock(),
                     Block.constantNullBlock(2)
                 )
             ),

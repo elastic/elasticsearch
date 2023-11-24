@@ -30,12 +30,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.ql.util.SpatialUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.esql.type.SpatialCoordinateTypes.Geo;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
@@ -171,7 +171,7 @@ public record ColumnInfo(String name, String type) implements Writeable {
                     long encoded = (block instanceof LongVectorBlock)
                         ? ((LongVectorBlock) block).getLong(valueIndex) // needed for single-value fields
                         : ((LongArrayBlock) block).getLong(valueIndex); // needed when using multi-value fields
-                    String wkt = SpatialUtils.geoPointAsString(SpatialUtils.longAsGeoPoint(encoded));
+                    String wkt = Geo.pointAsString(Geo.longAsPoint(encoded));
                     return builder.value(wkt);
                 }
             };

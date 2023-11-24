@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -32,6 +32,8 @@ import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.esql.type.SpatialCoordinateTypes.Geo;
 
 public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarFunctionTestCase {
     /**
@@ -406,8 +408,8 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         BiFunction<Integer, LongStream, Matcher<Object>> matcher
     ) {
         cases.add(new TestCaseSupplier(name + "(geo_point)", List.of(EsqlDataTypes.GEO_POINT), () -> {
-            GeoPoint point = ESTestCase.randomGeoPoint();
-            long data = point.getEncoded();
+            SpatialPoint point = ESTestCase.randomGeoPoint();
+            long data = Geo.pointAsLong(point);
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(List.of(data), EsqlDataTypes.GEO_POINT, "field")),
                 evaluatorName + "[field=Attribute[channel=0]]",
@@ -417,7 +419,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
             cases.add(new TestCaseSupplier(name + "(<geo_points>) " + ordering, List.of(EsqlDataTypes.GEO_POINT), () -> {
-                List<Long> mvData = randomList(1, 100, () -> ESTestCase.randomGeoPoint().getEncoded());
+                List<Long> mvData = randomList(1, 100, () -> Geo.pointAsLong(ESTestCase.randomGeoPoint()));
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(mvData, EsqlDataTypes.GEO_POINT, "field")),

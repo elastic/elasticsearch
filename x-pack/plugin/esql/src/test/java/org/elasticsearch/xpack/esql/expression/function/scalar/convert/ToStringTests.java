@@ -18,12 +18,13 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.SpatialUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.esql.type.SpatialCoordinateTypes.Geo;
 
 public class ToStringTests extends AbstractFunctionTestCase {
     public ToStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -89,7 +90,7 @@ public class ToStringTests extends AbstractFunctionTestCase {
             suppliers,
             "ToStringFromGeoPointEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
-            i -> new BytesRef(SpatialUtils.geoPointAsString(SpatialUtils.longAsGeoPoint(i))),
+            i -> new BytesRef(Geo.pointAsString(Geo.longAsPoint(i))),
             List.of()
         );
         TestCaseSupplier.forUnaryIp(

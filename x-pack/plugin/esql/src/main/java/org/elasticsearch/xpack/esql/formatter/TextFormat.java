@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.esql.formatter;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
@@ -297,8 +297,8 @@ public enum TextFormat implements MediaType {
 
     private static String formatEsqlResultObject(Object obj) {
         // TODO: It would be nicer to override GeoPoint.toString() but that has consequences
-        if (obj instanceof GeoPoint geoPoint) {
-            return String.format(Locale.ROOT, "POINT (%.7f %.7f)", geoPoint.getX(), geoPoint.getY());
+        if (obj instanceof SpatialPoint point) {
+            return String.format(Locale.ROOT, "POINT (%.7f %.7f)", point.getX(), point.getY());
         }
         return Objects.toString(obj, StringUtils.EMPTY);
     }

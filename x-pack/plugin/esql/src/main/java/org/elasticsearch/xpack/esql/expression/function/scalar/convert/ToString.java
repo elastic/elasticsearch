@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.SpatialCoordinateTypes.Geo;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -34,8 +35,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.ql.util.SpatialUtils.geoPointAsString;
-import static org.elasticsearch.xpack.ql.util.SpatialUtils.longAsGeoPoint;
 
 public class ToString extends AbstractConvertFunction implements EvaluatorMapper {
 
@@ -125,6 +124,6 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @ConvertEvaluator(extraName = "FromGeoPoint")
     static BytesRef fromGeoPoint(long point) {
-        return new BytesRef(geoPointAsString(longAsGeoPoint(point)));
+        return new BytesRef(Geo.pointAsString(Geo.longAsPoint(point)));
     }
 }

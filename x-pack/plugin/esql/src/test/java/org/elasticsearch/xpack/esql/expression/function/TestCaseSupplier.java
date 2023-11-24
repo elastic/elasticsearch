@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.NumericUtils;
-import org.elasticsearch.xpack.ql.util.SpatialUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
@@ -37,6 +36,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
+import static org.elasticsearch.xpack.esql.type.SpatialCoordinateTypes.Geo;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -657,7 +657,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     private static List<TypedDataSupplier> geoPointCases() {
-        return List.of(new TypedDataSupplier("<geo_point>", () -> SpatialUtils.geoPointAsLong(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
+        return List.of(new TypedDataSupplier("<geo_point>", () -> Geo.pointAsLong(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
     }
 
     private static List<TypedDataSupplier> ipCases() {

@@ -12,7 +12,7 @@ import org.apache.http.HttpEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -149,10 +149,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 sb.append(valueToString(field));
             }
             return sb.append("]").toString();
-        } else if (value instanceof GeoPoint geoPoint) {
+        } else if (value instanceof SpatialPoint point) {
             // TODO: This knowledge should be in GeoPoint or at least that package
             // Alternatively we could just change GeoPoint.toString() to use WKT, but that has other side-effects
-            return "POINT (" + geoPoint.getX() + " " + geoPoint.getY() + ")";
+            return "POINT (" + point.getX() + " " + point.getY() + ")";
         } else {
             return value.toString();
         }

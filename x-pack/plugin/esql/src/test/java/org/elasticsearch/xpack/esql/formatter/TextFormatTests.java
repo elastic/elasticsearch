@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.formatter;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.LongArrayVector;
@@ -19,7 +18,6 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.ql.util.SpatialUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.io.IOException;
@@ -37,6 +35,7 @@ import static org.elasticsearch.rest.RestResponseUtils.getTextBodyContent;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.TSV;
+import static org.elasticsearch.xpack.esql.type.SpatialCoordinateTypes.Geo;
 
 public class TextFormatTests extends ESTestCase {
 
@@ -256,10 +255,7 @@ public class TextFormatTests extends ESTestCase {
                     .appendBytesRef(new BytesRef("Mind Train"))
                     .build(),
                 new IntArrayVector(new int[] { 11 * 60 + 48, 4 * 60 + 40 }, 2).asBlock(),
-                new LongArrayVector(
-                    new long[] { SpatialUtils.geoPointAsLong(new GeoPoint(56, 12)), SpatialUtils.geoPointAsLong(new GeoPoint(26, -97)) },
-                    2
-                ).asBlock()
+                new LongArrayVector(new long[] { Geo.pointAsLong(12, 56), Geo.pointAsLong(-97, 26) }, 2).asBlock()
             )
         );
 

@@ -25,7 +25,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.ql.util.SpatialUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
@@ -49,6 +48,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.type.SpatialCoordinateTypes.Geo;
 import static org.elasticsearch.xpack.ql.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -388,7 +388,7 @@ public final class CsvTestUtils {
             Long.class
         ),
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
-        GEO_POINT(x -> x == null ? null : SpatialUtils.geoPointAsLong(SpatialUtils.stringAsGeoPoint(x)), Long.class);
+        GEO_POINT(x -> x == null ? null : Geo.pointAsLong(Geo.stringAsPoint(x)), Long.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 

@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
-import org.elasticsearch.xpack.ql.util.SpatialUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matchers;
 
@@ -28,6 +27,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
+import static org.elasticsearch.xpack.esql.type.SpatialCoordinateTypes.Geo;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.hamcrest.Matchers.instanceOf;
@@ -198,7 +198,7 @@ public final class CsvAssert {
                         if (expectedType == Type.DATETIME) {
                             expectedValue = rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
                         } else if (expectedType == Type.GEO_POINT) {
-                            expectedValue = rebuildExpected(expectedValue, Long.class, x -> SpatialUtils.longAsGeoPoint((long) x));
+                            expectedValue = rebuildExpected(expectedValue, Long.class, x -> Geo.longAsPoint((long) x));
                         } else if (expectedType == Type.IP) {
                             // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));

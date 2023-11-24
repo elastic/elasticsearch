@@ -18,12 +18,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.SpatialCoordinateTypes.Geo;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.SpatialUtils.geoPointAsLong;
-import static org.elasticsearch.xpack.ql.util.SpatialUtils.stringAsGeoPoint;
 
 public class ToGeoPoint extends AbstractConvertFunction {
 
@@ -61,6 +60,6 @@ public class ToGeoPoint extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
-        return geoPointAsLong(stringAsGeoPoint(in.utf8ToString()));
+        return Geo.pointAsLong(Geo.stringAsPoint(in.utf8ToString()));
     }
 }

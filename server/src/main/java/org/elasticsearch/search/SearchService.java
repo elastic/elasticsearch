@@ -41,9 +41,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -546,7 +544,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }));
     }
 
-    private <T extends RefCounted> void ensureAfterSeqNoRefreshed(
+    private <T> void ensureAfterSeqNoRefreshed(
         IndexShard shard,
         ShardSearchRequest request,
         CheckedSupplier<T, Exception> executable,
@@ -650,27 +648,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    private static <T extends RefCounted> void runAsync(
-        Executor executor,
-        CheckedSupplier<T, Exception> executable,
-        ActionListener<T> listener
-    ) {
-        executor.execute(ActionRunnable.wrap(listener, new CheckedConsumer<>() {
-            @Override
-            public void accept(ActionListener<T> l) throws Exception {
-                var res = executable.get();
-                try {
-                    l.onResponse(res);
-                } finally {
-                    res.decRef();
-                }
-            }
-
-            @Override
-            public String toString() {
-                return executable.toString();
-            }
-        }));
+    private static <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
+        executor.execute(ActionRunnable.supply(listener, executable));
     }
 
     /**
@@ -707,7 +686,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
-                // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                 context.queryResult().incRef();
                 return context.queryResult();
             }
@@ -805,7 +783,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
                     queryResult.setRescoreDocIds(rescoreDocIds);
                     readerContext.setRescoreDocIds(rescoreDocIds);
-                    // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                     queryResult.incRef();
                     return queryResult;
                 } catch (Exception e) {
@@ -889,7 +866,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     executor.success();
                 }
                 var fetchResult = searchContext.fetchResult();
-                // inc-ref fetch result because we close the SearchContext that references it in this try-with-resources block
                 fetchResult.incRef();
                 return fetchResult;
             } catch (Exception e) {

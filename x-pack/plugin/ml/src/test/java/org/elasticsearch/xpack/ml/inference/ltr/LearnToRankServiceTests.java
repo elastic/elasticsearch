@@ -74,8 +74,9 @@ public class LearnToRankServiceTests extends ESTestCase {
         .setInferenceConfig(new RegressionConfig(null, null))
         .build();
 
-    public static final TrainedModelConfig TEMPLATED_GOOD_MODEL_CONFIG = new TrainedModelConfig.Builder(GOOD_MODEL_CONFIG)
-        .setModelId(TEMPLATED_GOOD_MODEL)
+    public static final TrainedModelConfig TEMPLATED_GOOD_MODEL_CONFIG = new TrainedModelConfig.Builder(GOOD_MODEL_CONFIG).setModelId(
+        TEMPLATED_GOOD_MODEL
+    )
         .setInferenceConfig(
             new LearnToRankConfig(
                 2,

@@ -22,19 +22,24 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_CONFIG_QUERY_BAD_FORMAT;
 
 public class LearnToRankService {
     private final ModelLoadingService modelLoadingService;
@@ -99,20 +104,51 @@ public class LearnToRankService {
         }
 
         if (params == null || params.isEmpty()) {
+            // TODO: better handling of missing parameters.
             return config;
         }
 
+        List<LearnToRankFeatureExtractorBuilder> featureExtractorBuilders = new ArrayList<>();
+
+        for (LearnToRankFeatureExtractorBuilder featureExtractorBuilder : config.getFeatureExtractorBuilders()) {
+            featureExtractorBuilders.add(applyParams(featureExtractorBuilder, params));
+        }
+
+        return LearnToRankConfig.builder(config).setLearnToRankFeatureExtractorBuilders(featureExtractorBuilders).build();
+    }
+
+    private LearnToRankFeatureExtractorBuilder applyParams(
+        LearnToRankFeatureExtractorBuilder featureExtractorBuilder,
+        Map<String, Object> params
+    ) throws IOException {
+        if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
+            return applyParams(queryExtractorBuilder, params);
+        }
+
+        return featureExtractorBuilder;
+    }
+
+    private QueryExtractorBuilder applyParams(QueryExtractorBuilder queryExtractorBuilder, Map<String, Object> params) throws IOException {
+        String templateSource = templateSource(queryExtractorBuilder.query());
+
+        if (templateSource.contains("{{") == false) {
+            return queryExtractorBuilder;
+        }
+
+        Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, templateSource, Collections.emptyMap());
+        String parsedTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(params).execute();
+        // TODO: handle missing params.
+        XContentParser parser = XContentType.JSON.xContent().createParser(parserConfiguration, parsedTemplate);
+
+        return new QueryExtractorBuilder(
+            queryExtractorBuilder.featureName(),
+            QueryProvider.fromXContent(parser, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT)
+        );
+    }
+
+    private String templateSource(QueryProvider queryProvider) throws IOException {
         try (XContentBuilder configSourceBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            String templateSource = BytesReference.bytes(config.toXContent(configSourceBuilder, EMPTY_PARAMS)).utf8ToString();
-            if (templateSource.contains("{{") == false) {
-                return config;
-            }
-            Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, templateSource, Collections.emptyMap());
-            String parsedTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(params).execute();
-
-            XContentParser parser = XContentType.JSON.xContent().createParser(parserConfiguration, parsedTemplate);
-
-            return LearnToRankConfig.fromXContentStrict(parser);
+            return BytesReference.bytes(queryProvider.toXContent(configSourceBuilder, EMPTY_PARAMS)).utf8ToString();
         }
     }
 }

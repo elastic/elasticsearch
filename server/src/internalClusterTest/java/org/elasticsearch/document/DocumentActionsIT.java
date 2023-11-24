@@ -56,9 +56,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         logger.info("Running Cluster Health");
         ensureGreen();
         logger.info("Indexing [type1/1]");
-        DocWriteResponse indexResponse = client().prepareIndex()
-            .setIndex("test")
-            .setId("1")
+        DocWriteResponse indexResponse = prepareIndex("test").setId("1")
             .setSource(source("1", "test"))
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .get();
@@ -181,12 +179,12 @@ public class DocumentActionsIT extends ESIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex("test").setId("1").setSource(source("1", "test")))
-            .add(client().prepareIndex().setIndex("test").setId("2").setSource(source("2", "test")).setCreate(true))
-            .add(client().prepareIndex().setIndex("test").setSource(source("3", "test")))
-            .add(client().prepareIndex().setIndex("test").setCreate(true).setSource(source("4", "test")))
+            .add(prepareIndex("test").setId("1").setSource(source("1", "test")))
+            .add(prepareIndex("test").setId("2").setSource(source("2", "test")).setCreate(true))
+            .add(prepareIndex("test").setSource(source("3", "test")))
+            .add(prepareIndex("test").setCreate(true).setSource(source("4", "test")))
             .add(client().prepareDelete().setIndex("test").setId("1"))
-            .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
+            .add(prepareIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
             .get();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));

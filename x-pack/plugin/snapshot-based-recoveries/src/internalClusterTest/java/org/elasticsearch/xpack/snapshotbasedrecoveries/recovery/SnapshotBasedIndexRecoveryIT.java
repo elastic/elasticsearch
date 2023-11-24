@@ -1574,9 +1574,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         IndexRequestBuilder[] builders = new IndexRequestBuilder[docCount];
         for (int i = 0; i < builders.length; i++) {
             int docId = i + docIdOffset;
-            builders[i] = client().prepareIndex(indexName)
-                .setId(Integer.toString(docId))
-                .setSource("field", docId, "field2", "Some text " + docId);
+            builders[i] = prepareIndex(indexName).setId(Integer.toString(docId)).setSource("field", docId, "field2", "Some text " + docId);
         }
         indexRandom(true, builders);
 

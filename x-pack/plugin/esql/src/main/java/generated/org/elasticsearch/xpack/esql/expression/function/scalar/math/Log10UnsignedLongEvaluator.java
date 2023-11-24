@@ -37,14 +37,13 @@ public final class Log10UnsignedLongEvaluator implements EvalOperator.Expression
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      LongBlock valBlock = (LongBlock) valRef.block();
+  public Block eval(Page page) {
+    try (LongBlock valBlock = (LongBlock) val.eval(page)) {
       LongVector valVector = valBlock.asVector();
       if (valVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), valBlock));
+        return eval(page.getPositionCount(), valBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valVector));
+      return eval(page.getPositionCount(), valVector);
     }
   }
 

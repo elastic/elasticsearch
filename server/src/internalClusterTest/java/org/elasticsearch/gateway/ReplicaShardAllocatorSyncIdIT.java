@@ -170,7 +170,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(100, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(100, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         if (randomBoolean()) {
             indicesAdmin().prepareFlush(indexName).get();
@@ -227,7 +227,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(200, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         if (randomBoolean()) {
             indicesAdmin().prepareFlush(indexName).get();
@@ -265,7 +265,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
-                IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+                IntStream.range(0, between(200, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
             );
         }
         if (randomBoolean()) {

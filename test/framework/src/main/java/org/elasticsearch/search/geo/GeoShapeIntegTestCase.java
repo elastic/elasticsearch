@@ -55,7 +55,7 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
               "shape": "POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))"
             }""";
 
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
+        indexRandom(true, prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
 
         assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-179.75, 1))), 1L);
         assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(90, 1))), 0L);

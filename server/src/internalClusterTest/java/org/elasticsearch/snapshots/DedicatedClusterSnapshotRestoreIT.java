@@ -701,7 +701,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(indexName).setSource("test", "init").get();
+            prepareIndex(indexName).setSource("test", "init").get();
         }
 
         final Path repoPath = randomRepoPath();
@@ -734,7 +734,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         // add few docs - less than initially
         docs = between(1, 5);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(indexName).setSource("test", "test" + i).get();
+            prepareIndex(indexName).setSource("test", "test" + i).get();
         }
 
         // create another snapshot
@@ -786,7 +786,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(indexName).setSource("test", "init").get();
+            prepareIndex(indexName).setSource("test", "init").get();
         }
 
         final Path repoPath = randomRepoPath();
@@ -798,7 +798,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         docs = between(1, 5);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(indexName).setSource("test", "test" + i).get();
+            prepareIndex(indexName).setSource("test", "test" + i).get();
         }
 
         logger.info("--> restart random data node and add new data node to change index allocation");
@@ -815,7 +815,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         // index to some other field to trigger a change in index metadata
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex(indexName).setSource("new_field", "test" + i).get();
+            prepareIndex(indexName).setSource("new_field", "test" + i).get();
         }
         createFullSnapshot(repositoryName, snapshot2);
 
@@ -958,7 +958,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.debug("--> indexing {} docs into {}", snapshotDocCount, indexName);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[snapshotDocCount];
         for (int i = 0; i < snapshotDocCount; i++) {
-            indexRequestBuilders[i] = client().prepareIndex(indexName).setSource("field", "value");
+            indexRequestBuilders[i] = prepareIndex(indexName).setSource("field", "value");
         }
         indexRandom(true, indexRequestBuilders);
         assertDocCount(indexName, snapshotDocCount);
@@ -983,7 +983,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             logger.debug("--> indexing {} extra docs into {}", extraDocCount, indexName);
             indexRequestBuilders = new IndexRequestBuilder[extraDocCount];
             for (int i = 0; i < extraDocCount; i++) {
-                indexRequestBuilders[i] = client().prepareIndex(indexName).setSource("field", "value");
+                indexRequestBuilders[i] = prepareIndex(indexName).setSource("field", "value");
             }
             indexRandom(true, indexRequestBuilders);
         }

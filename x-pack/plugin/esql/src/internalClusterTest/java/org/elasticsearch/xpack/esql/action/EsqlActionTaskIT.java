@@ -121,7 +121,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
 
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < NUM_DOCS; i++) {
-            bulk.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
+            bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
         }
         bulk.get();
         /*

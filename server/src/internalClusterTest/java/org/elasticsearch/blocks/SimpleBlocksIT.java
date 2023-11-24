@@ -125,7 +125,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     private void canIndexDocument(String index) {
         try {
-            IndexRequestBuilder builder = client().prepareIndex(index);
+            IndexRequestBuilder builder = prepareIndex(index);
             builder.setSource("foo", "bar");
             DocWriteResponse r = builder.get();
             assertThat(r, notNullValue());
@@ -136,7 +136,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     private void canNotIndexDocument(String index) {
         try {
-            IndexRequestBuilder builder = client().prepareIndex(index);
+            IndexRequestBuilder builder = prepareIndex(index);
             builder.setSource("foo", "bar");
             builder.get();
             fail();
@@ -250,9 +250,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
-                .collect(toList())
+            IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
         );
 
         final APIBlock block = randomAddableBlock();
@@ -278,7 +276,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                 false,
                 randomBoolean(),
                 IntStream.range(0, randomIntBetween(1, 10))
-                    .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
+                    .mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
                     .collect(toList())
             );
         }
@@ -323,9 +321,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
-                .collect(toList())
+            IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
         );
         ensureYellowAndNoInitializingShards(indexName);
 
@@ -404,7 +400,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                     false,
                     randomBoolean(),
                     IntStream.range(0, 10)
-                        .mapToObj(n -> client().prepareIndex(indexName).setId(String.valueOf(n)).setSource("num", n))
+                        .mapToObj(n -> prepareIndex(indexName).setId(String.valueOf(n)).setSource("num", n))
                         .collect(toList())
                 );
             }

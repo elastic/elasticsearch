@@ -60,7 +60,7 @@ public final class MlAutoscalingResourceTracker {
         static MlJobRequirements of(long memory, int processors) {
             return new MlJobRequirements(memory, processors, 1);
         }
-    };
+    }
 
     record MlDummyAutoscalingEntity(long memory, int processors) {
         static MlDummyAutoscalingEntity of(long memory, int processors) {
@@ -373,39 +373,31 @@ public final class MlAutoscalingResourceTracker {
             return false;
         }
 
-        Optional<MlJobRequirements> leastLodedNodeRequirements = Optional.ofNullable(
-            perNodeJobRequirements.entrySet()
-                .stream()
-                .map(
-                    entry -> tuple(
-                        entry.getKey(),
-                        entry.getValue()
-                            .stream()
-                            .reduce(
-                                MlJobRequirements.of(0L, 0, 0),
-                                (subtotal, element) -> MlJobRequirements.of(
-                                    subtotal.memory + element.memory,
-                                    subtotal.processors + element.processors,
-                                    subtotal.jobs + element.jobs
-                                )
-                            )
+        Optional<MlJobRequirements> leastLoadedNodeRequirements = perNodeJobRequirements.values()
+            .stream()
+            .map(
+                value -> value.stream()
+                    .reduce(
+                        MlJobRequirements.of(0L, 0, 0),
+                        (subtotal, element) -> MlJobRequirements.of(
+                            subtotal.memory + element.memory,
+                            subtotal.processors + element.processors,
+                            subtotal.jobs + element.jobs
+                        )
                     )
-                )
-                .min(Comparator.comparingLong(tuple -> tuple.v2().memory))
-                .get()
-                .v2()
-        );
+            )
+            .min(Comparator.comparingLong(value -> value.memory));
 
-        assert (leastLodedNodeRequirements.isPresent());
-        assert leastLodedNodeRequirements.get().memory >= 0L;
-        assert leastLodedNodeRequirements.get().processors >= 0;
+        assert (leastLoadedNodeRequirements.isPresent());
+        assert leastLoadedNodeRequirements.get().memory >= 0L;
+        assert leastLoadedNodeRequirements.get().processors >= 0;
 
         // Check if the dummy entity could be accommodated
-        if (leastLodedNodeRequirements.get().memory + dummyAutoscalingEntity.memory > perNodeMemoryInBytes) {
+        if (leastLoadedNodeRequirements.get().memory + dummyAutoscalingEntity.memory > perNodeMemoryInBytes) {
             return false;
         }
 
-        if (leastLodedNodeRequirements.get().processors + dummyAutoscalingEntity.processors > perNodeProcessors) {
+        if (leastLoadedNodeRequirements.get().processors + dummyAutoscalingEntity.processors > perNodeProcessors) {
             return false;
         }
 
@@ -486,7 +478,7 @@ public final class MlAutoscalingResourceTracker {
         assert leastLoadedNodeAndMemoryUsage.get().getValue().memory >= 0L;
 
         String candidateNode = leastLoadedNodeAndMemoryUsage.get().getKey();
-        List<MlJobRequirements> candidateJobRequirements = perNodeJobRequirements.get(candidateNode); // add dummy
+        List<MlJobRequirements> candidateJobRequirements = perNodeJobRequirements.get(candidateNode);
         if (dummyAutoscalingEntity.memory > 0L || dummyAutoscalingEntity.processors > 0) {
             candidateJobRequirements = new ArrayList<>(candidateJobRequirements);
             candidateJobRequirements.add(MlJobRequirements.of(dummyAutoscalingEntity.memory, dummyAutoscalingEntity.processors));

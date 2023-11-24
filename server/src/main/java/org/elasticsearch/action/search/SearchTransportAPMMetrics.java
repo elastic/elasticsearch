@@ -18,8 +18,8 @@ public class SearchTransportAPMMetrics {
     public SearchTransportAPMMetrics(MeterRegistry meterRegistry) {
         this(
             meterRegistry.registerLongHistogram(
-                "es.transport.action.latency.histogram",
-                "Transport action execution times expressed as a histogram",
+                "es.search.phase.shard_transport_actions.latency.histogram",
+                "Transport action execution times at the shard level, expressed as a histogram",
                 "millis"
             )
         );

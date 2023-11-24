@@ -55,10 +55,10 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xpack.esql.type.SpatialCoordinateTypes.Geo;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
 import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
 public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContent, Releasable {

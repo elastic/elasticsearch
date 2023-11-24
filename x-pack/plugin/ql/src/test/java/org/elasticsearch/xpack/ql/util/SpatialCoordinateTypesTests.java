@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.type;
+package org.elasticsearch.xpack.ql.util;
 
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.test.ESTestCase;

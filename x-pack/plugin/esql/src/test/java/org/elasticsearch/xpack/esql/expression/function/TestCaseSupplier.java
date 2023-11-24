@@ -36,7 +36,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
-import static org.elasticsearch.xpack.esql.type.SpatialCoordinateTypes.Geo;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
 import static org.hamcrest.Matchers.equalTo;
 
 /**

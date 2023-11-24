@@ -47,7 +47,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -57,7 +56,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
 /**
@@ -423,23 +421,25 @@ public class SearchTransportService {
             (in) -> TransportResponse.Empty.INSTANCE
         );
 
-        registerRequestHandlerWithAPMMetrics(
+        transportService.registerRequestHandler(
             DFS_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
-            (request, channel, task) -> searchService.executeDfsPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
+            (request, channel, task) -> instrumentedHandler(
+                DFS_ACTION_NAME,
+                () -> searchService.executeDfsPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
+            )
         );
 
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, true, DfsSearchResult::new);
 
-        registerRequestHandlerWithAPMMetrics(
+        transportService.registerRequestHandler(
             QUERY_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
-            (request, channel, task) -> searchService.executeQueryPhase(
-                request,
-                (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+            (request, channel, task) -> instrumentedHandler(
+                QUERY_ACTION_NAME,
+                () -> searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
             )
         );
         TransportActionProxy.registerProxyActionWithDynamicResponseType(
@@ -449,46 +449,47 @@ public class SearchTransportService {
             (request) -> ((ShardSearchRequest) request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new
         );
 
-        registerRequestHandlerWithAPMMetrics(
+        transportService.registerRequestHandler(
             QUERY_ID_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             QuerySearchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
-            }
+            (request, channel, task) -> instrumentedHandler(
+                QUERY_ID_ACTION_NAME,
+                () -> searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
+            )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, true, QuerySearchResult::new);
 
-        registerRequestHandlerWithAPMMetrics(
+        transportService.registerRequestHandler(
             QUERY_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             InternalScrollSearchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
-            }
+            (request, channel, task) -> instrumentedHandler(
+                QUERY_SCROLL_ACTION_NAME,
+                () -> searchService.executeQueryPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
+            )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, true, ScrollQuerySearchResult::new);
 
-        registerRequestHandlerWithAPMMetrics(
+        transportService.registerRequestHandler(
             QUERY_FETCH_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             InternalScrollSearchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
-            }
+            (request, channel, task) -> instrumentedHandler(
+                QUERY_FETCH_SCROLL_ACTION_NAME,
+                () -> searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
+            )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, true, ScrollQueryFetchSearchResult::new);
 
-        TransportRequestHandler<ShardFetchRequest> shardFetchHandler = (request, channel, task) -> searchService.executeFetchPhase(
-            request,
-            (SearchShardTask) task,
-            new ChannelActionListener<>(channel)
-        );
-        registerRequestHandlerWithAPMMetrics(
+        transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardFetchRequest::new,
-            shardFetchHandler
+            (request, channel, task) -> instrumentedHandler(
+                FETCH_ID_SCROLL_ACTION_NAME,
+                () -> searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
+            )
         );
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, true, FetchSearchResult::new);
 
@@ -498,7 +499,10 @@ public class SearchTransportService {
             true,
             true,
             ShardFetchSearchRequest::new,
-            shardFetchHandler
+            (request, channel, task) -> instrumentedHandler(
+                FETCH_ID_ACTION_NAME,
+                () -> searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
+            )
         );
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, true, FetchSearchResult::new);
 
@@ -506,29 +510,22 @@ public class SearchTransportService {
             QUERY_CAN_MATCH_NODE_NAME,
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION),
             CanMatchNodeRequest::new,
-            (request, channel, task) -> searchService.canMatch(request, new ChannelActionListener<>(channel))
+            (request, channel, task) -> instrumentedHandler(
+                FETCH_ID_ACTION_NAME,
+                () -> searchService.canMatch(request, new ChannelActionListener<>(channel))
+            )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NODE_NAME, true, CanMatchNodeResponse::new);
     }
 
-    /**
-     * Decorates the transportService.registerRequestHandler with APM metric instrumentation.
-     */
-    public <Request extends TransportRequest> void registerRequestHandlerWithAPMMetrics(
-        String action,
-        Executor executor,
-        Writeable.Reader<Request> requestReader,
-        TransportRequestHandler<Request> handler
-    ) {
-        transportService.registerRequestHandler(action, executor, requestReader, (request, channel, task) -> {
-            var startTime = transportService.getThreadPool().relativeTimeInMillis();
-            try {
-                handler.messageReceived(request, channel, task);
-            } finally {
-                var elapsedTime = transportService.getThreadPool().relativeTimeInMillis() - startTime;
-                searchTransportMetrics.getActionLatencies().record(elapsedTime, Map.of("action", action));
-            }
-        });
+    private void instrumentedHandler(String actionName, Runnable runnable) {
+        var startTime = transportService.getThreadPool().relativeTimeInMillis();
+        try {
+            runnable.run();
+        } finally {
+            var elapsedTime = transportService.getThreadPool().relativeTimeInMillis() - startTime;
+            searchTransportMetrics.getActionLatencies().record(elapsedTime, Map.of("action", actionName));
+        }
     }
 
     /**

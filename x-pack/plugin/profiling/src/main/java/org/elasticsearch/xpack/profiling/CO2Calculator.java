@@ -19,16 +19,28 @@ final class CO2Calculator {
     private static final double DEFAULT_KILOWATTS_PER_CORE_AARCH64 = 2.8d / 1000.0d; // unit: watt / core
     private static final double DEFAULT_KILOWATTS_PER_CORE = DEFAULT_KILOWATTS_PER_CORE_X86_64; // unit: watt / core
     private static final double DEFAULT_DATACENTER_PUE = 1.7d;
-    private static final double CUSTOM_CO2_FACTOR = 1.0d;
     private static final Provider DEFAULT_PROVIDER = new Provider(DEFAULT_DATACENTER_PUE, Collections.emptyMap());
     private final InstanceTypeService instanceTypeService;
     private final Map<String, HostMetadata> hostMetadata;
     private final double samplingDurationInSeconds;
+    private final double customCO2PerKWH;
+    private final double customDatacenterPUE;
+    private final double customKilowattsPerCore;
 
-    CO2Calculator(InstanceTypeService instanceTypeService, Map<String, HostMetadata> hostMetadata, double samplingDurationInSeconds) {
+    CO2Calculator(
+        InstanceTypeService instanceTypeService,
+        Map<String, HostMetadata> hostMetadata,
+        double samplingDurationInSeconds,
+        Double customCO2PerKWH,
+        Double customDatacenterPUE,
+        Double customPerCoreWatt
+    ) {
         this.instanceTypeService = instanceTypeService;
         this.hostMetadata = hostMetadata;
-        this.samplingDurationInSeconds = samplingDurationInSeconds;
+        this.samplingDurationInSeconds = samplingDurationInSeconds > 0 ? samplingDurationInSeconds : 1.0d; // avoid division by zero
+        this.customCO2PerKWH = customCO2PerKWH == null ? DEFAULT_CO2_TONS_PER_KWH : customCO2PerKWH;
+        this.customDatacenterPUE = customDatacenterPUE == null ? DEFAULT_DATACENTER_PUE : customDatacenterPUE;
+        this.customKilowattsPerCore = customPerCoreWatt == null ? DEFAULT_KILOWATTS_PER_CORE : customPerCoreWatt / 1000.0d;
     }
 
     public double getAnnualCO2Tons(String hostID, long samples) {
@@ -36,7 +48,7 @@ final class CO2Calculator {
 
         HostMetadata host = hostMetadata.get(hostID);
         if (host == null) {
-            return DEFAULT_KILOWATTS_PER_CORE * DEFAULT_CO2_TONS_PER_KWH * annualCoreHours * DEFAULT_DATACENTER_PUE;
+            return customKilowattsPerCore * customCO2PerKWH * annualCoreHours * customDatacenterPUE;
         }
 
         CostEntry costs = instanceTypeService.getCosts(host.instanceType);
@@ -44,20 +56,20 @@ final class CO2Calculator {
             return getKiloWattsPerCore(host) * getCO2TonsPerKWH(host) * annualCoreHours * getDatacenterPUE(host);
         }
 
-        return annualCoreHours * costs.co2Factor * CUSTOM_CO2_FACTOR; // unit: metric tons
+        return annualCoreHours * costs.co2Factor; // unit: metric tons
     }
 
-    private static double getKiloWattsPerCore(HostMetadata host) {
+    private double getKiloWattsPerCore(HostMetadata host) {
         if ("aarch64".equals(host.profilingHostMachine)) {
             // Assume that AARCH64 (aka ARM64) machines are more energy efficient than x86_64 machines.
             return DEFAULT_KILOWATTS_PER_CORE_AARCH64;
         }
-        return DEFAULT_KILOWATTS_PER_CORE;
+        return customKilowattsPerCore;
     }
 
-    private static double getCO2TonsPerKWH(HostMetadata host) {
+    private double getCO2TonsPerKWH(HostMetadata host) {
         Provider provider = PROVIDERS.getOrDefault(host.instanceType.provider, DEFAULT_PROVIDER);
-        return provider.co2TonsPerKWH.getOrDefault(host.instanceType.region, DEFAULT_CO2_TONS_PER_KWH);
+        return provider.co2TonsPerKWH.getOrDefault(host.instanceType.region, customCO2PerKWH);
     }
 
     private static double getDatacenterPUE(HostMetadata host) {

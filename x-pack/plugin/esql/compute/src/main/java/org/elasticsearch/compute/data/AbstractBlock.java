@@ -7,12 +7,12 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 
 import java.util.BitSet;
 
-abstract class AbstractBlock implements Block {
-    private int references = 1;
+abstract class AbstractBlock extends AbstractRefCounted implements Block {
     private final int positionCount;
 
     @Nullable
@@ -98,43 +98,6 @@ abstract class AbstractBlock implements Block {
     @Override
     public boolean isReleased() {
         return hasReferences() == false;
-    }
-
-    @Override
-    public final void incRef() {
-        if (isReleased()) {
-            throw new IllegalStateException("can't increase refCount on already released block [" + this + "]");
-        }
-        references++;
-    }
-
-    @Override
-    public final boolean tryIncRef() {
-        if (isReleased()) {
-            return false;
-        }
-        references++;
-        return true;
-    }
-
-    @Override
-    public final boolean decRef() {
-        if (isReleased()) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-
-        references--;
-
-        if (references <= 0) {
-            closeInternal();
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public final boolean hasReferences() {
-        return references >= 1;
     }
 
     @Override

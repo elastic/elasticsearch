@@ -36,20 +36,18 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref strRef = str.eval(page)) {
-      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
-      try (Block.Ref suffixRef = suffix.eval(page)) {
-        BytesRefBlock suffixBlock = (BytesRefBlock) suffixRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (BytesRefBlock suffixBlock = (BytesRefBlock) suffix.eval(page)) {
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, suffixBlock));
+          return eval(page.getPositionCount(), strBlock, suffixBlock);
         }
         BytesRefVector suffixVector = suffixBlock.asVector();
         if (suffixVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, suffixBlock));
+          return eval(page.getPositionCount(), strBlock, suffixBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), strVector, suffixVector).asBlock());
+        return eval(page.getPositionCount(), strVector, suffixVector).asBlock();
       }
     }
   }

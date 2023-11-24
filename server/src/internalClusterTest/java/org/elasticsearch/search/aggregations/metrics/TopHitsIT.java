@@ -156,8 +156,7 @@ public class TopHitsIT extends ESIntegTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
             builders.add(
-                client().prepareIndex("idx")
-                    .setId(Integer.toString(i))
+                prepareIndex("idx").setId(Integer.toString(i))
                     .setSource(
                         jsonBuilder().startObject()
                             .field(TERMS_AGGS_FIELD, "val" + (i / 10))
@@ -171,48 +170,39 @@ public class TopHitsIT extends ESIntegTestCase {
         }
 
         builders.add(
-            client().prepareIndex("field-collapsing")
-                .setId("1")
+            prepareIndex("field-collapsing").setId("1")
                 .setSource(jsonBuilder().startObject().field("group", "a").field("text", "term x y z b").endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing")
-                .setId("2")
+            prepareIndex("field-collapsing").setId("2")
                 .setSource(jsonBuilder().startObject().field("group", "a").field("text", "term x y z n rare").field("value", 1).endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing")
-                .setId("3")
+            prepareIndex("field-collapsing").setId("3")
                 .setSource(jsonBuilder().startObject().field("group", "b").field("text", "x y z term").endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing")
-                .setId("4")
+            prepareIndex("field-collapsing").setId("4")
                 .setSource(jsonBuilder().startObject().field("group", "b").field("text", "x y term").endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing")
-                .setId("5")
+            prepareIndex("field-collapsing").setId("5")
                 .setSource(jsonBuilder().startObject().field("group", "b").field("text", "x term").endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing")
-                .setId("6")
+            prepareIndex("field-collapsing").setId("6")
                 .setSource(jsonBuilder().startObject().field("group", "b").field("text", "term rare").field("value", 3).endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing")
-                .setId("7")
+            prepareIndex("field-collapsing").setId("7")
                 .setSource(jsonBuilder().startObject().field("group", "c").field("text", "x y z term").endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing")
-                .setId("8")
+            prepareIndex("field-collapsing").setId("8")
                 .setSource(jsonBuilder().startObject().field("group", "c").field("text", "x y term b").endObject())
         );
         builders.add(
-            client().prepareIndex("field-collapsing")
-                .setId("9")
+            prepareIndex("field-collapsing").setId("9")
                 .setSource(jsonBuilder().startObject().field("group", "c").field("text", "rare x term").field("value", 2).endObject())
         );
 
@@ -227,12 +217,11 @@ public class TopHitsIT extends ESIntegTestCase {
             }
             builder.endArray().endObject();
 
-            builders.add(client().prepareIndex("articles").setSource(builder));
+            builders.add(prepareIndex("articles").setSource(builder));
         }
 
         builders.add(
-            client().prepareIndex("articles")
-                .setId("1")
+            prepareIndex("articles").setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("title", "title 1")
@@ -275,8 +264,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 )
         );
         builders.add(
-            client().prepareIndex("articles")
-                .setId("2")
+            prepareIndex("articles").setId("2")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("title", "title 2")
@@ -1097,8 +1085,8 @@ public class TopHitsIT extends ESIntegTestCase {
             );
             indexRandom(
                 true,
-                client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
-                client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
+                prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+                prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
             );
 
             // Make sure we are starting with a clear cache

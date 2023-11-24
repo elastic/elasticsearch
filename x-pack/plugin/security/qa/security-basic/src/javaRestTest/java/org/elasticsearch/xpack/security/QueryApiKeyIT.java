@@ -176,6 +176,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 assertThat(apiKeys.get(0).get("name"), equalTo("temporary-key-1"));
                 assertThat(apiKeys.get(0).get("id"), equalTo(invalidatedApiKeyId1));
                 assertThat(apiKeys.get(0).get("invalidated"), is(true));
+                assertThat(apiKeys.get(0).get("invalidation"), notNullValue());
             }
             apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
         });

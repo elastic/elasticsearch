@@ -194,29 +194,33 @@ public class MultiSearchRequestTests extends ESTestCase {
                 new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz")) },
             tookInMillis
         );
+        try {
 
-        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
-            {
-              "took": %s,
-              "responses": [
+            assertEquals(XContentHelper.stripWhitespace(Strings.format("""
                 {
-                  "error": {
-                    "root_cause": [ { "type": "illegal_state_exception", "reason": "foobar" } ],
-                    "type": "illegal_state_exception",
-                    "reason": "foobar"
-                  },
-                  "status": 500
-                },
-                {
-                  "error": {
-                    "root_cause": [ { "type": "illegal_state_exception", "reason": "baaaaaazzzz" } ],
-                    "type": "illegal_state_exception",
-                    "reason": "baaaaaazzzz"
-                  },
-                  "status": 500
-                }
-              ]
-            }""", tookInMillis)), Strings.toString(response));
+                  "took": %s,
+                  "responses": [
+                    {
+                      "error": {
+                        "root_cause": [ { "type": "illegal_state_exception", "reason": "foobar" } ],
+                        "type": "illegal_state_exception",
+                        "reason": "foobar"
+                      },
+                      "status": 500
+                    },
+                    {
+                      "error": {
+                        "root_cause": [ { "type": "illegal_state_exception", "reason": "baaaaaazzzz" } ],
+                        "type": "illegal_state_exception",
+                        "reason": "baaaaaazzzz"
+                      },
+                      "status": 500
+                    }
+                  ]
+                }""", tookInMillis)), Strings.toString(response));
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testMaxConcurrentSearchRequests() {

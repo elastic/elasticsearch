@@ -115,7 +115,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test-blocks").setId("" + i).setSource("test", "init").get();
+            prepareIndex("test-blocks").setId("" + i).setSource("test", "init").get();
         }
         ensureGreen("test-blocks");
 

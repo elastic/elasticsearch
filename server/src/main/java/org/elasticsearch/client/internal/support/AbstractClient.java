@@ -1612,9 +1612,8 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public final void onResponse(R result) {
-            assert result.hasReferences();
             if (set(result)) {
-                result.incRef();
+                result.mustIncRef();
             }
         }
 

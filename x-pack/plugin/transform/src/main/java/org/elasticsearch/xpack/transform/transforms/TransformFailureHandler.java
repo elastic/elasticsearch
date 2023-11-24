@@ -93,22 +93,23 @@ class TransformFailureHandler {
      *
      * @param e the exception caught
      * @param settingsConfig The settings
+     * @return true if there is at least one more retry to be made, false otherwise
      */
     boolean handleStatePersistenceFailure(Exception e, SettingsConfig settingsConfig) {
         // we use the same setting for retries, however a separate counter, because the failure
         // counter for search/index gets reset after a successful bulk index request
         int numFailureRetries = getNumFailureRetries(settingsConfig);
 
-        final int failureCount = context.incrementAndGetStatePersistenceFailureCount(e);
+        int failureCount = context.incrementAndGetStatePersistenceFailureCount(e);
 
         if (numFailureRetries != -1 && failureCount > numFailureRetries) {
             fail(
                 e,
                 "task encountered more than " + numFailureRetries + " failures updating internal state; latest failure: " + e.getMessage()
             );
-            return true;
+            return false;
         }
-        return false;
+        return true;
     }
 
     /**

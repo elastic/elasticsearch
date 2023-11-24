@@ -36,6 +36,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -211,7 +212,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static EnumSet<ProductFeature> availableFeatures;
-    private static TreeSet<Version> nodeVersions;
+    private static Set<String> nodeVersions;
     private static TestFeatureService testFeatureService;
 
     protected static boolean clusterHasFeature(String featureId) {
@@ -237,13 +238,15 @@ public abstract class ESRestTestCase extends ESTestCase {
 
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
             nodeVersions = new TreeSet<>();
+            var semanticNodeVersions = new HashSet<Version>();
             boolean serverless = false;
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             for (Map.Entry<?, ?> node : nodes.entrySet()) {
                 Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-                // TODO (ES-7316): change this for serverless/non-semantic (change to string or remove if not needed)
-                nodeVersions.add(parseLegacyVersion(nodeInfo.get("version").toString()).get());
+                var nodeVersion = nodeInfo.get("version").toString();
+                nodeVersions.add(nodeVersion);
+                parseLegacyVersion(nodeVersion).map(semanticNodeVersions::add);
                 for (Object module : (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
                     final String moduleName = moduleInfo.get("name").toString();
@@ -283,11 +286,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             }
 
+            assert semanticNodeVersions.isEmpty() == false || serverless;
+
             testFeatureService = new TestFeatureService(
-                List.of(new RestTestLegacyFeatures()), // TODO (ES-7313): add new ESRestTestCaseHistoricalFeatures() too
-                nodeVersions,
-                Set.of()
-            ); // TODO (ES-7316): GET and pass cluster state
+                // TODO (ES-7313): add new ESRestTestCaseHistoricalFeatures() too
+                List.of(new RestTestLegacyFeatures()),
+                semanticNodeVersions,
+                ClusterFeatures.calculateAllNodeFeatures(getClusterStateFeatures().values())
+            );
         }
 
         assert testFeatureService != null;
@@ -399,9 +405,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static RequestOptions expectVersionSpecificWarnings(Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
-        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(
-            nodeVersions.stream().map(Version::toString).collect(Collectors.toSet())
-        );
+        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(new HashSet<>(nodeVersions));
         expectationsSetter.accept(warningsHandler);
         builder.setWarningsHandler(warningsHandler);
         return builder.build();
@@ -410,7 +414,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Creates request options designed to be used when making a call that can return warnings, for example a
      * deprecated request. The options will ensure that the given warnings are returned if all nodes are on
-     * {@link Version#CURRENT} and will allow (but not require) the warnings if any node is running an older version.
+     * the current version and will allow (but not require) the warnings if any node is running an older version.
      *
      * @param warnings The expected warnings.
      */
@@ -597,17 +601,13 @@ public abstract class ESRestTestCase extends ESTestCase {
      * all feature states, deleting system indices, system associated indices, and system data streams.
      */
     protected boolean resetFeatureStates() {
-        try {
-            if (clusterHasFeature(RestTestLegacyFeatures.FEATURE_STATE_RESET_SUPPORTED) == false) {
-                return false;
-            }
+        if (clusterHasFeature(RestTestLegacyFeatures.FEATURE_STATE_RESET_SUPPORTED) == false) {
+            return false;
+        }
 
-            // ML reset fails when ML is disabled in versions before 8.7
-            if (isMlEnabled() == false && minimumNodeVersion().before(Version.V_8_7_0)) {
-                return false;
-            }
-        } catch (IOException e) {
-            throw new AssertionError("Failed to find a minimum node version.", e);
+        // ML reset fails when ML is disabled in versions before 8.7
+        if (isMlEnabled() == false && clusterHasFeature(RestTestLegacyFeatures.ML_STATE_RESET_FALLBACK_ON_DISABLED) == false) {
+            return false;
         }
         return true;
     }
@@ -1745,7 +1745,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Deprecation message emitted since {@link Version#V_7_12_0} for the rest of the 7.x series. Can be removed in v9 since it is not
+     * Deprecation message emitted since 7.12.0 for the rest of the 7.x series. Can be removed in v9 since it is not
      * emitted in v8. Note that this message is also permitted in certain YAML test cases, it can be removed there too.
      * See https://github.com/elastic/elasticsearch/issues/66419 for more details.
      */
@@ -2054,26 +2054,23 @@ public abstract class ESRestTestCase extends ESTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
-    /**
-     * Returns the minimum node version among all nodes of the cluster
-     */
-    protected static Version minimumNodeVersion() throws IOException {
-        final Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.version");
+    private static Map<String, Set<String>> getClusterStateFeatures() throws IOException {
+        final Request request = new Request("GET", "_cluster/state");
+        request.addParameter("filter_path", "nodes_features");
 
         final Response response = adminClient().performRequest(request);
-        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
 
-        Version minVersion = null;
-        for (Map.Entry<String, Object> node : nodes.entrySet()) {
-            @SuppressWarnings("unchecked")
-            Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
-            if (minVersion == null || minVersion.after(nodeVersion)) {
-                minVersion = nodeVersion;
-            }
+        var responseData = responseAsMap(response);
+        if (responseData.get("nodes_features") instanceof List<?> nodesFeatures) {
+            return nodesFeatures.stream()
+                .map(Map.class::cast)
+                .collect(Collectors.toUnmodifiableMap(nodeFeatureMap -> nodeFeatureMap.get("node_id").toString(), nodeFeatureMap -> {
+                    @SuppressWarnings("unchecked")
+                    var nodeFeatures = (List<String>) nodeFeatureMap.get("features");
+                    return new HashSet<>(nodeFeatures);
+                }));
         }
-        assertNotNull(minVersion);
-        return minVersion;
+        return Map.of();
     }
 
     /**
@@ -2110,24 +2107,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             return Optional.of(Version.fromString(semanticVersionMatcher.group(1)));
         }
         return Optional.empty();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void ensureGlobalCheckpointSynced(String index) throws Exception {
-        assertBusy(() -> {
-            Map<?, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
-            List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);
-            shardStats.stream()
-                .map(shard -> (Map<?, ?>) XContentMapValues.extractValue("seq_no", shard))
-                .filter(Objects::nonNull)
-                .forEach(seqNoStat -> {
-                    long globalCheckpoint = ((Number) XContentMapValues.extractValue("global_checkpoint", seqNoStat)).longValue();
-                    long localCheckpoint = ((Number) XContentMapValues.extractValue("local_checkpoint", seqNoStat)).longValue();
-                    long maxSeqNo = ((Number) XContentMapValues.extractValue("max_seq_no", seqNoStat)).longValue();
-                    assertThat(shardStats.toString(), localCheckpoint, equalTo(maxSeqNo));
-                    assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
-                });
-        }, 60, TimeUnit.SECONDS);
     }
 
     /**

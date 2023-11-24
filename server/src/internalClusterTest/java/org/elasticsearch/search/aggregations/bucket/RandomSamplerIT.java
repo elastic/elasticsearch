@@ -60,14 +60,13 @@ public class RandomSamplerIT extends ESIntegTestCase {
                 numericValue = randomDoubleBetween(5.0, 9.0, false);
             }
             builders.add(
-                client().prepareIndex("idx")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field(KEYWORD_VALUE, keywordValue)
-                            .field(MONOTONIC_VALUE, monotonicValue)
-                            .field(NUMERIC_VALUE, numericValue)
-                            .endObject()
-                    )
+                prepareIndex("idx").setSource(
+                    jsonBuilder().startObject()
+                        .field(KEYWORD_VALUE, keywordValue)
+                        .field(MONOTONIC_VALUE, monotonicValue)
+                        .field(NUMERIC_VALUE, numericValue)
+                        .endObject()
+                )
             );
 
             final double oldAvgMonotonic = avgMonotonic;

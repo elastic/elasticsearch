@@ -96,24 +96,19 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         );
         assertAcked(prepareCreate("test").setMapping(mapping));
 
-        client().prepareIndex("test")
-            .setId("10990239")
+        prepareIndex("test").setId("10990239")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).value(179).endArray().endObject())
             .get();
-        client().prepareIndex("test")
-            .setId("10990473")
+        prepareIndex("test").setId("10990473")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
             .get();
-        client().prepareIndex("test")
-            .setId("10990513")
+        prepareIndex("test").setId("10990513")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).value(179).endArray().endObject())
             .get();
-        client().prepareIndex("test")
-            .setId("10990695")
+        prepareIndex("test").setId("10990695")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
             .get();
-        client().prepareIndex("test")
-            .setId("11026351")
+        prepareIndex("test").setId("11026351")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
             .get();
 
@@ -270,9 +265,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testSingleNodeWithFlush() throws Exception {
         internalCluster().startNode();
-        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         flush();
-        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
         refresh();
 
         assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
@@ -307,9 +302,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final String firstNode = internalCluster().startNode();
         internalCluster().startNode();
 
-        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         flush();
-        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
         refresh();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
@@ -357,9 +352,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         Settings node2DataPathSettings = internalCluster().dataPathSettings(nodes.get(1));
 
         assertAcked(indicesAdmin().prepareCreate("test"));
-        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         indicesAdmin().prepareFlush().get();
-        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
         indicesAdmin().prepareRefresh().get();
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
@@ -376,7 +371,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         logger.info("--> one node is closed - start indexing data into the second one");
-        client().prepareIndex("test").setId("3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).get();
+        prepareIndex("test").setId("3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).get();
         // TODO: remove once refresh doesn't fail immediately if there a master block:
         // https://github.com/elastic/elasticsearch/issues/9997
         // clusterAdmin().prepareHealth("test").setWaitForYellowStatus().get();

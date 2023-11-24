@@ -147,8 +147,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
     public void testRandomPoint() throws Exception {
         final double lat = GeometryTestUtils.randomLat();
         final double lon = GeometryTestUtils.randomLon();
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("name", "TestPosition").field("location", new double[] { lon, lat }).endObject())
             .get();
 
@@ -194,7 +193,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
         }
 
         XContentBuilder builder = jsonBuilder().startObject().field("name", "TestPosition").field("location", values).endObject();
-        client().prepareIndex("test").setId("1").setSource(builder).get();
+        prepareIndex("test").setId("1").setSource(builder).get();
 
         client().admin().indices().prepareRefresh("test").get();
 
@@ -233,8 +232,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
     }
 
     public void testNullPoint() throws Exception {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("name", "TestPosition").nullField("location").endObject())
             .get();
 

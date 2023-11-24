@@ -91,8 +91,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(50, 100);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(
-            client().prepareIndex("test")
-                .setId("theone")
+            prepareIndex("test").setId("theone")
                 .setSource(
                     "id",
                     "theone",
@@ -111,8 +110,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 )
         );
         builders.add(
-            client().prepareIndex("test")
-                .setId("theother")
+            prepareIndex("test").setId("theother")
                 .setSource(
                     "id",
                     "theother",
@@ -130,8 +128,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         );
 
         builders.add(
-            client().prepareIndex("test")
-                .setId("ultimate1")
+            prepareIndex("test").setId("ultimate1")
                 .setSource(
                     "id",
                     "ultimate1",
@@ -148,8 +145,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 )
         );
         builders.add(
-            client().prepareIndex("test")
-                .setId("ultimate2")
+            prepareIndex("test").setId("ultimate2")
                 .setSource(
                     "full_name",
                     "Man the Ultimate Ninja",
@@ -165,8 +161,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         );
 
         builders.add(
-            client().prepareIndex("test")
-                .setId("anotherhero")
+            prepareIndex("test").setId("anotherhero")
                 .setSource(
                     "id",
                     "anotherhero",
@@ -184,8 +179,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         );
 
         builders.add(
-            client().prepareIndex("test")
-                .setId("nowHero")
+            prepareIndex("test").setId("nowHero")
                 .setSource(
                     "id",
                     "nowHero",
@@ -212,8 +206,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             String first = RandomPicks.randomFrom(random(), firstNames);
             String last = randomPickExcept(lastNames, first);
             builders.add(
-                client().prepareIndex("test")
-                    .setId("" + i)
+                prepareIndex("test").setId("" + i)
                     .setSource(
                         "id",
                         i,
@@ -919,8 +912,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertAcked(builder.setMapping("title", "type=text", "body", "type=text"));
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex(idx).setId("1").setSource("title", "foo", "body", "bar"));
-        builders.add(client().prepareIndex(idx).setId("2").setSource("title", "bar", "body", "foo"));
+        builders.add(prepareIndex(idx).setId("1").setSource("title", "foo", "body", "bar"));
+        builders.add(prepareIndex(idx).setId("2").setSource("title", "bar", "body", "foo"));
         indexRandom(true, false, builders);
 
         assertResponse(

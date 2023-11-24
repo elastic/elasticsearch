@@ -30,14 +30,13 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref fieldValRef = fieldVal.eval(page)) {
-      DoubleBlock fieldValBlock = (DoubleBlock) fieldValRef.block();
+  public Block eval(Page page) {
+    try (DoubleBlock fieldValBlock = (DoubleBlock) fieldVal.eval(page)) {
       DoubleVector fieldValVector = fieldValBlock.asVector();
       if (fieldValVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), fieldValBlock));
+        return eval(page.getPositionCount(), fieldValBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), fieldValVector).asBlock());
+      return eval(page.getPositionCount(), fieldValVector).asBlock();
     }
   }
 

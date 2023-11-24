@@ -39,20 +39,18 @@ public final class ModIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref lhsRef = lhs.eval(page)) {
-      IntBlock lhsBlock = (IntBlock) lhsRef.block();
-      try (Block.Ref rhsRef = rhs.eval(page)) {
-        IntBlock rhsBlock = (IntBlock) rhsRef.block();
+  public Block eval(Page page) {
+    try (IntBlock lhsBlock = (IntBlock) lhs.eval(page)) {
+      try (IntBlock rhsBlock = (IntBlock) rhs.eval(page)) {
         IntVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
         IntVector rhsVector = rhsBlock.asVector();
         if (rhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector));
+        return eval(page.getPositionCount(), lhsVector, rhsVector);
       }
     }
   }

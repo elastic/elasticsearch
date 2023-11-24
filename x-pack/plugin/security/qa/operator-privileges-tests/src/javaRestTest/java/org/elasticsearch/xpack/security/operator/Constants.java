@@ -123,6 +123,7 @@ public class Constants {
         "cluster:admin/xpack/ccr/auto_follow_pattern/put",
         "cluster:admin/xpack/ccr/pause_follow",
         "cluster:admin/xpack/ccr/resume_follow",
+        "cluster:admin/xpack/connector/put",
         "cluster:admin/xpack/deprecation/info",
         "cluster:admin/xpack/deprecation/nodes/info",
         "cluster:admin/xpack/enrich/delete",

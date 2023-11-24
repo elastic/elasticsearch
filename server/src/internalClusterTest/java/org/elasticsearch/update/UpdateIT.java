@@ -301,7 +301,7 @@ public class UpdateIT extends ESIntegTestCase {
         );
         assertEquals("[1]: document missing", ex.getMessage());
 
-        client().prepareIndex("test").setId("1").setSource("field", 1).get();
+        prepareIndex("test").setId("1").setSource("field", 1).get();
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "1").setScript(fieldIncScript).get();
         assertThat(updateResponse.getVersion(), equalTo(2L));
@@ -369,7 +369,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         // check _source parameter
-        client().prepareIndex("test").setId("1").setSource("field1", 1, "field2", 2).get();
+        prepareIndex("test").setId("1").setSource("field1", 1, "field2", 2).get();
         updateResponse = client().prepareUpdate(indexOrAlias(), "1")
             .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field1")))
             .setFetchSource("field1", "field2")
@@ -384,7 +384,7 @@ public class UpdateIT extends ESIntegTestCase {
 
         // check updates without script
         // add new field
-        client().prepareIndex("test").setId("1").setSource("field", 1).get();
+        prepareIndex("test").setId("1").setSource("field", 1).get();
         client().prepareUpdate(indexOrAlias(), "1")
             .setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject())
             .get();
@@ -412,7 +412,7 @@ public class UpdateIT extends ESIntegTestCase {
         testMap.put("commonkey", testMap2);
         testMap.put("map1", 8);
 
-        client().prepareIndex("test").setId("1").setSource("map", testMap).get();
+        prepareIndex("test").setId("1").setSource("map", testMap).get();
         client().prepareUpdate(indexOrAlias(), "1")
             .setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject())
             .get();
@@ -435,7 +435,7 @@ public class UpdateIT extends ESIntegTestCase {
         createTestIndex();
         ensureGreen();
 
-        DocWriteResponse result = client().prepareIndex("test").setId("1").setSource("field", 1).get();
+        DocWriteResponse result = prepareIndex("test").setId("1").setSource("field", 1).get();
         expectThrows(
             VersionConflictEngineException.class,
             () -> client().prepareUpdate(indexOrAlias(), "1")
@@ -510,9 +510,8 @@ public class UpdateIT extends ESIntegTestCase {
         ensureGreen();
 
         // Index some documents
-        client().prepareIndex().setIndex("test").setId("id1").setRouting("routing1").setSource("field1", 1, "content", "foo").get();
-
-        client().prepareIndex().setIndex("test").setId("id2").setSource("field1", 0, "content", "bar").get();
+        prepareIndex("test").setId("id1").setRouting("routing1").setSource("field1", 1, "content", "foo").get();
+        prepareIndex("test").setId("id2").setSource("field1", 0, "content", "bar").get();
 
         // Update the first object and note context variables values
         UpdateResponse updateResponse = client().prepareUpdate("test", "id1")

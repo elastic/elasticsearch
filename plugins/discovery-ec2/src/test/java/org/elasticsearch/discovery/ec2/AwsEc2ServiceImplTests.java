@@ -119,7 +119,16 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
     }
 
     public void testAWSDefaultConfiguration() {
-        launchAWSConfigurationTest(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
+        launchAWSConfigurationTest(
+            Settings.EMPTY,
+            Protocol.HTTPS,
+            null,
+            -1,
+            Protocol.HTTP,
+            null,
+            null,
+            ClientConfiguration.DEFAULT_SOCKET_TIMEOUT
+        );
     }
 
     public void testAWSConfigurationWithAwsSettings() {
@@ -134,7 +143,16 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             .put("discovery.ec2.read_timeout", "10s")
             .setSecureSettings(secureSettings)
             .build();
-        launchAWSConfigurationTest(settings, Protocol.HTTP, "aws_proxy_host", 8080, "http",  "aws_proxy_username", "aws_proxy_password", 10000);
+        launchAWSConfigurationTest(
+            settings,
+            Protocol.HTTP,
+            "aws_proxy_host",
+            8080,
+            Protocol.HTTP,
+            "aws_proxy_username",
+            "aws_proxy_password",
+            10000
+        );
     }
 
     protected void launchAWSConfigurationTest(

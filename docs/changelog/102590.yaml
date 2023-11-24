@@ -1,0 +1,5 @@
+pr: 102590
+summary: Add support for invalidation timestamp in `QueryApiKey`
+area: Security
+type: enhancement
+issues: []

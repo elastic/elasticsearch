@@ -427,8 +427,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testMapperBuilderSize() throws IOException {
         RootObjectMapper.Builder builder = getRootObjectMapperBuilder(fieldMapping(this::minimalMapping));
-        assertEquals(1, builder.mapperSize());
-        assertEquals(1, builder.build(MapperBuilderContext.root(false, false)).mapperSize());
+        assertEquals(builder.build(MapperBuilderContext.root(false, false)).mapperSize(), builder.mapperSize());
     }
 
     public void testMapperBuilderSizeMultiField() throws IOException {
@@ -449,8 +448,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        assertEquals(3, builder.mapperSize());
-        assertEquals(3, builder.build(MapperBuilderContext.root(false, false)).mapperSize());
+        assertEquals(builder.build(MapperBuilderContext.root(false, false)).mapperSize(), builder.mapperSize());
     }
 
     protected final void assertParseMinimalWarnings() {

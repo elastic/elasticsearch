@@ -282,9 +282,9 @@ aggregate a tag:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: {_tsid: "KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: {_tsid: "KMQn1H8GA7xNFfZA53p2lAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}}
+  - match: {aggregations.tsids.buckets.1.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---

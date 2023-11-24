@@ -355,7 +355,8 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                         assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
                         for (int i = 0; i < tsx.groups.length; i++) {
                             InternalGeoLine geoLine = tsx.ts.getBuckets().get(i).getAggregations().get("track");
-                            assertGeoLine(sortOrder, tsx.groups[i], geoLine, tsx, true);
+                            int index = testConfig.useTimeSeriesAggregation ? tsx.groups.length - i - 1 : i;
+                            assertGeoLine(sortOrder, tsx.groups[index], geoLine, tsx, true);
                         }
                     });
                 }
@@ -378,7 +379,8 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                         StringTerms terms = tsx.ts.getBuckets().get(i).getAggregations().get("groups");
                         assertThat("Number of terms buckets", terms.getBuckets().size(), equalTo(1));
                         InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("track");
-                        assertGeoLine(sortOrder, tsx.groups[i], geoLine, tsx, true);
+                        int index = testConfig.useTimeSeriesAggregation ? tsx.groups.length - i - 1 : 0;
+                        assertGeoLine(sortOrder, tsx.groups[index], geoLine, tsx, true);
                     }
                 });
             }
@@ -398,7 +400,8 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                         assertThat("Number of time-series buckets", tsx.ts.getBuckets().size(), equalTo(g));
                         for (int i = 0; i < tsx.groups.length; i++) {
                             InternalGeoLine geoLine = tsx.ts.getBuckets().get(i).getAggregations().get("track");
-                            assertGeoLine(sortOrder, tsx.groups[i], geoLine, tsx, false);
+                            int index = testConfig.useTimeSeriesAggregation ? tsx.groups.length - i - 1 : i;
+                            assertGeoLine(sortOrder, tsx.groups[index], geoLine, tsx, false);
                         }
                     });
                 }
@@ -421,7 +424,8 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                         StringTerms terms = tsx.ts.getBuckets().get(i).getAggregations().get("groups");
                         assertThat("Number of terms buckets", terms.getBuckets().size(), equalTo(1));
                         InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("track");
-                        assertGeoLine(sortOrder, tsx.groups[i], geoLine, tsx, false);
+                        int index = testConfig.useTimeSeriesAggregation ? tsx.groups.length - i - 1 : 0;
+                        assertGeoLine(sortOrder, tsx.groups[index], geoLine, tsx, false);
                     }
                 });
             }

@@ -101,7 +101,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     @Override
     public Iterable<String> valueNames() {
-        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).toList();
+        return Arrays.stream(getKeys()).mapToObj(String::valueOf).toList();
     }
 
     public abstract double value(double key);
@@ -188,9 +188,9 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         TDigestState state = getState();
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
-            for (int i = 0; i < keys.length; ++i) {
-                String key = String.valueOf(keys[i]);
-                double value = value(keys[i]);
+            for (double v : keys) {
+                String key = String.valueOf(v);
+                double value = value(v);
                 builder.field(key, state.size() == 0 ? null : value);
                 if (format != DocValueFormat.RAW && state.size() > 0) {
                     builder.field(key + "_as_string", format.format(value).toString());
@@ -199,10 +199,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             builder.endObject();
         } else {
             builder.startArray(CommonFields.VALUES.getPreferredName());
-            for (int i = 0; i < keys.length; i++) {
-                double value = value(keys[i]);
+            for (double key : keys) {
+                double value = value(key);
                 builder.startObject();
-                builder.field(CommonFields.KEY.getPreferredName(), keys[i]);
+                builder.field(CommonFields.KEY.getPreferredName(), key);
                 builder.field(CommonFields.VALUE.getPreferredName(), state.size() == 0 ? null : value);
                 if (format != DocValueFormat.RAW && state.size() > 0) {
                     builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value).toString());

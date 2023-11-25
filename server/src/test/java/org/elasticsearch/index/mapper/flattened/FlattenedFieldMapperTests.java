@@ -93,7 +93,6 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         return false;
     }
 
-    @Ignore
     @Override
     public void testMapperBuilderSizeMultiField() {}
 

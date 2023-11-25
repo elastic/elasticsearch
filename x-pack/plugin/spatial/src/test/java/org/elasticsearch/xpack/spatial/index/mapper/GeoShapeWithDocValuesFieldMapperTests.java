@@ -66,6 +66,12 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         });
     }
 
+    @Override
+    public void testMapperBuilderSizeMultiField() throws IOException {
+        super.testMapperBuilderSizeMultiField();
+        assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
+    }
+
     protected AbstractShapeGeometryFieldType<?> fieldType(Mapper fieldMapper) {
         AbstractShapeGeometryFieldMapper<?> shapeFieldMapper = (AbstractShapeGeometryFieldMapper<?>) fieldMapper;
         return (AbstractShapeGeometryFieldType<?>) shapeFieldMapper.fieldType();

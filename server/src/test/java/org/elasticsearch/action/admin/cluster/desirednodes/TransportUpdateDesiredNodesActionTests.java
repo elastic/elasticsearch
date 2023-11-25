@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
@@ -45,11 +44,6 @@ import static org.mockito.Mockito.mock;
 
 public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase {
 
-    public static final DesiredNodesSettingsValidator NO_OP_SETTINGS_VALIDATOR = new DesiredNodesSettingsValidator() {
-        @Override
-        public void validate(List<DesiredNode> desiredNodes) {}
-    };
-
     public void testWriteBlocks() {
         ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
@@ -60,7 +54,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            NO_OP_SETTINGS_VALIDATOR,
+            l -> {},
             mock(AllocationService.class)
         );
 
@@ -88,7 +82,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
-            NO_OP_SETTINGS_VALIDATOR,
+            l -> {},
             mock(AllocationService.class)
         );
 

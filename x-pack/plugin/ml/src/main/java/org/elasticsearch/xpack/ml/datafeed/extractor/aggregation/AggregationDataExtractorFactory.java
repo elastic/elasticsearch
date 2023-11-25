@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 public record AggregationDataExtractorFactory(
     Client client,
     DatafeedConfig datafeedConfig,
+    QueryBuilder extraFilters,
     Job job,
     NamedXContentRegistry xContentRegistry,
     DatafeedTimingStatsReporter timingStatsReporter
@@ -37,19 +38,10 @@ public record AggregationDataExtractorFactory(
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
-        return buildExtractor(start, end, datafeedConfig.getParsedQuery(xContentRegistry));
-    }
-
-    @Override
-    public DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder) {
-        return buildExtractor(
-            start,
-            end,
-            QueryBuilders.boolQuery().filter(datafeedConfig.getParsedQuery(xContentRegistry)).filter(queryBuilder)
-        );
-    }
-
-    private DataExtractor buildExtractor(long start, long end, QueryBuilder queryBuilder) {
+        QueryBuilder queryBuilder = datafeedConfig.getParsedQuery(xContentRegistry);
+        if (extraFilters != null) {
+            queryBuilder = QueryBuilders.boolQuery().filter(queryBuilder).filter(extraFilters);
+        }
         long histogramInterval = datafeedConfig.getHistogramIntervalMillis(xContentRegistry);
         AggregationDataExtractorContext dataExtractorContext = new AggregationDataExtractorContext(
             job.getId(),

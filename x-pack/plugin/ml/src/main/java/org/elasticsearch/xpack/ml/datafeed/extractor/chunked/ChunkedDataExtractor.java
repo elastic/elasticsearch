@@ -198,6 +198,14 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     @Override
+    public void destroy() {
+        cancel();
+        if (currentExtractor != null) {
+            currentExtractor.destroy();
+        }
+    }
+
+    @Override
     public long getEndTime() {
         return context.end;
     }

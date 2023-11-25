@@ -1,0 +1,6 @@
+pr: 102447
+summary: Pass transform source query as `index_filter` to `open_point_in_time` request
+area: Transform
+type: enhancement
+issues:
+ - 101049

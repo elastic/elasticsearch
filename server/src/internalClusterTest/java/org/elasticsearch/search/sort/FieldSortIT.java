@@ -117,7 +117,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")));
             }
             if (i > 0) {
-                client().prepareIndex("test_" + i).setId("" + i).setSource("{\"entry\": " + i + "}", XContentType.JSON).get();
+                prepareIndex("test_" + i).setId("" + i).setSource("{\"entry\": " + i + "}", XContentType.JSON).get();
             }
         }
         refresh();
@@ -163,13 +163,12 @@ public class FieldSortIT extends ESIntegTestCase {
             final int numDocs = randomIntBetween(1, 23);  // hour of the day
             for (int j = 0; j < numDocs; j++) {
                 builders.add(
-                    client().prepareIndex(indexId)
-                        .setSource(
-                            "foo",
-                            "bar",
-                            "timeUpdated",
-                            "2014/07/" + Strings.format("%02d", i + 1) + " " + Strings.format("%02d", j + 1) + ":00:00"
-                        )
+                    prepareIndex(indexId).setSource(
+                        "foo",
+                        "bar",
+                        "timeUpdated",
+                        "2014/07/" + Strings.format("%02d", i + 1) + " " + Strings.format("%02d", j + 1) + ":00:00"
+                    )
                 );
             }
             indexRandom(true, builders);
@@ -278,7 +277,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 sparseBytes.put(ref, docId);
             }
             src.endObject();
-            builders[i] = client().prepareIndex("test").setId(docId).setSource(src);
+            builders[i] = prepareIndex("test").setId(docId).setSource(src);
         }
         indexRandom(true, builders);
         {
@@ -327,7 +326,7 @@ public class FieldSortIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 1; i < 101; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", Integer.toString(i)).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", Integer.toString(i)).get();
         }
         refresh();
         assertResponse(
@@ -339,7 +338,7 @@ public class FieldSortIT extends ESIntegTestCase {
             }
         );
         // reindex and refresh
-        client().prepareIndex("test").setId(Integer.toString(1)).setSource("field", Integer.toString(1)).get();
+        prepareIndex("test").setId(Integer.toString(1)).setSource("field", Integer.toString(1)).get();
         refresh();
 
         assertResponse(
@@ -351,7 +350,7 @@ public class FieldSortIT extends ESIntegTestCase {
             }
         );
         // reindex - no refresh
-        client().prepareIndex("test").setId(Integer.toString(1)).setSource("field", Integer.toString(1)).get();
+        prepareIndex("test").setId(Integer.toString(1)).setSource("field", Integer.toString(1)).get();
 
         assertResponse(
             prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)),
@@ -365,7 +364,7 @@ public class FieldSortIT extends ESIntegTestCase {
         forceMerge();
         refresh();
 
-        client().prepareIndex("test").setId(Integer.toString(1)).setSource("field", Integer.toString(1)).get();
+        prepareIndex("test").setId(Integer.toString(1)).setSource("field", Integer.toString(1)).get();
         assertResponse(
             prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)),
             response -> {
@@ -389,9 +388,9 @@ public class FieldSortIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test").setId("1").setSource("field", 2).get();
-        client().prepareIndex("test").setId("2").setSource("field", 1).get();
-        client().prepareIndex("test").setId("3").setSource("field", 0).get();
+        prepareIndex("test").setId("1").setSource("field", 2).get();
+        prepareIndex("test").setId("2").setSource("field", 1).get();
+        prepareIndex("test").setId("3").setSource("field", 0).get();
 
         refresh();
 
@@ -435,9 +434,9 @@ public class FieldSortIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        client().prepareIndex("test").setId("1").setSource("field", 2).get();
-        client().prepareIndex("test").setId("2").setSource("field", 1).get();
-        client().prepareIndex("test").setId("3").setSource("field", 0).get();
+        prepareIndex("test").setId("1").setSource("field", 2).get();
+        prepareIndex("test").setId("2").setSource("field", 1).get();
+        prepareIndex("test").setId("3").setSource("field", 0).get();
 
         refresh();
 
@@ -473,9 +472,9 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testIssue2986() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=keyword").get());
 
-        client().prepareIndex("test").setId("1").setSource("{\"field1\":\"value1\"}", XContentType.JSON).get();
-        client().prepareIndex("test").setId("2").setSource("{\"field1\":\"value2\"}", XContentType.JSON).get();
-        client().prepareIndex("test").setId("3").setSource("{\"field1\":\"value3\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("1").setSource("{\"field1\":\"value1\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("2").setSource("{\"field1\":\"value2\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("3").setSource("{\"field1\":\"value3\"}", XContentType.JSON).get();
         refresh();
         assertResponse(prepareSearch("test").setQuery(matchAllQuery()).setTrackScores(true).addSort("field1", SortOrder.ASC), response -> {
             for (SearchHit hit : response.getHits()) {
@@ -493,16 +492,16 @@ public class FieldSortIT extends ESIntegTestCase {
             }
             assertAcked(indicesAdmin().prepareCreate("test").setMapping("tag", "type=keyword").get());
             ensureGreen();
-            client().prepareIndex("test").setId("1").setSource("tag", "alpha").get();
+            prepareIndex("test").setId("1").setSource("tag", "alpha").get();
             refresh();
 
-            client().prepareIndex("test").setId("3").setSource("tag", "gamma").get();
+            prepareIndex("test").setId("3").setSource("tag", "gamma").get();
             refresh();
 
-            client().prepareIndex("test").setId("4").setSource("tag", "delta").get();
+            prepareIndex("test").setId("4").setSource("tag", "delta").get();
 
             refresh();
-            client().prepareIndex("test").setId("2").setSource("tag", "beta").get();
+            prepareIndex("test").setId("2").setSource("tag", "beta").get();
 
             refresh();
             assertResponse(
@@ -566,8 +565,7 @@ public class FieldSortIT extends ESIntegTestCase {
         ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            IndexRequestBuilder builder = client().prepareIndex("test")
-                .setId(Integer.toString(i))
+            IndexRequestBuilder builder = prepareIndex("test").setId(Integer.toString(i))
                 .setSource(
                     jsonBuilder().startObject()
                         .field("str_value", new String(new char[] { (char) (97 + i), (char) (97 + i) }))
@@ -802,15 +800,13 @@ public class FieldSortIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("id", "1").field("i_value", -1).field("d_value", -1.1).endObject())
             .get();
 
-        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("id", "2").endObject()).get();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("id", "2").endObject()).get();
 
-        client().prepareIndex("test")
-            .setId("3")
+        prepareIndex("test").setId("3")
             .setSource(jsonBuilder().startObject().field("id", "1").field("i_value", 2).field("d_value", 2.2).endObject())
             .get();
 
@@ -865,17 +861,11 @@ public class FieldSortIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        client().prepareIndex("test")
-            .setId("1")
-            .setSource(jsonBuilder().startObject().field("id", "1").field("value", "a").endObject())
-            .get();
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("id", "1").field("value", "a").endObject()).get();
 
-        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("id", "2").endObject()).get();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("id", "2").endObject()).get();
 
-        client().prepareIndex("test")
-            .setId("3")
-            .setSource(jsonBuilder().startObject().field("id", "1").field("value", "c").endObject())
-            .get();
+        prepareIndex("test").setId("3").setSource(jsonBuilder().startObject().field("id", "1").field("value", "c").endObject()).get();
 
         flush();
         refresh();
@@ -955,9 +945,9 @@ public class FieldSortIT extends ESIntegTestCase {
                 )
             );
             ensureGreen();
-            client().prepareIndex(index).setId("1").setSource("mydate", "2021-01-01").get();
-            client().prepareIndex(index).setId("2").setSource("mydate", "2021-02-01").get();
-            client().prepareIndex(index).setId("3").setSource("other_field", "value").get();
+            prepareIndex(index).setId("1").setSource("mydate", "2021-01-01").get();
+            prepareIndex(index).setId("2").setSource("mydate", "2021-02-01").get();
+            prepareIndex(index).setId("3").setSource("other_field", "value").get();
 
             refresh();
 
@@ -1016,12 +1006,12 @@ public class FieldSortIT extends ESIntegTestCase {
         }
         ensureGreen();
 
-        client().prepareIndex("test_date").setId("1").setSource("mydate", "2021-01-01").get();
-        client().prepareIndex("test_date").setId("2").setSource("mydate", "2021-02-01").get();
-        client().prepareIndex("test_date").setId("3").setSource("other_field", 1).get();
-        client().prepareIndex("test_date_nanos").setId("4").setSource("mydate", "2021-03-01").get();
-        client().prepareIndex("test_date_nanos").setId("5").setSource("mydate", "2021-04-01").get();
-        client().prepareIndex("test_date_nanos").setId("6").setSource("other_field", 2).get();
+        prepareIndex("test_date").setId("1").setSource("mydate", "2021-01-01").get();
+        prepareIndex("test_date").setId("2").setSource("mydate", "2021-02-01").get();
+        prepareIndex("test_date").setId("3").setSource("other_field", 1).get();
+        prepareIndex("test_date_nanos").setId("4").setSource("mydate", "2021-03-01").get();
+        prepareIndex("test_date_nanos").setId("5").setSource("mydate", "2021-04-01").get();
+        prepareIndex("test_date_nanos").setId("6").setSource("other_field", 2).get();
         refresh();
 
         for (boolean withFormat : List.of(true, false)) {
@@ -1074,8 +1064,7 @@ public class FieldSortIT extends ESIntegTestCase {
     public void testIgnoreUnmapped() throws Exception {
         createIndex("test");
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().field("id", "1").field("i_value", -1).field("d_value", -1.1).endObject())
             .get();
 
@@ -1150,8 +1139,7 @@ public class FieldSortIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test")
-            .setId(Integer.toString(1))
+        prepareIndex("test").setId(Integer.toString(1))
             .setSource(
                 jsonBuilder().startObject()
                     .array("long_values", 1L, 5L, 10L, 8L)
@@ -1164,8 +1152,7 @@ public class FieldSortIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("test")
-            .setId(Integer.toString(2))
+        prepareIndex("test").setId(Integer.toString(2))
             .setSource(
                 jsonBuilder().startObject()
                     .array("long_values", 11L, 15L, 20L, 7L)
@@ -1178,8 +1165,7 @@ public class FieldSortIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("test")
-            .setId(Integer.toString(3))
+        prepareIndex("test").setId(Integer.toString(3))
             .setSource(
                 jsonBuilder().startObject()
                     .array("long_values", 2L, 1L, 3L, -4L)
@@ -1450,8 +1436,7 @@ public class FieldSortIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        client().prepareIndex("test")
-            .setId(Integer.toString(1))
+        prepareIndex("test").setId(Integer.toString(1))
             .setSource(jsonBuilder().startObject().array("string_values", "01", "05", "10", "08").endObject())
             .get();
 
@@ -1462,13 +1447,11 @@ public class FieldSortIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(0).getId(), equalTo(Integer.toString(1)));
             assertThat(response.getHits().getAt(0).getSortValues()[0], equalTo("10"));
         });
-        client().prepareIndex("test")
-            .setId(Integer.toString(2))
+        prepareIndex("test").setId(Integer.toString(2))
             .setSource(jsonBuilder().startObject().array("string_values", "11", "15", "20", "07").endObject())
             .get();
         for (int i = 0; i < 15; i++) {
-            client().prepareIndex("test")
-                .setId(Integer.toString(300 + i))
+            prepareIndex("test").setId(Integer.toString(300 + i))
                 .setSource(jsonBuilder().startObject().array("some_other_field", "foobar").endObject())
                 .get();
         }
@@ -1484,13 +1467,11 @@ public class FieldSortIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(1).getId(), equalTo(Integer.toString(1)));
             assertThat(response.getHits().getAt(1).getSortValues()[0], equalTo("10"));
         });
-        client().prepareIndex("test")
-            .setId(Integer.toString(3))
+        prepareIndex("test").setId(Integer.toString(3))
             .setSource(jsonBuilder().startObject().array("string_values", "02", "01", "03", "!4").endObject())
             .get();
         for (int i = 0; i < 15; i++) {
-            client().prepareIndex("test")
-                .setId(Integer.toString(300 + i))
+            prepareIndex("test").setId(Integer.toString(300 + i))
                 .setSource(jsonBuilder().startObject().array("some_other_field", "foobar").endObject())
                 .get();
         }
@@ -1510,8 +1491,7 @@ public class FieldSortIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(2).getSortValues()[0], equalTo("03"));
         });
         for (int i = 0; i < 15; i++) {
-            client().prepareIndex("test")
-                .setId(Integer.toString(300 + i))
+            prepareIndex("test").setId(Integer.toString(300 + i))
                 .setSource(jsonBuilder().startObject().array("some_other_field", "foobar").endObject())
                 .get();
             refresh();
@@ -1540,7 +1520,7 @@ public class FieldSortIT extends ESIntegTestCase {
             final int numDocs = randomIntBetween(10, 20);
             IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
             for (int i = 0; i < numDocs; ++i) {
-                indexReqs[i] = client().prepareIndex("test").setId(Integer.toString(i)).setSource();
+                indexReqs[i] = prepareIndex("test").setId(Integer.toString(i)).setSource();
             }
             indexRandom(true, indexReqs);
 
@@ -1611,8 +1591,7 @@ public class FieldSortIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startArray("nested")
@@ -1626,8 +1605,7 @@ public class FieldSortIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().prepareIndex("test")
-            .setId("2")
+        prepareIndex("test").setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .startArray("nested")
@@ -1726,7 +1704,7 @@ public class FieldSortIT extends ESIntegTestCase {
         for (String index : new String[] { "test1", "test2" }) {
             List<IndexRequestBuilder> docs = new ArrayList<>();
             for (int i = 0; i < 256; i++) {
-                docs.add(client().prepareIndex(index).setId(Integer.toString(i)).setSource(sortField, i));
+                docs.add(prepareIndex(index).setId(Integer.toString(i)).setSource(sortField, i));
             }
             indexRandom(true, docs);
         }
@@ -1764,8 +1742,8 @@ public class FieldSortIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping("ip", "type=ip"));
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("ip", "192.168.1.7"),
-            client().prepareIndex("test").setId("2").setSource("ip", "2001:db8::ff00:42:8329")
+            prepareIndex("test").setId("1").setSource("ip", "192.168.1.7"),
+            prepareIndex("test").setId("2").setSource("ip", "2001:db8::ff00:42:8329")
         );
 
         assertNoFailuresAndResponse(prepareSearch("test").addSort(SortBuilders.fieldSort("ip")), response -> {
@@ -1790,7 +1768,7 @@ public class FieldSortIT extends ESIntegTestCase {
         IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
         List<String> keywords = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
-            indexReqs[i] = client().prepareIndex("test").setSource("number", i, "keyword", Integer.toString(i));
+            indexReqs[i] = prepareIndex("test").setSource("number", i, "keyword", Integer.toString(i));
             keywords.add(Integer.toString(i));
         }
         Collections.sort(keywords);
@@ -1841,9 +1819,9 @@ public class FieldSortIT extends ESIntegTestCase {
         ensureGreen("old_index", "new_index");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("old_index").setSource("distance", 42.0));
-        builders.add(client().prepareIndex("old_index").setSource("distance", 50.5));
-        builders.add(client().prepareIndex("new_index").setSource("route_length_miles", 100.2));
+        builders.add(prepareIndex("old_index").setSource("distance", 42.0));
+        builders.add(prepareIndex("old_index").setSource("distance", 50.5));
+        builders.add(prepareIndex("new_index").setSource("route_length_miles", 100.2));
         indexRandom(true, true, builders);
 
         assertResponse(
@@ -1867,9 +1845,9 @@ public class FieldSortIT extends ESIntegTestCase {
         ensureGreen("old_index", "new_index");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("old_index").setSource("distance", 42.0));
-        builders.add(client().prepareIndex("old_index").setSource(Collections.emptyMap()));
-        builders.add(client().prepareIndex("new_index").setSource("route_length_miles", 100.2));
+        builders.add(prepareIndex("old_index").setSource("distance", 42.0));
+        builders.add(prepareIndex("old_index").setSource(Collections.emptyMap()));
+        builders.add(prepareIndex("new_index").setSource("route_length_miles", 100.2));
         indexRandom(true, true, builders);
 
         assertResponse(
@@ -1894,9 +1872,9 @@ public class FieldSortIT extends ESIntegTestCase {
         ensureGreen("index_double", "index_long", "index_float");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("index_double").setSource("field", 12.6));
-        builders.add(client().prepareIndex("index_long").setSource("field", 12));
-        builders.add(client().prepareIndex("index_float").setSource("field", 12.1));
+        builders.add(prepareIndex("index_double").setSource("field", 12.6));
+        builders.add(prepareIndex("index_long").setSource("field", 12));
+        builders.add(prepareIndex("index_float").setSource("field", 12.1));
         indexRandom(true, true, builders);
 
         {
@@ -1943,8 +1921,8 @@ public class FieldSortIT extends ESIntegTestCase {
         ensureGreen("index_date", "index_date_nanos");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("index_date").setSource("field", "2024-04-11T23:47:17"));
-        builders.add(client().prepareIndex("index_date_nanos").setSource("field", "2024-04-11T23:47:16.854775807Z"));
+        builders.add(prepareIndex("index_date").setSource("field", "2024-04-11T23:47:17"));
+        builders.add(prepareIndex("index_date_nanos").setSource("field", "2024-04-11T23:47:16.854775807Z"));
         indexRandom(true, true, builders);
 
         {
@@ -2030,7 +2008,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
         {
             builders.clear();
-            builders.add(client().prepareIndex("index_date").setSource("field", "1905-04-11T23:47:17"));
+            builders.add(prepareIndex("index_date").setSource("field", "1905-04-11T23:47:17"));
             indexRandom(true, true, builders);
             assertResponse(
                 prepareSearch().setQuery(matchAllQuery()).setSize(1).addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos")),
@@ -2044,7 +2022,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
         {
             builders.clear();
-            builders.add(client().prepareIndex("index_date").setSource("field", "2346-04-11T23:47:17"));
+            builders.add(prepareIndex("index_date").setSource("field", "2346-04-11T23:47:17"));
             indexRandom(true, true, builders);
             assertResponse(
                 prepareSearch().setQuery(QueryBuilders.rangeQuery("field").gt("1970-01-01"))
@@ -2089,7 +2067,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 bulkBuilder = client().prepareBulk();
             }
             String source = "{\"long_field\":" + randomLong() + "}";
-            bulkBuilder.add(client().prepareIndex("test1").setId(Integer.toString(i)).setSource(source, XContentType.JSON));
+            bulkBuilder.add(prepareIndex("test1").setId(Integer.toString(i)).setSource(source, XContentType.JSON));
         }
         refresh();
 
@@ -2130,10 +2108,10 @@ public class FieldSortIT extends ESIntegTestCase {
         assertAcked(prepareCreate("index_double").setMapping("foo", "type=double").get());
         assertAcked(prepareCreate("index_keyword").setMapping("foo", "type=keyword").get());
 
-        client().prepareIndex("index_long").setId("1").setSource("foo", "123").get();
-        client().prepareIndex("index_integer").setId("1").setSource("foo", "123").get();
-        client().prepareIndex("index_double").setId("1").setSource("foo", "123").get();
-        client().prepareIndex("index_keyword").setId("1").setSource("foo", "123").get();
+        prepareIndex("index_long").setId("1").setSource("foo", "123").get();
+        prepareIndex("index_integer").setId("1").setSource("foo", "123").get();
+        prepareIndex("index_double").setId("1").setSource("foo", "123").get();
+        prepareIndex("index_keyword").setId("1").setSource("foo", "123").get();
         refresh();
 
         { // mixing long and integer types is ok, as we convert integer sort to long sort

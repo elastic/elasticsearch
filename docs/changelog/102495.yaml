@@ -1,0 +1,6 @@
+pr: 102495
+summary: "Add support for configuring proxy scheme in S3 client settings and EC2 discovery plugin"
+area: Distributed
+type: enhancement
+issues:
+  - 101873

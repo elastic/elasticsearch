@@ -16,6 +16,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -781,7 +782,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             String id = "id-" + i;
             long value = randomLongBetween(-100_000, 100_000);
             docs.put(id, value);
-            indexRequests.add(client().prepareIndex().setIndex(indexName).setId(id).setSource(Map.of("val", value)));
+            indexRequests.add(prepareIndex(indexName).setId(id).setSource(Map.of("val", value)));
         }
         indexRandom(true, randomBoolean(), indexRequests);
         String command = "from test_filter | stats avg = avg(val)";
@@ -822,9 +823,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             Doc d = new Doc(i, "tag-" + randomIntBetween(1, 100));
             allDocs.add(d);
-            indexRequests.add(
-                client().prepareIndex().setIndex(indexName).setId(Integer.toString(i)).setSource(Map.of("val", d.val, "tag", d.tag))
-            );
+            indexRequests.add(prepareIndex(indexName).setId(Integer.toString(i)).setSource(Map.of("val", d.val, "tag", d.tag)));
         }
         indexRandom(true, randomBoolean(), indexRequests);
         int limit = randomIntBetween(1, 10);
@@ -1174,7 +1173,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             if (values.isEmpty() == false) {
                 source.put("v", values);
             }
-            client().prepareIndex(indexName).setSource(source).get();
+            prepareIndex(indexName).setSource(source).get();
             if (randomInt(100) < 20) {
                 client().admin().indices().prepareRefresh(indexName).get();
             }
@@ -1212,8 +1211,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             long v = randomIntBetween(1, 10);
             groups.merge(k, v, Long::sum);
             groups.merge(null, v, Long::sum); // null group
-            client().prepareIndex("index-1").setSource("f1", k, "v", v).get();
-            client().prepareIndex("index-2").setSource("f2", k, "v", v).get();
+            prepareIndex("index-1").setSource("f1", k, "v", v).get();
+            prepareIndex("index-2").setSource("f2", k, "v", v).get();
         }
         client().admin().indices().prepareRefresh("index-1", "index-2").get();
         for (String field : List.of("f1", "f2")) {
@@ -1242,8 +1241,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testStatsNestFields() {
-        String node1 = internalCluster().startDataOnlyNode();
-        String node2 = internalCluster().startDataOnlyNode();
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
         assertAcked(
             client().admin()
                 .indices()
@@ -1276,8 +1282,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testStatsMissingFields() {
-        String node1 = internalCluster().startDataOnlyNode();
-        String node2 = internalCluster().startDataOnlyNode();
+        final String node1, node2;
+        if (randomBoolean()) {
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            node1 = randomDataNode().getName();
+            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
+        } else {
+            node1 = randomDataNode().getName();
+            node2 = randomDataNode().getName();
+        }
         assertAcked(
             client().admin()
                 .indices()
@@ -1292,7 +1305,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
                 .setMapping("bar_int", "type=integer", "bar_long", "type=long", "bar_float", "type=float", "bar_double", "type=double")
         );
-
         var fields = List.of("foo_int", "foo_long", "foo_float", "foo_double");
         var functions = List.of("sum", "count", "avg", "count_distinct");
         for (String field : fields) {
@@ -1509,5 +1521,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         var clearSettingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(clearedSettings.build());
         admin().cluster().updateSettings(clearSettingsRequest).actionGet();
+    }
+
+    private DiscoveryNode randomDataNode() {
+        return randomFrom(clusterService().state().nodes().getDataNodes().values());
     }
 }

@@ -1444,7 +1444,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertTrue(statusResponse.isPartial());
             assertTrue(statusResponse.isRunning());
             assertThat(statusResponse.getClusters().getTotal(), equalTo(2));
-            assertThat(statusResponse.getFailedShards(), equalTo(0));
             assertNull(statusResponse.getCompletionStatus());
         } finally {
             SearchListenerPlugin.allowQueryPhase();

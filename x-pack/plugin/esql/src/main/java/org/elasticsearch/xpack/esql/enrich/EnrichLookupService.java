@@ -251,31 +251,45 @@ public class EnrichLookupService {
             final SourceOperator queryOperator = switch (matchType) {
                 case "match", "range" -> {
                     QueryList queryList = QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
-                    yield new EnrichQuerySourceOperator(queryList, searchExecutionContext.getIndexReader());
+                    yield new EnrichQuerySourceOperator(blockFactory, queryList, searchExecutionContext.getIndexReader());
                 }
                 default -> throw new EsqlIllegalArgumentException("illegal match type " + matchType);
             };
             List<Operator> intermediateOperators = new ArrayList<>(extractFields.size() + 2);
             final ElementType[] mergingTypes = new ElementType[extractFields.size()];
-            // extract-field operators
+
+            // load the fields
+            List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(extractFields.size());
             for (int i = 0; i < extractFields.size(); i++) {
                 NamedExpression extractField = extractFields.get(i);
                 final ElementType elementType = LocalExecutionPlanner.toElementType(extractField.dataType());
                 mergingTypes[i] = elementType;
-                var sources = BlockReaderFactories.factories(
+                var loaders = BlockReaderFactories.loaders(
                     List.of(searchContext),
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
                     EsqlDataTypes.isUnsupported(extractField.dataType())
                 );
-                intermediateOperators.add(new ValuesSourceReaderOperator(blockFactory, sources, 0, extractField.name()));
+                fields.add(new ValuesSourceReaderOperator.FieldInfo(extractField.name(), loaders));
             }
+            intermediateOperators.add(
+                new ValuesSourceReaderOperator(
+                    blockFactory,
+                    fields,
+                    List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.searcher().getIndexReader(), () -> {
+                        throw new UnsupportedOperationException("can't load _source as part of enrich");
+                    })),
+                    0
+                )
+            );
+
             // drop docs block
             intermediateOperators.add(droppingBlockOperator(extractFields.size() + 2, 0));
             boolean singleLeaf = searchContext.searcher().getLeafContexts().size() == 1;
+
             // merging field-values by position
             final int[] mergingChannels = IntStream.range(0, extractFields.size()).map(i -> i + 1).toArray();
             intermediateOperators.add(
-                new MergePositionsOperator(singleLeaf, inputPage.getPositionCount(), 0, mergingChannels, mergingTypes)
+                new MergePositionsOperator(singleLeaf, inputPage.getPositionCount(), 0, mergingChannels, mergingTypes, blockFactory)
             );
             AtomicReference<Page> result = new AtomicReference<>();
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);
@@ -335,7 +349,8 @@ public class EnrichLookupService {
     private class TransportHandler implements TransportRequestHandler<LookupRequest> {
         @Override
         public void messageReceived(LookupRequest request, TransportChannel channel, Task task) {
-            ActionListener<LookupResponse> listener = new ChannelActionListener<>(channel);
+            request.incRef();
+            ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
             doLookup(
                 request.sessionId,
                 (CancellableTask) task,

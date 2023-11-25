@@ -1,0 +1,126 @@
+---
+"Coalesce and to_ip functions":
+  - skip:
+      version: " - 8.11.99"
+      reason: "fixes in 8.12 or later"
+      features: warnings
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "emp_no": 10, "ip1": "127.0", "ip2": "0.1" }
+          - { "index": { } }
+          - { "emp_no": 20 }
+  - do:
+      warnings:
+        - "Line 1:37: evaluation of [to_ip(coalesce(ip1.keyword, \"255.255.255.255\"))] failed, treating result as null. Only first 20 failures recorded."
+        - "Line 1:37: java.lang.IllegalArgumentException: '127.0' is not an IP string literal."
+        - "No limit defined, adding default limit of [500]"
+      esql.query:
+        body:
+          query: 'FROM test | sort emp_no | eval ip = to_ip(coalesce(ip1.keyword, "255.255.255.255")) | keep emp_no, ip'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "ip" }
+  - match: { columns.1.type: "ip" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 10, null ] }
+  - match: { values.1: [ 20, "255.255.255.255"] }
+
+
+  - do:
+      warnings:
+        - "Line 1:98: evaluation of [to_ip(x2)] failed, treating result as null. Only first 20 failures recorded."
+        - "Line 1:98: java.lang.IllegalArgumentException: '127.00.1' is not an IP string literal."
+        - "No limit defined, adding default limit of [500]"
+      esql.query:
+        body:
+          query: 'FROM test | sort emp_no | eval x1 = concat(ip1, ip2), x2 = coalesce(x1, "255.255.255.255"), x3 = to_ip(x2) | keep emp_no, x*'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "x1" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "x2" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "x3" }
+  - match: { columns.3.type: "ip" }
+
+
+  - length: { values: 2 }
+  - match: { values.0: [ 10, "127.00.1", "127.00.1", null ] }
+  - match: { values.1: [ 20, null, "255.255.255.255", "255.255.255.255"] }
+
+---
+"unsupported and invalid mapped fields":
+  - skip:
+      version: " - 8.11.99"
+      reason: "fixes in 8.12 or later"
+  - do:
+      indices.create:
+        index: index1
+        body:
+          mappings:
+            properties:
+              http:
+                properties:
+                  headers:
+                    type: flattened
+  - do:
+      indices.create:
+        index: index2
+        body:
+          mappings:
+            properties:
+              http:
+                properties:
+                  headers:
+                    properties:
+                      location:
+                        type: keyword
+  - do:
+      indices.create:
+        index: index3
+        body:
+          mappings:
+            properties:
+              http:
+                properties:
+                  headers:
+                    properties:
+                      location:
+                        type: text
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "index1" } }
+          - { "http.headers": { "location": "RO","code": 123 } }
+          - { "index": { "_index": "index2" } }
+          - { "http.headers.location": "US" }
+          - { "index": { "_index": "index3" } }
+          - { "http.headers.location": "CN" }
+  - do:
+      esql.query:
+        body:
+          query: 'from index* [metadata _index] | limit 5 | sort _index desc'
+  - match: { columns.0.name: http.headers }
+  - match: { columns.0.type: unsupported }
+  - match: { columns.1.name: http.headers.location }
+  - match: { columns.1.type: unsupported }
+  - match: { columns.2.name: _index }
+  - match: { columns.2.type: keyword }
+  - length: { values: 3 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: null }
+  - match: { values.0.2: index3 }
+  - match: { values.1.0: null }
+  - match: { values.1.1: null }
+  - match: { values.1.2: index2 }
+  - match: { values.2.0: null }
+  - match: { values.2.1: null }
+  - match: { values.2.2: index1 }

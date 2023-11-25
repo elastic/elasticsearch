@@ -45,20 +45,18 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref strRef = str.eval(page)) {
-      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
-      try (Block.Ref lengthRef = length.eval(page)) {
-        IntBlock lengthBlock = (IntBlock) lengthRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (IntBlock lengthBlock = (IntBlock) length.eval(page)) {
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, lengthBlock));
+          return eval(page.getPositionCount(), strBlock, lengthBlock);
         }
         IntVector lengthVector = lengthBlock.asVector();
         if (lengthVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, lengthBlock));
+          return eval(page.getPositionCount(), strBlock, lengthBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), strVector, lengthVector).asBlock());
+        return eval(page.getPositionCount(), strVector, lengthVector).asBlock();
       }
     }
   }

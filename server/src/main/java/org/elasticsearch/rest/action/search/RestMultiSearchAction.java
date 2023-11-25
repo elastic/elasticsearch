@@ -26,7 +26,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContent;
@@ -82,7 +82,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
         );
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(TransportMultiSearchAction.TYPE, multiSearchRequest, new RestChunkedToXContentListener<>(channel));
+            cancellableClient.execute(
+                TransportMultiSearchAction.TYPE,
+                multiSearchRequest,
+                new RestRefCountedChunkedToXContentListener<>(channel)
+            );
         };
     }
 

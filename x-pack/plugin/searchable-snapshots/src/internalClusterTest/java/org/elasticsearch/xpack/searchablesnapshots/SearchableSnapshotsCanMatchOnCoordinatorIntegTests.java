@@ -726,18 +726,17 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
             indexRequestBuilders.add(
-                client().prepareIndex(indexName)
-                    .setSource(
-                        DataStream.TIMESTAMP_FIELD_NAME,
-                        String.format(
-                            Locale.ROOT,
-                            timestampTemplate,
-                            between(0, 23),
-                            between(0, 59),
-                            between(0, 59),
-                            randomLongBetween(0, 999999999L)
-                        )
+                prepareIndex(indexName).setSource(
+                    DataStream.TIMESTAMP_FIELD_NAME,
+                    String.format(
+                        Locale.ROOT,
+                        timestampTemplate,
+                        between(0, 23),
+                        between(0, 59),
+                        between(0, 59),
+                        randomLongBetween(0, 999999999L)
                     )
+                )
             );
         }
         indexRandom(true, false, indexRequestBuilders);

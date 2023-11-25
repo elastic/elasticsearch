@@ -29,11 +29,14 @@ import org.elasticsearch.test.transport.MockTransportService;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
 public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
+
+    private static final String REQUIRE_NODE_NAME_SETTING = IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -45,10 +48,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(1);
         final var originalNode = internalCluster().startDataOnlyNode();
         final var indexName = randomIdentifier();
-        createIndexWithContent(
-            indexName,
-            indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", originalNode).build()
-        );
+        createIndexWithContent(indexName, indexSettings(1, 0).put(REQUIRE_NODE_NAME_SETTING, originalNode).build());
 
         final var repoName = randomIdentifier();
         createRepository(repoName, "mock");
@@ -94,19 +94,16 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(1);
         final var originalNode = internalCluster().startDataOnlyNode();
         final var indexName = randomIdentifier();
-        createIndexWithContent(
-            indexName,
-            indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", originalNode).build()
-        );
+        createIndexWithContent(indexName, indexSettings(1, 0).put(REQUIRE_NODE_NAME_SETTING, originalNode).build());
 
         final var repoName = randomIdentifier();
         createRepository(repoName, "mock");
 
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, originalNode);
-        final var snapshotPausedListener = createSnapshotPausedListener(clusterService, repoName);
+        final var snapshotPausedListener = createSnapshotPausedListener(clusterService, repoName, indexName);
 
-        updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name"), indexName);
+        updateIndexSettings(Settings.builder().putNull(REQUIRE_NODE_NAME_SETTING), indexName);
         putShutdownForRemovalMetadata(originalNode, clusterService);
         unblockAllDataNodes(repoName); // lets the shard snapshot abort, which frees up the shard so it can move
         safeAwait(snapshotPausedListener);
@@ -121,20 +118,79 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         clearShutdownMetadata(clusterService);
     }
 
+    public void testRemoveNodeDuringSnapshotWithOtherRunningShardSnapshots() throws Exception {
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "mock");
+
+        // create another index on another node which will be blocked (remain in state INIT) throughout
+        final var otherNode = internalCluster().startDataOnlyNode();
+        final var otherIndex = randomIdentifier();
+        createIndexWithContent(otherIndex, indexSettings(1, 0).put(REQUIRE_NODE_NAME_SETTING, otherNode).build());
+        blockDataNode(repoName, otherNode);
+
+        final var nodeForRemoval = internalCluster().startDataOnlyNode();
+        final var indexName = randomIdentifier();
+        createIndexWithContent(indexName, indexSettings(1, 0).put(REQUIRE_NODE_NAME_SETTING, nodeForRemoval).build());
+
+        final var replacementNode = internalCluster().startDataOnlyNode();
+
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, nodeForRemoval);
+        final var snapshotPausedListener = createSnapshotPausedListener(clusterService, repoName, indexName);
+        waitForBlock(otherNode, repoName);
+
+        putShutdownForRemovalMetadata(nodeForRemoval, clusterService);
+        unblockNode(repoName, nodeForRemoval); // lets the shard snapshot abort, which frees up the shard to move
+        safeAwait(snapshotPausedListener);
+
+        // adjust the allocation filter so that the shard moves
+        updateIndexSettings(Settings.builder().put(REQUIRE_NODE_NAME_SETTING, replacementNode), indexName);
+
+        // wait for the target shard snapshot to succeed
+        safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                clusterService,
+                state -> SnapshotsInProgress.get(state)
+                    .asStream()
+                    .allMatch(
+                        e -> e.shards()
+                            .entrySet()
+                            .stream()
+                            .anyMatch(
+                                shardEntry -> shardEntry.getKey().getIndexName().equals(indexName)
+                                    && switch (shardEntry.getValue().state()) {
+                                        case INIT, WAITING -> false;
+                                        case SUCCESS -> true;
+                                        case FAILED, ABORTED, MISSING, QUEUED -> throw new AssertionError(shardEntry.toString());
+                                    }
+                            )
+                    )
+            )
+        );
+
+        unblockAllDataNodes(repoName);
+
+        // snapshot completes when the node vacates even though it hasn't been removed yet
+        assertEquals(SnapshotState.SUCCESS, snapshotFuture.get(10, TimeUnit.SECONDS).getSnapshotInfo().state());
+
+        if (randomBoolean()) {
+            internalCluster().stopNode(nodeForRemoval);
+        }
+
+        clearShutdownMetadata(clusterService);
+    }
+
     public void testStartRemoveNodeButDoNotComplete() throws Exception {
         final var primaryNode = internalCluster().startDataOnlyNode();
         final var indexName = randomIdentifier();
-        createIndexWithContent(
-            indexName,
-            indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", primaryNode).build()
-        );
+        createIndexWithContent(indexName, indexSettings(1, 0).put(REQUIRE_NODE_NAME_SETTING, primaryNode).build());
 
         final var repoName = randomIdentifier();
         createRepository(repoName, "mock");
 
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, primaryNode);
-        final var snapshotPausedListener = createSnapshotPausedListener(clusterService, repoName);
+        final var snapshotPausedListener = createSnapshotPausedListener(clusterService, repoName, indexName);
 
         putShutdownForRemovalMetadata(primaryNode, clusterService);
         unblockAllDataNodes(repoName); // lets the shard snapshot abort, but allocation filtering stops it from moving
@@ -150,10 +206,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     public void testShutdownWhileSuccessInFlight() throws Exception {
         final var primaryNode = internalCluster().startDataOnlyNode();
         final var indexName = randomIdentifier();
-        createIndexWithContent(
-            indexName,
-            indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", primaryNode).build()
-        );
+        createIndexWithContent(indexName, indexSettings(1, 0).put(REQUIRE_NODE_NAME_SETTING, primaryNode).build());
 
         final var repoName = randomIdentifier();
         createRepository(repoName, "mock");
@@ -188,11 +241,21 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         clearShutdownMetadata(clusterService);
     }
 
-    private static SubscribableListener<Void> createSnapshotPausedListener(ClusterService clusterService, String repoName) {
+    private static SubscribableListener<Void> createSnapshotPausedListener(
+        ClusterService clusterService,
+        String repoName,
+        String indexName
+    ) {
         return ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
             final var entriesForRepo = SnapshotsInProgress.get(state).forRepo(repoName);
             assertThat(entriesForRepo, hasSize(1));
-            final var shardSnapshotStatuses = entriesForRepo.iterator().next().shards().values();
+            final var shardSnapshotStatuses = entriesForRepo.iterator()
+                .next()
+                .shards()
+                .entrySet()
+                .stream()
+                .flatMap(e -> e.getKey().getIndexName().equals(indexName) ? Stream.of(e.getValue()) : Stream.of())
+                .toList();
             assertThat(shardSnapshotStatuses, hasSize(1));
             final var shardState = shardSnapshotStatuses.iterator().next().state();
             assertThat(shardState, oneOf(SnapshotsInProgress.ShardState.INIT, SnapshotsInProgress.ShardState.WAITING));

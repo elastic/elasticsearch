@@ -12,7 +12,8 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.index.shard.ShardId;
+
+import java.util.Objects;
 
 /**
  * This {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider} prevents shards that
@@ -65,29 +66,49 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
             return YES_NOT_RUNNING;
         }
 
-        final ShardId shardId = shardRouting.shardId();
-        return snapshotsInProgress.asStream()
-            .filter(entry -> entry.hasShardsInInitState() && entry.isClone() == false)
-            .map(entry -> entry.shards().get(shardId))
-            .filter(
-                /* TODO we want to block INIT and ABORTED shards from moving because they are still doing work on the data node, but can we
-                 *  allow a WAITING shard to move? But if we allow all WAITING shards to move, they may move forever and never reach INIT
-                 *  state, so maybe only permit a move if the node is shutting down for removal? */
-                shardSnapshotStatus -> shardSnapshotStatus != null
-                    && shardSnapshotStatus.state().completed() == false
-                    && shardSnapshotStatus.nodeId() != null
-                    && shardSnapshotStatus.nodeId().equals(shardRouting.currentNodeId())
-            )
-            .findAny()
-            .map(
-                shardSnapshotStatus -> allocation.decision(
-                    Decision.THROTTLE,
-                    NAME,
-                    "waiting for snapshotting of shard [%s] to complete on this node [%s]",
-                    shardId,
-                    shardSnapshotStatus.nodeId()
-                )
-            )
-            .orElse(YES_NOT_SNAPSHOTTED);
+        for (final var entriesByRepo : snapshotsInProgress.entriesByRepo()) {
+            for (final var entry : entriesByRepo) {
+                if (entry.isClone()) {
+                    // clones do not run on data nodes
+                    continue;
+                }
+
+                if (entry.hasShardsInInitState() == false) {
+                    // snapshot has no running shards
+                    // NB if all shards are paused this permits them to move even if the corresponding nodes aren't shutting down
+                    continue;
+                }
+
+                final var shardSnapshotStatus = entry.shards().get(shardRouting.shardId());
+
+                if (shardSnapshotStatus == null) {
+                    // snapshot is not snapshotting shard to allocate
+                    continue;
+                }
+
+                if (shardSnapshotStatus.state().completed()) {
+                    // shard snapshot is complete
+
+                    /* TODO we want to block INIT and ABORTED shards from moving because they are still doing work on the data node, but can
+                     *  we allow a WAITING shard to move? But if we allow all WAITING shards to move, they may move forever and never reach
+                     *  INIT state, so maybe only permit a move if the node is shutting down for removal?
+                     */
+                    continue;
+                }
+
+                if (Objects.equals(shardSnapshotStatus.nodeId(), shardRouting.currentNodeId())) {
+                    return allocation.decision(
+                        Decision.THROTTLE,
+                        NAME,
+                        "waiting for snapshot [%s] of shard [%s] to complete on this node [%s]",
+                        entry.snapshot(),
+                        shardRouting.shardId(),
+                        shardRouting.currentNodeId()
+                    );
+                }
+            }
+        }
+
+        return YES_NOT_SNAPSHOTTED;
     }
 }

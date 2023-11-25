@@ -23,13 +23,13 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Validates a string claim against a list of allowed values. The validation is successful
- * if the claim's value matches any of the allowed values.
- * The claim's value can be either a single string or an array of strings. When it is an array
- * of string, the validation passes when any member of the string array matches any of the allowed
- * values.
- * Whether a claim's value can be an array of strings is customised with the {@link #singleValuedClaim}
- * field, which enforces the claim's value to be a single string if it is configured to {@code true}.
+ * Validates a specific string claim form a {@link JWTClaimsSet} against both a list of explicit values and a list of Lucene patterns.
+ * The validation is successful if the claim's value matches any of the allowed values or patterns from the lists.
+ * The {@link JWTClaimsSet} claim value can either be a single string or an array of strings.
+ * The {@link JwtStringClaimValidator} can be configured to only accept a single string claim value
+ * (and reject string array claims) when the {@link #singleValuedClaim} field is set to {@code true}.
+ * When it is an array of string, the validation is successful when ANY array element matches ANY of the allowed values or patterns
+ * (and {@link #singleValuedClaim} field is {@code false}).
  */
 public class JwtStringClaimValidator implements JwtFieldValidator {
 

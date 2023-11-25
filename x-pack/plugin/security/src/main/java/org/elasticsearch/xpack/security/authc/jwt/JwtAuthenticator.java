@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -182,7 +183,10 @@ public class JwtAuthenticator implements Releasable {
         }).toList();
     }
 
-    private static JwtStringClaimValidator getSubjectClaimValidator(RealmConfig realmConfig, Map<String, String> fallbackClaimLookup) {
+    private static JwtStringClaimValidator getSubjectClaimValidator(
+        RealmConfig realmConfig,
+        @Nullable Map<String, String> fallbackClaimLookup
+    ) {
         validateAllowedSubjectsSettings(realmConfig);
         return new JwtStringClaimValidator(
             "sub",

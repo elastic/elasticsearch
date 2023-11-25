@@ -1516,7 +1516,7 @@ public class MasterService extends AbstractLifecycleComponent {
             ClusterStateTaskExecutor<T> executor,
             ThreadPool threadPool
         ) {
-            this.name = name;
+            this.name = Objects.requireNonNull(name);
             this.batchConsumer = batchConsumer;
             this.insertionIndexSupplier = insertionIndexSupplier;
             this.perPriorityQueue = perPriorityQueue;
@@ -1690,8 +1690,8 @@ public class MasterService extends AbstractLifecycleComponent {
                     entry.insertionIndex(),
                     perPriorityQueue.priority(),
                     new Text(entry.source()),
-                    detailed ? entry.getTaskDescription() : null,
                     BatchingTaskQueue.this.name,
+                    detailed ? entry.getTaskDescription() : null,
                     // in case an element was added to the queue after we cached the current time, we count the wait time as 0
                     Math.max(0L, currentTimeMillis - entry.insertionTimeMillis()),
                     executing

@@ -1,8 +1,8 @@
 config:
   allow-labels: "test-cc"
 steps:
-  - label: part-1-cc
-    command: .ci/scripts/run-gradle-cc.sh -Dignore.tests.seed checkPart1
+  - label: part-3-cc
+    command: .ci/scripts/run-gradle-cc.sh -Dignore.tests.seed checkPart3
     timeout_in_minutes: 300
     agents:
       provider: gcp

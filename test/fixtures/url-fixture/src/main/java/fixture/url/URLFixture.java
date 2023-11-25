@@ -103,7 +103,7 @@ public class URLFixture extends AbstractHttpFixture implements TestRule {
     }
 
     public String getRepositoryDir() {
-        if(repositoryDir == null) {
+        if (repositoryDir == null) {
             throw new IllegalStateException("Rule has not been started yet");
         }
         return repositoryDir.toFile().getAbsolutePath();

@@ -50,7 +50,7 @@ public class CO2CalculatorTests extends ESTestCase {
                     // unknown datacenter, known provider and region, aarch64
                     new InstanceType(
                         "azure",
-                        "North Central US",
+                        "northcentralus",
                         "" // Doesn't matter for unknown datacenters.
                     ),
                     "aarch64"
@@ -73,7 +73,7 @@ public class CO2CalculatorTests extends ESTestCase {
         double samplingDurationInSeconds = 1_800.0d; // 30 minutes
         long samples = 100_000L; // 100k samples
         double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 20.0d);
-        CO2Calculator co2Calculator = new CO2Calculator(instanceTypeService, hostsTable, samplingDurationInSeconds);
+        CO2Calculator co2Calculator = new CO2Calculator(instanceTypeService, hostsTable, samplingDurationInSeconds, null, null, null);
 
         checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_A, samples), annualCoreHours, 0.000002213477d);
         checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples), annualCoreHours, 1.1d, 0.00004452d, 7.0d);

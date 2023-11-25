@@ -58,16 +58,20 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
             request.add(searchRequest);
         }
 
-        MultiSearchResponse result = client().execute(
+        final MultiSearchResponse result = client().execute(
             EnrichShardMultiSearchAction.INSTANCE,
             new EnrichShardMultiSearchAction.Request(request)
         ).actionGet();
-        assertThat(result.getResponses().length, equalTo(numSearches));
-        for (int i = 0; i < numSearches; i++) {
-            assertThat(result.getResponses()[i].isFailure(), is(false));
-            assertThat(result.getResponses()[i].getResponse().getHits().getTotalHits().value, equalTo(1L));
-            assertThat(result.getResponses()[i].getResponse().getHits().getHits()[0].getSourceAsMap().size(), equalTo(1));
-            assertThat(result.getResponses()[i].getResponse().getHits().getHits()[0].getSourceAsMap().get("key1"), equalTo("value1"));
+        try {
+            assertThat(result.getResponses().length, equalTo(numSearches));
+            for (int i = 0; i < numSearches; i++) {
+                assertThat(result.getResponses()[i].isFailure(), is(false));
+                assertThat(result.getResponses()[i].getResponse().getHits().getTotalHits().value, equalTo(1L));
+                assertThat(result.getResponses()[i].getResponse().getHits().getHits()[0].getSourceAsMap().size(), equalTo(1));
+                assertThat(result.getResponses()[i].getResponse().getHits().getHits()[0].getSourceAsMap().get("key1"), equalTo("value1"));
+            }
+        } finally {
+            result.decRef();
         }
     }
 

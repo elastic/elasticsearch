@@ -579,7 +579,7 @@ public class ObjectMapper extends Mapper {
                     // If we're merging template mappings when creating an index, then a field definition always
                     // replaces an existing one.
                     if (reason == MergeReason.INDEX_TEMPLATE) {
-                        mergedMappers.put(mergeWithMapper.simpleName(), mergeIntoMapper);
+                        mergedMappers.put(mergeWithMapper.simpleName(), mergeWithMapper);
                     } else {
                         mergedMappers.put(mergeWithMapper.simpleName(), mergeIntoMapper.merge(mergeWithMapper, objectMergeContext));
                     }

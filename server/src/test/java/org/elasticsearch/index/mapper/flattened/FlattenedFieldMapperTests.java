@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlatten
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,6 +92,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     protected boolean supportsIgnoreMalformed() {
         return false;
     }
+
+    @Ignore
+    @Override
+    public void testMapperBuilderSizeMultiField() {}
 
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));

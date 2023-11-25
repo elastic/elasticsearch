@@ -63,6 +63,12 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         return "POINT (14.0 15.0)";
     }
 
+    @Override
+    public void testMapperBuilderSizeMultiField() throws IOException {
+        super.testMapperBuilderSizeMultiField();
+        assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
+    }
+
     public void testDefaultConfiguration() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = mapper.mappers().getMapper("field");

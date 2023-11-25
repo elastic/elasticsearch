@@ -61,7 +61,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -1543,6 +1542,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 new Entry<>(
                     source,
                     taskHolder,
+                    new AtomicReference<>(),
                     insertionIndexSupplier.getAsLong(),
                     threadPool.relativeTimeInMillis(),
                     threadPool.getThreadContext().newRestorableContext(true),
@@ -1563,14 +1563,25 @@ public class MasterService extends AbstractLifecycleComponent {
         private record Entry<T extends ClusterStateTaskListener>(
             String source,
             AtomicReference<T> taskHolder,
+            AtomicReference<Supplier<String>> descriptionHolder,
             long insertionIndex,
             long insertionTimeMillis,
             Supplier<ThreadContext.StoredContext> storedContextSupplier,
             @Nullable Scheduler.Cancellable timeoutCancellable
         ) {
             T acquireForExecution() {
+                // Set descriptionHolder before clearing taskHolder
+                final var preflightTask = taskHolder.get();
+                if (preflightTask == null) {
+                    return null;
+                }
+                descriptionHolder.set(preflightTask::getDescription);
+
                 final var task = taskHolder.getAndSet(null);
-                if (task != null && timeoutCancellable != null) {
+                if (task == null) {
+                    // timed out concurrently
+                    descriptionHolder.set(null);
+                } else if (timeoutCancellable != null) {
                     timeoutCancellable.cancel();
                 }
                 return task;
@@ -1591,6 +1602,21 @@ public class MasterService extends AbstractLifecycleComponent {
 
             boolean isPending() {
                 return taskHolder().get() != null;
+            }
+
+            public String getTaskDescription() {
+                final var task = taskHolder.get();
+                if (task != null) {
+                    return task.getDescription();
+                }
+
+                final var descriptionSupplier = descriptionHolder.get();
+                if (descriptionSupplier != null) {
+                    return descriptionSupplier.get();
+                }
+
+                // task was acquired without setting descriptionHolder, must have timed out
+                return "timed out";
             }
         }
 
@@ -1664,10 +1690,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     entry.insertionIndex(),
                     perPriorityQueue.priority(),
                     new Text(entry.source()),
-                    // TODO can we get the description of executing tasks too?
-                    Optional.ofNullable(detailed ? entry.taskHolder().get() : null)
-                        .map(ClusterStateTaskListener::getDescription)
-                        .orElse(null),
+                    detailed ? entry.getTaskDescription() : null,
                     BatchingTaskQueue.this.name,
                     // in case an element was added to the queue after we cached the current time, we count the wait time as 0
                     Math.max(0L, currentTimeMillis - entry.insertionTimeMillis()),

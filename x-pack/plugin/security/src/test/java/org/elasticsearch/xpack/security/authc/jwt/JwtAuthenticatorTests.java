@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtAuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
 
 import java.text.ParseException;
@@ -64,6 +65,7 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         allowedIssuer = randomAlphaOfLength(6);
         allowedAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC);
         if (getTokenType() == JwtRealmSettings.TokenType.ID_TOKEN) {
+            // allowedSubject and allowedSubjectPattern can both be null for
             allowedSubject = randomBoolean() ? randomAlphaOfLength(8) : null;
             allowedSubjectPattern = randomBoolean() ? randomAlphaOfLength(8) : null;
             fallbackSub = null;
@@ -257,7 +259,60 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Invalid patterns for allowed claim values for [sub]."));
     }
 
+    public void testInvalidNoAllowedSubjectSettings() {
+        allowedSubject = null;
+        allowedSubjectPattern = null;
+        RealmConfig someJWTRealmConfig = buildJWTRealmConfig();
+        final Settings.Builder builder = Settings.builder();
+        builder.put(someJWTRealmConfig.settings());
+        if (randomBoolean()) {
+            builder.putList(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS), List.of());
+        } else {
+            builder.putNull(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS));
+        }
+        if (randomBoolean()) {
+            builder.putNull(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS));
+        } else {
+            builder.putList(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS), List.of());
+        }
+        SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> new JwtAuthenticator(
+                new RealmConfig(
+                    someJWTRealmConfig.identifier(),
+                    builder.build(),
+                    someJWTRealmConfig.env(),
+                    someJWTRealmConfig.threadContext()
+                ),
+                mock(SSLService.class),
+                () -> {}
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "One of either ["
+                    + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS)
+                    + "] or ["
+                    + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
+                    + "] must be non-empty."
+            )
+        );
+    }
+
     protected JwtAuthenticator buildJwtAuthenticator() {
+        final RealmConfig realmConfig = buildJWTRealmConfig();
+        final JwtAuthenticator jwtAuthenticator = spy(new JwtAuthenticator(realmConfig, null, () -> {}));
+        // Short circuit signature validation to be always successful since this test class does not test it
+        doAnswer(invocation -> {
+            final ActionListener<Void> listener = invocation.getArgument(2);
+            listener.onResponse(null);
+            return null;
+        }).when(jwtAuthenticator).validateSignature(any(), any(), anyActionListener());
+        return jwtAuthenticator;
+    }
+
+    protected RealmConfig buildJWTRealmConfig() {
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(JwtRealmSettings.TYPE, realmName);
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HMAC_KEY), randomAlphaOfLength(40));
@@ -268,14 +323,12 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
             .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), randomIntBetween(0, 99))
             .put("path.home", randomAlphaOfLength(10))
             .setSecureSettings(secureSettings);
-
         if (allowedSubject != null) {
             builder.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS), allowedSubject);
         }
         if (allowedSubjectPattern != null) {
             builder.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS), allowedSubjectPattern);
         }
-
         if (getTokenType() == JwtRealmSettings.TokenType.ID_TOKEN) {
             if (randomBoolean()) {
                 builder.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.TOKEN_TYPE), "id_token");
@@ -283,14 +336,12 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         } else {
             builder.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.TOKEN_TYPE), "access_token");
         }
-
         if (fallbackSub != null) {
             builder.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_SUB_CLAIM), fallbackSub);
         }
         if (fallbackAud != null) {
             builder.put(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.FALLBACK_AUD_CLAIM), fallbackAud);
         }
-
         if (requiredClaim != null) {
             final String requiredClaimsKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.REQUIRED_CLAIMS) + requiredClaim
                 .v1();
@@ -300,25 +351,8 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
                 builder.putList(requiredClaimsKey, requiredClaim.v2());
             }
         }
-
         final Settings settings = builder.build();
-
-        final RealmConfig realmConfig = new RealmConfig(
-            realmIdentifier,
-            settings,
-            TestEnvironment.newEnvironment(settings),
-            new ThreadContext(settings)
-        );
-
-        final JwtAuthenticator jwtAuthenticator = spy(new JwtAuthenticator(realmConfig, null, () -> {}));
-        // Short circuit signature validation to be always successful since this test class does not test it
-        doAnswer(invocation -> {
-            final ActionListener<Void> listener = invocation.getArgument(2);
-            listener.onResponse(null);
-            return null;
-        }).when(jwtAuthenticator).validateSignature(any(), any(), anyActionListener());
-
-        return jwtAuthenticator;
+        return new RealmConfig(realmIdentifier, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
     }
 
     private String getValidSubClaimValue() {

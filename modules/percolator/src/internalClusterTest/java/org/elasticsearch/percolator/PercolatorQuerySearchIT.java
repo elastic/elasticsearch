@@ -1094,7 +1094,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         prepareIndex("test").setId("5").setSource(jsonBuilder().startObject().field("field1", "c").endObject()).get();
         indicesAdmin().prepareRefresh().get();
 
-        MultiSearchResponse response = client().prepareMultiSearch()
+        final MultiSearchResponse response = client().prepareMultiSearch()
             .add(
                 prepareSearch("test").setQuery(
                     new PercolateQueryBuilder(
@@ -1137,36 +1137,40 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     .setQuery(new PercolateQueryBuilder("query", "test", "6", null, null, null))
             )
             .get();
+        try {
 
-        MultiSearchResponse.Item item = response.getResponses()[0];
-        assertHitCount(item.getResponse(), 2L);
-        assertSearchHits(item.getResponse(), "1", "4");
-        assertThat(item.getFailureMessage(), nullValue());
+            MultiSearchResponse.Item item = response.getResponses()[0];
+            assertHitCount(item.getResponse(), 2L);
+            assertSearchHits(item.getResponse(), "1", "4");
+            assertThat(item.getFailureMessage(), nullValue());
 
-        item = response.getResponses()[1];
-        assertHitCount(item.getResponse(), 2L);
-        assertSearchHits(item.getResponse(), "2", "4");
-        assertThat(item.getFailureMessage(), nullValue());
+            item = response.getResponses()[1];
+            assertHitCount(item.getResponse(), 2L);
+            assertSearchHits(item.getResponse(), "2", "4");
+            assertThat(item.getFailureMessage(), nullValue());
 
-        item = response.getResponses()[2];
-        assertHitCount(item.getResponse(), 4L);
-        assertSearchHits(item.getResponse(), "1", "2", "3", "4");
-        assertThat(item.getFailureMessage(), nullValue());
+            item = response.getResponses()[2];
+            assertHitCount(item.getResponse(), 4L);
+            assertSearchHits(item.getResponse(), "1", "2", "3", "4");
+            assertThat(item.getFailureMessage(), nullValue());
 
-        item = response.getResponses()[3];
-        assertHitCount(item.getResponse(), 1L);
-        assertSearchHits(item.getResponse(), "4");
-        assertThat(item.getFailureMessage(), nullValue());
+            item = response.getResponses()[3];
+            assertHitCount(item.getResponse(), 1L);
+            assertSearchHits(item.getResponse(), "4");
+            assertThat(item.getFailureMessage(), nullValue());
 
-        item = response.getResponses()[4];
-        assertHitCount(item.getResponse(), 2L);
-        assertSearchHits(item.getResponse(), "2", "4");
-        assertThat(item.getFailureMessage(), nullValue());
+            item = response.getResponses()[4];
+            assertHitCount(item.getResponse(), 2L);
+            assertSearchHits(item.getResponse(), "2", "4");
+            assertThat(item.getFailureMessage(), nullValue());
 
-        item = response.getResponses()[5];
-        assertThat(item.getResponse(), nullValue());
-        assertThat(item.getFailureMessage(), notNullValue());
-        assertThat(item.getFailureMessage(), containsString("[test/6] couldn't be found"));
+            item = response.getResponses()[5];
+            assertThat(item.getResponse(), nullValue());
+            assertThat(item.getFailureMessage(), notNullValue());
+            assertThat(item.getFailureMessage(), containsString("[test/6] couldn't be found"));
+        } finally {
+            response.decRef();
+        }
     }
 
     public void testDisallowExpensiveQueries() throws IOException {

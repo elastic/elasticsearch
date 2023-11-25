@@ -96,7 +96,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         assertThat(capturedResponse, equalTo("[]"));
         assertThat(capturedFailure, is(nullValue()));
-        verify(dataExtractor).cancel();
+        verify(dataExtractor).destroy();
     }
 
     public void testPreviewDatafeed_GivenNonEmptyStream() throws IOException {
@@ -108,7 +108,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         assertThat(capturedResponse, equalTo("[{\"a\":1, \"b\":2},{\"c\":3, \"d\":4},{\"e\":5, \"f\":6}]"));
         assertThat(capturedFailure, is(nullValue()));
-        verify(dataExtractor).cancel();
+        verify(dataExtractor).destroy();
     }
 
     public void testPreviewDatafeed_GivenFailure() throws IOException {
@@ -118,6 +118,6 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         assertThat(capturedResponse, is(nullValue()));
         assertThat(capturedFailure.getMessage(), equalTo("failed"));
-        verify(dataExtractor).cancel();
+        verify(dataExtractor).destroy();
     }
 }

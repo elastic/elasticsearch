@@ -32,7 +32,6 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlatten
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.ArrayList;

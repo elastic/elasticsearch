@@ -69,7 +69,7 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadA
         ActionListener<PendingClusterTasksResponse> listener
     ) {
         logger.trace("fetching pending tasks from cluster service");
-        final List<PendingClusterTask> pendingTasks = clusterService.getMasterService().pendingTasks();
+        final List<PendingClusterTask> pendingTasks = clusterService.getMasterService().pendingTasks(request.detailed());
         logger.trace("done fetching pending tasks from cluster service");
         listener.onResponse(new PendingClusterTasksResponse(pendingTasks));
     }

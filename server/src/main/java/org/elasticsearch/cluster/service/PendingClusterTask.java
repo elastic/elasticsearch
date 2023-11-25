@@ -17,17 +17,50 @@ import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
-public record PendingClusterTask(long insertOrder, Priority priority, Text source, long timeInQueue, boolean executing)
-    implements
-        Writeable {
+import static org.elasticsearch.TransportVersions.PENDING_CLUSTER_TASKS_DETAILS_ADDED;
+
+public record PendingClusterTask(
+    long insertOrder,
+    Priority priority,
+    Text source,
+    String queueName,
+    String taskDescription,
+    long timeInQueue,
+    boolean executing
+) implements Writeable {
 
     public PendingClusterTask(StreamInput in) throws IOException {
-        this(in.readVLong(), Priority.readFrom(in), in.readText(), in.readLong(), in.readBoolean());
+        this(
+            in.readVLong(),
+            Priority.readFrom(in),
+            readSource(in),
+            readQueueName(in),
+            readDescription(in),
+            readTimeInQueue(in),
+            in.readBoolean()
+        );
+    }
+
+    private static Text readSource(StreamInput in) throws IOException {
+        return in.getTransportVersion().onOrAfter(PENDING_CLUSTER_TASKS_DETAILS_ADDED) ? new Text(in.readString()) : in.readText();
+    }
+
+    private static String readQueueName(StreamInput in) throws IOException {
+        return in.getTransportVersion().onOrAfter(PENDING_CLUSTER_TASKS_DETAILS_ADDED) ? in.readString() : "";
+    }
+
+    private static String readDescription(StreamInput in) throws IOException {
+        return in.getTransportVersion().onOrAfter(PENDING_CLUSTER_TASKS_DETAILS_ADDED) ? in.readOptionalString() : null;
+    }
+
+    private static long readTimeInQueue(StreamInput in) throws IOException {
+        return in.getTransportVersion().onOrAfter(PENDING_CLUSTER_TASKS_DETAILS_ADDED) ? in.readVLong() : in.readLong();
     }
 
     public PendingClusterTask {
         assert timeInQueue >= 0 : "got a negative timeInQueue [" + timeInQueue + "]";
         assert insertOrder >= 0 : "got a negative insertOrder [" + insertOrder + "]";
+        assert source.hasString();
     }
 
     public long getInsertOrder() {
@@ -58,8 +91,16 @@ public record PendingClusterTask(long insertOrder, Priority priority, Text sourc
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(insertOrder);
         Priority.writeTo(priority, out);
-        out.writeText(source);
-        out.writeLong(timeInQueue);
+        if (out.getTransportVersion().onOrAfter(PENDING_CLUSTER_TASKS_DETAILS_ADDED)) {
+            out.writeString(source.string());
+            out.writeString(queueName);
+            out.writeOptionalString(taskDescription);
+            out.writeVLong(timeInQueue);
+        } else {
+            out.writeText(source);
+            // earlier versions don't support detailed mode, can just omit the queue name and task description
+            out.writeLong(timeInQueue);
+        }
         out.writeBoolean(executing);
     }
 }

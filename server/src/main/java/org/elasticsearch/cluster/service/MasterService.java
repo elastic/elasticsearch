@@ -61,6 +61,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -571,8 +572,15 @@ public class MasterService extends AbstractLifecycleComponent {
      * Returns the tasks that are pending.
      */
     public List<PendingClusterTask> pendingTasks() {
+        return pendingTasks(false);
+    }
+
+    /**
+     * Returns the tasks that are pending.
+     */
+    public List<PendingClusterTask> pendingTasks(boolean detailed) {
         final var currentTimeMillis = threadPool.relativeTimeInMillis();
-        return allBatchesStream().flatMap(e -> e.getPending(currentTimeMillis)).toList();
+        return allBatchesStream().flatMap(e -> e.getPending(currentTimeMillis, detailed)).toList();
     }
 
     /**
@@ -1375,7 +1383,7 @@ public class MasterService extends AbstractLifecycleComponent {
         /**
          * @return the tasks in this batch if the batch is pending, or an empty stream if the batch is not pending.
          */
-        Stream<PendingClusterTask> getPending(long currentTimeMillis);
+        Stream<PendingClusterTask> getPending(long currentTimeMillis, boolean detailed);
 
         /**
          * @return the earliest insertion time of the tasks in this batch if the batch is pending, or {@link Long#MAX_VALUE} otherwise.
@@ -1644,18 +1652,23 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             @Override
-            public Stream<PendingClusterTask> getPending(long currentTimeMillis) {
+            public Stream<PendingClusterTask> getPending(long currentTimeMillis, boolean detailed) {
                 return Stream.concat(
-                    executing.stream().map(entry -> makePendingTask(entry, currentTimeMillis, true)),
-                    queue.stream().filter(Entry::isPending).map(entry -> makePendingTask(entry, currentTimeMillis, false))
+                    executing.stream().map(entry -> makePendingTask(entry, currentTimeMillis, true, detailed)),
+                    queue.stream().filter(Entry::isPending).map(entry -> makePendingTask(entry, currentTimeMillis, false, detailed))
                 );
             }
 
-            private PendingClusterTask makePendingTask(Entry<T> entry, long currentTimeMillis, boolean executing) {
+            private PendingClusterTask makePendingTask(Entry<T> entry, long currentTimeMillis, boolean executing, boolean detailed) {
                 return new PendingClusterTask(
                     entry.insertionIndex(),
                     perPriorityQueue.priority(),
                     new Text(entry.source()),
+                    // TODO can we get the description of executing tasks too?
+                    Optional.ofNullable(detailed ? entry.taskHolder().get() : null)
+                        .map(ClusterStateTaskListener::getDescription)
+                        .orElse(null),
+                    BatchingTaskQueue.this.name,
                     // in case an element was added to the queue after we cached the current time, we count the wait time as 0
                     Math.max(0L, currentTimeMillis - entry.insertionTimeMillis()),
                     executing

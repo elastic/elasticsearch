@@ -175,7 +175,7 @@ public class SpatialPluginTests extends ESTestCase {
             ValuesSourceRegistry registry = registryBuilder.build();
             T aggregator = registry.getAggregator(
                 registryKey,
-                new ValuesSourceConfig(sourceType, null, true, null, null, null, null, null, null)
+                new ValuesSourceConfig(sourceType, null, true, null, null, null, null, null)
             );
             NullPointerException exception = expectThrows(NullPointerException.class, () -> builder.accept(aggregator));
             assertThat(
@@ -203,7 +203,7 @@ public class SpatialPluginTests extends ESTestCase {
             ValuesSourceRegistry registry = registryBuilder.build();
             T aggregator = registry.getAggregator(
                 registryKey,
-                new ValuesSourceConfig(sourceType, null, true, null, null, null, null, null, null)
+                new ValuesSourceConfig(sourceType, null, true, null, null, null, null, null)
             );
             if (License.OperationMode.TRIAL != operationMode
                 && License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
@@ -229,7 +229,7 @@ public class SpatialPluginTests extends ESTestCase {
 
     private static class TestValuesSourceConfig extends ValuesSourceConfig {
         private TestValuesSourceConfig(ValuesSourceType sourceType) {
-            super(sourceType, null, true, null, null, null, null, null, null);
+            super(sourceType, null, true, null, null, null, null, null);
         }
     }
 }

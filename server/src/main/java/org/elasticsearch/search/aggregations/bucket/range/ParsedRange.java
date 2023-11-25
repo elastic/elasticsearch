@@ -41,7 +41,7 @@ public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.Parsed
         final CheckedFunction<XContentParser, ParsedBucket, IOException> bucketParser,
         final CheckedFunction<XContentParser, ParsedBucket, IOException> keyedBucketParser
     ) {
-        declareMultiBucketAggregationFields(objectParser, bucketParser::apply, keyedBucketParser::apply);
+        declareMultiBucketAggregationFields(objectParser, bucketParser, keyedBucketParser);
     }
 
     private static final ObjectParser<ParsedRange, Void> PARSER = new ObjectParser<>(

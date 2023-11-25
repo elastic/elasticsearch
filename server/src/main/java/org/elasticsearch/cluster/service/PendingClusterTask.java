@@ -60,7 +60,6 @@ public record PendingClusterTask(
     public PendingClusterTask {
         assert timeInQueue >= 0 : "got a negative timeInQueue [" + timeInQueue + "]";
         assert insertOrder >= 0 : "got a negative insertOrder [" + insertOrder + "]";
-        assert source.hasString();
     }
 
     public long getInsertOrder() {

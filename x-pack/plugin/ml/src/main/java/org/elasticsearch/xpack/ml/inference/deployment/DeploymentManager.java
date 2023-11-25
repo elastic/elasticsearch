@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocati
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
@@ -130,7 +132,7 @@ public class DeploymentManager {
     }
 
     public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
-        logger.info("[{}] Starting model deployment", task.getDeploymentId());
+        logger.info("[{}] Starting model deployment of model [{}]", task.getDeploymentId(), task.getModelId());
 
         if (processContextByAllocation.size() >= maxProcesses) {
             finalListener.onFailure(
@@ -166,6 +168,7 @@ public class DeploymentManager {
 
         ActionListener<TrainedModelConfig> getVerifiedModel = ActionListener.wrap((modelConfig) -> {
             processContext.modelInput.set(modelConfig.getInput());
+            processContext.prefixes.set(modelConfig.getPrefixStrings());
 
             if (modelConfig.getInferenceConfig() instanceof NlpConfig nlpConfig) {
                 task.init(nlpConfig);
@@ -255,7 +258,12 @@ public class DeploymentManager {
         Client client,
         ThreadPool threadPool
     ) {
-        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(configToReturnListener, client, threadPool, configToReturn);
+        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
+            configToReturnListener,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            configToReturn
+        );
     }
 
     private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {
@@ -313,6 +321,7 @@ public class DeploymentManager {
         NlpInferenceInput input,
         boolean skipQueue,
         TimeValue timeout,
+        TrainedModelPrefixStrings.PrefixType prefixType,
         CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
@@ -330,6 +339,7 @@ public class DeploymentManager {
             processContext,
             config,
             input,
+            prefixType,
             threadPool,
             parentActionTask,
             listener
@@ -431,6 +441,7 @@ public class DeploymentManager {
         private final SetOnce<PyTorchProcess> process = new SetOnce<>();
         private final SetOnce<NlpTask.Processor> nlpTaskProcessor = new SetOnce<>();
         private final SetOnce<TrainedModelInput> modelInput = new SetOnce<>();
+        private final SetOnce<TrainedModelPrefixStrings> prefixes = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
         private final PriorityProcessWorkerExecutorService priorityProcessWorker;
@@ -674,6 +685,10 @@ public class DeploymentManager {
 
         SetOnce<NlpTask.Processor> getNlpTaskProcessor() {
             return nlpTaskProcessor;
+        }
+
+        SetOnce<TrainedModelPrefixStrings> getPrefixStrings() {
+            return prefixes;
         }
     }
 }

@@ -30,36 +30,35 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
 
   @Override
   public Block eval(Page page) {
-    Block fieldValUncastBlock = fieldVal.eval(page);
-    if (fieldValUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+    try (IntBlock fieldValBlock = (IntBlock) fieldVal.eval(page)) {
+      IntVector fieldValVector = fieldValBlock.asVector();
+      if (fieldValVector == null) {
+        return eval(page.getPositionCount(), fieldValBlock);
+      }
+      return eval(page.getPositionCount(), fieldValVector).asBlock();
     }
-    IntBlock fieldValBlock = (IntBlock) fieldValUncastBlock;
-    IntVector fieldValVector = fieldValBlock.asVector();
-    if (fieldValVector == null) {
-      return eval(page.getPositionCount(), fieldValBlock);
-    }
-    return eval(page.getPositionCount(), fieldValVector).asBlock();
   }
 
   public IntBlock eval(int positionCount, IntBlock fieldValBlock) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendInt(Abs.process(fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p))));
       }
-      result.appendInt(Abs.process(fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public IntVector eval(int positionCount, IntVector fieldValVector) {
-    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendInt(Abs.process(fieldValVector.getInt(p)));
+    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendInt(Abs.process(fieldValVector.getInt(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -70,5 +69,23 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(fieldVal);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory fieldVal) {
+      this.fieldVal = fieldVal;
+    }
+
+    @Override
+    public AbsIntEvaluator get(DriverContext context) {
+      return new AbsIntEvaluator(fieldVal.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "AbsIntEvaluator[" + "fieldVal=" + fieldVal + "]";
+    }
   }
 }

@@ -35,6 +35,9 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+
 public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
 
     public void testHDRHistogram() throws Exception {
@@ -97,17 +100,15 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                     .field("counts", counts.toArray(new Integer[counts.size()]))
                     .endObject()
                     .endObject();
-                client().prepareIndex("pre_agg").setSource(preAggDoc).get();
+                prepareIndex("pre_agg").setSource(preAggDoc).get();
                 histogram.reset();
             }
         }
         client().admin().indices().refresh(new RefreshRequest("raw", "pre_agg")).get();
 
-        SearchResponse response = client().prepareSearch("raw").setTrackTotalHits(true).get();
-        assertEquals(numDocs, response.getHits().getTotalHits().value);
+        assertHitCount(client().prepareSearch("raw").setTrackTotalHits(true), numDocs);
 
-        response = client().prepareSearch("pre_agg").get();
-        assertEquals(numDocs / frq, response.getHits().getTotalHits().value);
+        assertHitCount(client().prepareSearch("pre_agg"), numDocs / frq);
 
         PercentilesAggregationBuilder builder = AggregationBuilders.percentiles("agg")
             .field("data")
@@ -115,17 +116,21 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
             .numberOfSignificantValueDigits(numberOfSignificantValueDigits)
             .percentiles(10);
 
-        SearchResponse responseRaw = client().prepareSearch("raw").addAggregation(builder).get();
-        SearchResponse responsePreAgg = client().prepareSearch("pre_agg").addAggregation(builder).get();
-        SearchResponse responseBoth = client().prepareSearch("pre_agg", "raw").addAggregation(builder).get();
-
-        InternalHDRPercentiles percentilesRaw = responseRaw.getAggregations().get("agg");
-        InternalHDRPercentiles percentilesPreAgg = responsePreAgg.getAggregations().get("agg");
-        InternalHDRPercentiles percentilesBoth = responseBoth.getAggregations().get("agg");
-        for (int i = 1; i < 100; i++) {
-            assertEquals(percentilesRaw.percentile(i), percentilesPreAgg.percentile(i), 0.0);
-            assertEquals(percentilesRaw.percentile(i), percentilesBoth.percentile(i), 0.0);
-        }
+        assertResponse(
+            client().prepareSearch("raw").addAggregation(builder),
+            responseRaw -> assertResponse(
+                client().prepareSearch("pre_agg").addAggregation(builder),
+                responsePreAgg -> assertResponse(client().prepareSearch("pre_agg", "raw").addAggregation(builder), responseBoth -> {
+                    InternalHDRPercentiles percentilesRaw = responseRaw.getAggregations().get("agg");
+                    InternalHDRPercentiles percentilesPreAgg = responsePreAgg.getAggregations().get("agg");
+                    InternalHDRPercentiles percentilesBoth = responseBoth.getAggregations().get("agg");
+                    for (int i = 1; i < 100; i++) {
+                        assertEquals(percentilesRaw.percentile(i), percentilesPreAgg.percentile(i), 0.0);
+                        assertEquals(percentilesRaw.percentile(i), percentilesBoth.percentile(i), 0.0);
+                    }
+                })
+            )
+        );
     }
 
     private void setupTDigestHistogram(int compression) throws Exception {
@@ -200,7 +205,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                     .endObject()
                     .endObject()
                     .endObject();
-                client().prepareIndex("pre_agg").setSource(preAggDoc).get();
+                prepareIndex("pre_agg").setSource(preAggDoc).get();
                 histogram = TDigestState.create(compression);
             }
         }

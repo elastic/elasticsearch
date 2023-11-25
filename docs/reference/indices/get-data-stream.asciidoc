@@ -153,6 +153,16 @@ Name of the backing index. For naming conventions, see
 `index_uuid`::
 (string)
 Universally unique identifier (UUID) for the index.
+
+`prefer_ilm`::
+(boolean)
+Functionality in preview:[]. Indicates if this index is configured to prefer {ilm}
+when both {ilm-cap} and <<data-stream-lifecycle, Data stream lifecycle>> are configured to
+manage this index.
+
+`managed_by`::
+(string)
+Functionality in preview:[]. Indicates the system that managed this index.
 =====
 
 `generation`::
@@ -206,6 +216,17 @@ NOTE: A data stream's backing indices may be assigned different lifecycle
 policies. To retrieve the lifecycle policy for individual backing indices,
 use the <<indices-get-settings,get index settings API>>.
 
+`next_generation_managed_by`::
+(string)
+Functionality in preview:[]. Indicates the system that will managed the next generation index
+(i.e. the next data stream write index).
+
+`prefer_ilm`::
+(boolean)
+Functionality in preview:[]. Indicates if the index template used to create the data
+stream's backing indices is configured to prefer {ilm-cap} when both {ilm-cap} and
+<<data-stream-lifecycle, Data stream lifecycle>> are configured to manage this index.
+
 `hidden`::
 (Boolean) If `true`, the data stream is <<multi-hidden,hidden>>.
 
@@ -225,7 +246,7 @@ cluster can not write into this data stream or change its mappings.
 
 `lifecycle`::
 (object)
-Contains the configuration for the data stream lifecycle management of this data stream.
+Functionality in preview:[]. Contains the configuration for the data stream lifecycle management of this data stream.
 +
 .Properties of `lifecycle`
 [%collapsible%open]
@@ -330,3 +351,4 @@ The API returns the following response:
 // TESTRESPONSE[s/"index_name": ".ds-my-data-stream-two-2099.03.08-000001"/"index_name": $body.data_streams.1.indices.0.index_name/]
 // TESTRESPONSE[s/"index_uuid": "3liBu2SYS5axasRt6fUIpA"/"index_uuid": $body.data_streams.1.indices.0.index_uuid/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
+// TESTRESPONSE[s/"replicated": false/"replicated": false,"failure_indices":[],"failure_store":false/]

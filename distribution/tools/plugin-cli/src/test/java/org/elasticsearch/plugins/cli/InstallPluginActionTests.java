@@ -32,7 +32,6 @@ import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyPair;
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder;
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyEncryptorBuilder;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
@@ -110,6 +109,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -297,7 +297,7 @@ public class InstallPluginActionTests extends ESTestCase {
                 "version",
                 "1.0",
                 "elasticsearch.version",
-                Version.CURRENT.toString(),
+                Build.current().version(),
                 "java.version",
                 System.getProperty("java.specification.version")
 
@@ -723,7 +723,7 @@ public class InstallPluginActionTests extends ESTestCase {
         final Path platformBinDir = platformNameDir.resolve("bin");
         Files.createDirectories(platformBinDir);
 
-        Files.createFile(tempPluginDir.resolve("fake-" + Version.CURRENT.toString() + ".jar"));
+        Files.createFile(tempPluginDir.resolve("fake-" + Build.current().version() + ".jar"));
         Files.createFile(platformBinDir.resolve("fake_executable"));
         Files.createDirectory(resourcesDir);
         Files.createFile(resourcesDir.resolve("resource"));
@@ -739,7 +739,7 @@ public class InstallPluginActionTests extends ESTestCase {
         final Path platformName = platform.resolve("linux-x86_64");
         final Path bin = platformName.resolve("bin");
         assert755(fake);
-        assert644(fake.resolve("fake-" + Version.CURRENT + ".jar"));
+        assert644(fake.resolve("fake-" + Build.current().version() + ".jar"));
         assert755(resources);
         assert644(resources.resolve("resource"));
         assert755(platform);
@@ -1109,7 +1109,7 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = String.format(
             Locale.ROOT,
             "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
-            Version.CURRENT,
+            Build.current().version(),
             Build.current().qualifiedVersion()
         );
         assertInstallPluginFromUrl("analysis-icu", url, "abc123", true);
@@ -1119,7 +1119,7 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = String.format(
             Locale.ROOT,
             "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
-            Version.CURRENT,
+            Build.current().version(),
             Build.current().qualifiedVersion()
         );
         // attempting to install a release build of a plugin (no staging ID) on a snapshot build should throw a user exception
@@ -1136,7 +1136,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testOfficialPluginStaging() throws Exception {
         String url = "https://staging.elastic.co/"
-            + Version.CURRENT
+            + Build.current().version()
             + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.current().qualifiedVersion()
             + ".zip";
@@ -1156,7 +1156,7 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = String.format(
             Locale.ROOT,
             "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s-%s.zip",
-            Version.CURRENT,
+            Build.current().version(),
             Platforms.PLATFORM_NAME,
             Build.current().qualifiedVersion()
         );
@@ -1165,7 +1165,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testOfficialPlatformPluginStaging() throws Exception {
         String url = "https://staging.elastic.co/"
-            + Version.CURRENT
+            + Build.current().version()
             + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Platforms.PLATFORM_NAME
             + "-"
@@ -1577,6 +1577,17 @@ public class InstallPluginActionTests extends ESTestCase {
 
         assertPlugin("stable1", pluginDir, env.v2());
         assertNamedComponentFile("stable1", env.v2().pluginsFile(), namedComponentsJSON());
+    }
+
+    public void testGetSemanticVersion() {
+        assertThat(InstallPluginAction.getSemanticVersion("1.2.3"), equalTo("1.2.3"));
+        assertThat(InstallPluginAction.getSemanticVersion("123.456.789"), equalTo("123.456.789"));
+        assertThat(InstallPluginAction.getSemanticVersion("1.2.3-SNAPSHOT"), equalTo("1.2.3"));
+        assertThat(InstallPluginAction.getSemanticVersion("1.2.3foobar"), equalTo("1.2.3"));
+        assertThat(InstallPluginAction.getSemanticVersion("1.2.3.4"), equalTo("1.2.3"));
+        assertThat(InstallPluginAction.getSemanticVersion("1.2"), nullValue());
+        assertThat(InstallPluginAction.getSemanticVersion("foo"), nullValue());
+        assertThat(InstallPluginAction.getSemanticVersion("foo-1.2.3"), nullValue());
     }
 
     private static String namedComponentsJSON() {

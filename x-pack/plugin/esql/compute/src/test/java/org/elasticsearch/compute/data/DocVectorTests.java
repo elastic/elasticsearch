@@ -24,22 +24,22 @@ import static org.hamcrest.Matchers.is;
 public class DocVectorTests extends ESTestCase {
     public void testNonDecreasingSetTrue() {
         int length = between(1, 100);
-        DocVector docs = new DocVector(IntVector.range(0, length), IntVector.range(0, length), IntVector.range(0, length), true);
+        DocVector docs = new DocVector(intRange(0, length), intRange(0, length), intRange(0, length), true);
         assertTrue(docs.singleSegmentNonDecreasing());
     }
 
     public void testNonDecreasingSetFalse() {
-        DocVector docs = new DocVector(IntVector.range(0, 2), IntVector.range(0, 2), new IntArrayVector(new int[] { 1, 0 }, 2), false);
+        DocVector docs = new DocVector(intRange(0, 2), intRange(0, 2), new IntArrayVector(new int[] { 1, 0 }, 2), false);
         assertFalse(docs.singleSegmentNonDecreasing());
     }
 
     public void testNonDecreasingNonConstantShard() {
-        DocVector docs = new DocVector(IntVector.range(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), IntVector.range(0, 2), null);
+        DocVector docs = new DocVector(intRange(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), null);
         assertFalse(docs.singleSegmentNonDecreasing());
     }
 
     public void testNonDecreasingNonConstantSegment() {
-        DocVector docs = new DocVector(IntBlock.newConstantBlockWith(0, 2).asVector(), IntVector.range(0, 2), IntVector.range(0, 2), null);
+        DocVector docs = new DocVector(IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), intRange(0, 2), null);
         assertFalse(docs.singleSegmentNonDecreasing());
     }
 
@@ -133,8 +133,7 @@ public class DocVectorTests extends ESTestCase {
     }
 
     public void testCannotDoubleRelease() {
-        var block = new DocVector(IntVector.range(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), IntVector.range(0, 2), null)
-            .asBlock();
+        var block = new DocVector(intRange(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), null).asBlock();
         assertThat(block.isReleased(), is(false));
         Page page = new Page(block);
 
@@ -149,5 +148,20 @@ public class DocVectorTests extends ESTestCase {
 
         e = expectThrows(IllegalArgumentException.class, () -> new Page(block));
         assertThat(e.getMessage(), containsString("can't build page out of released blocks"));
+    }
+
+    public void testRamBytesUsedWithout() {
+        DocVector docs = new DocVector(
+            IntBlock.newConstantBlockWith(0, 1).asVector(),
+            IntBlock.newConstantBlockWith(0, 1).asVector(),
+            IntBlock.newConstantBlockWith(0, 1).asVector(),
+            false
+        );
+        assertThat(docs.singleSegmentNonDecreasing(), is(false));
+        docs.ramBytesUsed(); // ensure non-singleSegmentNonDecreasing handles nulls in ramByteUsed
+    }
+
+    IntVector intRange(int startInclusive, int endExclusive) {
+        return IntVector.range(startInclusive, endExclusive, BlockFactory.getNonBreakingInstance());
     }
 }

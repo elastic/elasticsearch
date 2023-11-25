@@ -10,15 +10,17 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.hamcrest.Matchers.containsString;
@@ -89,7 +91,7 @@ public class RefCountingListenerTests extends ESTestCase {
 
             var reachChecker = new ReachabilityChecker();
             var consumed = new AtomicBoolean();
-            var consumingListener = refs.acquire(reachChecker.register(new Consumer<String>() {
+            var consumingListener = refs.acquire(reachChecker.register(new CheckedConsumer<String, Exception>() {
                 @Override
                 public void accept(String s) {
                     assertEquals("test response", s);
@@ -122,11 +124,7 @@ public class RefCountingListenerTests extends ESTestCase {
                     async = true;
                     var ref = refs.acquire();
                     threads[i] = new Thread(() -> {
-                        try {
-                            assertTrue(startLatch.await(10, TimeUnit.SECONDS));
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(startLatch);
                         assertFalse(executed.get());
                         if (randomBoolean()) {
                             ref.onResponse(null);
@@ -177,10 +175,10 @@ public class RefCountingListenerTests extends ESTestCase {
             final String expectedMessage;
             if (randomBoolean()) {
                 throwingRunnable = refs::acquire;
-                expectedMessage = RefCountingRunnable.ALREADY_CLOSED_MESSAGE;
+                expectedMessage = AbstractRefCounted.ALREADY_CLOSED_MESSAGE;
             } else {
                 throwingRunnable = refs::close;
-                expectedMessage = "invalid decRef call: already closed";
+                expectedMessage = AbstractRefCounted.INVALID_DECREF_MESSAGE;
             }
 
             assertEquals(expectedMessage, expectThrows(AssertionError.class, throwingRunnable).getMessage());
@@ -190,6 +188,7 @@ public class RefCountingListenerTests extends ESTestCase {
 
     public void testConsumerFailure() {
         final var executed = new AtomicBoolean();
+        final Runnable completeAcquiredRunOnce;
         try (var refs = new RefCountingListener(new ActionListener<Void>() {
             @Override
             public void onResponse(Void unused) {
@@ -202,8 +201,19 @@ public class RefCountingListenerTests extends ESTestCase {
                 executed.set(true);
             }
         })) {
-            refs.acquire(ignored -> { throw new ElasticsearchException("simulated"); }).onResponse(null);
+            final var listener = refs.acquire(ignored -> {
+                if (randomBoolean()) {
+                    throw new ElasticsearchException("simulated");
+                } else {
+                    throw new IOException("simulated");
+                }
+            });
+            completeAcquiredRunOnce = new RunOnce(() -> listener.onResponse(null));
+            if (randomBoolean()) {
+                completeAcquiredRunOnce.run();
+            }
         }
+        completeAcquiredRunOnce.run();
         assertTrue(executed.get());
     }
 

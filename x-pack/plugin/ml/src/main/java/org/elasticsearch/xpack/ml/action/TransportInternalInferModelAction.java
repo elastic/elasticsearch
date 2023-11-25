@@ -34,7 +34,9 @@ import org.elasticsearch.xpack.core.ml.action.InferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
@@ -74,7 +76,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         XPackLicenseState licenseState,
         TrainedModelProvider trainedModelProvider
     ) {
-        super(actionName, transportService, actionFilters, InferModelAction.Request::new);
+        super(actionName, transportService, actionFilters, InferModelAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelLoadingService = modelLoadingService;
         this.client = client;
         this.clusterService = clusterService;
@@ -242,7 +244,13 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         // Get a list of nodes to send the requests to and the number of
         // documents for each node.
-        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(request.numberOfDocuments());
+        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(request.numberOfDocuments(), RoutingState.STARTED);
+
+        // We couldn't find any nodes in the started state so let's look for ones that are stopping in case we're shutting down some nodes
+        if (nodes.isEmpty()) {
+            nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(request.numberOfDocuments(), RoutingState.STOPPING);
+        }
+
         if (nodes.isEmpty()) {
             logger.trace(() -> format("[%s] model deployment not allocated to any node", assignment.getDeploymentId()));
             listener.onFailure(
@@ -278,6 +286,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                 );
             }
             deploymentRequest.setHighPriority(request.isHighPriority());
+            deploymentRequest.setPrefixType(request.getPrefixType());
             deploymentRequest.setNodes(node.v1());
             deploymentRequest.setParentTask(parentTaskId);
 
@@ -321,7 +330,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         throw new IllegalStateException();
     }
 
-    private ActionListener<InferTrainedModelDeploymentAction.Response> collectingListener(
+    private static ActionListener<InferTrainedModelDeploymentAction.Response> collectingListener(
         AtomicInteger count,
         AtomicArray<List<InferenceResults>> results,
         AtomicReference<Exception> failure,
@@ -348,15 +357,26 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             }
 
             private void sendResponse() {
-                if (results.nonNullLength() > 0) {
+                if (failure.get() != null) {
+                    finalListener.onFailure(failure.get());
+                } else {
                     for (int i = 0; i < results.length(); i++) {
-                        if (results.get(i) != null) {
-                            responseBuilder.addInferenceResults(results.get(i));
+                        var resultList = results.get(i);
+                        if (resultList == null) {
+                            continue;
                         }
+
+                        for (var result : resultList) {
+                            if (result instanceof ErrorInferenceResults errorResult) {
+                                // Any failure fails all requests
+                                // TODO is this the correct behaviour for batched requests?
+                                finalListener.onFailure(errorResult.getException());
+                                return;
+                            }
+                        }
+                        responseBuilder.addInferenceResults(resultList);
                     }
                     finalListener.onResponse(responseBuilder.build());
-                } else {
-                    finalListener.onFailure(failure.get());
                 }
             }
         };

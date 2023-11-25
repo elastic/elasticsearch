@@ -257,6 +257,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterFunction(EsqlBaseParser.FunctionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFunction(EsqlBaseParser.FunctionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterParenthesizedExpression(EsqlBaseParser.ParenthesizedExpressionContext ctx) { }
   /**
    * {@inheritDoc}

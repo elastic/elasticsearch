@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -38,6 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -208,27 +210,27 @@ public class RestEsqlTestCase extends ESRestTestCase {
     public void testTextMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query(fromIndex() + " | keep keyword, integer").build();
+        var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100").build();
         assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder, "txt", null));
     }
 
     public void testCSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query(fromIndex() + " | keep keyword, integer").build();
+        var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100").build();
         assertEquals(expectedTextBody("csv", count, '|'), runEsqlAsTextWithFormat(builder, "csv", '|'));
     }
 
     public void testTSVMode() throws IOException {
         int count = randomIntBetween(0, 100);
         bulkLoadTestData(count);
-        var builder = builder().query(fromIndex() + " | keep keyword, integer").build();
+        var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100").build();
         assertEquals(expectedTextBody("tsv", count, null), runEsqlAsTextWithFormat(builder, "tsv", null));
     }
 
     public void testCSVNoHeaderMode() throws IOException {
         bulkLoadTestData(1);
-        var builder = builder().query(fromIndex() + " | keep keyword, integer").build();
+        var builder = builder().query(fromIndex() + " | keep keyword, integer | limit 100").build();
         Request request = prepareRequest();
         String mediaType = attachBody(builder, request);
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -240,13 +242,12 @@ public class RestEsqlTestCase extends ESRestTestCase {
         assertEquals("keyword0,0\r\n", actual);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98719")
     public void testWarningHeadersOnFailedConversions() throws IOException {
         int count = randomFrom(10, 40, 60);
         bulkLoadTestData(count);
 
         Request request = prepareRequest();
-        var query = fromIndex() + " | eval asInt = to_int(case(integer % 2 == 0, to_str(integer), keyword))";
+        var query = fromIndex() + " | eval asInt = to_int(case(integer % 2 == 0, to_str(integer), keyword)) | limit 1000";
         var mediaType = attachBody(new RequestObjectBuilder().query(query).build(), request);
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -494,8 +495,14 @@ public class RestEsqlTestCase extends ESRestTestCase {
     private static HttpEntity performRequest(Request request, List<String> allowedWarnings) throws IOException {
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
-        assertMap(response.getWarnings(), matchesList(allowedWarnings));
+        List<String> warnings = new ArrayList<>(response.getWarnings());
+        warnings.removeAll(mutedWarnings());
+        assertMap(warnings, matchesList(allowedWarnings));
         return response.getEntity();
+    }
+
+    private static Set<String> mutedWarnings() {
+        return Set.of("No limit defined, adding default limit of [500]");
     }
 
     private static void bulkLoadTestData(int count) throws IOException {
@@ -555,5 +562,11 @@ public class RestEsqlTestCase extends ESRestTestCase {
     @Override
     protected boolean preserveClusterUponCompletion() {
         return true;
+    }
+
+    @Before
+    @After
+    public void assertRequestBreakerEmpty() throws Exception {
+        EsqlSpecTestCase.assertRequestBreakerEmpty();
     }
 }

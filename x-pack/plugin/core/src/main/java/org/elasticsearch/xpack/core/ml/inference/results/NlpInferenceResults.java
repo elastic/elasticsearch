@@ -59,10 +59,21 @@ abstract class NlpInferenceResults implements InferenceResults {
     public final Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         addMapFields(map);
+        addSupportingFieldsToMap(map);
+        return map;
+    }
+
+    @Override
+    public Map<String, Object> asMap(String outputField) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        addSupportingFieldsToMap(map);
+        return map;
+    }
+
+    private void addSupportingFieldsToMap(Map<String, Object> map) {
         if (isTruncated) {
             map.put("is_truncated", isTruncated);
         }
-        return map;
     }
 
     @Override

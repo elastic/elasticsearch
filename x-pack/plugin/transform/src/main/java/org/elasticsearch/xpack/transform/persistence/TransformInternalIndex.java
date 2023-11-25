@@ -385,7 +385,7 @@ public final class TransformInternalIndex {
     protected static boolean allPrimaryShardsActiveForLatestVersionedIndex(ClusterState state) {
         IndexRoutingTable indexRouting = state.routingTable().index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
 
-        return indexRouting != null && indexRouting.allPrimaryShardsActive();
+        return indexRouting != null && indexRouting.allPrimaryShardsActive() && indexRouting.readyForSearch(state);
     }
 
     private static void waitForLatestVersionedIndexShardsActive(Client client, ActionListener<Void> listener) {

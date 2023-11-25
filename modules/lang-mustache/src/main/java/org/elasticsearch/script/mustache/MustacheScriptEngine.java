@@ -71,7 +71,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
         return Set.of(TemplateScript.CONTEXT, TemplateScript.INGEST_CONTEXT);
     }
 
-    private CustomMustacheFactory createMustacheFactory(Map<String, String> options) {
+    private static CustomMustacheFactory createMustacheFactory(Map<String, String> options) {
         if (options == null || options.isEmpty() || options.containsKey(Script.CONTENT_TYPE_OPTION) == false) {
             return new CustomMustacheFactory();
         }

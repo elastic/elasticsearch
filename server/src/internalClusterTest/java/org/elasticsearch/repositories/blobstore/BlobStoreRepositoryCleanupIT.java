@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupReposi
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -89,7 +90,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         final BlobStoreRepository repository = getRepositoryOnMaster(repoName);
 
         logger.info("--> creating a garbage data blob");
-        final PlainActionFuture<Void> garbageFuture = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> garbageFuture = new PlainActionFuture<>();
         repository.threadPool()
             .generic()
             .execute(
@@ -97,7 +98,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
                     garbageFuture,
                     () -> repository.blobStore()
                         .blobContainer(repository.basePath())
-                        .writeBlob("snap-foo.dat", new BytesArray(new byte[1]), true)
+                        .writeBlob(OperationPurpose.SNAPSHOT, "snap-foo.dat", new BytesArray(new byte[1]), true)
                 )
             );
         garbageFuture.get();
@@ -136,7 +137,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         final BlobStoreRepository repository = getRepositoryOnMaster(repoName);
         logger.info("--> write two outdated index-N blobs");
         for (int i = 0; i < 2; ++i) {
-            final PlainActionFuture<Void> createOldIndexNFuture = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> createOldIndexNFuture = new PlainActionFuture<>();
             final int generation = i;
             repository.threadPool()
                 .generic()
@@ -145,7 +146,12 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
                         createOldIndexNFuture,
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
-                            .writeBlob(BlobStoreRepository.INDEX_FILE_PREFIX + generation, new BytesArray(new byte[1]), true)
+                            .writeBlob(
+                                OperationPurpose.SNAPSHOT,
+                                BlobStoreRepository.INDEX_FILE_PREFIX + generation,
+                                new BytesArray(new byte[1]),
+                                true
+                            )
                     )
                 );
             createOldIndexNFuture.get();

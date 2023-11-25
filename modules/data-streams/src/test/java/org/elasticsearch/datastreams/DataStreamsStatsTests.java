@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.max;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class DataStreamsStatsTests extends ESSingleNodeTestCase {
 
@@ -225,25 +226,18 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         Template idxTemplate = new Template(null, new CompressedXContent("""
             {"properties":{"@timestamp":{"type":"date"},"data":{"type":"keyword"}}}
             """), null);
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(dataStreamName + "*"),
-            idxTemplate,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(hidden, false),
-            null
-        );
-        assertTrue(
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(idxTemplate)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(hidden, false))
+            .build();
+        assertAcked(
             client().execute(
                 PutComposableIndexTemplateAction.INSTANCE,
                 new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(template)
-            ).actionGet().isAcknowledged()
+            )
         );
-        assertTrue(
-            client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get().isAcknowledged()
-        );
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)));
         createdDataStreams.add(dataStreamName);
         return dataStreamName;
     }
@@ -281,17 +275,13 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         return client().execute(DataStreamsStatsAction.INSTANCE, request).get();
     }
 
-    private void deleteDataStream(String dataStreamName) throws InterruptedException, java.util.concurrent.ExecutionException {
-        assertTrue(
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { dataStreamName }))
-                .get()
-                .isAcknowledged()
-        );
-        assertTrue(
+    private void deleteDataStream(String dataStreamName) {
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { dataStreamName })));
+        assertAcked(
             client().execute(
                 DeleteComposableIndexTemplateAction.INSTANCE,
                 new DeleteComposableIndexTemplateAction.Request(dataStreamName + "_template")
-            ).actionGet().isAcknowledged()
+            )
         );
     }
 }

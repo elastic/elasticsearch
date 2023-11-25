@@ -47,4 +47,9 @@ public class DisabledSearchStats extends SearchStats {
     public byte[] max(String field, DataType dataType) {
         return null;
     }
+
+    @Override
+    public boolean isSingleValue(String field) {
+        return false;
+    }
 }

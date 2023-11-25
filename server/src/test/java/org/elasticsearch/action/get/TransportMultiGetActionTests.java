@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -77,11 +77,10 @@ public class TransportMultiGetActionTests extends ESTestCase {
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(
-                Settings.builder().put("node.name", "node1").build(),
-                boundAddress.publishAddress(),
-                randomBase64UUID()
-            ),
+            boundAddress -> DiscoveryNodeUtils.builder(randomBase64UUID())
+                .applySettings(Settings.builder().put("node.name", "node1").build())
+                .address(boundAddress.publishAddress())
+                .build(),
             null,
             emptySet()
         );

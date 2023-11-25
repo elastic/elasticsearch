@@ -9,6 +9,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -20,6 +21,12 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+/**
+ * <p>Transport version is used to coordinate compatible wire protocol communication between nodes, at a fine-grained level.  This replaces
+ * and supersedes the old Version constants.</p>
+ *
+ * <p>Before adding a new version constant, please read the block comment at the end of the list of constants.</p>
+ */
 public class TransportVersions {
 
     /*
@@ -41,6 +48,7 @@ public class TransportVersions {
         return new TransportVersion(id);
     }
 
+    @UpdateForV9 // remove the transport versions with which v9 will not need to interact
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
     public static final TransportVersion V_7_0_1 = def(7_00_01_99);
@@ -85,25 +93,6 @@ public class TransportVersions {
      * Detached transport versions added below here.
      */
     public static final TransportVersion V_8_500_020 = def(8_500_020);
-    public static final TransportVersion V_8_500_021 = def(8_500_021);
-    public static final TransportVersion V_8_500_022 = def(8_500_022);
-    public static final TransportVersion V_8_500_023 = def(8_500_023);
-    public static final TransportVersion V_8_500_024 = def(8_500_024);
-    public static final TransportVersion V_8_500_025 = def(8_500_025);
-    public static final TransportVersion V_8_500_026 = def(8_500_026);
-    public static final TransportVersion V_8_500_027 = def(8_500_027);
-    public static final TransportVersion V_8_500_028 = def(8_500_028);
-    public static final TransportVersion V_8_500_029 = def(8_500_029);
-    public static final TransportVersion V_8_500_030 = def(8_500_030);
-    public static final TransportVersion V_8_500_031 = def(8_500_031);
-    public static final TransportVersion V_8_500_032 = def(8_500_032);
-    public static final TransportVersion V_8_500_033 = def(8_500_033);
-    public static final TransportVersion V_8_500_034 = def(8_500_034);
-    public static final TransportVersion V_8_500_035 = def(8_500_035);
-    public static final TransportVersion V_8_500_036 = def(8_500_036);
-    public static final TransportVersion V_8_500_037 = def(8_500_037);
-    public static final TransportVersion V_8_500_038 = def(8_500_038);
-    public static final TransportVersion V_8_500_039 = def(8_500_039);
     public static final TransportVersion V_8_500_040 = def(8_500_040);
     public static final TransportVersion V_8_500_041 = def(8_500_041);
     public static final TransportVersion V_8_500_042 = def(8_500_042);
@@ -148,7 +137,48 @@ public class TransportVersions {
     public static final TransportVersion COMPACT_FIELD_CAPS_ADDED = def(8_505_00_0);
     public static final TransportVersion DATA_STREAM_RESPONSE_INDEX_PROPERTIES = def(8_506_00_0);
     public static final TransportVersion ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED = def(8_507_00_0);
-
+    public static final TransportVersion LONG_COUNT_IN_HISTOGRAM_ADDED = def(8_508_00_0);
+    public static final TransportVersion INFERENCE_MODEL_SECRETS_ADDED = def(8_509_00_0);
+    public static final TransportVersion NODE_INFO_REQUEST_SIMPLIFIED = def(8_510_00_0);
+    public static final TransportVersion NESTED_KNN_VECTOR_QUERY_V = def(8_511_00_0);
+    public static final TransportVersion ML_PACKAGE_LOADER_PLATFORM_ADDED = def(8_512_00_0);
+    public static final TransportVersion ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH = def(8_512_00_1);
+    public static final TransportVersion PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME = def(8_513_00_0);
+    public static final TransportVersion UNIVERSAL_PROFILING_LICENSE_ADDED = def(8_514_00_0);
+    public static final TransportVersion ELSER_SERVICE_MODEL_VERSION_ADDED = def(8_515_00_0);
+    public static final TransportVersion NODE_STATS_HTTP_ROUTE_STATS_ADDED = def(8_516_00_0);
+    public static final TransportVersion INCLUDE_SHARDS_STATS_ADDED = def(8_517_00_0);
+    public static final TransportVersion BUILD_QUALIFIER_SEPARATED = def(8_518_00_0);
+    public static final TransportVersion PIPELINES_IN_BULK_RESPONSE_ADDED = def(8_519_00_0);
+    public static final TransportVersion PLUGIN_DESCRIPTOR_STRING_VERSION = def(8_520_00_0);
+    public static final TransportVersion TOO_MANY_SCROLL_CONTEXTS_EXCEPTION_ADDED = def(8_521_00_0);
+    public static final TransportVersion UNCONTENDED_REGISTER_ANALYSIS_ADDED = def(8_522_00_0);
+    public static final TransportVersion TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED = def(8_523_00_0);
+    public static final TransportVersion IP_ADDRESS_WRITEABLE = def(8_524_00_0);
+    public static final TransportVersion PRIMARY_TERM_ADDED = def(8_525_00_0);
+    public static final TransportVersion CLUSTER_FEATURES_ADDED = def(8_526_00_0);
+    public static final TransportVersion DSL_ERROR_STORE_INFORMATION_ENHANCED = def(8_527_00_0);
+    public static final TransportVersion INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED = def(8_528_00_0);
+    public static final TransportVersion KNN_AS_QUERY_ADDED = def(8_529_00_0);
+    public static final TransportVersion UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED = def(8_530_00_0);
+    public static final TransportVersion ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED = def(8_531_00_0);
+    public static final TransportVersion DEPRECATED_COMPONENT_TEMPLATES_ADDED = def(8_532_00_0);
+    public static final TransportVersion UPDATE_NON_DYNAMIC_SETTINGS_ADDED = def(8_533_00_0);
+    public static final TransportVersion REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED = def(8_534_00_0);
+    public static final TransportVersion ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED = def(8_535_00_0);
+    public static final TransportVersion COUNTED_KEYWORD_ADDED = def(8_536_00_0);
+    public static final TransportVersion SHAPE_VALUE_SERIALIZATION_ADDED = def(8_537_00_0);
+    public static final TransportVersion INFERENCE_MULTIPLE_INPUTS = def(8_538_00_0);
+    public static final TransportVersion ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS = def(8_539_00_0);
+    public static final TransportVersion ML_STATE_CHANGE_TIMESTAMPS = def(8_540_00_0);
+    public static final TransportVersion DATA_STREAM_FAILURE_STORE_ADDED = def(8_541_00_0);
+    public static final TransportVersion ML_INFERENCE_OPENAI_ADDED = def(8_542_00_0);
+    public static final TransportVersion SHUTDOWN_MIGRATION_STATUS_INCLUDE_COUNTS = def(8_543_00_0);
+    public static final TransportVersion TRANSFORM_GET_CHECKPOINT_QUERY_AND_CLUSTER_ADDED = def(8_544_00_0);
+    public static final TransportVersion GRANT_API_KEY_CLIENT_AUTHENTICATION_ADDED = def(8_545_00_0);
+    public static final TransportVersion PIT_WITH_INDEX_FILTER = def(8_546_00_0);
+    public static final TransportVersion NODE_INFO_VERSION_AS_STRING = def(8_547_00_0);
+    public static final TransportVersion GET_API_KEY_INVALIDATION_TIME_ADDED = def(8_548_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -189,15 +219,17 @@ public class TransportVersions {
      * If your git checkout has the expected minor-version-numbered branches and the expected release-version tags then you can find the
      * transport versions known by a particular release ...
      *
-     *     git show v8.9.1:server/src/main/java/org/elasticsearch/TransportVersions.java | grep def
+     *     git show v8.11.0:server/src/main/java/org/elasticsearch/TransportVersions.java | grep '= def'
      *
      * ... or by a particular branch ...
      *
-     *     git show 8.10:server/src/main/java/org/elasticsearch/TransportVersions.java | grep def
+     *     git show 8.11:server/src/main/java/org/elasticsearch/TransportVersions.java | grep '= def'
      *
      * ... and you can see which versions were added in between two versions too ...
      *
-     *     git diff 8.10..main -- server/src/main/java/org/elasticsearch/TransportVersions.java
+     *     git diff v8.11.0..main -- server/src/main/java/org/elasticsearch/TransportVersions.java
+     *
+     * In branches 8.7-8.10 see server/src/main/java/org/elasticsearch/TransportVersion.java for the equivalent definitions.
      */
 
     /**
@@ -210,7 +242,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_500_061;
+    public static final TransportVersion MINIMUM_CCS_VERSION = ML_PACKAGE_LOADER_PLATFORM_ADDED;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

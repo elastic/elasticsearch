@@ -43,48 +43,47 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
 
   @Override
   public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+    try (BytesRefBlock valBlock = (BytesRefBlock) val.eval(page)) {
+      BytesRefVector valVector = valBlock.asVector();
+      if (valVector == null) {
+        return eval(page.getPositionCount(), valBlock);
+      }
+      return eval(page.getPositionCount(), valVector);
     }
-    BytesRefBlock valBlock = (BytesRefBlock) valUncastBlock;
-    BytesRefVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock);
-    }
-    return eval(page.getPositionCount(), valVector);
   }
 
   public LongBlock eval(int positionCount, BytesRefBlock valBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    BytesRef valScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      BytesRef valScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatter));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      try {
-        result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatter));
-      } catch (IllegalArgumentException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public LongBlock eval(int positionCount, BytesRefVector valVector) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    BytesRef valScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatter));
-      } catch (IllegalArgumentException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      BytesRef valScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatter));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -95,5 +94,30 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    private final DateFormatter formatter;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
+        DateFormatter formatter) {
+      this.source = source;
+      this.val = val;
+      this.formatter = formatter;
+    }
+
+    @Override
+    public DateParseConstantEvaluator get(DriverContext context) {
+      return new DateParseConstantEvaluator(source, val.get(context), formatter, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateParseConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+    }
   }
 }

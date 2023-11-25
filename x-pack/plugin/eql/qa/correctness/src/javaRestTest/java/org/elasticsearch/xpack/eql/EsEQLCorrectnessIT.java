@@ -45,7 +45,6 @@ import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 @TestLogging(value = "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT:INFO", reason = "Log query execution time")
-@SuppressWarnings("removal")
 public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";

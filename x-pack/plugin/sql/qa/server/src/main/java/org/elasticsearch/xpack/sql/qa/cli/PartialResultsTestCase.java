@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public abstract class PartialResultsTestCase extends CliIntegrationTestCase {
 
-    private void createTestIndex(int okShards, int badShards) throws IOException {
+    private static void createTestIndex(int okShards, int badShards) throws IOException {
         final String mappingTemplate = """
             {
               "aliases": {

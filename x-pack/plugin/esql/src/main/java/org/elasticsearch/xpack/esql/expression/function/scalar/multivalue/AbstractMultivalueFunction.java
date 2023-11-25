@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
@@ -65,30 +64,37 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
          * that it's producing an "array vector" because it only ever emits single
          * valued fields and no null values. Building an array vector directly is
          * generally faster than building it via a {@link Block.Builder}.
+         *
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
-        protected abstract Vector evalNotNullable(Block fieldVal);
+        protected abstract Block evalNotNullable(Block fieldVal);
 
         /**
-         * Called to evaluate single valued fields when the target block does not
-         * have null values.
+         * Called to evaluate single valued fields when the target block does not have null values.
+         *
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
-        protected Vector evalSingleValuedNotNullable(Block fieldVal) {
-            return fieldVal.asVector();
+        protected Block evalSingleValuedNotNullable(Block fieldRef) {
+            fieldRef.incRef();
+            return fieldRef;
         }
 
         @Override
         public final Block eval(Page page) {
-            Block fieldVal = field.eval(page);
-            if (fieldVal.mayHaveMultivaluedFields() == false) {
-                if (fieldVal.mayHaveNulls()) {
-                    return evalSingleValuedNullable(fieldVal);
+            try (Block block = field.eval(page)) {
+                if (block.mayHaveMultivaluedFields()) {
+                    if (block.mayHaveNulls()) {
+                        return evalNullable(block);
+                    } else {
+                        return evalNotNullable(block);
+                    }
                 }
-                return evalSingleValuedNotNullable(fieldVal).asBlock();
+                if (block.mayHaveNulls()) {
+                    return evalSingleValuedNullable(block);
+                } else {
+                    return evalSingleValuedNotNullable(block);
+                }
             }
-            if (fieldVal.mayHaveNulls()) {
-                return evalNullable(fieldVal);
-            }
-            return evalNotNullable(fieldVal).asBlock();
         }
     }
 
@@ -106,21 +112,28 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
 
         /**
          * Called when evaluating a {@link Block} that contains null values.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         protected abstract Block evalNullable(Block fieldVal);
 
         /**
-         * Called to evaluate single valued fields when the target block has null
-         * values.
+         * Called to evaluate single valued fields when the target block has null values.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
-        protected Block evalSingleValuedNullable(Block fieldVal) {
-            return fieldVal;
+        protected Block evalSingleValuedNullable(Block fieldRef) {
+            fieldRef.incRef();
+            return fieldRef;
         }
 
         @Override
         public Block eval(Page page) {
-            Block fieldVal = field.eval(page);
-            return fieldVal.mayHaveMultivaluedFields() ? evalNullable(fieldVal) : evalSingleValuedNullable(fieldVal);
+            try (Block block = field.eval(page)) {
+                if (block.mayHaveMultivaluedFields()) {
+                    return evalNullable(block);
+                } else {
+                    return evalSingleValuedNullable(block);
+                }
+            }
         }
 
         @Override

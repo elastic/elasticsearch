@@ -35,7 +35,10 @@ public class MaxIntGroupingAggregatorFunctionTests extends GroupingAggregatorFun
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new LongIntBlockSourceOperator(LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomInt())));
+        return new LongIntBlockSourceOperator(
+            blockFactory,
+            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomInt()))
+        );
     }
 
     @Override

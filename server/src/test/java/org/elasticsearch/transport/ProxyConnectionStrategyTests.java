@@ -24,6 +24,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -141,7 +142,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 ) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
 
-                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
 
@@ -202,7 +203,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
 
-                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
 
@@ -237,7 +238,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
     public void testConnectFailsWithIncompatibleNodes() {
         VersionInformation incompatibleVersion = new VersionInformation(
             Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion(),
-            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
         TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
@@ -273,7 +274,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     )
                 ) {
 
-                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
                     strategy.connect(connectFuture);
                     final NoSeedNodeLeftException exception = expectThrows(NoSeedNodeLeftException.class, connectFuture::actionGet);
                     assertThat(
@@ -338,7 +339,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     )
                 ) {
 
-                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
                     strategy.connect(connectFuture);
                     final ElasticsearchException exception = expectThrows(ElasticsearchException.class, connectFuture::actionGet);
                     assertThat(exception.getMessage(), containsString("non-retryable"));
@@ -402,7 +403,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
 
-                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
 
@@ -470,7 +471,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                         null
                     )
                 ) {
-                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
 
@@ -520,7 +521,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                         address.toString()
                     )
                 ) {
-                    final PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    final PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
                     strategy.connect(connectFuture);
                     // Should see no error and the connection size is 0
                     connectFuture.actionGet();
@@ -564,7 +565,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                         "server-name"
                     )
                 ) {
-                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
 
@@ -684,7 +685,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 ) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
 
-                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
                     strategy.connect(connectFuture);
                     connectFuture.actionGet();
 

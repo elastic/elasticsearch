@@ -42,28 +42,50 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
   public Block evalNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
-      }
-      try {
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        long value = v.getLong(first);
-        for (int i = first + 1; i < end; i++) {
-          long next = v.getLong(i);
-          value = MvSum.process(value, next);
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
         }
-        long result = value;
-        builder.appendLong(result);
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        builder.appendNull();
+        try {
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          long value = v.getLong(first);
+          for (int i = first + 1; i < end; i++) {
+            long next = v.getLong(i);
+            value = MvSum.process(value, next);
+          }
+          long result = value;
+          builder.appendLong(result);
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          builder.appendNull();
+        }
       }
+      return builder.build();
     }
-    return builder.build();
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+      this.source = source;
+      this.field = field;
+    }
+
+    @Override
+    public MvSumLongEvaluator get(DriverContext context) {
+      return new MvSumLongEvaluator(source, field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvSum[field=" + field + "]";
+    }
   }
 }

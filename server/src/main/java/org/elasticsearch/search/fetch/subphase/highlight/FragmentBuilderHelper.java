@@ -41,7 +41,7 @@ public final class FragmentBuilderHelper {
             CollectionUtil.introSort(subInfos, (o1, o2) -> {
                 int startOffset = o1.getTermsOffsets().get(0).getStartOffset();
                 int startOffset2 = o2.getTermsOffsets().get(0).getStartOffset();
-                return compare(startOffset, startOffset2);
+                return Integer.compare(startOffset, startOffset2);
             });
             return new WeightedFragInfo(
                 Math.min(fragInfo.getSubInfos().get(0).getTermsOffsets().get(0).getStartOffset(), fragInfo.getStartOffset()),
@@ -52,10 +52,6 @@ public final class FragmentBuilderHelper {
         } else {
             return fragInfo;
         }
-    }
-
-    private static int compare(int x, int y) {
-        return (x < y) ? -1 : ((x == y) ? 0 : 1);
     }
 
 }

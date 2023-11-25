@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
@@ -48,7 +49,13 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
         JobManager jobManager,
         AnomalyDetectionAuditor auditor
     ) {
-        super(DeleteModelSnapshotAction.NAME, transportService, actionFilters, DeleteModelSnapshotAction.Request::new);
+        super(
+            DeleteModelSnapshotAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteModelSnapshotAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;

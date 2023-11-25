@@ -82,7 +82,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
         try {
             Files.createDirectories(dataPath);
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
         fileSystemProvider.addTrackedPath(dataPath);
         return Settings.builder()

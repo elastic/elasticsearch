@@ -24,6 +24,8 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -66,13 +69,15 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     private Directory directory = newDirectory();
     private IndexReader reader;
 
+    private final ArrayList<Releasable> releasables = new ArrayList<>();
+
     public LocalExecutionPlannerTests(@Name("estimatedRowSizeIsHuge") boolean estimatedRowSizeIsHuge) {
         this.estimatedRowSizeIsHuge = estimatedRowSizeIsHuge;
     }
 
     @After
     public void closeIndex() throws IOException {
-        IOUtils.close(reader, directory);
+        IOUtils.close(reader, directory, () -> Releasables.close(releasables), releasables::clear);
     }
 
     public void testLuceneSourceOperatorHugeRowSize() throws IOException {
@@ -119,7 +124,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             "test",
             null,
             BigArrays.NON_RECYCLING_INSTANCE,
-            BlockFactory.getGlobalInstance(),
+            BlockFactory.getNonBreakingInstance(),
             config(),
             null,
             null,
@@ -136,7 +141,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             "test_cluser",
             pragmas,
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null)
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
+            StringUtils.EMPTY
         );
     }
 
@@ -155,6 +161,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 new TestSearchContext(createSearchExecutionContext(createMapperService(mapping(b -> {})), searcher), null, searcher)
             );
         }
+        releasables.addAll(searchContexts);
         return new EsPhysicalOperationProviders(searchContexts);
     }
 

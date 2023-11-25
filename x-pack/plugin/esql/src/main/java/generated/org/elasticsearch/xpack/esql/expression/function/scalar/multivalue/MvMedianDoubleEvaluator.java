@@ -9,7 +9,6 @@ import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
@@ -38,46 +37,66 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
   public Block evalNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    MvMedian.Doubles work = new MvMedian.Doubles();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      MvMedian.Doubles work = new MvMedian.Doubles();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        for (int i = first; i < end; i++) {
+          double value = v.getDouble(i);
+          MvMedian.process(work, value);
+        }
+        double result = MvMedian.finish(work);
+        builder.appendDouble(result);
       }
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      for (int i = first; i < end; i++) {
-        double value = v.getDouble(i);
-        MvMedian.process(work, value);
-      }
-      double result = MvMedian.finish(work);
-      builder.appendDouble(result);
+      return builder.build();
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Vector evalNotNullable(Block fieldVal) {
+  public Block evalNotNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-    MvMedian.Doubles work = new MvMedian.Doubles();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      for (int i = first; i < end; i++) {
-        double value = v.getDouble(i);
-        MvMedian.process(work, value);
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+      MvMedian.Doubles work = new MvMedian.Doubles();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        for (int i = first; i < end; i++) {
+          double value = v.getDouble(i);
+          MvMedian.process(work, value);
+        }
+        double result = MvMedian.finish(work);
+        builder.appendDouble(result);
       }
-      double result = MvMedian.finish(work);
-      builder.appendDouble(result);
+      return builder.build().asBlock();
     }
-    return builder.build();
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMedianDoubleEvaluator get(DriverContext context) {
+      return new MvMedianDoubleEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMedian[field=" + field + "]";
+    }
   }
 }

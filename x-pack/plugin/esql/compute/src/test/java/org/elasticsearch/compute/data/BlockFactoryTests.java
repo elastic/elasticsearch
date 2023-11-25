@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -60,16 +61,6 @@ public class BlockFactoryTests extends ESTestCase {
             @Override
             public String toString() {
                 return "1gb";
-            }
-        }, new Supplier<>() {
-            @Override
-            public BlockFactory get() {
-                return BlockFactory.getGlobalInstance();
-            }
-
-            @Override
-            public String toString() {
-                return "global";
             }
         });
         return l.stream().map(s -> new Object[] { s }).toList();
@@ -562,6 +553,19 @@ public class BlockFactoryTests extends ESTestCase {
             var vector = builder.build();
             releaseAndAssertBreaker(vector);
         }
+    }
+
+    public void testReleaseVector() {
+        int positionCount = randomIntBetween(1, 10);
+        IntVector vector = blockFactory.newIntArrayVector(new int[positionCount], positionCount);
+        if (randomBoolean()) {
+            vector.asBlock().close();
+        } else {
+            vector.close();
+        }
+        assertTrue(vector.isReleased());
+        assertTrue(vector.asBlock().isReleased());
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     static BytesRef randomBytesRef() {

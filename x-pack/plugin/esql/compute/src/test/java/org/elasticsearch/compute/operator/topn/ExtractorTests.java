@@ -104,7 +104,13 @@ public class ExtractorTests extends ESTestCase {
     }
 
     static Object[] valueTestCase(String name, ElementType type, TopNEncoder encoder, Supplier<Object> value) {
-        return new Object[] { new TestCase(name, type, encoder, () -> BlockUtils.fromListRow(Arrays.asList(value.get()))[0]) };
+        return new Object[] {
+            new TestCase(
+                name,
+                type,
+                encoder,
+                () -> BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), Arrays.asList(value.get()))[0]
+            ) };
     }
 
     static class TestCase {

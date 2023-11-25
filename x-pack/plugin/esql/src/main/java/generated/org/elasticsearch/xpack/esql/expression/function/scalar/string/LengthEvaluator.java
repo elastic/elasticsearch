@@ -33,38 +33,37 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
 
   @Override
   public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+    try (BytesRefBlock valBlock = (BytesRefBlock) val.eval(page)) {
+      BytesRefVector valVector = valBlock.asVector();
+      if (valVector == null) {
+        return eval(page.getPositionCount(), valBlock);
+      }
+      return eval(page.getPositionCount(), valVector).asBlock();
     }
-    BytesRefBlock valBlock = (BytesRefBlock) valUncastBlock;
-    BytesRefVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock);
-    }
-    return eval(page.getPositionCount(), valVector).asBlock();
   }
 
   public IntBlock eval(int positionCount, BytesRefBlock valBlock) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    BytesRef valScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      BytesRef valScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendInt(Length.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
       }
-      result.appendInt(Length.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+      return result.build();
     }
-    return result.build();
   }
 
   public IntVector eval(int positionCount, BytesRefVector valVector) {
-    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
-    BytesRef valScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendInt(Length.process(valVector.getBytesRef(p, valScratch)));
+    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
+      BytesRef valScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendInt(Length.process(valVector.getBytesRef(p, valScratch)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -75,5 +74,23 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val) {
+      this.val = val;
+    }
+
+    @Override
+    public LengthEvaluator get(DriverContext context) {
+      return new LengthEvaluator(val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "LengthEvaluator[" + "val=" + val + "]";
+    }
   }
 }

@@ -110,8 +110,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testSimpleQuery() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text"));
-        client().prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse response = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
@@ -148,7 +148,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
                     .setSettings(indexSettings(1, 0))
             );
-            client().prepareIndex(indexName).setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+            prepareIndex(indexName).setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
 
             ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class, () -> {
                 client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
@@ -178,8 +178,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testDLSIsAppliedBeforeFLS() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("field1", "value2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("2").setSource("field1", "value2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse response = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD))
@@ -189,11 +189,12 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value2"));
 
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(QueryBuilders.termQuery("field1", "value1"))
-            .get();
-        assertHitCount(response, 0);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(QueryBuilders.termQuery("field1", "value1")),
+            0
+        );
     }
 
     public void testQueryCache() {
@@ -202,8 +203,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 .setSettings(Settings.builder().put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
                 .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
         );
-        client().prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("2").setSource("id", "2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         // Both users have the same role query, but user3 has access to field2 and not field1, which should result in zero hits:
         int max = scaledRandomIntBetween(4, 32);
@@ -255,8 +256,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGetMappingsIsFiltered() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         {
             GetMappingsResponse getMappingsResponse = client().filterWithHeader(
@@ -289,8 +290,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGetIndexMappingsIsFiltered() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         {
             GetIndexResponse getIndexResponse = client().filterWithHeader(
@@ -320,8 +321,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testGetFieldMappingsIsFiltered() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         {
             GetFieldMappingsResponse getFieldMappingsResponse = client().filterWithHeader(
@@ -363,8 +364,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testFieldCapabilitiesIsFiltered() {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         {
             FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().fields("*").indices("test");

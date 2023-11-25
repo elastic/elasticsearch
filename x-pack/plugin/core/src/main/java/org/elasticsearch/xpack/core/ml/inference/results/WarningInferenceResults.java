@@ -76,6 +76,12 @@ public class WarningInferenceResults implements InferenceResults {
     }
 
     @Override
+    public Map<String, Object> asMap(String outputField) {
+        // warnings do not have a result
+        return asMap();
+    }
+
+    @Override
     public Object predictedValue() {
         return null;
     }

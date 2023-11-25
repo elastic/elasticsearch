@@ -10,6 +10,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -51,7 +52,14 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
             Map.of()
         );
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(indices, Map.of(fieldCap.getName(), Map.of(esTypeName, fieldCap)));
-        IndexResolution resolution = IndexResolver.mergedMappings(EsqlDataTypeRegistry.INSTANCE, "idx-*", caps);
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            EsqlDataTypeRegistry.INSTANCE,
+            "idx-*",
+            caps,
+            EsqlSession::specificValidity,
+            IndexResolver.PRESERVE_PROPERTIES,
+            null
+        );
 
         EsField f = resolution.get().mapping().get(fieldCap.getName());
         assertThat(f.getDataType(), equalTo(expected));

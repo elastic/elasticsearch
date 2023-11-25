@@ -10,20 +10,19 @@ package org.elasticsearch.rest.root;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 public class MainRequest extends ActionRequest {
-
-    public MainRequest() {}
-
-    public MainRequest(StreamInput in) throws IOException {
-        super(in);
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        TransportAction.localOnly();
     }
 }

@@ -9,7 +9,6 @@ import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
@@ -40,50 +39,52 @@ public final class MvMinLongEvaluator extends AbstractMultivalueFunction.Abstrac
     }
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        long value = v.getLong(first);
+        for (int i = first + 1; i < end; i++) {
+          long next = v.getLong(i);
+          value = MvMin.process(value, next);
+        }
+        long result = value;
+        builder.appendLong(result);
       }
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      long value = v.getLong(first);
-      for (int i = first + 1; i < end; i++) {
-        long next = v.getLong(i);
-        value = MvMin.process(value, next);
-      }
-      long result = value;
-      builder.appendLong(result);
+      return builder.build();
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Vector evalNotNullable(Block fieldVal) {
+  public Block evalNotNullable(Block fieldVal) {
     if (fieldVal.mvSortedAscending()) {
       return evalAscendingNotNullable(fieldVal);
     }
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    LongVector.FixedBuilder builder = LongVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      long value = v.getLong(first);
-      for (int i = first + 1; i < end; i++) {
-        long next = v.getLong(i);
-        value = MvMin.process(value, next);
+    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        long value = v.getLong(first);
+        for (int i = first + 1; i < end; i++) {
+          long next = v.getLong(i);
+          value = MvMin.process(value, next);
+        }
+        long result = value;
+        builder.appendLong(result);
       }
-      long result = value;
-      builder.appendLong(result);
+      return builder.build().asBlock();
     }
-    return builder.build();
   }
 
   /**
@@ -92,35 +93,55 @@ public final class MvMinLongEvaluator extends AbstractMultivalueFunction.Abstrac
   private Block evalAscendingNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        int first = v.getFirstValueIndex(p);
+        int idx = MvMin.ascendingIndex(valueCount);
+        long result = v.getLong(first + idx);
+        builder.appendLong(result);
       }
-      int first = v.getFirstValueIndex(p);
-      int idx = MvMin.ascendingIndex(valueCount);
-      long result = v.getLong(first + idx);
-      builder.appendLong(result);
+      return builder.build();
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Vector evalAscendingNotNullable(Block fieldVal) {
+  private Block evalAscendingNotNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    LongVector.FixedBuilder builder = LongVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int idx = MvMin.ascendingIndex(valueCount);
-      long result = v.getLong(first + idx);
-      builder.appendLong(result);
+    try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        int idx = MvMin.ascendingIndex(valueCount);
+        long result = v.getLong(first + idx);
+        builder.appendLong(result);
+      }
+      return builder.build().asBlock();
     }
-    return builder.build();
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMinLongEvaluator get(DriverContext context) {
+      return new MvMinLongEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMin[field=" + field + "]";
+    }
   }
 }

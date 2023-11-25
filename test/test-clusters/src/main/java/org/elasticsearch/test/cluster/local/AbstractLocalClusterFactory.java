@@ -71,7 +71,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     private static final String TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP = "tests.cluster.fips.jars.path";
     private static final String TESTS_CLUSTER_DEBUG_ENABLED_SYSPROP = "tests.cluster.debug.enabled";
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
-    private static final int DEFAULT_DEBUG_PORT = 5007;
 
     private final DistributionResolver distributionResolver;
 
@@ -106,6 +105,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private final Path configDir;
         private final Path tempDir;
         private final boolean usesSecureSecretsFile;
+        private final int debugPort;
 
         private Path distributionDir;
         private Version currentVersion;
@@ -135,6 +135,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.logsDir = workingDir.resolve("logs");
             this.configDir = workingDir.resolve("config");
             this.tempDir = workingDir.resolve("tmp"); // elasticsearch temporary directory
+            this.debugPort = DefaultLocalClusterHandle.NEXT_DEBUG_PORT.getAndIncrement();
         }
 
         public synchronized void start(Version version) {
@@ -714,9 +715,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             String systemProperties = "";
-            if (spec.getSystemProperties().isEmpty() == false) {
-                systemProperties = spec.getSystemProperties()
-                    .entrySet()
+            Map<String, String> resolvedSystemProperties = new HashMap<>(spec.resolveSystemProperties());
+            if (resolvedSystemProperties.isEmpty() == false) {
+                systemProperties = resolvedSystemProperties.entrySet()
                     .stream()
                     .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
                     .map(p -> p.replace("${ES_PATH_CONF}", configDir.toString()))
@@ -726,8 +727,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
             String debugArgs = "";
             if (Boolean.getBoolean(TESTS_CLUSTER_DEBUG_ENABLED_SYSPROP)) {
-                int port = DEFAULT_DEBUG_PORT + spec.getCluster().getNodes().indexOf(spec);
-                debugArgs = ENABLE_DEBUG_JVM_ARGS + port;
+                debugArgs = ENABLE_DEBUG_JVM_ARGS + debugPort;
             }
 
             String heapSize = System.getProperty("tests.heap.size", "512m");

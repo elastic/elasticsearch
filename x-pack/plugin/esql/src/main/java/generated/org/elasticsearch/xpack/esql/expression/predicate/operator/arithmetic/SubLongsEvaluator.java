@@ -40,59 +40,55 @@ public final class SubLongsEvaluator implements EvalOperator.ExpressionEvaluator
 
   @Override
   public Block eval(Page page) {
-    Block lhsUncastBlock = lhs.eval(page);
-    if (lhsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+    try (LongBlock lhsBlock = (LongBlock) lhs.eval(page)) {
+      try (LongBlock rhsBlock = (LongBlock) rhs.eval(page)) {
+        LongVector lhsVector = lhsBlock.asVector();
+        if (lhsVector == null) {
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
+        }
+        LongVector rhsVector = rhsBlock.asVector();
+        if (rhsVector == null) {
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
+        }
+        return eval(page.getPositionCount(), lhsVector, rhsVector);
+      }
     }
-    LongBlock lhsBlock = (LongBlock) lhsUncastBlock;
-    Block rhsUncastBlock = rhs.eval(page);
-    if (rhsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    LongBlock rhsBlock = (LongBlock) rhsUncastBlock;
-    LongVector lhsVector = lhsBlock.asVector();
-    if (lhsVector == null) {
-      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-    }
-    LongVector rhsVector = rhsBlock.asVector();
-    if (rhsVector == null) {
-      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-    }
-    return eval(page.getPositionCount(), lhsVector, rhsVector);
   }
 
   public LongBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendLong(Sub.processLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      try {
-        result.appendLong(Sub.processLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public LongBlock eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendLong(Sub.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendLong(Sub.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -103,5 +99,30 @@ public final class SubLongsEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+
+    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs) {
+      this.source = source;
+      this.lhs = lhs;
+      this.rhs = rhs;
+    }
+
+    @Override
+    public SubLongsEvaluator get(DriverContext context) {
+      return new SubLongsEvaluator(source, lhs.get(context), rhs.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SubLongsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
   }
 }

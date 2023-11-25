@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -78,7 +79,13 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         DatafeedConfigProvider datafeedConfigProvider,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(PreviewDatafeedAction.NAME, transportService, actionFilters, PreviewDatafeedAction.Request::new);
+        super(
+            PreviewDatafeedAction.NAME,
+            transportService,
+            actionFilters,
+            PreviewDatafeedAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.threadPool = threadPool;
         this.client = client;
         this.clusterService = clusterService;
@@ -125,6 +132,10 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         PreviewDatafeedAction.Request request,
         ActionListener<PreviewDatafeedAction.Response> listener
     ) {
+        final QueryBuilder extraFilters = request.getStartTime().isPresent() || request.getEndTime().isPresent()
+            ? null
+            : QueryBuilders.boolQuery().mustNot(QueryBuilders.termsQuery(DataTierFieldMapper.NAME, "data_frozen", "data_cold"));
+
         DatafeedConfig.Builder previewDatafeedBuilder = buildPreviewDatafeed(datafeedConfig);
         useSecondaryAuthIfAvailable(securityContext, () -> {
             previewDatafeedBuilder.setHeaders(
@@ -137,6 +148,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             DataExtractorFactory.create(
                 new ParentTaskAssigningClient(client, parentTaskId),
                 previewDatafeedConfig,
+                extraFilters,
                 job,
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
@@ -151,9 +163,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                             final long start = request.getStartTime().orElse(0);
                             final long end = request.getEndTime()
                                 .orElse(isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE);
-                            DataExtractor dataExtractor = request.getStartTime().isPresent() || request.getEndTime().isPresent()
-                                ? dataExtractorFactory.newExtractor(start, end)
-                                : dataExtractorFactory.newExtractor(start, end, hotOnly);
+                            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
                             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, l));
                         })
                     )
@@ -219,7 +229,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         } catch (Exception e) {
             listener.onFailure(e);
         } finally {
-            dataExtractor.cancel();
+            dataExtractor.destroy();
         }
     }
 }

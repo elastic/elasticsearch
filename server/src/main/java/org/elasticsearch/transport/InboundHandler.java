@@ -268,7 +268,7 @@ public class InboundHandler {
                 assert requestId > 0;
                 request.setRequestId(requestId);
                 verifyRequestReadFully(stream, requestId, action);
-                if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
+                if (reg.getExecutor() == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     try (var ignored = threadPool.getThreadContext().newTraceContext()) {
                         doHandleRequest(reg, request, transportChannel);
                     }
@@ -293,7 +293,7 @@ public class InboundHandler {
 
     private <T extends TransportRequest> void handleRequestForking(T request, RequestHandlerRegistry<T> reg, TransportChannel channel) {
         boolean success = false;
-        request.incRef();
+        request.mustIncRef();
         try {
             reg.getExecutor().execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
                 @Override
@@ -381,7 +381,7 @@ public class InboundHandler {
             // no need to provide a buffer release here, we never escape the buffer when handling directly
             doHandleResponse(handler, remoteAddress, stream, inboundMessage.getHeader(), () -> {});
         } else {
-            inboundMessage.incRef();
+            inboundMessage.mustIncRef();
             // release buffer once we deserialize the message, but have a fail-safe in #onAfter below in case that didn't work out
             final Releasable releaseBuffer = Releasables.releaseOnce(inboundMessage::decRef);
             executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {

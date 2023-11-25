@@ -20,6 +20,9 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
 
     private final $Type$Vector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     $Type$VectorBlock($Type$Vector vector) {
         super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
@@ -52,7 +55,7 @@ $endif$
 
     @Override
     public $Type$Block filter(int... positions) {
-        return new Filter$Type$Vector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
     }
 
     @Override
@@ -79,11 +82,13 @@ $endif$
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
+    public boolean isReleased() {
+        return super.isReleased() || vector.isReleased();
+    }
+
+    @Override
+    public void closeInternal() {
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
     }
 }

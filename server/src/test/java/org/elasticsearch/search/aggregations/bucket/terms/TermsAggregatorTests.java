@@ -1727,8 +1727,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
 
-                    AggregationExecutionException e = expectThrows(
-                        AggregationExecutionException.class,
+                    AggregationExecutionException.InvalidPath e = expectThrows(
+                        AggregationExecutionException.InvalidPath.class,
                         () -> searchAndReduce(indexReader, new AggTestConfig(termsAgg, fieldType))
                     );
                     assertEquals(

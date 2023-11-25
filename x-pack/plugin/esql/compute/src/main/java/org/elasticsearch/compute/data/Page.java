@@ -76,12 +76,35 @@ public final class Page implements Writeable {
         }
     }
 
+    /**
+     * Appending ctor, see {@link #appendBlocks}.
+     */
+    private Page(Page prev, Block[] toAdd) {
+        for (Block block : toAdd) {
+            if (prev.positionCount != block.getPositionCount()) {
+                throw new IllegalArgumentException("Block does not have same position count");
+            }
+        }
+        this.positionCount = prev.positionCount;
+
+        this.blocks = Arrays.copyOf(prev.blocks, prev.blocks.length + toAdd.length);
+        System.arraycopy(toAdd, 0, this.blocks, prev.blocks.length, toAdd.length);
+    }
+
     public Page(StreamInput in) throws IOException {
         int positionCount = in.readVInt();
         int blockPositions = in.readVInt();
         Block[] blocks = new Block[blockPositions];
-        for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
-            blocks[blockIndex] = in.readNamedWriteable(Block.class);
+        boolean success = false;
+        try {
+            for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
+                blocks[blockIndex] = in.readNamedWriteable(Block.class);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(blocks);
+            }
         }
         this.positionCount = positionCount;
         this.blocks = blocks;
@@ -122,13 +145,7 @@ public final class Page implements Writeable {
      *         positions as the blocks in this Page
      */
     public Page appendBlock(Block block) {
-        if (positionCount != block.getPositionCount()) {
-            throw new IllegalArgumentException("Block does not have same position count");
-        }
-
-        Block[] newBlocks = Arrays.copyOf(blocks, blocks.length + 1);
-        newBlocks[blocks.length] = block;
-        return new Page(false, positionCount, newBlocks);
+        return new Page(this, new Block[] { block });
     }
 
     /**
@@ -140,17 +157,7 @@ public final class Page implements Writeable {
      *        positions as the blocks in this Page
      */
     public Page appendBlocks(Block[] toAdd) {
-        for (Block block : toAdd) {
-            if (positionCount != block.getPositionCount()) {
-                throw new IllegalArgumentException("Block does not have same position count");
-            }
-        }
-
-        Block[] newBlocks = Arrays.copyOf(blocks, blocks.length + toAdd.length);
-        for (int i = 0; i < toAdd.length; i++) {
-            newBlocks[blocks.length + i] = toAdd[i];
-        }
-        return new Page(false, positionCount, newBlocks);
+        return new Page(this, toAdd);
     }
 
     /**
@@ -168,8 +175,8 @@ public final class Page implements Writeable {
     @Override
     public int hashCode() {
         int result = Objects.hash(positionCount);
-        for (int i = 0; i < blocks.length; i++) {
-            result = 31 * result + Objects.hashCode(blocks[i]);
+        for (Block block : blocks) {
+            result = 31 * result + Objects.hashCode(block);
         }
         return result;
     }
@@ -220,23 +227,16 @@ public final class Page implements Writeable {
      * Release all blocks in this page, decrementing any breakers accounting for these blocks.
      */
     public void releaseBlocks() {
+        if (blocksReleased) {
+            return;
+        }
+
         blocksReleased = true;
+
         Releasables.closeExpectNoException(blocks);
     }
 
-    public static class PageWriter implements Writeable.Writer<Page> {
-
-        @Override
-        public void write(StreamOutput out, Page value) throws IOException {
-            value.writeTo(out);
-        }
-    }
-
-    public static class PageReader implements Writeable.Reader<Page> {
-
-        @Override
-        public Page read(StreamInput in) throws IOException {
-            return new Page(in);
-        }
+    static int mapSize(int expectedSize) {
+        return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
     }
 }

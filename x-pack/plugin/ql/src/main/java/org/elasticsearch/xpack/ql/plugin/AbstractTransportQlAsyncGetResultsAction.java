@@ -49,7 +49,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
         BigArrays bigArrays,
         Class<? extends AsyncTask> asynkTaskClass
     ) {
-        super(actionName, transportService, actionFilters, GetAsyncResultRequest::new);
+        super(actionName, transportService, actionFilters, GetAsyncResultRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.actionName = actionName;
         this.transportService = transportService;
         this.resultsService = createResultsService(

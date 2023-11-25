@@ -34,49 +34,45 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
 
   @Override
   public Block eval(Page page) {
-    Block lhsUncastBlock = lhs.eval(page);
-    if (lhsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+    try (BooleanBlock lhsBlock = (BooleanBlock) lhs.eval(page)) {
+      try (BooleanBlock rhsBlock = (BooleanBlock) rhs.eval(page)) {
+        BooleanVector lhsVector = lhsBlock.asVector();
+        if (lhsVector == null) {
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
+        }
+        BooleanVector rhsVector = rhsBlock.asVector();
+        if (rhsVector == null) {
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
+        }
+        return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
+      }
     }
-    BooleanBlock lhsBlock = (BooleanBlock) lhsUncastBlock;
-    Block rhsUncastBlock = rhs.eval(page);
-    if (rhsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BooleanBlock rhsBlock = (BooleanBlock) rhsUncastBlock;
-    BooleanVector lhsVector = lhsBlock.asVector();
-    if (lhsVector == null) {
-      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-    }
-    BooleanVector rhsVector = rhsBlock.asVector();
-    if (rhsVector == null) {
-      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-    }
-    return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, BooleanBlock lhsBlock, BooleanBlock rhsBlock) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(NotEquals.processBools(lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)), rhsBlock.getBoolean(rhsBlock.getFirstValueIndex(p))));
       }
-      if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBoolean(NotEquals.processBools(lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)), rhsBlock.getBoolean(rhsBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, BooleanVector lhsVector, BooleanVector rhsVector) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBoolean(NotEquals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)));
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(NotEquals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -87,5 +83,27 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+
+    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs) {
+      this.lhs = lhs;
+      this.rhs = rhs;
+    }
+
+    @Override
+    public NotEqualsBoolsEvaluator get(DriverContext context) {
+      return new NotEqualsBoolsEvaluator(lhs.get(context), rhs.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "NotEqualsBoolsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
   }
 }

@@ -15,9 +15,7 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -124,7 +122,7 @@ public class ListSearchApplicationAction extends ActionType<ListSearchApplicatio
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         public static final ParseField RESULT_FIELD = new ParseField("results");
 
@@ -147,11 +145,6 @@ public class ListSearchApplicationAction extends ActionType<ListSearchApplicatio
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return queryPage.toXContent(builder, params);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         public QueryPage<SearchApplicationListItem> queryPage() {

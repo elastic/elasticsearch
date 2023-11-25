@@ -543,7 +543,7 @@ public enum MultiValueMode implements Writeable {
                 }
 
                 @Override
-                public long longValue() throws IOException {
+                public long longValue() {
                     return value;
                 }
             };
@@ -571,7 +571,6 @@ public enum MultiValueMode implements Writeable {
         final long missingValue,
         final BitSet parentDocs,
         final DocIdSetIterator childDocs,
-        int maxDoc,
         int maxChildren
     ) throws IOException {
         if (parentDocs == null || childDocs == null) {
@@ -654,7 +653,7 @@ public enum MultiValueMode implements Writeable {
                 }
 
                 @Override
-                public double doubleValue() throws IOException {
+                public double doubleValue() {
                     return this.value;
                 }
             };
@@ -804,7 +803,6 @@ public enum MultiValueMode implements Writeable {
         final BytesRef missingValue,
         final BitSet parentDocs,
         final DocIdSetIterator childDocs,
-        int maxDoc,
         int maxChildren
     ) throws IOException {
         if (parentDocs == null || childDocs == null) {

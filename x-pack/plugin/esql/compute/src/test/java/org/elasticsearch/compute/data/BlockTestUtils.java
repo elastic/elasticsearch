@@ -98,4 +98,16 @@ public class BlockTestUtils {
             assertThat(b.isNull(p), equalTo(true));
         }
     }
+
+    public static Page deepCopyOf(Page page, BlockFactory blockFactory) {
+        Block[] blockCopies = new Block[page.getBlockCount()];
+        for (int i = 0; i < blockCopies.length; i++) {
+            blockCopies[i] = BlockUtils.deepCopyOf(page.getBlock(i), blockFactory);
+        }
+        return new Page(blockCopies);
+    }
+
+    public static List<Page> deepCopyOf(List<Page> pages, BlockFactory blockFactory) {
+        return pages.stream().map(page -> deepCopyOf(page, blockFactory)).toList();
+    }
 }

@@ -385,18 +385,8 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
     private void prepareIndices() {
         final Client client = client();
 
-        assertAcked(
-            client.admin()
-                .cluster()
-                .preparePutStoredScript()
-                .setId("my-script")
-                .setContent(
-                    new BytesArray("""
-                        {"script":{"source":"{\\"match\\":{\\"username\\":\\"{{_user.username}}\\"}}","lang":"mustache"}}"""),
-                    XContentType.JSON
-                )
-                .get()
-        );
+        assertAcked(client.admin().cluster().preparePutStoredScript().setId("my-script").setContent(new BytesArray("""
+            {"script":{"source":"{\\"match\\":{\\"username\\":\\"{{_user.username}}\\"}}","lang":"mustache"}}"""), XContentType.JSON));
 
         assertAcked(indicesAdmin().prepareCreate(DLS_INDEX).addAlias(new Alias("dls-alias")).get());
         client.prepareIndex(DLS_INDEX).setId("101").setSource("number", 101, "letter", "A").get();
@@ -407,7 +397,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         client.prepareIndex(FLS_INDEX).setId("202").setSource("public", "Y", "private", "y").get();
 
         assertAcked(
-            indicesAdmin().prepareCreate(INDEX).addAlias(new Alias(ALIAS1)).addAlias(new Alias(ALIAS2)).addAlias(new Alias(ALL_ALIAS)).get()
+            indicesAdmin().prepareCreate(INDEX).addAlias(new Alias(ALIAS1)).addAlias(new Alias(ALIAS2)).addAlias(new Alias(ALL_ALIAS))
         );
         client.prepareIndex(INDEX).setId("1").setSource("number", 1, "letter", "a", "private", "sesame_1", "public", "door_1").get();
         client.prepareIndex(INDEX).setId("2").setSource("number", 2, "letter", "b", "private", "sesame_2", "public", "door_2").get();

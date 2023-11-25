@@ -203,7 +203,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         // This index does not permit dynamic fields, so we can only use defined field names
         final String key = indexName.equals(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX) ? "type" : "foo";
         for (int i = between(10, maxIndexRequests); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource(key, randomBoolean() ? "bar" : "baz"));
+            indexRequestBuilders.add(prepareIndex(indexName).setSource(key, randomBoolean() ? "bar" : "baz"));
         }
         indexRandom(true, true, indexRequestBuilders);
         refresh(indexName);
@@ -289,15 +289,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-                allHits.set(t, client().prepareSearch(indexName).setTrackTotalHits(true).get().getHits().getTotalHits());
+                allHits.set(t, prepareSearch(indexName).setTrackTotalHits(true).get().getHits().getTotalHits());
                 barHits.set(
                     t,
-                    client().prepareSearch(indexName)
-                        .setTrackTotalHits(true)
-                        .setQuery(matchQuery("foo", "bar"))
-                        .get()
-                        .getHits()
-                        .getTotalHits()
+                    prepareSearch(indexName).setTrackTotalHits(true).setQuery(matchQuery("foo", "bar")).get().getHits().getTotalHits()
                 );
             });
             threads[i].start();

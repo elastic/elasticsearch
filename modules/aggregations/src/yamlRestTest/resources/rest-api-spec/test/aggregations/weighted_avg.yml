@@ -184,9 +184,11 @@ setup:
 ---
 "Multi weight field not allowed":
   - skip:
+      version: " - 8.11.99"
+      reason: "Changed status code in 8.12"
       features: close_to
   - do:
-      catch: request
+      catch: bad_request
       search:
         body:
           aggs:

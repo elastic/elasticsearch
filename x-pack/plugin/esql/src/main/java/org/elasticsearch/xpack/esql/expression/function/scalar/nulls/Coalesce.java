@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
@@ -119,13 +121,25 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return dvrCxt -> new CoalesceEvaluator(
-            LocalExecutionPlanner.toElementType(dataType()),
-            children().stream().map(toEvaluator).map(x -> x.get(dvrCxt)).toList()
-        );
+        List<ExpressionEvaluator.Factory> childEvaluators = children().stream().map(toEvaluator).toList();
+        return new ExpressionEvaluator.Factory() {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new CoalesceEvaluator(
+                    context,
+                    LocalExecutionPlanner.toElementType(dataType()),
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
+            }
+
+            @Override
+            public String toString() {
+                return "CoalesceEvaluator[values=" + childEvaluators + ']';
+            }
+        };
     }
 
-    private record CoalesceEvaluator(ElementType resultType, List<EvalOperator.ExpressionEvaluator> evaluators)
+    private record CoalesceEvaluator(DriverContext driverContext, ElementType resultType, List<EvalOperator.ExpressionEvaluator> evaluators)
         implements
             EvalOperator.ExpressionEvaluator {
         @Override
@@ -140,23 +154,27 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
              * a time - but it's not at all fast.
              */
             int positionCount = page.getPositionCount();
-            Block.Builder result = resultType.newBlockBuilder(positionCount);
-            position: for (int p = 0; p < positionCount; p++) {
-                int[] positions = new int[] { p };
-                Page limited = new Page(
-                    1,
-                    IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
-                );
-                for (EvalOperator.ExpressionEvaluator eval : evaluators) {
-                    Block e = eval.eval(limited);
-                    if (false == e.isNull(0)) {
-                        result.copyFrom(e, 0, 1);
-                        continue position;
+            try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+                position: for (int p = 0; p < positionCount; p++) {
+                    int[] positions = new int[] { p };
+                    Page limited = new Page(
+                        1,
+                        IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
+                    );
+                    try (Releasable ignored = limited::releaseBlocks) {
+                        for (EvalOperator.ExpressionEvaluator eval : evaluators) {
+                            try (Block block = eval.eval(limited)) {
+                                if (false == block.isNull(0)) {
+                                    result.copyFrom(block, 0, 1);
+                                    continue position;
+                                }
+                            }
+                        }
+                        result.appendNull();
                     }
                 }
-                result.appendNull();
+                return result.build();
             }
-            return result.build();
         }
 
         @Override

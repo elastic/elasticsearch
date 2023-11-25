@@ -174,7 +174,7 @@ ROW string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-0
 // end::to_datetime-str[]
 ;
 warning:Line 2:19: evaluation of [TO_DATETIME(string)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.IllegalArgumentException: failed to parse date field [1964-06-02 00:00:00] with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
+warning:Line 2:19: java.lang.IllegalArgumentException: failed to parse date field [1964-06-02 00:00:00] with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
 
 // tag::to_datetime-str-result[]
 string:keyword                                          |datetime:date
@@ -182,10 +182,10 @@ string:keyword                                          |datetime:date
 // end::to_datetime-str-result[]
 ;
 
-convertFromUnsignedLong
+convertFromUnsignedLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
 row ul = [9223372036854775808, 520128000000] | eval dt = to_datetime(ul);
 warning:Line 1:58: evaluation of [to_datetime(ul)] failed, treating result as null. Only first 20 failures recorded.
-warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [9223372036854775808] out of [long] range
+warning:Line 1:58: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
 
                 ul:ul              |           dt:date
 [9223372036854775808, 520128000000]|1986-06-26T00:00:00.000Z
@@ -361,7 +361,7 @@ b:datetime
 evalDateParseWrongDate
 row a = "2023-02-01 foo" | eval b = date_parse("yyyy-MM-dd", a) | keep b;
 warning:Line 1:37: evaluation of [date_parse(\"yyyy-MM-dd\", a)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.IllegalArgumentException: failed to parse date field [2023-02-01 foo] with format [yyyy-MM-dd]
+warning:Line 1:37: java.lang.IllegalArgumentException: failed to parse date field [2023-02-01 foo] with format [yyyy-MM-dd]
 
 b:datetime
 null
@@ -370,7 +370,7 @@ null
 evalDateParseNotMatching
 row a = "2023-02-01" | eval b = date_parse("yyyy-MM", a) | keep b;
 warning:Line 1:33: evaluation of [date_parse(\"yyyy-MM\", a)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM]
+warning:Line 1:33: java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM]
 b:datetime
 null
 ;
@@ -378,7 +378,7 @@ null
 evalDateParseNotMatching2
 row a = "2023-02-01" | eval b = date_parse("yyyy-MM-dd HH:mm:ss", a) | keep b;
 warning:Line 1:33: evaluation of [date_parse(\"yyyy-MM-dd HH:mm:ss\", a)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM-dd HH:mm:ss]
+warning:Line 1:33: java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM-dd HH:mm:ss]
 
 b:datetime
 null
@@ -638,7 +638,7 @@ row dt = to_dt(9223372036854775807)
 | keep plus;
 
 warning:Line 2:15: evaluation of [dt + 1 day] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 2:15: java.lang.ArithmeticException: long overflow
 
 plus:datetime
 null
@@ -650,7 +650,7 @@ row dt = to_dt(0)
 | keep plus;
 
 warning:Line 2:15: evaluation of [dt + 2147483647 years] failed, treating result as null. Only first 20 failures recorded.
-warning:java.time.DateTimeException: Invalid value for Year (valid values -999999999 - 999999999): 2147485617
+warning:Line 2:15: java.time.DateTimeException: Invalid value for Year (valid values -999999999 - 999999999): 2147485617
 
 plus:datetime
 null

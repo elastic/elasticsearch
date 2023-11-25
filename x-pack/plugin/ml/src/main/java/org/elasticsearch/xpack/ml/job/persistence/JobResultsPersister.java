@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -338,7 +339,7 @@ public class JobResultsPersister {
     /**
      * Persist the quantiles (async)
      */
-    public void persistQuantiles(Quantiles quantiles, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<IndexResponse> listener) {
+    public void persistQuantiles(Quantiles quantiles, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<DocWriteResponse> listener) {
         String quantilesDocId = Quantiles.documentId(quantiles.getJobId());
 
         // Step 2: Create or update the quantiles document:
@@ -414,7 +415,7 @@ public class JobResultsPersister {
     public void persistModelSizeStatsWithoutRetries(
         ModelSizeStats modelSizeStats,
         WriteRequest.RefreshPolicy refreshPolicy,
-        ActionListener<IndexResponse> listener
+        ActionListener<DocWriteResponse> listener
     ) {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
@@ -540,7 +541,7 @@ public class JobResultsPersister {
         }
 
         BulkResponse persist(Supplier<Boolean> shouldRetry, boolean requireAlias) {
-            final PlainActionFuture<BulkResponse> getResponseFuture = PlainActionFuture.newFuture();
+            final PlainActionFuture<BulkResponse> getResponseFuture = new PlainActionFuture<>();
             persist(shouldRetry, requireAlias, getResponseFuture);
             return getResponseFuture.actionGet();
         }
@@ -573,7 +574,7 @@ public class JobResultsPersister {
             }
         }
 
-        void persistWithoutRetries(ActionListener<IndexResponse> listener, boolean requireAlias) {
+        void persistWithoutRetries(ActionListener<DocWriteResponse> listener, boolean requireAlias) {
             logCall();
 
             try (XContentBuilder content = toXContentBuilder(object, params)) {

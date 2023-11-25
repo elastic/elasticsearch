@@ -84,7 +84,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(-123, INTEGER), whereExpression("+(-123)"));
         assertEquals(l(-123, INTEGER), whereExpression("+(+(-123))"));
         // we could do better here. ES SQL is smarter and accounts for the number of minuses
-        assertEquals(new Neg(null, l(-123, INTEGER)), whereExpression("-(-123)"));
+        assertEquals(new Neg(EMPTY, l(-123, INTEGER)), whereExpression("-(-123)"));
     }
 
     public void testStringLiterals() {

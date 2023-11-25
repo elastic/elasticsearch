@@ -66,9 +66,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     @After
     public void afterEach() throws Exception {
         assertAcked(indicesAdmin().prepareDeleteTemplate("*").get());
-        assertAcked(
-            client().execute(DeleteComposableIndexTemplateAction.INSTANCE, new DeleteComposableIndexTemplateAction.Request("*")).get()
-        );
+        assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, new DeleteComposableIndexTemplateAction.Request("*")));
     }
 
     @Override
@@ -160,7 +158,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             indicesAdmin().preparePutTemplate("test-template")
                 .setPatterns(List.of(indexName + "*"))
                 .addAlias(new Alias(indexName + "-legacy-alias"))
-                .get()
         );
 
         assertAcked(prepareCreate(primaryIndexName));
@@ -197,23 +194,25 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     private void createIndexWithComposableTemplates(String indexName, String primaryIndexName) throws Exception {
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(
-            Collections.singletonList(indexName + "*"),
-            new Template(
-                null,
-                null,
-                Map.of(indexName + "-composable-alias", AliasMetadata.builder(indexName + "-composable-alias").build())
-            ),
-            Collections.emptyList(),
-            4L,
-            5L,
-            Collections.emptyMap()
-        );
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(indexName + "*"))
+            .template(
+                new Template(
+                    null,
+                    null,
+                    Map.of(indexName + "-composable-alias", AliasMetadata.builder(indexName + "-composable-alias").build())
+                )
+            )
+            .componentTemplates(Collections.emptyList())
+            .priority(4L)
+            .version(5L)
+            .metadata(Collections.emptyMap())
+            .build();
         assertAcked(
             client().execute(
                 PutComposableIndexTemplateAction.INSTANCE,
                 new PutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
-            ).get()
+            )
         );
 
         assertAcked(prepareCreate(primaryIndexName));
@@ -232,7 +231,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             client().execute(
                 DeleteComposableIndexTemplateAction.INSTANCE,
                 new DeleteComposableIndexTemplateAction.Request("test-composable-template")
-            ).get()
+            )
         );
     }
 
@@ -259,7 +258,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             client().execute(
                 DeleteComposableIndexTemplateAction.INSTANCE,
                 new DeleteComposableIndexTemplateAction.Request("test-composable-template")
-            ).get()
+            )
         );
     }
 

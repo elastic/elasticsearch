@@ -43,11 +43,15 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
+import java.time.Duration;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
@@ -500,6 +504,16 @@ public class StatementParserTests extends ESTestCase {
         } while (wsIndex >= 0);
     }
 
+    public void testNewLines() {
+        String[] delims = new String[] { "", "\r", "\n", "\r\n" };
+        Function<String, String> queryFun = d -> d + "from " + d + " foo " + d + "| eval " + d + " x = concat(bar, \"baz\")" + d;
+        LogicalPlan reference = statement(queryFun.apply(delims[0]));
+        for (int i = 1; i < delims.length; i++) {
+            LogicalPlan candidate = statement(queryFun.apply(delims[i]));
+            assertThat(candidate, equalTo(reference));
+        }
+    }
+
     public void testSuggestAvailableSourceCommandsOnParsingError() {
         for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
             Tuple.tuple("frm foo", "frm"),
@@ -599,12 +613,14 @@ public class StatementParserTests extends ESTestCase {
         assertEquals("", dissect.parser().appendSeparator());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
 
-        cmd = processingCommand("dissect a \"%{foo}\" append_separator=\",\"");
-        assertEquals(Dissect.class, cmd.getClass());
-        dissect = (Dissect) cmd;
-        assertEquals("%{foo}", dissect.parser().pattern());
-        assertEquals(",", dissect.parser().appendSeparator());
-        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+        for (String separatorName : List.of("append_separator", "APPEND_SEPARATOR", "AppEnd_SeparAtor")) {
+            cmd = processingCommand("dissect a \"%{foo}\" " + separatorName + "=\",\"");
+            assertEquals(Dissect.class, cmd.getClass());
+            dissect = (Dissect) cmd;
+            assertEquals("%{foo}", dissect.parser().pattern());
+            assertEquals(",", dissect.parser().appendSeparator());
+            assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+        }
 
         for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
             Tuple.tuple("from a | dissect foo \"\"", "[]"),
@@ -698,10 +714,19 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testInputParams() {
-        LogicalPlan stm = statement("row x = ?, y = ?", List.of(new TypedParamValue("integer", 1), new TypedParamValue("keyword", "2")));
+        LogicalPlan stm = statement(
+            "row x = ?, y = ?, a = ?, b = ?, c = ?",
+            List.of(
+                new TypedParamValue("integer", 1),
+                new TypedParamValue("keyword", "2"),
+                new TypedParamValue("date_period", "2 days"),
+                new TypedParamValue("time_duration", "4 hours"),
+                new TypedParamValue("version", "1.2.3")
+            )
+        );
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
-        assertThat(row.fields().size(), is(2));
+        assertThat(row.fields().size(), is(5));
 
         NamedExpression field = row.fields().get(0);
         assertThat(field.name(), is("x"));
@@ -714,6 +739,59 @@ public class StatementParserTests extends ESTestCase {
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(), is("2"));
+
+        field = row.fields().get(2);
+        assertThat(field.name(), is("a"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(Period.ofDays(2)));
+
+        field = row.fields().get(3);
+        assertThat(field.name(), is("b"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(Duration.ofHours(4)));
+
+        field = row.fields().get(4);
+        assertThat(field.name(), is("c"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold().getClass(), is(Version.class));
+        assertThat(alias.child().fold().toString(), is("1.2.3"));
+    }
+
+    public void testWrongIntervalParams() {
+        expectError("row x = ?", List.of(new TypedParamValue("date_period", "12")), "Cannot parse [12] to DATE_PERIOD");
+        expectError("row x = ?", List.of(new TypedParamValue("time_duration", "12")), "Cannot parse [12] to TIME_DURATION");
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("date_period", "12 months foo")),
+            "Cannot parse [12 months foo] to DATE_PERIOD"
+        );
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("time_duration", "12 minutes bar")),
+            "Cannot parse [12 minutes bar] to TIME_DURATION"
+        );
+        expectError("row x = ?", List.of(new TypedParamValue("date_period", "12 foo")), "Unexpected time interval qualifier: 'foo'");
+        expectError("row x = ?", List.of(new TypedParamValue("time_duration", "12 bar")), "Unexpected time interval qualifier: 'bar'");
+        expectError("row x = ?", List.of(new TypedParamValue("date_period", "foo days")), "Cannot parse [foo days] to DATE_PERIOD");
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("time_duration", "bar seconds")),
+            "Cannot parse [bar seconds] to TIME_DURATION"
+        );
+
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("date_period", "2 minutes")),
+            "Cannot parse [2 minutes] to DATE_PERIOD, did you mean TIME_DURATION?"
+        );
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("time_duration", "11 months")),
+            "Cannot parse [11 months] to TIME_DURATION, did you mean DATE_PERIOD?"
+        );
     }
 
     public void testMissingInputParams() {

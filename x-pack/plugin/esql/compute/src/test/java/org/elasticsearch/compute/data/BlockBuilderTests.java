@@ -39,16 +39,18 @@ public class BlockBuilderTests extends ESTestCase {
 
     private final ElementType elementType;
 
+    BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
+
     public BlockBuilderTests(ElementType elementType) {
         this.elementType = elementType;
     }
 
     public void testAllNulls() {
         for (int numEntries : List.of(1, randomIntBetween(1, 100))) {
-            testAllNullsImpl(elementType.newBlockBuilder(0), numEntries);
-            testAllNullsImpl(elementType.newBlockBuilder(100), numEntries);
-            testAllNullsImpl(elementType.newBlockBuilder(1000), numEntries);
-            testAllNullsImpl(elementType.newBlockBuilder(randomIntBetween(0, 100)), numEntries);
+            testAllNullsImpl(elementType.newBlockBuilder(0, blockFactory), numEntries);
+            testAllNullsImpl(elementType.newBlockBuilder(100, blockFactory), numEntries);
+            testAllNullsImpl(elementType.newBlockBuilder(1000, blockFactory), numEntries);
+            testAllNullsImpl(elementType.newBlockBuilder(randomIntBetween(0, 100), blockFactory), numEntries);
         }
     }
 
@@ -56,11 +58,13 @@ public class BlockBuilderTests extends ESTestCase {
         for (int i = 0; i < numEntries; i++) {
             builder.appendNull();
         }
-        Block block = builder.build();
-        assertThat(block.getPositionCount(), is(numEntries));
-        assertThat(block.isNull(0), is(true));
-        assertThat(block.isNull(numEntries - 1), is(true));
-        assertThat(block.isNull(randomPosition(numEntries)), is(true));
+        try (Block block = builder.build()) {
+            assertThat(block.getPositionCount(), is(numEntries));
+            assertThat(block.isNull(0), is(true));
+            assertThat(block.isNull(numEntries - 1), is(true));
+            assertThat(block.isNull(randomPosition(numEntries)), is(true));
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
     static int randomPosition(int positionCount) {
@@ -68,7 +72,6 @@ public class BlockBuilderTests extends ESTestCase {
     }
 
     public void testCloseWithoutBuilding() {
-        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
         elementType.newBlockBuilder(10, blockFactory).close();
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
@@ -110,7 +113,6 @@ public class BlockBuilderTests extends ESTestCase {
     }
 
     private void testBuild(int size, boolean nullable, int maxValueCount) {
-        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
         try (Block.Builder builder = elementType.newBlockBuilder(randomBoolean() ? size : 1, blockFactory)) {
             BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, size, nullable, 1, maxValueCount, 0, 0);
             builder.copyFrom(random.block(), 0, random.block().getPositionCount());
@@ -124,7 +126,6 @@ public class BlockBuilderTests extends ESTestCase {
     }
 
     public void testDoubleBuild() {
-        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
         try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
             BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
             builder.copyFrom(random.block(), 0, random.block().getPositionCount());
@@ -142,19 +143,43 @@ public class BlockBuilderTests extends ESTestCase {
     public void testCranky() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
         BlockFactory blockFactory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
-        try {
-            try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
-                BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
-                builder.copyFrom(random.block(), 0, random.block().getPositionCount());
-                try (Block built = builder.build()) {
-                    assertThat(built, equalTo(random.block()));
+        for (int i = 0; i < 100; i++) {
+            try {
+                try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
+                    BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+                    builder.copyFrom(random.block(), 0, random.block().getPositionCount());
+                    try (Block built = builder.build()) {
+                        assertThat(built, equalTo(random.block()));
+                    }
                 }
+                // If we made it this far cranky didn't fail us!
+            } catch (CircuitBreakingException e) {
+                logger.info("cranky", e);
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
             }
-            // If we made it this far cranky didn't fail us!
-        } catch (CircuitBreakingException e) {
-            logger.info("cranky", e);
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
-        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testCrankyConstantBlock() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
+        BlockFactory blockFactory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        for (int i = 0; i < 100; i++) {
+            try {
+                try (Block.Builder builder = elementType.newBlockBuilder(randomInt(10), blockFactory)) {
+                    BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 1, false, 1, 1, 0, 0);
+                    builder.copyFrom(random.block(), 0, random.block().getPositionCount());
+                    try (Block built = builder.build()) {
+                        assertThat(built.asVector().isConstant(), is(true));
+                        assertThat(built, equalTo(random.block()));
+                    }
+                }
+                // If we made it this far cranky didn't fail us!
+            } catch (CircuitBreakingException e) {
+                logger.info("cranky", e);
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            }
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+        }
     }
 }

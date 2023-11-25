@@ -10,7 +10,6 @@ package org.elasticsearch.node;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -118,7 +117,7 @@ public class NodeService implements Closeable {
         boolean indices
     ) {
         return new NodeInfo(
-            Version.CURRENT,
+            Build.current().version(),
             TransportVersion.current(),
             IndexVersion.current(),
             findComponentVersions(),
@@ -155,6 +154,7 @@ public class NodeService implements Closeable {
 
     public NodeStats stats(
         CommonStatsFlags indices,
+        boolean includeShardsStats,
         boolean os,
         boolean process,
         boolean jvm,
@@ -176,7 +176,7 @@ public class NodeService implements Closeable {
         return new NodeStats(
             transportService.getLocalNode(),
             System.currentTimeMillis(),
-            indices.anySet() ? indicesService.stats(indices) : null,
+            indices.anySet() ? indicesService.stats(indices, includeShardsStats) : null,
             os ? monitorService.osService().stats() : null,
             process ? monitorService.processService().stats() : null,
             jvm ? monitorService.jvmService().stats() : null,

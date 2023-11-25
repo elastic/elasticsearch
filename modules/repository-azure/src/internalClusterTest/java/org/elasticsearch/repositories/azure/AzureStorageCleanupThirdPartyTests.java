@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -104,7 +105,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     private void ensureSasTokenPermissions() {
         final BlobStoreRepository repository = getRepository();
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         repository.threadPool().generic().execute(ActionRunnable.wrap(future, l -> {
             final AzureBlobStore blobStore = (AzureBlobStore) repository.blobStore();
             final AzureBlobServiceClient azureBlobServiceClient = blobStore.getService().client("default", LocationMode.PRIMARY_ONLY);
@@ -135,11 +136,17 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         final BlobStoreRepository repo = getRepository();
         // The configured threshold for this test suite is 1mb
         final int blobSize = ByteSizeUnit.MB.toIntBytes(2);
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         repo.threadPool().generic().execute(ActionRunnable.run(future, () -> {
             final BlobContainer blobContainer = repo.blobStore().blobContainer(repo.basePath().add("large_write"));
-            blobContainer.writeBlob(UUIDs.base64UUID(), new ByteArrayInputStream(randomByteArrayOfLength(blobSize)), blobSize, false);
-            blobContainer.delete();
+            blobContainer.writeBlob(
+                OperationPurpose.SNAPSHOT,
+                UUIDs.base64UUID(),
+                new ByteArrayInputStream(randomByteArrayOfLength(blobSize)),
+                blobSize,
+                false
+            );
+            blobContainer.delete(OperationPurpose.SNAPSHOT);
         }));
         future.get();
     }

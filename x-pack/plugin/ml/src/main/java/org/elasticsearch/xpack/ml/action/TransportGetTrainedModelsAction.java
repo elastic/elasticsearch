@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -49,7 +50,13 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
         Client client,
         TrainedModelProvider trainedModelProvider
     ) {
-        super(GetTrainedModelsAction.NAME, transportService, actionFilters, GetTrainedModelsAction.Request::new);
+        super(
+            GetTrainedModelsAction.NAME,
+            transportService,
+            actionFilters,
+            GetTrainedModelsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.provider = trainedModelProvider;
         this.clusterService = clusterService;
         this.client = client;

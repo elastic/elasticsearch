@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -44,7 +42,6 @@ import java.util.Locale;
  * Main class to initiate resizing (shrink / split) an index into a new index
  */
 public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, ResizeResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportResizeAction.class);
 
     private final MetadataCreateIndexService createIndexService;
     private final Client client;

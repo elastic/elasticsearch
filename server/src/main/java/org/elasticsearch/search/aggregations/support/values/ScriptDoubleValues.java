@@ -11,7 +11,7 @@ import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -81,9 +81,9 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
             // that scripts return the same internal representation as regular fields, so boolean
             // values in scripts need to be converted to a number, and the value formatter will
             // make sure of using true/false in the key_as_string field
-            return ((Boolean) o).booleanValue() ? 1.0 : 0.0;
+            return (Boolean) o ? 1.0 : 0.0;
         } else {
-            throw new AggregationExecutionException("Unsupported script value [" + o + "], expected a number, date, or boolean");
+            throw AggregationErrors.unsupportedScriptValue(o == null ? "null" : o.toString());
         }
     }
 

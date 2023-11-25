@@ -78,6 +78,11 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     }
 
     @Override
+    public void destroy() {
+        cancel();
+    }
+
+    @Override
     public long getEndTime() {
         return context.end;
     }
@@ -157,7 +162,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     protected abstract T buildSearchRequest(SearchSourceBuilder searchRequestBuilder);
 
-    private Aggregations validateAggs(@Nullable Aggregations aggs) {
+    private static Aggregations validateAggs(@Nullable Aggregations aggs) {
         if (aggs == null) {
             return null;
         }

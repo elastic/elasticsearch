@@ -16,8 +16,8 @@ import java.io.IOException;
  * Vector that stores boolean values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BooleanVector extends Vector permits ConstantBooleanVector, FilterBooleanVector, BooleanArrayVector,
-    BooleanBigArrayVector {
+public sealed interface BooleanVector extends Vector permits ConstantBooleanVector, BooleanArrayVector, BooleanBigArrayVector,
+    ConstantNullVector {
     boolean getBoolean(int position);
 
     @Override
@@ -72,17 +72,18 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static BooleanVector of(StreamInput in) throws IOException {
+    static BooleanVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return new ConstantBooleanVector(in.readBoolean(), positions);
+            return blockFactory.newConstantBooleanVector(in.readBoolean(), positions);
         } else {
-            var builder = BooleanVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendBoolean(in.readBoolean());
+            try (var builder = blockFactory.newBooleanVectorFixedBuilder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.appendBoolean(in.readBoolean());
+                }
+                return builder.build();
             }
-            return builder.build();
         }
     }
 
@@ -100,8 +101,12 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
         }
     }
 
-    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    /**
+     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
+     * @deprecated use {@link BlockFactory#newBooleanVectorBuilder}
+     */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    @Deprecated
     static Builder newVectorBuilder(int estimatedSize) {
         return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
@@ -109,7 +114,9 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     /**
      * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
      * if you know the size up front because it's faster.
+     * @deprecated use {@link BlockFactory#newBooleanVectorBuilder}
      */
+    @Deprecated
     static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return blockFactory.newBooleanVectorBuilder(estimatedSize);
     }
@@ -117,7 +124,9 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     /**
      * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
      * if you know the size up front because it's faster.
+     * @deprecated use {@link BlockFactory#newBooleanVectorFixedBuilder}
      */
+    @Deprecated
     static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
         return blockFactory.newBooleanVectorFixedBuilder(size);
     }

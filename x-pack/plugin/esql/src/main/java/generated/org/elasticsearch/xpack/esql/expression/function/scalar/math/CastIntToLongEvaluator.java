@@ -32,36 +32,35 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
 
   @Override
   public Block eval(Page page) {
-    Block vUncastBlock = v.eval(page);
-    if (vUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+    try (IntBlock vBlock = (IntBlock) v.eval(page)) {
+      IntVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        return eval(page.getPositionCount(), vBlock);
+      }
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
-    IntBlock vBlock = (IntBlock) vUncastBlock;
-    IntVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      return eval(page.getPositionCount(), vBlock);
-    }
-    return eval(page.getPositionCount(), vVector).asBlock();
   }
 
   public LongBlock eval(int positionCount, IntBlock vBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendLong(Cast.castIntToLong(vBlock.getInt(vBlock.getFirstValueIndex(p))));
       }
-      result.appendLong(Cast.castIntToLong(vBlock.getInt(vBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public LongVector eval(int positionCount, IntVector vVector) {
-    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendLong(Cast.castIntToLong(vVector.getInt(p)));
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendLong(Cast.castIntToLong(vVector.getInt(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -72,5 +71,23 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+      this.v = v;
+    }
+
+    @Override
+    public CastIntToLongEvaluator get(DriverContext context) {
+      return new CastIntToLongEvaluator(v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "CastIntToLongEvaluator[" + "v=" + v + "]";
+    }
   }
 }

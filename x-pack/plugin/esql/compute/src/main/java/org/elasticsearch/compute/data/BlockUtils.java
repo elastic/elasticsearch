@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,7 +28,7 @@ public final class BlockUtils {
 
     private BlockUtils() {}
 
-    public record BuilderWrapper(Block.Builder builder, Consumer<Object> append) {
+    public record BuilderWrapper(Block.Builder builder, Consumer<Object> append) implements Releasable {
         public BuilderWrapper(Block.Builder builder, Consumer<Object> append) {
             this.builder = builder;
             this.append = o -> {
@@ -49,42 +51,56 @@ public final class BlockUtils {
         public void accept(Object object) {
             append.accept(object);
         }
+
+        @Override
+        public void close() {
+            builder.close();
+        }
     }
 
-    public static Block[] fromArrayRow(Object... row) {
-        return fromListRow(Arrays.asList(row));
+    public static Block[] fromArrayRow(BlockFactory blockFactory, Object... row) {
+        return fromListRow(blockFactory, Arrays.asList(row));
     }
 
-    public static Block[] fromListRow(List<Object> row) {
-        return fromListRow(row, 1);
+    public static Block[] fromListRow(BlockFactory blockFactory, List<Object> row) {
+        return fromListRow(blockFactory, row, 1);
     }
 
-    public static Block[] fromListRow(List<Object> row, int blockSize) {
+    public static Block[] fromListRow(BlockFactory blockFactory, List<Object> row, int blockSize) {
         if (row.isEmpty()) {
             return NO_BLOCKS;
         }
 
         var size = row.size();
         Block[] blocks = new Block[size];
-        for (int i = 0; i < size; i++) {
-            Object object = row.get(i);
-            if (object instanceof List<?> listVal) {
-                BuilderWrapper wrapper = wrapperFor(fromJava(listVal.get(0).getClass()), blockSize);
-                wrapper.accept(listVal);
-                Random random = Randomness.get();
-                if (isDeduplicated(listVal) && random.nextBoolean()) {
-                    if (isAscending(listVal) && random.nextBoolean()) {
-                        wrapper.builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
-                    } else {
-                        wrapper.builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_UNORDERD);
+        boolean success = false;
+        try {
+            for (int i = 0; i < size; i++) {
+                Object object = row.get(i);
+                if (object instanceof List<?> listVal) {
+                    try (BuilderWrapper wrapper = wrapperFor(blockFactory, fromJava(listVal.get(0).getClass()), blockSize)) {
+                        wrapper.accept(listVal);
+                        Random random = Randomness.get();
+                        if (isDeduplicated(listVal) && random.nextBoolean()) {
+                            if (isAscending(listVal) && random.nextBoolean()) {
+                                wrapper.builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+                            } else {
+                                wrapper.builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_UNORDERD);
+                            }
+                        }
+                        blocks[i] = wrapper.builder.build();
                     }
+                } else {
+                    blocks[i] = constantBlock(blockFactory, object, blockSize);
                 }
-                blocks[i] = wrapper.builder.build();
-            } else {
-                blocks[i] = constantBlock(object, blockSize);
+            }
+            success = true;
+            return blocks;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(blocks);
             }
         }
-        return blocks;
     }
 
     /**
@@ -116,32 +132,38 @@ public final class BlockUtils {
         return new HashSet<>(values).size() == values.size();
     }
 
-    public static Block[] fromList(List<List<Object>> list) {
+    public static Block[] fromList(BlockFactory blockFactory, List<List<Object>> list) {
         var size = list.size();
         if (size == 0) {
             return NO_BLOCKS;
         }
         if (size == 1) {
-            return fromListRow(list.get(0));
+            return fromListRow(blockFactory, list.get(0));
         }
 
         var wrappers = new BuilderWrapper[list.get(0).size()];
-
-        for (int i = 0; i < wrappers.length; i++) {
-            wrappers[i] = wrapperFor(fromJava(type(list, i)), size);
-        }
-        for (List<Object> values : list) {
-            for (int j = 0, vSize = values.size(); j < vSize; j++) {
-                wrappers[j].append.accept(values.get(j));
+        try {
+            for (int i = 0; i < wrappers.length; i++) {
+                wrappers[i] = wrapperFor(blockFactory, fromJava(type(list, i)), size);
             }
+            for (List<Object> values : list) {
+                for (int j = 0, vSize = values.size(); j < vSize; j++) {
+                    wrappers[j].append.accept(values.get(j));
+                }
+            }
+            return Arrays.stream(wrappers).map(b -> b.builder.build()).toArray(Block[]::new);
+        } finally {
+            Releasables.closeExpectNoException(wrappers);
         }
-        return Arrays.stream(wrappers).map(b -> b.builder.build()).toArray(Block[]::new);
     }
 
-    public static Block deepCopyOf(Block block) {
-        Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount());
-        builder.copyFrom(block, 0, block.getPositionCount());
-        return builder.build();
+    /** Returns a deep copy of the given block, using the blockFactory for creating the copy block. */
+    public static Block deepCopyOf(Block block, BlockFactory blockFactory) {
+        try (Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), blockFactory)) {
+            builder.copyFrom(block, 0, block.getPositionCount());
+            builder.mvOrdering(block.mvOrdering());
+            return builder.build();
+        }
     }
 
     private static Class<?> type(List<List<Object>> list, int i) {
@@ -162,8 +184,8 @@ public final class BlockUtils {
         return null;
     }
 
-    public static BuilderWrapper wrapperFor(ElementType type, int size) {
-        var b = type.newBlockBuilder(size);
+    public static BuilderWrapper wrapperFor(BlockFactory blockFactory, ElementType type, int size) {
+        var b = type.newBlockBuilder(size, blockFactory);
         return new BuilderWrapper(b, o -> appendValue(b, o, type));
     }
 
@@ -182,17 +204,22 @@ public final class BlockUtils {
         }
     }
 
-    public static Block constantBlock(Object val, int size) {
+    public static Block constantBlock(BlockFactory blockFactory, Object val, int size) {
         if (val == null) {
             return Block.constantNullBlock(size);
         }
-        var type = fromJava(val.getClass());
+        return constantBlock(blockFactory, fromJava(val.getClass()), val, size);
+    }
+
+    // TODO: allow null values
+    private static Block constantBlock(BlockFactory blockFactory, ElementType type, Object val, int size) {
         return switch (type) {
-            case LONG -> LongBlock.newConstantBlockWith((long) val, size);
-            case INT -> IntBlock.newConstantBlockWith((int) val, size);
-            case BYTES_REF -> BytesRefBlock.newConstantBlockWith(toBytesRef(val), size);
-            case DOUBLE -> DoubleBlock.newConstantBlockWith((double) val, size);
-            case BOOLEAN -> BooleanBlock.newConstantBlockWith((boolean) val, size);
+            case NULL -> Block.constantNullBlock(size);
+            case LONG -> LongBlock.newConstantBlockWith((long) val, size, blockFactory);
+            case INT -> IntBlock.newConstantBlockWith((int) val, size, blockFactory);
+            case BYTES_REF -> BytesRefBlock.newConstantBlockWith(toBytesRef(val), size, blockFactory);
+            case DOUBLE -> DoubleBlock.newConstantBlockWith((double) val, size, blockFactory);
+            case BOOLEAN -> BooleanBlock.newConstantBlockWith((boolean) val, size, blockFactory);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }

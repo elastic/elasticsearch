@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -39,7 +40,13 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<
         JobResultsProvider jobResultsProvider,
         JobConfigProvider jobConfigProvider
     ) {
-        super(GetCalendarEventsAction.NAME, transportService, actionFilters, GetCalendarEventsAction.Request::new);
+        super(
+            GetCalendarEventsAction.NAME,
+            transportService,
+            actionFilters,
+            GetCalendarEventsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.jobResultsProvider = jobResultsProvider;
         this.jobConfigProvider = jobConfigProvider;
     }

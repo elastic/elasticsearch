@@ -9,6 +9,7 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
@@ -23,7 +24,7 @@ import java.util.Map;
 /**
  * An index document action request builder.
  */
-public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder>
+public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, DocWriteResponse, IndexRequestBuilder>
     implements
         WriteRequestBuilder<IndexRequestBuilder> {
 
@@ -84,7 +85,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the document source to index.
      * <p>
-     * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.xcontent.XContentBuilder)}
      * or using the {@link #setSource(byte[], XContentType)}.
      */
     public IndexRequestBuilder setSource(String source, XContentType xContentType) {

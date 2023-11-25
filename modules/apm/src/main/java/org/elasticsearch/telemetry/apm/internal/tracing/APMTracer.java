@@ -24,9 +24,9 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -149,8 +149,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
         return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
-            var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
-
+            var tracer = openTelemetry.getTracer("elasticsearch", Build.current().version());
             return new APMServices(tracer, openTelemetry);
         });
     }
@@ -284,7 +283,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     public Releasable withScope(SpanId spanId) {
         final Context context = spans.get(spanId);
         if (context != null) {
-            var scope = context.makeCurrent();
+            var scope = AccessController.doPrivileged((PrivilegedAction<Scope>) context::makeCurrent);
             return scope::close;
         }
         return () -> {};
@@ -382,7 +381,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         final var span = Span.fromContextOrNull(spans.remove(spanId));
         if (span != null) {
             logger.trace("Finishing trace [{}]", spanId);
-            span.end();
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                span.end();
+                return null;
+            });
         }
     }
 
@@ -391,7 +393,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      */
     @Override
     public void stopTrace() {
-        Span.current().end();
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            Span.current().end();
+            return null;
+        });
     }
 
     @Override
@@ -452,4 +457,5 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
         return Operations.union(automata);
     }
+
 }

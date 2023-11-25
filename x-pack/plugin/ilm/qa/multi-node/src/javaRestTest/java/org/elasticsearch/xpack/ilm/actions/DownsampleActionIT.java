@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.WaitUntilTimeSeriesEndTimePassesStep;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.junit.Before;
 
@@ -47,13 +48,16 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getBackingIndices;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DownsampleActionIT extends ESRestTestCase {
 
@@ -70,7 +74,45 @@ public class DownsampleActionIT extends ESRestTestCase {
                     "index": {
                         "number_of_replicas": 0,
                         "number_of_shards": 1,
-                        "mode": "time_series"
+                        "time_series": {
+                          "start_time": "%s",
+                          "end_time": "%s"
+                        },
+                        "routing_path": ["metricset"],
+                        "mode": "time_series",
+                        "look_ahead_time": "1m",
+                        "lifecycle.name": "%s"
+                    }
+                },
+                "mappings":{
+                    "properties": {
+                        "@timestamp" : {
+                            "type": "date"
+                        },
+                        "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "volume": {
+                            "type": "double",
+                            "time_series_metric": "gauge"
+                        }
+                    }
+                }
+            },
+            "data_stream": { }
+        }""";
+
+    private static final String TEMPLATE_NO_TIME_BOUNDARIES = """
+        {
+            "index_patterns": ["%s*"],
+            "template": {
+                "settings":{
+                    "index": {
+                        "number_of_replicas": 0,
+                        "number_of_shards": 1,
+                        "mode": "time_series",
+                        "routing_path": ["metricset"]
                     },
                     "index.lifecycle.name": "%s"
                 },
@@ -125,7 +167,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             settings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("metricset"))
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2006-01-08T23:40:53.384Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-01-08T23:40:53.384Z");
         }
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -267,13 +309,63 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
-        createIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE, dataStream, policy));
+        createIndexTemplateRequest.setJsonEntity(
+            Strings.format(TEMPLATE, dataStream, "2006-01-08T23:40:53.384Z", "2021-01-08T23:40:53.384Z", policy)
+        );
+        assertOK(client().performRequest(createIndexTemplateRequest));
+
+        index(client(), dataStream, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        assertBusy(
+            () -> assertThat(
+                "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+                explainIndex(client(), backingIndexName).get("step"),
+                is(CheckNotDataStreamWriteIndexStep.NAME)
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        // before we rollover, update template to not contain time boundaries anymore (rollover is blocked otherwise due to index time
+        // boundaries overlapping after rollover)
+        Request updateIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
+        updateIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE_NO_TIME_BOUNDARIES, dataStream, policy));
+        assertOK(client().performRequest(updateIndexTemplateRequest));
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        String rollupIndex = waitAndGetRollupIndexName(client(), backingIndexName, fixedInterval);
+        if (rollupIndex == null) {
+            logger.warn("explain:" + explainIndex(client(), backingIndexName));
+        }
+        assertNotNull(String.format(Locale.ROOT, "Cannot retrieve rollup index [%s]", rollupIndex), rollupIndex);
+        assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(backingIndexName)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
+            assertEquals(backingIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+            assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
+            assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testILMWaitsForTimeSeriesEndTimeToLapse() throws Exception {
+        // Create the ILM policy
+        DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+        createNewSingletonPolicy(client(), policy, "warm", new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
+
+        // Create a template
+        Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
+        createIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE_NO_TIME_BOUNDARIES, dataStream, policy));
         assertOK(client().performRequest(createIndexTemplateRequest));
 
         String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
         index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String backingIndexName = getBackingIndices(client(), dataStream).get(0);
         assertBusy(
             () -> assertThat(
                 "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
@@ -287,16 +379,19 @@ public class DownsampleActionIT extends ESRestTestCase {
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String rollupIndex = waitAndGetRollupIndexName(client(), backingIndexName, fixedInterval);
-        assertNotNull("Cannot retrieve rollup index name", rollupIndex);
-        assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(backingIndexName)), 30, TimeUnit.SECONDS);
         assertBusy(() -> {
-            Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
-            assertEquals(backingIndexName, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
-            assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
-            assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
-        });
+            assertThat(
+                "index must wait in the " + WaitUntilTimeSeriesEndTimePassesStep.NAME + " until its end time lapses",
+                explainIndex(client(), backingIndexName).get("step"),
+                is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
+            );
+
+            assertThat(explainIndex(client(), backingIndexName).get("step_info"), is(notNullValue()));
+            assertThat(
+                (String) ((Map<String, Object>) explainIndex(client(), backingIndexName).get("step_info")).get("message"),
+                containsString("Waiting until the index's time series end time lapses")
+            );
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testRollupNonTSIndex() throws Exception {
@@ -314,6 +409,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         assertTrue("Source index should not have been deleted", indexExists(index));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101428")
     public void testDownsampleTwice() throws Exception {
         // Create the ILM policy
         Request request = new Request("PUT", "_ilm/policy/" + policy);
@@ -343,11 +439,12 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
-        createIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE, dataStream, policy));
+        createIndexTemplateRequest.setJsonEntity(
+            Strings.format(TEMPLATE, dataStream, "2006-01-08T23:40:53.384Z", "2021-01-08T23:40:53.384Z", policy)
+        );
         assertOK(client().performRequest(createIndexTemplateRequest));
 
-        String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
-        index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
+        index(client(), dataStream, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
         logger.info("--> firstBackingIndex: {}", firstBackingIndex);
@@ -360,6 +457,12 @@ public class DownsampleActionIT extends ESRestTestCase {
             30,
             TimeUnit.SECONDS
         );
+
+        // before we rollover, update template to not contain time boundaries anymore (rollover is blocked otherwise due to index time
+        // boundaries overlapping after rollover)
+        Request updateIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
+        updateIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE_NO_TIME_BOUNDARIES, dataStream, policy));
+        assertOK(client().performRequest(updateIndexTemplateRequest));
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
@@ -390,6 +493,111 @@ public class DownsampleActionIT extends ESRestTestCase {
         }
     }
 
+    public void testDownsampleTwiceSameInterval() throws Exception {
+        // Create the ILM policy
+        Request request = new Request("PUT", "_ilm/policy/" + policy);
+        request.setJsonEntity("""
+            {
+                "policy": {
+                    "phases": {
+                        "warm": {
+                            "actions": {
+                                "downsample": {
+                                    "fixed_interval" : "5m"
+                                }
+                            }
+                        },
+                        "cold": {
+                            "min_age": "365d",
+                            "actions": {}
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        // Create a template
+        Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
+        createIndexTemplateRequest.setJsonEntity(
+            Strings.format(TEMPLATE, dataStream, "2006-01-08T23:40:53.384Z", "2021-01-08T23:40:53.384Z", policy)
+        );
+        assertOK(client().performRequest(createIndexTemplateRequest));
+
+        index(client(), dataStream, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
+
+        String firstBackingIndex = getBackingIndices(client(), dataStream).get(0);
+        logger.info("--> firstBackingIndex: {}", firstBackingIndex);
+        assertBusy(
+            () -> assertThat(
+                "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+                explainIndex(client(), firstBackingIndex).get("step"),
+                is(CheckNotDataStreamWriteIndexStep.NAME)
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        // before we rollover, update template to not contain time boundaries anymore (rollover is blocked otherwise due to index time
+        // boundaries overlapping after rollover)
+        Request updateIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
+        updateIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE_NO_TIME_BOUNDARIES, dataStream, policy));
+        assertOK(client().performRequest(updateIndexTemplateRequest));
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        String downsampleIndexName = "downsample-5m-" + firstBackingIndex;
+        // wait for the downsample index to get to the end of the warm phase
+        assertBusy(() -> {
+            assertThat(indexExists(downsampleIndexName), is(true));
+            assertThat(indexExists(firstBackingIndex), is(false));
+
+            assertThat(explainIndex(client(), downsampleIndexName).get("step"), is(PhaseCompleteStep.NAME));
+            assertThat(explainIndex(client(), downsampleIndexName).get("phase"), is("warm"));
+
+            Map<String, Object> settings = getOnlyIndexSettings(client(), downsampleIndexName);
+            assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey()));
+            assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()));
+            assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
+            assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
+        }, 60, TimeUnit.SECONDS);
+
+        // update the policy to now contain the downsample action in cold, whilst not existing in warm anymore (this will have our already
+        // downsampled index attempt to go through the downsample action again when in cold)
+
+        Request updatePolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
+        updatePolicyRequest.setJsonEntity("""
+            {
+                "policy": {
+                    "phases": {
+                        "warm": {
+                            "actions": {
+                            }
+                        },
+                        "cold": {
+                            "min_age": "0ms",
+                            "actions": {
+                               "downsample": {
+                                  "fixed_interval" : "5m"
+                               }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(client().performRequest(updatePolicyRequest));
+
+        // the downsample index (already part of the data stream as we created it in the warm phase previously) should continue to exist and
+        // reach the cold/complete/complete step
+        assertBusy(() -> {
+            assertThat(indexExists(downsampleIndexName), is(true));
+            assertThat(explainIndex(client(), downsampleIndexName).get("step"), is(PhaseCompleteStep.NAME));
+            assertThat(explainIndex(client(), downsampleIndexName).get("phase"), is("cold"));
+        }, 60, TimeUnit.SECONDS);
+    }
+
     /**
      * Gets the generated rollup index name for a given index by looking at newly created indices that match the rollup index name pattern
      *
@@ -406,7 +614,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             } catch (IOException e) {
                 return false;
             }
-        }, 60, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS); // High timeout in case we're unlucky and end_time has been increased.
         logger.info("--> original index name is [{}], rollup index name is [{}]", originalIndexName, rollupIndexName[0]);
         return rollupIndexName[0];
     }

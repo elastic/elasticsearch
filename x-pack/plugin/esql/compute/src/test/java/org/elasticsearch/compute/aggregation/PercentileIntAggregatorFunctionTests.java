@@ -43,7 +43,7 @@ public class PercentileIntAggregatorFunctionTests extends AggregatorFunctionTest
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         int max = between(1, (int) Math.min(Integer.MAX_VALUE, Long.MAX_VALUE / size));
-        return new SequenceIntBlockSourceOperator(LongStream.range(0, size).mapToInt(l -> between(0, max)));
+        return new SequenceIntBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToInt(l -> between(0, max)));
     }
 
     @Override

@@ -49,7 +49,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
@@ -213,10 +212,11 @@ public class SearchResponseTests extends ESTestCase {
             int totalShards = 5;
             int successfulShards;
             int skippedShards;
-            int failedShards = 0;
+            int failedShards;
             List<ShardSearchFailure> failureList = Arrays.asList(failures);
             TimeValue took = new TimeValue(1000L);
             if (successful > 0) {
+                failedShards = 0;
                 status = SearchResponse.Cluster.Status.SUCCESSFUL;
                 successfulShards = 5;
                 skippedShards = 1;
@@ -241,28 +241,27 @@ public class SearchResponseTests extends ESTestCase {
                 failedShards = 5;
                 failed--;
             } else {
+                failedShards = 0;
                 throw new IllegalStateException("Test setup coding error - should not get here");
             }
             String clusterAlias = "";
             if (i >= 0) {
                 clusterAlias = "cluster_" + i;
             }
-            AtomicReference<SearchResponse.Cluster> clusterRef = clusters.getCluster(clusterAlias);
-            SearchResponse.Cluster cluster = clusterRef.get();
-            SearchResponse.Cluster update = new SearchResponse.Cluster(
+            SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+            List<ShardSearchFailure> finalFailureList = failureList;
+            clusters.swapCluster(
                 cluster.getClusterAlias(),
-                cluster.getIndexExpression(),
-                false,
-                status,
-                totalShards,
-                successfulShards,
-                skippedShards,
-                failedShards,
-                failureList,
-                took,
-                false
+                (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(status)
+                    .setTotalShards(totalShards)
+                    .setSuccessfulShards(successfulShards)
+                    .setSkippedShards(skippedShards)
+                    .setFailedShards(failedShards)
+                    .setFailures(finalFailureList)
+                    .setTook(took)
+                    .setTimedOut(false)
+                    .build()
             );
-            assertTrue(clusterRef.compareAndSet(cluster, update));
         }
         return clusters;
     }
@@ -303,7 +302,15 @@ public class SearchResponseTests extends ESTestCase {
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), mutated)) {
             SearchResponse parsed = SearchResponse.fromXContent(parser);
-            assertToXContentEquivalent(originalBytes, XContentHelper.toXContent(parsed, xcontentType, params, humanReadable), xcontentType);
+            try {
+                assertToXContentEquivalent(
+                    originalBytes,
+                    XContentHelper.toXContent(parsed, xcontentType, params, humanReadable),
+                    xcontentType
+                );
+            } finally {
+                parsed.decRef();
+            }
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -332,25 +339,29 @@ public class SearchResponseTests extends ESTestCase {
         );
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponse.fromXContent(parser);
-            for (int i = 0; i < parsed.getShardFailures().length; i++) {
-                ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
-                ShardSearchFailure originalFailure = failures[i];
-                assertEquals(originalFailure.index(), parsedFailure.index());
-                assertEquals(originalFailure.shard(), parsedFailure.shard());
-                assertEquals(originalFailure.shardId(), parsedFailure.shardId());
-                String originalMsg = originalFailure.getCause().getMessage();
-                assertEquals(
-                    parsedFailure.getCause().getMessage(),
-                    "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]"
-                );
-                String nestedMsg = originalFailure.getCause().getCause().getMessage();
-                assertEquals(
-                    parsedFailure.getCause().getCause().getMessage(),
-                    "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
-                );
+            try {
+                for (int i = 0; i < parsed.getShardFailures().length; i++) {
+                    ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
+                    ShardSearchFailure originalFailure = failures[i];
+                    assertEquals(originalFailure.index(), parsedFailure.index());
+                    assertEquals(originalFailure.shard(), parsedFailure.shard());
+                    assertEquals(originalFailure.shardId(), parsedFailure.shardId());
+                    String originalMsg = originalFailure.getCause().getMessage();
+                    assertEquals(
+                        parsedFailure.getCause().getMessage(),
+                        "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]"
+                    );
+                    String nestedMsg = originalFailure.getCause().getCause().getMessage();
+                    assertEquals(
+                        parsedFailure.getCause().getCause().getMessage(),
+                        "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
+                    );
+                }
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            } finally {
+                parsed.decRef();
             }
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertNull(parser.nextToken());
         }
     }
 
@@ -590,7 +601,6 @@ public class SearchResponseTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100005")
     public void testSerialization() throws IOException {
         SearchResponse searchResponse = createTestItem(false);
         SearchResponse deserialized = copyWriteable(

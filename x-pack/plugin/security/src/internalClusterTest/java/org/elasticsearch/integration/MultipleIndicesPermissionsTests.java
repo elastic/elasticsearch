@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
@@ -134,7 +133,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     }
 
     public void testSingleRole() throws Exception {
-        IndexResponse indexResponse = index("test", jsonBuilder().startObject().field("name", "value").endObject());
+        DocWriteResponse indexResponse = index("test", jsonBuilder().startObject().field("name", "value").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         indexResponse = index("test1", jsonBuilder().startObject().field("name", "value1").endObject());
@@ -171,21 +170,25 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
             .add(client.prepareSearch("test"))
             .add(client.prepareSearch("test1"))
             .get();
-        MultiSearchResponse.Item[] items = msearchResponse.getResponses();
-        assertThat(items.length, is(2));
-        assertThat(items[0].isFailure(), is(false));
-        searchResponse = items[0].getResponse();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
-        assertThat(items[1].isFailure(), is(false));
-        searchResponse = items[1].getResponse();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1);
+        try {
+            MultiSearchResponse.Item[] items = msearchResponse.getResponses();
+            assertThat(items.length, is(2));
+            assertThat(items[0].isFailure(), is(false));
+            searchResponse = items[0].getResponse();
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, 1);
+            assertThat(items[1].isFailure(), is(false));
+            searchResponse = items[1].getResponse();
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, 1);
+        } finally {
+            msearchResponse.decRef();
+        }
     }
 
     public void testMonitorRestrictedWildcards() throws Exception {
 
-        IndexResponse indexResponse = index("foo", jsonBuilder().startObject().field("name", "value").endObject());
+        DocWriteResponse indexResponse = index("foo", jsonBuilder().startObject().field("name", "value").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         indexResponse = index("foobar", jsonBuilder().startObject().field("name", "value").endObject());
@@ -239,7 +242,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     }
 
     public void testMultipleRoles() throws Exception {
-        IndexResponse indexResponse = index("a", jsonBuilder().startObject().field("name", "value_a").endObject());
+        DocWriteResponse indexResponse = index("a", jsonBuilder().startObject().field("name", "value_a").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         indexResponse = index("b", jsonBuilder().startObject().field("name", "value_b").endObject());
@@ -304,7 +307,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field1", "public")))
         );
 
-        client().prepareIndex("index1").setId("1").setSource("field1", "private").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("index1").setId("1").setSource("field1", "private").setRefreshPolicy(IMMEDIATE).get();
 
         final Client userAClient = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD))

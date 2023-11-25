@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -93,19 +93,23 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
         TransportMultiSearchAction action = createTransportMultiSearchAction(controlledClock, expected);
 
-        action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<MultiSearchResponse>() {
+        action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse multiSearchResponse) {
-                if (controlledClock) {
-                    assertThat(
-                        TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS),
-                        equalTo(multiSearchResponse.getTook().getMillis())
-                    );
-                } else {
-                    assertThat(
-                        multiSearchResponse.getTook().getMillis(),
-                        greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
-                    );
+                try {
+                    if (controlledClock) {
+                        assertThat(
+                            TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS),
+                            equalTo(multiSearchResponse.getTook().getMillis())
+                        );
+                    } else {
+                        assertThat(
+                            multiSearchResponse.getTook().getMillis(),
+                            greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
+                        );
+                    }
+                } finally {
+                    multiSearchResponse.decRef();
                 }
             }
 
@@ -123,7 +127,10 @@ public class MultiSearchActionTookTests extends ESTestCase {
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .applySettings(settings)
+                .address(boundAddress.publishAddress())
+                .build(),
             null,
             Collections.emptySet()
         );

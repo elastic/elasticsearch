@@ -37,46 +37,45 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
 
   @Override
   public Block eval(Page page) {
-    Block vUncastBlock = v.eval(page);
-    if (vUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+    try (LongBlock vBlock = (LongBlock) v.eval(page)) {
+      LongVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        return eval(page.getPositionCount(), vBlock);
+      }
+      return eval(page.getPositionCount(), vVector);
     }
-    LongBlock vBlock = (LongBlock) vUncastBlock;
-    LongVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      return eval(page.getPositionCount(), vBlock);
-    }
-    return eval(page.getPositionCount(), vVector);
   }
 
   public LongBlock eval(int positionCount, LongBlock vBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendLong(Neg.processLongs(vBlock.getLong(vBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      try {
-        result.appendLong(Neg.processLongs(vBlock.getLong(vBlock.getFirstValueIndex(p))));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public LongBlock eval(int positionCount, LongVector vVector) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendLong(Neg.processLongs(vVector.getLong(p)));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendLong(Neg.processLongs(vVector.getLong(p)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -87,5 +86,26 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory v) {
+      this.source = source;
+      this.v = v;
+    }
+
+    @Override
+    public NegLongsEvaluator get(DriverContext context) {
+      return new NegLongsEvaluator(source, v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "NegLongsEvaluator[" + "v=" + v + "]";
+    }
   }
 }

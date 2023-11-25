@@ -209,7 +209,9 @@ public class FieldSubsetReaderTests extends ESTestCase {
 
         // Check that we can't see fieldB
         assertNull(leafReader.getFloatVectorValues("fieldB"));
-        assertNull(leafReader.searchNearestVectors("fieldB", new float[] { 1.0f, 1.0f, 1.0f }, 5, null, Integer.MAX_VALUE));
+        topDocs = leafReader.searchNearestVectors("fieldB", new float[] { 1.0f, 1.0f, 1.0f }, 5, null, Integer.MAX_VALUE);
+        assertEquals(0, topDocs.totalHits.value);
+        assertEquals(0, topDocs.scoreDocs.length);
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -241,7 +243,9 @@ public class FieldSubsetReaderTests extends ESTestCase {
 
         // Check that we can't see fieldB
         assertNull(leafReader.getByteVectorValues("fieldB"));
-        assertNull(leafReader.searchNearestVectors("fieldB", new byte[] { 1, 1, 1 }, 5, null, Integer.MAX_VALUE));
+        topDocs = leafReader.searchNearestVectors("fieldB", new byte[] { 1, 1, 1 }, 5, null, Integer.MAX_VALUE);
+        assertEquals(0, topDocs.totalHits.value);
+        assertEquals(0, topDocs.scoreDocs.length);
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);

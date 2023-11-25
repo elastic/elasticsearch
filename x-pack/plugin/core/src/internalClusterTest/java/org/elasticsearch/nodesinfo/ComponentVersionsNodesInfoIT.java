@@ -29,7 +29,7 @@ public class ComponentVersionsNodesInfoIT extends ESIntegTestCase {
         String server1NodeId = internalCluster().getInstance(ClusterService.class, node_1).state().nodes().getLocalNodeId();
         logger.info("--> started nodes: {}", server1NodeId);
 
-        NodesInfoResponse response = clusterAdmin().prepareNodesInfo().execute().actionGet();
+        NodesInfoResponse response = clusterAdmin().prepareNodesInfo().get();
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(
             response.getNodesMap().get(server1NodeId).getComponentVersions().keySet(),

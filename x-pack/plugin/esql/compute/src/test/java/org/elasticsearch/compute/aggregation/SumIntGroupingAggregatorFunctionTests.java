@@ -36,6 +36,7 @@ public class SumIntGroupingAggregatorFunctionTests extends GroupingAggregatorFun
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         int max = between(1, (int) Math.min(Integer.MAX_VALUE, Long.MAX_VALUE / size));
         return new LongIntBlockSourceOperator(
+            blockFactory,
             LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), between(-max, max)))
         );
     }

@@ -38,7 +38,7 @@ public interface EvaluatorMapper {
         return toJavaObject(toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
-                return fromArrayRow(e.fold())[0];
+                return fromArrayRow(driverContext.blockFactory(), e.fold())[0];
             }
 
             @Override

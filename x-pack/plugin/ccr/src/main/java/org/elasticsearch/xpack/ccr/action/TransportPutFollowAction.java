@@ -52,6 +52,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX;
@@ -186,7 +187,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         )
             .indicesOptions(request.indicesOptions())
             .renamePattern("^(.*)$")
-            .renameReplacement(request.getFollowerIndex())
+            .renameReplacement(Matcher.quoteReplacement(request.getFollowerIndex()))
             .masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(overrideSettings)
             .quiet(true);
@@ -331,7 +332,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.isSystem(),
                 remoteDataStream.isAllowCustomRouting(),
                 remoteDataStream.getIndexMode(),
-                remoteDataStream.getLifecycle()
+                remoteDataStream.getLifecycle(),
+                remoteDataStream.isFailureStore(),
+                remoteDataStream.getFailureIndices()
             );
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -382,7 +385,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 localDataStream.isSystem(),
                 localDataStream.isAllowCustomRouting(),
                 localDataStream.getIndexMode(),
-                localDataStream.getLifecycle()
+                localDataStream.getLifecycle(),
+                localDataStream.isFailureStore(),
+                localDataStream.getFailureIndices()
             );
         }
     }

@@ -58,6 +58,7 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -1489,7 +1490,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final Path[] dataPaths2 = createDataPaths();
         final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
 
-        IndexVersion oldVersion = IndexVersion.fromId(IndexVersion.MINIMUM_COMPATIBLE.id() - 1);
+        IndexVersion oldVersion = IndexVersion.fromId(IndexVersions.MINIMUM_COMPATIBLE.id() - 1);
 
         final IndexVersion[] indexVersions = new IndexVersion[] {
             oldVersion,
@@ -1686,7 +1687,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             final String message = expectThrows(CorruptStateException.class, () -> persistedClusterStateService.loadBestOnDiskState())
                 .getCause()
                 .getMessage();
-            assertEquals("java.lang.IllegalArgumentException: mapping with hash [" + hash + "] not found", message);
+            assertEquals("java.lang.IllegalArgumentException: mapping of index [test-1] with hash [" + hash + "] not found", message);
         }
     }
 

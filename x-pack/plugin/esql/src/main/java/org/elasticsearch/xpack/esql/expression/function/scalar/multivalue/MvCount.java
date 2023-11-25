@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantIntVector;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -26,11 +27,21 @@ import java.util.List;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
- * Reduce a multivalued field to a single valued field containing the minimum value.
+ * Reduce a multivalued field to a single valued field containing the count of values.
  */
 public class MvCount extends AbstractMultivalueFunction {
-    public MvCount(Source source, Expression field) {
-        super(source, field);
+    @FunctionInfo(
+        returnType = "integer",
+        description = "Reduce a multivalued field to a single valued field containing the count of values."
+    )
+    public MvCount(
+        Source source,
+        @Param(
+            name = "v",
+            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long" }
+        ) Expression v
+    ) {
+        super(source, v);
     }
 
     @Override
@@ -45,7 +56,7 @@ public class MvCount extends AbstractMultivalueFunction {
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return dvrCtx -> new Evaluator(fieldEval.get(dvrCtx));
+        return new EvaluatorFactory(fieldEval);
     }
 
     @Override
@@ -58,9 +69,24 @@ public class MvCount extends AbstractMultivalueFunction {
         return NodeInfo.create(this, MvCount::new, field());
     }
 
+    private record EvaluatorFactory(ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            return new Evaluator(context, field.get(context));
+        }
+
+        @Override
+        public String toString() {
+            return "MvCount[field=" + field + ']';
+        }
+    }
+
     private static class Evaluator extends AbstractEvaluator {
-        protected Evaluator(EvalOperator.ExpressionEvaluator field) {
+        private final DriverContext driverContext;
+
+        protected Evaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
             super(field);
+            this.driverContext = driverContext;
         }
 
         @Override
@@ -69,36 +95,38 @@ public class MvCount extends AbstractMultivalueFunction {
         }
 
         @Override
-        protected Block evalNullable(Block fieldVal) {
-            IntBlock.Builder builder = IntBlock.newBlockBuilder(fieldVal.getPositionCount());
-            for (int p = 0; p < fieldVal.getPositionCount(); p++) {
-                int valueCount = fieldVal.getValueCount(p);
-                if (valueCount == 0) {
-                    builder.appendNull();
-                    continue;
+        protected Block evalNullable(Block block) {
+            try (var builder = IntBlock.newBlockBuilder(block.getPositionCount(), driverContext.blockFactory())) {
+                for (int p = 0; p < block.getPositionCount(); p++) {
+                    int valueCount = block.getValueCount(p);
+                    if (valueCount == 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.appendInt(valueCount);
                 }
-                builder.appendInt(valueCount);
+                return builder.build();
             }
-            return builder.build();
         }
 
         @Override
-        protected Vector evalNotNullable(Block fieldVal) {
-            int[] values = new int[fieldVal.getPositionCount()];
-            for (int p = 0; p < fieldVal.getPositionCount(); p++) {
-                values[p] = fieldVal.getValueCount(p);
+        protected Block evalNotNullable(Block block) {
+            try (var builder = IntVector.newVectorFixedBuilder(block.getPositionCount(), driverContext.blockFactory())) {
+                for (int p = 0; p < block.getPositionCount(); p++) {
+                    builder.appendInt(block.getValueCount(p));
+                }
+                return builder.build().asBlock();
             }
-            return new IntArrayVector(values, values.length);
         }
 
         @Override
-        protected Block evalSingleValuedNullable(Block fieldVal) {
-            return evalNullable(fieldVal);
+        protected Block evalSingleValuedNullable(Block ref) {
+            return evalNullable(ref);
         }
 
         @Override
-        protected Vector evalSingleValuedNotNullable(Block fieldVal) {
-            return new ConstantIntVector(1, fieldVal.getPositionCount());
+        protected Block evalSingleValuedNotNullable(Block ref) {
+            return driverContext.blockFactory().newConstantIntBlockWith(1, ref.getPositionCount());
         }
     }
 }

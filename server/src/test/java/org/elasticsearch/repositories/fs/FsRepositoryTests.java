@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -116,7 +117,7 @@ public class FsRepositoryTests extends ESTestCase {
             IndexId indexId = new IndexId(idxSettings.getIndex().getName(), idxSettings.getUUID());
 
             IndexCommit indexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
-            final PlainActionFuture<ShardSnapshotResult> snapshot1Future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> snapshot1Future = new PlainActionFuture<>();
             IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
             repository.snapshotShard(
                 new SnapshotShardContext(
@@ -147,7 +148,7 @@ public class FsRepositoryTests extends ESTestCase {
             );
             routing = ShardRoutingHelper.initialize(routing, localNode.getId(), 0);
             RecoveryState state = new RecoveryState(routing, localNode, null);
-            final PlainActionFuture<Void> restore1Future = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> restore1Future = new PlainActionFuture<>();
             repository.restoreShard(store, snapshotId, indexId, shardId, state, restore1Future);
             restore1Future.actionGet();
 
@@ -159,7 +160,7 @@ public class FsRepositoryTests extends ESTestCase {
             SnapshotId incSnapshotId = new SnapshotId("test1", "test1");
             IndexCommit incIndexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
             Collection<String> commitFileNames = incIndexCommit.getFileNames();
-            final PlainActionFuture<ShardSnapshotResult> snapshot2future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> snapshot2future = new PlainActionFuture<>();
             IndexShardSnapshotStatus snapshotStatus2 = IndexShardSnapshotStatus.newInitializing(shardGeneration);
             repository.snapshotShard(
                 new SnapshotShardContext(
@@ -182,7 +183,7 @@ public class FsRepositoryTests extends ESTestCase {
 
             // roll back to the first snap and then incrementally restore
             RecoveryState firstState = new RecoveryState(routing, localNode, null);
-            final PlainActionFuture<Void> restore2Future = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> restore2Future = new PlainActionFuture<>();
             repository.restoreShard(store, snapshotId, indexId, shardId, firstState, restore2Future);
             restore2Future.actionGet();
             assertEquals(
@@ -192,7 +193,7 @@ public class FsRepositoryTests extends ESTestCase {
             );
 
             RecoveryState secondState = new RecoveryState(routing, localNode, null);
-            final PlainActionFuture<Void> restore3Future = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> restore3Future = new PlainActionFuture<>();
             repository.restoreShard(store, incSnapshotId, indexId, shardId, secondState, restore3Future);
             restore3Future.actionGet();
             assertEquals(secondState.getIndex().reusedFileCount(), commitFileNames.size() - 2);
@@ -242,18 +243,24 @@ public class FsRepositoryTests extends ESTestCase {
                             final BlobContainer blobContainer = blobStore.blobContainer(path);
                             return new FilterBlobContainer(blobContainer) {
                                 @Override
-                                public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-                                    throws IOException {
+                                public void writeBlob(
+                                    OperationPurpose purpose,
+                                    String blobName,
+                                    InputStream inputStream,
+                                    long blobSize,
+                                    boolean failIfAlreadyExists
+                                ) throws IOException {
                                     if (canErrorForWriteBlob.get() && randomIntBetween(0, 10) == 0) {
                                         writeBlobErrored.set(true);
                                         throw new IOException("disk full");
                                     } else {
-                                        super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+                                        super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
                                     }
                                 }
 
                                 @Override
                                 public void writeMetadataBlob(
+                                    OperationPurpose purpose,
                                     String blobName,
                                     boolean failIfAlreadyExists,
                                     boolean atomic,
@@ -262,7 +269,7 @@ public class FsRepositoryTests extends ESTestCase {
                                     if (shouldErrorForWriteMetadataBlob.get() && blobName.startsWith("snap-")) {
                                         throw new RuntimeException("snap file error");
                                     }
-                                    super.writeMetadataBlob(blobName, failIfAlreadyExists, atomic, writer);
+                                    super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer);
                                 }
 
                                 @Override
@@ -287,7 +294,7 @@ public class FsRepositoryTests extends ESTestCase {
             final SnapshotId snapshotId = new SnapshotId("test", "test");
             final IndexId indexId = new IndexId(idxSettings.getIndex().getName(), idxSettings.getUUID());
             IndexCommit indexCommit1 = Lucene.getIndexCommit(Lucene.readSegmentInfos(store1.directory()), store1.directory());
-            final PlainActionFuture<ShardSnapshotResult> snapshot1Future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> snapshot1Future = new PlainActionFuture<>();
             IndexShardSnapshotStatus snapshotStatus1 = IndexShardSnapshotStatus.newInitializing(null);
 
             // Scenario 1 - Shard data files will be cleaned up if they fail to write
@@ -325,7 +332,7 @@ public class FsRepositoryTests extends ESTestCase {
             final ShardId shardId2 = new ShardId(idxSettings.getIndex(), 2);
             final Store store2 = new Store(shardId2, idxSettings, directory, new DummyShardLock(shardId2));
             final IndexCommit indexCommit2 = Lucene.getIndexCommit(Lucene.readSegmentInfos(store2.directory()), store2.directory());
-            final PlainActionFuture<ShardSnapshotResult> snapshot2Future = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> snapshot2Future = new PlainActionFuture<>();
             canErrorForWriteBlob.set(false);
             shouldErrorForWriteMetadataBlob.set(true);
             repository.snapshotShard(

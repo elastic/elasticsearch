@@ -12,6 +12,7 @@ import org.apache.commons.logging.LogFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -44,11 +44,11 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
      */
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         DataType sourceType = field().dataType();
-        var evaluator = evaluators().get(sourceType);
-        if (evaluator == null) {
+        var factory = factories().get(sourceType);
+        if (factory == null) {
             throw EsqlIllegalArgumentException.illegalDataType(sourceType);
         }
-        return dvrCtx -> evaluator.apply(fieldEval.get(dvrCtx), source());
+        return factory.build(fieldEval, source());
     }
 
     @Override
@@ -58,14 +58,19 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
         }
         return isType(
             field(),
-            evaluators()::containsKey,
+            factories()::containsKey,
             sourceText(),
             null,
-            evaluators().keySet().stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).sorted().toArray(String[]::new)
+            factories().keySet().stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).sorted().toArray(String[]::new)
         );
     }
 
-    protected abstract Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators();
+    @FunctionalInterface
+    interface BuildFactory {
+        ExpressionEvaluator.Factory build(ExpressionEvaluator.Factory field, Source source);
+    }
+
+    protected abstract Map<DataType, BuildFactory> factories();
 
     @Override
     public final Object fold() {
@@ -81,10 +86,12 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
 
         private static final Log logger = LogFactory.getLog(AbstractEvaluator.class);
 
+        protected final DriverContext driverContext;
         private final EvalOperator.ExpressionEvaluator fieldEvaluator;
         private final Warnings warnings;
 
-        protected AbstractEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
+        protected AbstractEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field, Source source) {
+            this.driverContext = driverContext;
             this.fieldEvaluator = field;
             this.warnings = new Warnings(source);
         }
@@ -93,21 +100,22 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
 
         /**
          * Called when evaluating a {@link Block} that contains null values.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         protected abstract Block evalBlock(Block b);
 
         /**
          * Called when evaluating a {@link Block} that does not contain null values.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         protected abstract Block evalVector(Vector v);
 
-        public Block eval(Page page) {
-            Block block = fieldEvaluator.eval(page);
-            if (block.areAllValuesNull()) {
-                return Block.constantNullBlock(page.getPositionCount());
+        @Override
+        public final Block eval(Page page) {
+            try (Block block = fieldEvaluator.eval(page)) {
+                Vector vector = block.asVector();
+                return vector == null ? evalBlock(block) : evalVector(vector);
             }
-            Vector vector = block.asVector();
-            return vector == null ? evalBlock(block) : evalVector(vector);
         }
 
         protected final void registerException(Exception exception) {

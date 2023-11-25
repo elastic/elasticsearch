@@ -37,46 +37,45 @@ public final class SinhEvaluator implements EvalOperator.ExpressionEvaluator {
 
   @Override
   public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+    try (DoubleBlock valBlock = (DoubleBlock) val.eval(page)) {
+      DoubleVector valVector = valBlock.asVector();
+      if (valVector == null) {
+        return eval(page.getPositionCount(), valBlock);
+      }
+      return eval(page.getPositionCount(), valVector);
     }
-    DoubleBlock valBlock = (DoubleBlock) valUncastBlock;
-    DoubleVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock);
-    }
-    return eval(page.getPositionCount(), valVector);
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendDouble(Sinh.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      try {
-        result.appendDouble(Sinh.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleBlock eval(int positionCount, DoubleVector valVector) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendDouble(Sinh.process(valVector.getDouble(p)));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendDouble(Sinh.process(valVector.getDouble(p)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -87,5 +86,26 @@ public final class SinhEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+      this.source = source;
+      this.val = val;
+    }
+
+    @Override
+    public SinhEvaluator get(DriverContext context) {
+      return new SinhEvaluator(source, val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SinhEvaluator[" + "val=" + val + "]";
+    }
   }
 }

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-to_degrees]]
 === `TO_DEGREES`
 Converts a number in https://en.wikipedia.org/wiki/Radian[radians]

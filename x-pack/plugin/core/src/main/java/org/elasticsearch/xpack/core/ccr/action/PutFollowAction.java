@@ -40,7 +40,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         super(NAME, PutFollowAction.Response::new);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
+    public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
 
         private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
@@ -188,7 +188,6 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
-        @SuppressWarnings("this-escape")
         public Request(StreamInput in) throws IOException {
             super(in);
             this.remoteCluster = in.readString();

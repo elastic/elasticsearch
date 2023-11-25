@@ -33,7 +33,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     /** The number of bytes currently estimated with the breaker. */
     protected long estimatedBytes;
 
-    private boolean closed = false;
+    boolean closed = false;
 
     protected AbstractBlockBuilder(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
@@ -140,8 +140,9 @@ abstract class AbstractBlockBuilder implements Block.Builder {
             return;
         }
         int newSize = calculateNewArraySize(valuesLength);
-        adjustBreaker((long) (newSize - valuesLength) * elementSize());
+        adjustBreaker(newSize * elementSize());
         growValuesArray(newSize);
+        adjustBreaker(-valuesLength * elementSize());
     }
 
     @Override

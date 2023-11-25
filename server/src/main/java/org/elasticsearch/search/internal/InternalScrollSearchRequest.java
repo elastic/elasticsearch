@@ -54,11 +54,6 @@ public class InternalScrollSearchRequest extends TransportRequest {
         return scroll;
     }
 
-    public InternalScrollSearchRequest scroll(Scroll scroll) {
-        this.scroll = scroll;
-        return this;
-    }
-
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers);

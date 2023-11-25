@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -238,7 +239,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_0_0, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms.type", "synonym")
@@ -293,7 +294,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_0_0, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .build();
@@ -325,7 +326,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_0_0, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .putList("common_words", "a", "b")

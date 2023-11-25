@@ -27,6 +27,7 @@ public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunc
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         int max = between(1, Math.min(Integer.MAX_VALUE, Integer.MAX_VALUE / size));
         return new BytesRefBlockSourceOperator(
+            blockFactory,
             LongStream.range(0, size).mapToObj(l -> new BytesRef(String.valueOf(between(-max, max)))).toList()
         );
     }

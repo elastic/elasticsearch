@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.ql.util.LoggingUtils.logOnFailure;
 
 /**
  * Listens for a single {@link EsqlQueryResponse}, builds a corresponding {@link RestResponse} and sends it.
@@ -162,8 +163,9 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
             long timeMillis = stopWatch.stop().getMillis();
-            onFailure(ex);
             LOGGER.info("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
+            logOnFailure(LOGGER, ex);
+            onFailure(ex);
         });
     }
 }

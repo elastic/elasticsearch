@@ -8,12 +8,10 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-
-import java.util.stream.IntStream;
 
 /**
  * Evaluates a tree of functions for every position in the block, resulting in a
@@ -25,26 +23,26 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new EvalOperator(evaluator.get(driverContext));
+            return new EvalOperator(driverContext.blockFactory(), evaluator.get(driverContext));
         }
 
         @Override
         public String describe() {
-            // TODO ThrowingDriverContext blows up when combined with Concat
-            return "EvalOperator[evaluator=" + evaluator.get(new ThrowingDriverContext()) + "]";
+            return "EvalOperator[evaluator=" + evaluator + "]";
         }
     }
 
+    private final BlockFactory blockFactory;
     private final ExpressionEvaluator evaluator;
 
-    public EvalOperator(ExpressionEvaluator evaluator) {
+    public EvalOperator(BlockFactory blockFactory, ExpressionEvaluator evaluator) {
+        this.blockFactory = blockFactory;
         this.evaluator = evaluator;
     }
 
     @Override
     protected Page process(Page page) {
         Block block = evaluator.eval(page);
-        block = maybeCopyBlock(page, block);
         return page.appendBlock(block);
     }
 
@@ -55,17 +53,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(evaluator);
-    }
-
-    /** Returns a copy of the give block, if the block appears in the page. */
-    // TODO: this is a catch all, can be removed when we validate that evaluators always return copies
-    // for now it just looks like Attributes returns a reference?
-    static Block maybeCopyBlock(Page page, Block block) {
-        if (IntStream.range(0, page.getBlockCount()).mapToObj(page::getBlock).anyMatch(b -> b == block)) {
-            return BlockUtils.deepCopyOf(block);
-        }
-        return block;
+        Releasables.closeExpectNoException(evaluator, super::close);
     }
 
     /**
@@ -74,14 +62,27 @@ public class EvalOperator extends AbstractPageMappingOperator {
     public interface ExpressionEvaluator extends Releasable {
         /** A Factory for creating ExpressionEvaluators. */
         interface Factory {
-            ExpressionEvaluator get(DriverContext driverContext);
+            ExpressionEvaluator get(DriverContext context);
         }
 
         /**
          * Evaluate the expression.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         Block eval(Page page);
     }
+
+    public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ExpressionEvaluator.Factory() {
+        @Override
+        public ExpressionEvaluator get(DriverContext driverContext) {
+            return CONSTANT_NULL;
+        }
+
+        @Override
+        public String toString() {
+            return CONSTANT_NULL.toString();
+        }
+    };
 
     public static final ExpressionEvaluator CONSTANT_NULL = new ExpressionEvaluator() {
         @Override

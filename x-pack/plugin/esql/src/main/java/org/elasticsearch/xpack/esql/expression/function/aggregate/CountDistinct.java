@@ -29,6 +29,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator {
@@ -66,7 +67,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             return resolution;
         }
 
-        return isInteger(precision, sourceText(), SECOND);
+        return isInteger(precision, sourceText(), SECOND).and(isFoldable(precision, sourceText(), SECOND));
     }
 
     @Override
@@ -86,7 +87,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         if (type == DataTypes.DOUBLE) {
             return new CountDistinctDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
         }
-        if (type == DataTypes.KEYWORD || type == DataTypes.IP) {
+        if (type == DataTypes.KEYWORD || type == DataTypes.IP || type == DataTypes.TEXT) {
             return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

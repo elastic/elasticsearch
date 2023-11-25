@@ -31,7 +31,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -40,6 +40,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * {@link CoreValuesSourceType} holds the {@link ValuesSourceType} implementations for the core aggregations package.
@@ -79,13 +80,13 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
             Number missing;
             if (rawMissing instanceof Number) {
                 missing = (Number) rawMissing;
             } else {
-                missing = docValueFormat.parseDouble(rawMissing.toString(), false, context::nowInMillis);
+                missing = docValueFormat.parseDouble(rawMissing.toString(), false, nowInMillis);
             }
             return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
         }
@@ -138,7 +139,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
             final BytesRef missing = docValueFormat.parseBytesRef(rawMissing.toString());
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
@@ -156,7 +157,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
+            throw AggregationErrors.valuesSourceDoesNotSupportScritps(this.value());
         }
 
         @Override
@@ -174,7 +175,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
             // TODO: also support the structured formats of geo points
             final GeoPoint missing = new GeoPoint(rawMissing.toString());
@@ -194,7 +195,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
+            throw AggregationErrors.valuesSourceDoesNotSupportScritps(this.value());
         }
 
         @Override
@@ -213,7 +214,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
@@ -239,9 +240,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
-            return KEYWORD.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
+            return KEYWORD.replaceMissing(valuesSource, rawMissing, docValueFormat, nowInMillis);
         }
 
         @Override
@@ -337,14 +338,10 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                             @Override
                             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
                                 // Only extract bounds queries that must filter the results
-                                switch (occur) {
-                                    case MUST:
-                                    case FILTER:
-                                        return this;
-
-                                    default:
-                                        return QueryVisitor.EMPTY_VISITOR;
-                                }
+                                return switch (occur) {
+                                    case MUST, FILTER -> this;
+                                    default -> QueryVisitor.EMPTY_VISITOR;
+                                };
                             };
 
                             @Override
@@ -385,9 +382,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
-            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
+            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, nowInMillis);
         }
 
         @Override
@@ -422,9 +419,9 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
-            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
+            return NUMERIC.replaceMissing(valuesSource, rawMissing, docValueFormat, nowInMillis);
         }
 
         @Override
@@ -449,5 +446,5 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     }
 
     /** List containing all members of the enumeration. */
-    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
+    public static final List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
 }

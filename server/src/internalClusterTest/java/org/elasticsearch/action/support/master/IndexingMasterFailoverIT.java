@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -70,7 +69,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
                 }
                 for (int i = 0; i < 10; i++) {
                     // index data with mapping changes
-                    IndexResponse response = client(dataNode).prepareIndex("myindex").setSource("field_" + i, "val").get();
+                    DocWriteResponse response = client(dataNode).prepareIndex("myindex").setSource("field_" + i, "val").get();
                     assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
                 }
             }
@@ -98,7 +97,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
 
         ensureGreen("myindex");
         refresh();
-        assertThat(client().prepareSearch("myindex").get().getHits().getTotalHits().value, equalTo(10L));
+        assertThat(prepareSearch("myindex").get().getHits().getTotalHits().value, equalTo(10L));
     }
 
 }

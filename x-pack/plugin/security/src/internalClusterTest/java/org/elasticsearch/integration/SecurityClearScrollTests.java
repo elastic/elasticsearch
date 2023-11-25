@@ -68,9 +68,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
     public void indexRandomDocuments() {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(IMMEDIATE);
         for (int i = 0; i < randomIntBetween(10, 50); i++) {
-            bulkRequestBuilder.add(
-                client().prepareIndex("index").setId(String.valueOf(i)).setSource("{ \"foo\" : \"bar\" }", XContentType.JSON)
-            );
+            bulkRequestBuilder.add(prepareIndex("index").setId(String.valueOf(i)).setSource("{ \"foo\" : \"bar\" }", XContentType.JSON));
         }
         BulkResponse bulkItemResponses = bulkRequestBuilder.get();
         assertThat(bulkItemResponses.hasFailures(), is(false));
@@ -78,10 +76,14 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         MultiSearchRequestBuilder multiSearchRequestBuilder = client().prepareMultiSearch();
         int count = randomIntBetween(5, 15);
         for (int i = 0; i < count; i++) {
-            multiSearchRequestBuilder.add(client().prepareSearch("index").setScroll("10m").setSize(1));
+            multiSearchRequestBuilder.add(prepareSearch("index").setScroll("10m").setSize(1));
         }
         MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
-        scrollIds = getScrollIds(multiSearchResponse);
+        try {
+            scrollIds = getScrollIds(multiSearchResponse);
+        } finally {
+            multiSearchResponse.decRef();
+        }
     }
 
     @After

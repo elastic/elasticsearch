@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
@@ -45,6 +46,9 @@ import org.elasticsearch.xpack.spatial.action.SpatialInfoTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialStatsTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialUsageTransportAction;
 import org.elasticsearch.xpack.spatial.common.CartesianBoundingBox;
+import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeScriptFieldType;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
@@ -143,6 +147,11 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     }
 
     @Override
+    public Map<String, RuntimeField.Parser> getRuntimeFields() {
+        return Map.of(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, GeoShapeScriptFieldType.typeParser(geoFormatterFactory.get()));
+    }
+
+    @Override
     public List<QuerySpec<?>> getQueries() {
         return List.of(
             new QuerySpec<>(ShapeQueryBuilder.NAME, ShapeQueryBuilder::new, ShapeQueryBuilder::fromXContent),
@@ -194,7 +203,11 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
 
     @Override
     public List<GenericNamedWriteableSpec> getGenericNamedWriteables() {
-        return List.of(new GenericNamedWriteableSpec("CartesianBoundingBox", CartesianBoundingBox::new));
+        return List.of(
+            new GenericNamedWriteableSpec("CartesianBoundingBox", CartesianBoundingBox::new),
+            new GenericNamedWriteableSpec("GeoShapeValue", GeoShapeValues.GeoShapeValue::new),
+            new GenericNamedWriteableSpec("CartesianShapeValue", CartesianShapeValues.CartesianShapeValue::new)
+        );
     }
 
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {

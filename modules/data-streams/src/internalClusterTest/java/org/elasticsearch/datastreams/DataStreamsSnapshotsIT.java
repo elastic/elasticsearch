@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIn
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -116,7 +115,10 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ds2BackingIndexName = dsBackingIndexName.replace("-ds-", "-ds2-");
         otherDs2BackingIndexName = otherDsBackingIndexName.replace("-other-ds-", "-other-ds2-");
 
-        IndexResponse indexResponse = client.prepareIndex("ds").setOpType(DocWriteRequest.OpType.CREATE).setSource(DOCUMENT_SOURCE).get();
+        DocWriteResponse indexResponse = client.prepareIndex("ds")
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .setSource(DOCUMENT_SOURCE)
+            .get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         id = indexResponse.getId();
 
@@ -147,11 +149,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
 
-        assertTrue(
-            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" }))
-                .get()
-                .isAcknowledged()
-        );
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })));
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
             .cluster()
@@ -297,7 +295,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testSnapshotAndRestoreAllIncludeSpecificDataStream() throws Exception {
-        IndexResponse indexResponse = client.prepareIndex("other-ds")
+        DocWriteResponse indexResponse = client.prepareIndex("other-ds")
             .setOpType(DocWriteRequest.OpType.CREATE)
             .setSource(DOCUMENT_SOURCE)
             .get();
@@ -786,11 +784,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        assertTrue(
-            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" }))
-                .get()
-                .isAcknowledged()
-        );
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })));
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
             .cluster()
@@ -816,12 +810,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), Matchers.is(SnapshotState.SUCCESS));
 
-        assertThat(
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" }))
-                .get()
-                .isAcknowledged(),
-            is(true)
-        );
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })));
 
         final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO, snapshotName).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().indices(), empty());
@@ -853,8 +842,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setId(Integer.toString(i))
                 .setSource(Collections.singletonMap("@timestamp", "2020-12-12"))
-                .execute()
-                .actionGet();
+                .get();
         }
         refresh();
         assertDocCount(dataStream, 100L);
@@ -909,9 +897,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setIncludeGlobalState(false)
                 .execute()
         );
-        assertAcked(
-            clusterAdmin().prepareCloneSnapshot(REPO, sourceSnapshotName, "target-snapshot-1").setIndices(indexWithoutDataStream).get()
-        );
+        assertAcked(clusterAdmin().prepareCloneSnapshot(REPO, sourceSnapshotName, "target-snapshot-1").setIndices(indexWithoutDataStream));
     }
 
     public void testPartialRestoreSnapshotThatIncludesDataStream() {
@@ -999,9 +985,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             snapshotInfo.dataStreams(),
             not(hasItems("ds"))
         );
-        assertAcked(
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "other-ds" })).get()
-        );
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "other-ds" })));
 
         RestoreInfo restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName)
             .setWaitForCompletion(true)

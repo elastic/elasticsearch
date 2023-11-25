@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
@@ -289,10 +290,11 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         NlpInferenceInput input,
         boolean skipQueue,
         TimeValue timeout,
+        TrainedModelPrefixStrings.PrefixType prefixType,
         CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
-        deploymentManager.infer(task, config, input, skipQueue, timeout, parentActionTask, listener);
+        deploymentManager.infer(task, config, input, skipQueue, timeout, prefixType, parentActionTask, listener);
     }
 
     public Optional<ModelStats> modelStats(TrainedModelDeploymentTask task) {
@@ -373,7 +375,10 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     }
                 }
 
-                if (isAssignmentOnShuttingDownNode(routingInfo, trainedModelAssignment.getDeploymentId(), shuttingDownNodes, currentNode)) {
+                /*
+                 * Check if this is a shutting down node and if we can gracefully shut down the native process after draining its queues
+                 */
+                if (shouldGracefullyShutdownDeployment(trainedModelAssignment, shuttingDownNodes, currentNode)) {
                     gracefullyStopDeployment(trainedModelAssignment.getDeploymentId(), currentNode);
                 }
             } else {
@@ -440,15 +445,48 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         );
     }
 
-    private boolean isAssignmentOnShuttingDownNode(
-        RoutingInfo routingInfo,
-        String deploymentId,
+    private boolean shouldGracefullyShutdownDeployment(
+        TrainedModelAssignment trainedModelAssignment,
         Set<String> shuttingDownNodes,
         String currentNode
     ) {
-        return deploymentIdToTask.containsKey(deploymentId)
-            && routingInfo.getState() == RoutingState.STOPPING
-            && shuttingDownNodes.contains(currentNode);
+        RoutingInfo routingInfo = trainedModelAssignment.getNodeRoutingTable().get(currentNode);
+
+        if (routingInfo == null) {
+            return true;
+        }
+
+        boolean isCurrentNodeShuttingDown = shuttingDownNodes.contains(currentNode);
+        boolean isRouteStopping = routingInfo.getState() == RoutingState.STOPPING;
+        boolean hasDeploymentTask = deploymentIdToTask.containsKey(trainedModelAssignment.getDeploymentId());
+        boolean hasStartedRoutes = trainedModelAssignment.hasStartedRoutes();
+        boolean assignmentIsRoutedToOneOrFewerNodes = trainedModelAssignment.getNodeRoutingTable().size() <= 1;
+
+        // To avoid spamming the logs we'll only print these if we meet the base criteria
+        if (isCurrentNodeShuttingDown && isRouteStopping && hasDeploymentTask) {
+            logger.debug(
+                () -> format(
+                    "[%s] Checking if deployment can be gracefully shutdown on node %s, "
+                        + "has other started routes: %s, "
+                        + "single or no routed nodes: %s",
+                    trainedModelAssignment.getDeploymentId(),
+                    currentNode,
+                    hasStartedRoutes,
+                    assignmentIsRoutedToOneOrFewerNodes
+                )
+            );
+        }
+
+        // the current node is shutting down
+        return isCurrentNodeShuttingDown
+            // the route is marked as ready to shut down during a rebalance
+            && isRouteStopping
+            // the deployment wasn't already being stopped by a stop deployment API call
+            && hasDeploymentTask
+            // the assignment has another allocation that can serve any additional requests or the shutting down node is the only node that
+            // serves this model (maybe the other available nodes are already full or no other ML nodes exist) in which case we can't wait
+            // for another node to become available so allow a graceful shutdown
+            && (hasStartedRoutes || assignmentIsRoutedToOneOrFewerNodes);
     }
 
     private void gracefullyStopDeployment(String deploymentId, String currentNode) {
@@ -603,7 +641,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         }
     }
 
-    private boolean hasStartingAssignments(TrainedModelAssignment assignment) {
+    private static boolean hasStartingAssignments(TrainedModelAssignment assignment) {
         return assignment.getNodeRoutingTable()
             .values()
             .stream()

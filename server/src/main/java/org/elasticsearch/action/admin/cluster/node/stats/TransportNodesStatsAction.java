@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -36,6 +37,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     TransportNodesStatsAction.NodeStatsRequest,
     NodeStats> {
 
+    public static final ActionType<NodesStatsResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/stats");
     private final NodeService nodeService;
 
     @Inject
@@ -47,12 +49,10 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         ActionFilters actionFilters
     ) {
         super(
-            NodesStatsAction.NAME,
-            threadPool,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
-            NodesStatsRequest::new,
             NodeStatsRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -83,26 +83,28 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         Set<String> metrics = request.requestedMetrics();
         return nodeService.stats(
             request.indices(),
-            NodesStatsRequest.Metric.OS.containedIn(metrics),
-            NodesStatsRequest.Metric.PROCESS.containedIn(metrics),
-            NodesStatsRequest.Metric.JVM.containedIn(metrics),
-            NodesStatsRequest.Metric.THREAD_POOL.containedIn(metrics),
-            NodesStatsRequest.Metric.FS.containedIn(metrics),
-            NodesStatsRequest.Metric.TRANSPORT.containedIn(metrics),
-            NodesStatsRequest.Metric.HTTP.containedIn(metrics),
-            NodesStatsRequest.Metric.BREAKER.containedIn(metrics),
-            NodesStatsRequest.Metric.SCRIPT.containedIn(metrics),
-            NodesStatsRequest.Metric.DISCOVERY.containedIn(metrics),
-            NodesStatsRequest.Metric.INGEST.containedIn(metrics),
-            NodesStatsRequest.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
-            NodesStatsRequest.Metric.SCRIPT_CACHE.containedIn(metrics),
-            NodesStatsRequest.Metric.INDEXING_PRESSURE.containedIn(metrics),
-            NodesStatsRequest.Metric.REPOSITORIES.containedIn(metrics)
+            request.includeShardsStats(),
+            NodesStatsRequestParameters.Metric.OS.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.PROCESS.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.JVM.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.THREAD_POOL.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.FS.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.TRANSPORT.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.HTTP.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.BREAKER.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.SCRIPT.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.DISCOVERY.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.INGEST.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.SCRIPT_CACHE.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.INDEXING_PRESSURE.containedIn(metrics),
+            NodesStatsRequestParameters.Metric.REPOSITORIES.containedIn(metrics)
         );
     }
 
     public static class NodeStatsRequest extends TransportRequest {
 
+        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
         NodesStatsRequest request;
 
         public NodeStatsRequest(StreamInput in) throws IOException {

@@ -192,8 +192,7 @@ PUT _component_template/my-weather-sensor-settings
   "template": {
     "settings": {
       "index.lifecycle.name": "my-lifecycle-policy",
-      "index.look_ahead_time": "3h",
-      "index.codec": "best_compression"
+      "index.look_ahead_time": "3h"
     }
   },
   "_meta": {

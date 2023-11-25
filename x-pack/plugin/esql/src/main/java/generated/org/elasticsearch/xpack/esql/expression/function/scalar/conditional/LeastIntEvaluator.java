@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -32,54 +33,54 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public Block eval(Page page) {
     IntBlock[] valuesBlocks = new IntBlock[values.length];
-    for (int i = 0; i < valuesBlocks.length; i++) {
-      Block block = values[i].eval(page);
-      if (block.areAllValuesNull()) {
-        return Block.constantNullBlock(page.getPositionCount());
+    try (Releasable valuesRelease = Releasables.wrap(valuesBlocks)) {
+      for (int i = 0; i < valuesBlocks.length; i++) {
+        valuesBlocks[i] = (IntBlock)values[i].eval(page);
       }
-      valuesBlocks[i] = (IntBlock) block;
-    }
-    IntVector[] valuesVectors = new IntVector[values.length];
-    for (int i = 0; i < valuesBlocks.length; i++) {
-      valuesVectors[i] = valuesBlocks[i].asVector();
-      if (valuesVectors[i] == null) {
-        return eval(page.getPositionCount(), valuesBlocks);
+      IntVector[] valuesVectors = new IntVector[values.length];
+      for (int i = 0; i < valuesBlocks.length; i++) {
+        valuesVectors[i] = valuesBlocks[i].asVector();
+        if (valuesVectors[i] == null) {
+          return eval(page.getPositionCount(), valuesBlocks);
+        }
       }
+      return eval(page.getPositionCount(), valuesVectors).asBlock();
     }
-    return eval(page.getPositionCount(), valuesVectors).asBlock();
   }
 
   public IntBlock eval(int positionCount, IntBlock[] valuesBlocks) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    int[] valuesValues = new int[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
-          result.appendNull();
-          continue position;
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      int[] valuesValues = new int[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
+            result.appendNull();
+            continue position;
+          }
         }
+        // unpack valuesBlocks into valuesValues
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          int o = valuesBlocks[i].getFirstValueIndex(p);
+          valuesValues[i] = valuesBlocks[i].getInt(o);
+        }
+        result.appendInt(Least.process(valuesValues));
       }
-      // unpack valuesBlocks into valuesValues
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        int o = valuesBlocks[i].getFirstValueIndex(p);
-        valuesValues[i] = valuesBlocks[i].getInt(o);
-      }
-      result.appendInt(Least.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
-    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
-    int[] valuesValues = new int[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      // unpack valuesVectors into valuesValues
-      for (int i = 0; i < valuesVectors.length; i++) {
-        valuesValues[i] = valuesVectors[i].getInt(p);
+    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
+      int[] valuesValues = new int[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        // unpack valuesVectors into valuesValues
+        for (int i = 0; i < valuesVectors.length; i++) {
+          valuesValues[i] = valuesVectors[i].getInt(p);
+        }
+        result.appendInt(Least.process(valuesValues));
       }
-      result.appendInt(Least.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
@@ -90,5 +91,24 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.values = values;
+    }
+
+    @Override
+    public LeastIntEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new LeastIntEvaluator(values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "LeastIntEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
   }
 }

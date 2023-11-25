@@ -8,8 +8,11 @@ package org.elasticsearch.xpack.esql.qa.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.http.HttpEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -17,6 +20,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.ql.SpecReader;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -25,8 +29,11 @@ import java.net.URL;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertData;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
@@ -78,13 +85,21 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
+    public boolean logResults() {
+        return false;
+    }
+
     public final void test() throws Throwable {
         try {
-            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName));
+            shouldSkipTest(testName);
             doTest();
         } catch (Exception e) {
             throw reworkException(e);
         }
+    }
+
+    protected void shouldSkipTest(String testName) {
+        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
     }
 
     protected final void doTest() throws Throwable {
@@ -92,21 +107,29 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Map<String, Object> answer = runEsql(builder.query(testCase.query).build(), testCase.expectedWarnings);
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
-        assertNotNull(answer.get("columns"));
+        var metadata = answer.get("columns");
+        assertNotNull(metadata);
         @SuppressWarnings("unchecked")
-        var actualColumns = (List<Map<String, String>>) answer.get("columns");
-        assertMetadata(expectedColumnsWithValues, actualColumns, LOGGER);
+        var actualColumns = (List<Map<String, String>>) metadata;
 
-        assertNotNull(answer.get("values"));
+        Logger logger = logResults() ? LOGGER : null;
+        var values = answer.get("values");
+        assertNotNull(values);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualValues = (List<List<Object>>) answer.get("values");
-        assertData(
-            expectedColumnsWithValues,
-            actualValues,
-            testCase.ignoreOrder,
-            LOGGER,
-            value -> value == null ? "null" : value.toString()
-        );
+        List<List<Object>> actualValues = (List<List<Object>>) values;
+
+        assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
+    }
+
+    protected void assertResults(
+        ExpectedResults expected,
+        List<Map<String, String>> actualColumns,
+        List<List<Object>> actualValues,
+        boolean ignoreOrder,
+        Logger logger
+    ) {
+        assertMetadata(expected, actualColumns, logger);
+        assertData(expected, actualValues, testCase.ignoreOrder, logger, value -> value == null ? "null" : value.toString());
     }
 
     private Throwable reworkException(Throwable th) {
@@ -122,5 +145,25 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     @Override
     protected boolean preserveClusterUponCompletion() {
         return true;
+    }
+
+    @Before
+    @After
+    public void assertRequestBreakerEmptyAfterTests() throws Exception {
+        assertRequestBreakerEmpty();
+    }
+
+    public static void assertRequestBreakerEmpty() throws Exception {
+        assertBusy(() -> {
+            HttpEntity entity = adminClient().performRequest(new Request("GET", "/_nodes/stats")).getEntity();
+            Map<?, ?> stats = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);
+            Map<?, ?> nodes = (Map<?, ?>) stats.get("nodes");
+            for (Object n : nodes.values()) {
+                Map<?, ?> node = (Map<?, ?>) n;
+                Map<?, ?> breakers = (Map<?, ?>) node.get("breakers");
+                Map<?, ?> request = (Map<?, ?>) breakers.get("request");
+                assertMap(request, matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b"));
+            }
+        });
     }
 }

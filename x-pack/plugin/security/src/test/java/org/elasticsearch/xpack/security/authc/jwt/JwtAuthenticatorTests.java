@@ -259,45 +259,111 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Invalid patterns for allowed claim values for [sub]."));
     }
 
-    public void testInvalidNoAllowedSubjectSettings() {
+    public void testNoAllowedSubjectInvalidSettings() {
         allowedSubject = null;
         allowedSubjectPattern = null;
         RealmConfig someJWTRealmConfig = buildJWTRealmConfig();
-        final Settings.Builder builder = Settings.builder();
-        builder.put(someJWTRealmConfig.settings());
-        if (randomBoolean()) {
-            builder.putList(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS), List.of());
-        } else {
-            builder.putNull(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS));
+        {
+            final Settings.Builder builder = Settings.builder();
+            builder.put(someJWTRealmConfig.settings());
+            if (randomBoolean()) {
+                builder.putList(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS), List.of());
+            } else {
+                builder.putNull(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS));
+            }
+            if (randomBoolean()) {
+                builder.putNull(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS));
+            } else {
+                builder.putList(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS), List.of());
+            }
+            SettingsException e = expectThrows(
+                SettingsException.class,
+                () -> new JwtAuthenticator(
+                    new RealmConfig(
+                        someJWTRealmConfig.identifier(),
+                        builder.build(),
+                        someJWTRealmConfig.env(),
+                        someJWTRealmConfig.threadContext()
+                    ),
+                    mock(SSLService.class),
+                    () -> {}
+                )
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "One of either ["
+                        + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS)
+                        + "] or ["
+                        + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
+                        + "] must be non-empty."
+                )
+            );
         }
-        if (randomBoolean()) {
-            builder.putNull(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS));
-        } else {
-            builder.putList(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS), List.of());
+        {
+            final Settings.Builder builder = Settings.builder();
+            builder.put(someJWTRealmConfig.settings());
+            if (randomBoolean()) {
+                builder.putNull(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS));
+            } else {
+                builder.putList(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS), List.of());
+            }
+            SettingsException e = expectThrows(
+                SettingsException.class,
+                () -> new JwtAuthenticator(
+                    new RealmConfig(
+                        someJWTRealmConfig.identifier(),
+                        builder.build(),
+                        someJWTRealmConfig.env(),
+                        someJWTRealmConfig.threadContext()
+                    ),
+                    mock(SSLService.class),
+                    () -> {}
+                )
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "["
+                        + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
+                        + "] cannot be empty if ["
+                        + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS)
+                        + "] is left unspecified."
+                )
+            );
         }
-        SettingsException e = expectThrows(
-            SettingsException.class,
-            () -> new JwtAuthenticator(
-                new RealmConfig(
-                    someJWTRealmConfig.identifier(),
-                    builder.build(),
-                    someJWTRealmConfig.env(),
-                    someJWTRealmConfig.threadContext()
-                ),
-                mock(SSLService.class),
-                () -> {}
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "One of either ["
-                    + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS)
-                    + "] or ["
-                    + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
-                    + "] must be non-empty."
-            )
-        );
+        {
+            final Settings.Builder builder = Settings.builder();
+            builder.put(someJWTRealmConfig.settings());
+            if (randomBoolean()) {
+                builder.putNull(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS));
+            } else {
+                builder.putList(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS), List.of());
+            }
+            SettingsException e = expectThrows(
+                SettingsException.class,
+                () -> new JwtAuthenticator(
+                    new RealmConfig(
+                        someJWTRealmConfig.identifier(),
+                        builder.build(),
+                        someJWTRealmConfig.env(),
+                        someJWTRealmConfig.threadContext()
+                    ),
+                    mock(SSLService.class),
+                    () -> {}
+                )
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "["
+                        + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS)
+                        + "] cannot be empty if ["
+                        + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
+                        + "] is left unspecified."
+                )
+            );
+        }
     }
 
     protected JwtAuthenticator buildJwtAuthenticator() {

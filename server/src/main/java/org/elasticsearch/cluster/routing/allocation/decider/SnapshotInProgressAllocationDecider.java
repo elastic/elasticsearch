@@ -93,16 +93,17 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 
                 if (shardSnapshotStatus.state().completed()) {
                     // this shard snapshot is complete
-
-                    /* TODO we want to block INIT and ABORTED shards from moving because they are still doing work on the data node, but can
-                     *  we allow a WAITING shard to move? But if we allow all WAITING shards to move, they may move forever and never reach
-                     *  INIT state, so maybe only permit a move if the node is shutting down for removal?
-                     */
                     continue;
                 }
 
                 if (Objects.equals(shardRouting.currentNodeId(), shardSnapshotStatus.nodeId()) == false) {
                     // this shard snapshot is allocated to a different node
+                    continue;
+                }
+
+                if (shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.WAITING
+                    && snapshotsInProgress.isNodeIdForRemoval(shardRouting.currentNodeId())) {
+                    // this shard snapshot is paused pending the removal of its assigned node
                     continue;
                 }
 

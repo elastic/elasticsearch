@@ -119,6 +119,10 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRemoveNodeDuringSnapshotWithOtherRunningShardSnapshots() throws Exception {
+        // SnapshotInProgressAllocationDecider only considers snapshots having shards in INIT state, so a single-shard snapshot such as the
+        // one in testRemoveNodeDuringSnapshot will be ignored when the shard is paused, permitting the shard movement. This test verifies
+        // that the shard is permitted to move even when the snapshot has other shards in INIT state.
+
         final var repoName = randomIdentifier();
         createRepository(repoName, "mock");
 

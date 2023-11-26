@@ -8,7 +8,15 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -21,8 +29,10 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -30,9 +40,11 @@ import org.elasticsearch.test.transport.MockTransportService;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -118,6 +130,101 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         }
 
         clearShutdownMetadata(clusterService);
+    }
+
+    public void testRemoveNodeAndFailoverMasterDuringSnapshot() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        final var originalNode = internalCluster().startDataOnlyNode();
+        final var indexName = randomIdentifier();
+        createIndexWithContent(indexName, indexSettings(1, 0).put(REQUIRE_NODE_NAME_SETTING, originalNode).build());
+
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "mock");
+
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, originalNode);
+        final var snapshotPausedListener = createSnapshotPausedListener(clusterService, repoName, indexName);
+
+        final var snapshotStatusUpdateBarrier = new CyclicBarrier(2);
+        final var masterName = internalCluster().getMasterName();
+        final var masterTransportService = MockTransportService.getInstance(masterName);
+        masterTransportService.addRequestHandlingBehavior(
+            SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+            (handler, request, channel, task) -> masterTransportService.getThreadPool().generic().execute(() -> {
+                safeAwait(snapshotStatusUpdateBarrier);
+                try {
+                    snapshotStatusUpdateBarrier.await(); // TODO safeAwait
+                    handler.messageReceived(request, channel, task);
+                } catch (Exception e) {
+                    fail(e);
+                }
+            })
+        );
+
+        updateIndexSettings(Settings.builder().putNull(REQUIRE_NODE_NAME_SETTING), indexName);
+        putShutdownForRemovalMetadata(originalNode, clusterService);
+        unblockAllDataNodes(repoName); // lets the shard snapshot abort, which frees up the shard so it can move
+        safeAwait(snapshotStatusUpdateBarrier); // wait for the data node to finish and then try and update the master
+
+        if (internalCluster().numMasterNodes() == 1) {
+            internalCluster().startMasterOnlyNode();
+        }
+        safeAwait(
+            SubscribableListener.<ActionResponse.Empty>newForked(
+                l -> client().execute(
+                    AddVotingConfigExclusionsAction.INSTANCE,
+                    new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { masterName }, TimeValue.timeValueSeconds(10)),
+                    l
+                )
+            )
+        );
+        safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                clusterService,
+                s -> s.nodes().getMasterNode() != null && s.nodes().getMasterNode().getName().equals(masterName) == false
+            )
+        );
+
+        logger.info("--> new master elected, releasing blocked request");
+        safeAwait(snapshotStatusUpdateBarrier); // let the old master try and update the state
+        logger.info("--> waiting for snapshot pause");
+        safeAwait(snapshotPausedListener);
+        logger.info("--> snapshot was paused");
+
+        // snapshot API fails on master failover
+        assertThat(
+            asInstanceOf(
+                SnapshotException.class,
+                ExceptionsHelper.unwrapCause(
+                    expectThrows(ExecutionException.class, RuntimeException.class, () -> snapshotFuture.get(10, TimeUnit.SECONDS))
+                )
+            ).getMessage(),
+            containsString("no longer master")
+        );
+
+        // but the snapshot itself completes
+        safeAwait(ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> SnapshotsInProgress.get(state).isEmpty()));
+
+        // and succeeds
+        final var snapshots = safeAwait(
+            SubscribableListener.<GetSnapshotsResponse>newForked(
+                l -> client().admin().cluster().getSnapshots(new GetSnapshotsRequest(repoName), l)
+            )
+        ).getSnapshots();
+        assertThat(snapshots, hasSize(1));
+        assertEquals(SnapshotState.SUCCESS, snapshots.get(0).state());
+
+        if (randomBoolean()) {
+            internalCluster().stopNode(originalNode);
+        }
+
+        safeAwait(SubscribableListener.<ActionResponse.Empty>newForked(l -> {
+            final var clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+            clearVotingConfigExclusionsRequest.setWaitForRemoval(false);
+            client().execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingConfigExclusionsRequest, l);
+        }));
+
+        clearShutdownMetadata(internalCluster().getCurrentMasterNodeInstance(ClusterService.class));
     }
 
     public void testRemoveNodeDuringSnapshotWithOtherRunningShardSnapshots() throws Exception {

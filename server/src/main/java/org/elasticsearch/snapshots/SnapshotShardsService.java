@@ -603,8 +603,19 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 indexShardSnapshotStatus.getFailure(),
                                 localShard.getValue().generation()
                             );
+                        } else if (stage == Stage.PAUSED) {
+                            // but we think the shard has paused - we need to make new master know that
+                            logger.debug("""
+                                [{}] new master thinks the shard [{}] is still running but the shard paused locally, updating status on \
+                                master""", snapshot.snapshot(), shardId);
+                            notifyUnsuccessfulSnapshotShard(
+                                snapshot.snapshot(),
+                                shardId,
+                                ShardState.WAITING,
+                                indexShardSnapshotStatus.getFailure(),
+                                localShard.getValue().generation()
+                            );
                         }
-                        // TODO also notify the new master if it doesn't know that we're PAUSED
                         // TODO if we're PAUSING will we definitely notify the new master when we reach PAUSED or is there a race?
                     }
                 }

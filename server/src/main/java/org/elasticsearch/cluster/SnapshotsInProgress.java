@@ -385,14 +385,21 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 assert entry.repository().equals(repository) : "mismatched repository " + entry + " tracked under " + repository;
                 for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shard : entry.shardsByRepoShardId().entrySet()) {
                     final RepositoryShardId sid = shard.getKey();
+                    final ShardSnapshotStatus shardSnapshotStatus = shard.getValue();
                     assert assertShardStateConsistent(
                         entriesForRepository,
                         assignedShards,
                         queuedShards,
                         sid.indexName(),
                         sid.shardId(),
-                        shard.getValue()
+                        shardSnapshotStatus
                     );
+
+                    // TODO independent PR to add this assertion
+                    assert entry.state() != State.ABORTED
+                        || shardSnapshotStatus.state == ShardState.ABORTED
+                        || shardSnapshotStatus.state().completed()
+                        : sid + " is in state " + shardSnapshotStatus.state() + " in aborted snapshot " + entry.snapshot;
                 }
             }
             // make sure in-flight-shard-states can be built cleanly for the entries without tripping assertions

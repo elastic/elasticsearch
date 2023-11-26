@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -385,12 +386,16 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
 
         @Override
         public Map<String, Object> asMap() {
-            return Map.of("result", result);
+            var map = new HashMap<String, Object>();
+            map.put("result", result);
+            return map;
         }
 
         @Override
         public Map<String, Object> asMap(String outputField) {
-            return Map.of(outputField, result);
+            var map = new HashMap<String, Object>();
+            map.put(outputField, result);
+            return map;
         }
 
         @Override

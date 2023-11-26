@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -17,6 +17,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -24,6 +25,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasSize;
 
 public class CoordinatedInferenceIngestIT extends ESRestTestCase {
 
@@ -47,18 +51,78 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    public void testSomething() throws IOException {
+    @SuppressWarnings("unchecked")
+    public void testIngestWithMultipleModelTypes() throws IOException {
+        // Create an inference service model, dfa model and pytorch model
         var inferenceServiceModelId = "is_model";
-        var dfaModelId = "dfa_model";
+        var boostedTreeModelId = "boosted_tree_model";
         var pyTorchModelId = "pytorch_model";
 
         putInferenceServiceModel(inferenceServiceModelId, TaskType.SPARSE_EMBEDDING);
-        putDfaModel(dfaModelId);
+        putBoostedTreeRegressionModel(boostedTreeModelId);
         putPyTorchModel(pyTorchModelId);
         putPyTorchModelDefinition(pyTorchModelId);
         putPyTorchModelVocabulary(List.of("these", "are", "my", "words"), pyTorchModelId);
         startDeployment(pyTorchModelId);
 
+        String docs = """
+            [
+                {
+                  "_source": {
+                    "title": "my",
+                    "body": "these are"
+                  }
+                },
+                {
+                  "_source": {
+                    "title": "are",
+                    "body": "my words"
+                  }
+                }
+            ]
+            """;
+
+        {
+            var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinition(inferenceServiceModelId), docs);
+            var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
+            assertThat(simulatedDocs, hasSize(2));
+            assertEquals(inferenceServiceModelId, MapHelper.dig("doc._source.ml.model_id", simulatedDocs.get(0)));
+            assertEquals("bar", MapHelper.dig("doc._source.ml.body", simulatedDocs.get(0)));
+            assertEquals(inferenceServiceModelId, MapHelper.dig("doc._source.ml.model_id", simulatedDocs.get(1)));
+            assertEquals("bar", MapHelper.dig("doc._source.ml.body", simulatedDocs.get(1)));
+        }
+
+        {
+            var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinition(pyTorchModelId), docs);
+            var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
+            System.out.println("DOCS " + simulatedDocs);
+            assertThat(simulatedDocs, hasSize(2));
+            assertEquals(pyTorchModelId, MapHelper.dig("doc._source.ml.model_id", simulatedDocs.get(0)));
+            List<List<Double>> results = (List<List<Double>>) MapHelper.dig("doc._source.ml.body", simulatedDocs.get(0));
+            assertThat(results.get(0), contains(1.0, 1.0));
+            assertEquals(pyTorchModelId, MapHelper.dig("doc._source.ml.model_id", simulatedDocs.get(1)));
+        }
+
+        String boostedTreeDocs = Strings.format("""
+                [
+                    {
+                      "_source": %s
+                    },
+                    {
+                      "_source": %s
+                    }
+                ]
+                """, ExampleModels.randomBoostedTreeModelDoc(), ExampleModels.randomBoostedTreeModelDoc());
+        {
+            var responseMap = simulatePipeline(ExampleModels.boostedTreeRegressionModelPipelineDefinition(boostedTreeModelId), boostedTreeDocs);
+            var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
+            System.out.println("DFA DOCS " + simulatedDocs);
+            assertThat(simulatedDocs, hasSize(2));
+            assertEquals(boostedTreeModelId, MapHelper.dig("doc._source.ml.regression.model_id", simulatedDocs.get(0)));
+            assertNotNull(MapHelper.dig("doc._source.ml.regression.predicted_value", simulatedDocs.get(0)));
+            assertEquals(boostedTreeModelId, MapHelper.dig("doc._source.ml.regression.model_id", simulatedDocs.get(1)));
+            assertNotNull(MapHelper.dig("doc._source.ml.regression.predicted_value", simulatedDocs.get(1)));
+        }
     }
 
     private Map<String, Object> putInferenceServiceModel(String modelId, TaskType taskType) throws IOException {
@@ -91,7 +155,7 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    protected Response simulatePipeline(String pipelineDef, String docs) throws IOException {
+    protected Map<String, Object> simulatePipeline(String pipelineDef, String docs) throws IOException {
         String simulate = Strings.format("""
             {
               "pipeline": %s,
@@ -100,7 +164,9 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
 
         Request request = new Request("POST", "_ingest/pipeline/_simulate?error_trace=true");
         request.setJsonEntity(simulate);
-        return client().performRequest(request);
+        var response = client().performRequest(request);
+        System.out.println(EntityUtils.toString(response.getEntity()));
+        return entityAsMap(client().performRequest(request));
     }
 
     protected void putPyTorchModelDefinition(String modelId) throws IOException {
@@ -126,9 +192,9 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    private void putDfaModel(String modelId) throws IOException {
+    private void putBoostedTreeRegressionModel(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId);
-        var modelConfiguration = ExampleModels.dfaRegressionModel();
+        var modelConfiguration = ExampleModels.boostedTreeRegressionModel();
         request.setJsonEntity(modelConfiguration);
         client().performRequest(request);
     }

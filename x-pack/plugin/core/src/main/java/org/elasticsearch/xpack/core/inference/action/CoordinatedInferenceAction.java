@@ -35,9 +35,11 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
 
     public static class Request extends ActionRequest {
 
-        public enum ModelHost {
-            FOR_NLP_MODEL, // Either an inference service model or ml PyTorch model
-            FOR_DFA_MODEL, // Boosted tree model
+        public enum ModelType {
+            INFERENCE_SERVICE_MODEL,
+            ML_NODE_PYTORCH_MODEL,
+            BOOSTED_TREE_MODEL,
+            NLP_MODEL,  // Either an inference service model or ml pytorch model but not a boosted tree model
             UNKNOWN
         };
 
@@ -84,7 +86,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
         }
 
         private final String modelId;
-        private ModelHost modelHost = ModelHost.UNKNOWN;
+        private ModelType modelType = ModelType.UNKNOWN;
         // For inference services or cluster hosted NLP models
         private final List<String> inputs;
         // _inference settings
@@ -121,7 +123,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
         public Request(StreamInput in) throws IOException {
             super(in);
             this.modelId = in.readString();
-            this.modelHost = in.readEnum(ModelHost.class);
+            this.modelType = in.readEnum(ModelType.class);
             this.inputs = in.readOptionalStringCollectionAsList();
             if (in.readBoolean()) {
                 this.taskSettings = in.readMap();
@@ -187,19 +189,19 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             return prefixType;
         }
 
-        public ModelHost getModelHost() {
-            return modelHost;
+        public ModelType getModelType() {
+            return modelType;
         }
 
-        public void setModelHost(ModelHost modelHost) {
-            this.modelHost = modelHost;
+        public void setModelType(ModelType modelType) {
+            this.modelType = modelType;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelId);
-            out.writeEnum(modelHost);
+            out.writeEnum(modelType);
             out.writeOptionalStringCollection(inputs);
             boolean taskSettingsPresent = taskSettings != null;
             out.writeBoolean(taskSettingsPresent);
@@ -224,7 +226,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Objects.equals(modelId, request.modelId)
-                && Objects.equals(modelHost, request.modelHost)
+                && Objects.equals(modelType, request.modelType)
                 && Objects.equals(inputs, request.inputs)
                 && Objects.equals(taskSettings, request.taskSettings)
                 && Objects.equals(objectsToInfer, request.objectsToInfer)
@@ -238,7 +240,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
         public int hashCode() {
             return Objects.hash(
                 modelId,
-                modelHost,
+                modelType,
                 inputs,
                 taskSettings,
                 objectsToInfer,

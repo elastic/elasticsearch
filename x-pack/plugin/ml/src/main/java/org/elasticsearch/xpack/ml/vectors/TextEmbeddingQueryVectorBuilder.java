@@ -104,7 +104,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         inferRequest.setHighPriority(true);
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
         // The model is hosted either on a ml node or in an inference service
-        inferRequest.setModelHost(CoordinatedInferenceAction.Request.ModelHost.FOR_NLP_MODEL);
+        inferRequest.setModelType(CoordinatedInferenceAction.Request.ModelType.FOR_NLP_MODEL);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, CoordinatedInferenceAction.INSTANCE, inferRequest, ActionListener.wrap(response -> {
             if (response.getInferenceResults().isEmpty()) {

@@ -171,7 +171,7 @@ public class InferenceProcessor extends AbstractProcessor {
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
-        this.inferenceConfig = ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
+        this.inferenceConfig = inferenceConfig;
         this.ignoreMissing = ignoreMissing;
 
         if (configuredWithInputsFields) {
@@ -410,15 +410,9 @@ public class InferenceProcessor extends AbstractProcessor {
 
             String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_ID);
 
-            InferenceConfigUpdate inferenceConfigUpdate;
+            InferenceConfigUpdate inferenceConfigUpdate = null;
             Map<String, Object> inferenceConfigMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, INFERENCE_CONFIG);
-            if (inferenceConfigMap == null) {
-                if (minNodeVersion.before(EmptyConfigUpdate.minimumSupportedVersion())) {
-                    // an inference config is required when the empty update is not supported
-                    throw newConfigurationException(TYPE, tag, INFERENCE_CONFIG, "required property is missing");
-                }
-                inferenceConfigUpdate = new EmptyConfigUpdate();
-            } else {
+            if (inferenceConfigMap != null) {
                 inferenceConfigUpdate = inferenceConfigUpdateFromMap(inferenceConfigMap);
             }
 
@@ -446,7 +440,7 @@ public class InferenceProcessor extends AbstractProcessor {
                     );
                 }
 
-                if (inferenceConfigUpdate.getResultsField() != null) {
+                if (inferenceConfigUpdate != null && inferenceConfigUpdate.getResultsField() != null) {
                     throw newConfigurationException(
                         TYPE,
                         tag,

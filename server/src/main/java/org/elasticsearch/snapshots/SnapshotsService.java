@@ -3235,17 +3235,23 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     return;
                 }
 
-                /* TODO if the snapshot is aborted but the update moves it back to WAITING (indicating a concurrent pause for shutdown) then
-                 *  we should map that on to FAILED. There should be no WAITING shards in an ABORTED snapshot. */
+                final ShardSnapshotStatus updatedState;
+                if (existing.state() == ShardState.ABORTED && updateSnapshotState.updatedState.state() == ShardState.WAITING) {
+                    // concurrently pausing the shard snapshot due to node shutdown and aborting the snapshot - this shard is no longer
+                    // actively snapshotting but we don't want it to resume, so mark it as FAILED since it didn't complete
+                    updatedState = new ShardSnapshotStatus(
+                        updateSnapshotState.updatedState.nodeId(),
+                        ShardState.FAILED,
+                        "snapshot aborted",
+                        updateSnapshotState.updatedState.generation()
+                    );
+                } else {
+                    updatedState = updateSnapshotState.updatedState;
+                }
 
-                logger.trace(
-                    "[{}] Updating shard [{}] with status [{}]",
-                    updateSnapshotState.snapshot,
-                    updatedShard,
-                    updateSnapshotState.updatedState.state()
-                );
+                logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshot, updatedShard, updatedState.state());
                 changedCount++;
-                newStates.get().put(updatedShard, updateSnapshotState.updatedState);
+                newStates.get().put(updatedShard, updatedState);
                 executedUpdates.add(updateSnapshotState);
             }
 

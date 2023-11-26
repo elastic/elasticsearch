@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AplhaNumericAggregate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -135,6 +136,8 @@ public class AggregateMapper {
         List<String> types;
         if (NumericAggregate.class.isAssignableFrom(clazz)) {
             types = NUMERIC;
+        } else if (AplhaNumericAggregate.class.isAssignableFrom(clazz)) {
+            types = Stream.concat(NUMERIC.stream(), Stream.of( "BytesRef")).toList();
         } else if (clazz == Count.class) {
             types = List.of(""); // no extra type distinction
         } else {

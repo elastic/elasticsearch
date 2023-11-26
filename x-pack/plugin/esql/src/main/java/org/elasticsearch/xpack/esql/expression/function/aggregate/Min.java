@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MinBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
@@ -19,7 +20,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
-public class Min extends NumericAggregate {
+public class Min extends AplhaNumericAggregate {
 
     public Min(Source source, Expression field) {
         super(source, field);
@@ -59,4 +60,10 @@ public class Min extends NumericAggregate {
     protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
         return new MinDoubleAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
+
+    @Override
+    protected AggregatorFunctionSupplier BytesRefSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new MinBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels);
+    }
+
 }

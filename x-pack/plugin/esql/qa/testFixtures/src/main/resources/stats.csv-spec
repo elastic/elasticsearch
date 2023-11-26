@@ -79,6 +79,19 @@ h:double
 2.1
 ;
 
+maxOfString
+from employees | stats l = max(first_name);
+
+l:string
+Zvonko
+;
+
+minOfString
+from employees | stats l = min(first_name);
+
+l:string
+Alejandro
+;
 
 maxOfManyLongs
 from employees | stats l = max(salary_change.long);
@@ -102,7 +115,6 @@ from employees | stats l = max(salary_change);
 l:double
 14.74
 ;
-
 
 avgOfLong
 from employees | stats l = avg(languages.long);
@@ -532,8 +544,6 @@ c:l
 10
 ;
 
-
-
 countAllGrouped
 from employees | stats c = count(*) by languages | rename languages as l | sort l DESC ; 
 
@@ -696,4 +706,13 @@ c:l| m:i   | m1:i  | c1:l| gender:s
 33 | 25976 | 25976 | 33  | F
 57 | 25945 | 25945 | 57  | M
 10 | 25324 | 25324 | 10  | null
+;
+
+minmaxWithMultiplegroups
+from employees | stats mn = min(first_name), mx=max(first_name) by gender | sort gender;
+
+mn:s |  mx:s | gender:s
+Alejandro | Xinglin |  F
+Amabile   | Zvonko |  M
+Berni     | Patricio |  null
 ;

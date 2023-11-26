@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MaxBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
@@ -19,7 +20,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
-public class Max extends NumericAggregate {
+public class Max extends AplhaNumericAggregate {
 
     public Max(Source source, Expression field) {
         super(source, field);
@@ -58,5 +59,10 @@ public class Max extends NumericAggregate {
     @Override
     protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
         return new MaxDoubleAggregatorFunctionSupplier(bigArrays, inputChannels);
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier BytesRefSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
+        return new MaxBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels);
     }
 }

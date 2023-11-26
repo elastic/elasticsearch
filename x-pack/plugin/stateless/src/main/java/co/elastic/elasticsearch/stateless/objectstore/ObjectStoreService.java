@@ -222,8 +222,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         );
         this.uploadTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-task-runner",
-            threadPool.info(Stateless.SHARD_THREAD_POOL).getMax(),
-            threadPool.executor(Stateless.SHARD_THREAD_POOL)
+            threadPool.info(Stateless.UPLOAD_THREAD_POOL).getMax(),
+            threadPool.executor(Stateless.UPLOAD_THREAD_POOL)
         );
         this.permits = new Semaphore(0);
     }

@@ -83,11 +83,7 @@ public class TrialLicenseVersion implements ToXContentFragment, Writeable {
 
     public boolean ableToStartNewTrial() {
         assert trialVersion <= CURRENT.trialVersion
-            : "trial version ["
-                + trialVersion
-                + "] cannot be greater than CURRENT ["
-                + CURRENT.trialVersion
-                + "] which represents the maximum possible value";
+            : "trial version [" + trialVersion + "] cannot be greater than CURRENT [" + CURRENT.trialVersion + "]";
         if (trialVersion < TRIAL_VERSION_CUTOVER) {
             int sinceMajorVersion = trialVersion / 1_000_000; // integer division is intentional
             return sinceMajorVersion < TRIAL_VERSION_CUTOVER_MAJOR;

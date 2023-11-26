@@ -19,11 +19,14 @@ public class TrialLicenseVersionTests extends ESTestCase {
 
     public void testCanParseAllVersions() {
         for (var version : Version.getDeclaredVersions(Version.class)) {
-            TrialLicenseVersion parsedVersion = TrialLicenseVersion.fromXContent(version.toString());
-            if (version.major < TRIAL_VERSION_CUTOVER_MAJOR) {
-                assertTrue(parsedVersion.ableToStartNewTrial());
-            } else {
-                assertFalse(parsedVersion.ableToStartNewTrial());
+            // Only consider versions before the cut-over; the comparison becomes meaningless after the cut-over point
+            if (version.onOrBefore(Version.fromId(TRIAL_VERSION_CUTOVER))) {
+                TrialLicenseVersion parsedVersion = TrialLicenseVersion.fromXContent(version.toString());
+                if (version.major < TRIAL_VERSION_CUTOVER_MAJOR) {
+                    assertTrue(parsedVersion.ableToStartNewTrial());
+                } else {
+                    assertFalse(parsedVersion.ableToStartNewTrial());
+                }
             }
         }
     }

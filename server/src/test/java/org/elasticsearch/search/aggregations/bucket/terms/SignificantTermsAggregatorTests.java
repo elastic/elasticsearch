@@ -706,12 +706,6 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private void addFields(Document doc, List<Field> createFields) {
-        for (Field field : createFields) {
-            doc.add(field);
-        }
-    }
-
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();
     }

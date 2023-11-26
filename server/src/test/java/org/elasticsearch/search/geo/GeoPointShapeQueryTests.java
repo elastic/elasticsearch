@@ -73,8 +73,7 @@ public class GeoPointShapeQueryTests extends BasePointShapeQueryTestCase<GeoShap
         ensureGreen();
 
         Point point = GeometryTestUtils.randomPoint(false);
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(point)).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();

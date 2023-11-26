@@ -1,0 +1,5 @@
+pr: 102602
+summary: Consider search context missing exceptions as recoverable
+area: Transform
+type: bug
+issues: []

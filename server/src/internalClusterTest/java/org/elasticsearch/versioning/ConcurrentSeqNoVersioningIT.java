@@ -33,6 +33,8 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -134,7 +136,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         logger.info("--> Indexing initial doc for {} keys", numberOfKeys);
         List<Partition> partitions = IntStream.range(0, numberOfKeys)
-            .mapToObj(i -> client().prepareIndex("test").setId("ID:" + i).setSource("value", -1).get())
+            .mapToObj(i -> prepareIndex("test").setId("ID:" + i).setSource("value", -1).get())
             .map(response -> new Partition(response.getId(), new Version(response.getPrimaryTerm(), response.getSeqNo())))
             .toList();
 
@@ -431,37 +433,55 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                 history
             );
             LinearizabilityChecker.SequentialSpec spec = new CASSequentialSpec(initialVersion);
-            boolean linearizable = false;
+            Boolean linearizable = null;
             try {
                 linearizable = LinearizabilityChecker.isLinearizable(spec, history, missingResponseGenerator());
             } catch (LinearizabilityCheckAborted e) {
-                logger.warn("linearizability check check was aborted", e);
+                logger.warn("linearizability check was aborted, assuming linearizable", e);
             } finally {
                 try {
-                    if (linearizable) {
+                    if (Boolean.TRUE.equals(linearizable)) {
                         // ensure that we can serialize all histories.
                         writeHistory(new OutputStreamStreamOutput(OutputStream.nullOutputStream()), history);
                     } else {
-                        logger.error("Linearizability check failed. Spec: {}, initial version: {}", spec, initialVersion);
+                        final var outcome = linearizable == null ? "inconclusive" : "unlinearizable";
+
+                        logger.error(
+                            "Linearizability check did not succeed. Spec: {}, initial version: {}, outcome: {}",
+                            spec,
+                            initialVersion,
+                            outcome
+                        );
                         // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
                         try (
                             var chunkedLoggingStream = ChunkedLoggingStream.create(
                                 logger,
                                 Level.ERROR,
-                                "unlinearizable history",
+                                "raw " + outcome + " history in partition " + id,
                                 ReferenceDocs.LOGGING // any old docs link will do
                             );
                             var output = new OutputStreamStreamOutput(chunkedLoggingStream)
                         ) {
                             writeHistory(output, history);
                         }
+                        try (
+                            var chunkedLoggingStream = ChunkedLoggingStream.create(
+                                logger,
+                                Level.ERROR,
+                                "visualisation of " + outcome + " history in partition " + id,
+                                ReferenceDocs.LOGGING // any old docs link will do
+                            );
+                            var writer = new OutputStreamWriter(chunkedLoggingStream, StandardCharsets.UTF_8)
+                        ) {
+                            LinearizabilityChecker.writeVisualisation(spec, history, missingResponseGenerator(), writer);
+                        }
+                        assertNull("Must not be unlinearizable", linearizable);
                     }
                 } catch (IOException e) {
                     logger.error("failure writing out history", e);
                     fail(e);
                 }
             }
-            assertTrue("Must be linearizable", linearizable);
         }
     }
 

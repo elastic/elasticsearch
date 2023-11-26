@@ -357,7 +357,7 @@ class ClientTransformIndexer extends TransformIndexer {
                             + statsExc.getMessage()
                     );
 
-                    if (failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings()) == false) {
+                    if (failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings())) {
                         // get the current seqNo and primary term, however ignore the stored state
                         transformsConfigManager.getTransformStoredDoc(
                             transformConfig.getId(),
@@ -464,6 +464,8 @@ class ClientTransformIndexer extends TransformIndexer {
 
         // no pit, create a new one
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(searchRequest.indices()).keepAlive(PIT_KEEP_ALIVE);
+        // use index filter for better performance
+        pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),

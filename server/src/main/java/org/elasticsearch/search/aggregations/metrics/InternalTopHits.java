@@ -98,7 +98,6 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        final SearchHits[] shardHits = new SearchHits[aggregations.size()];
         final int from;
         final int size;
         if (reduceContext.isFinalReduce()) {
@@ -113,63 +112,64 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
 
         final TopDocs reducedTopDocs;
         final TopDocs[] shardDocs;
-
-        if (topDocs.topDocs instanceof TopFieldDocs) {
-            Sort sort = new Sort(((TopFieldDocs) topDocs.topDocs).fields);
+        final float maxScore;
+        if (topDocs.topDocs instanceof TopFieldDocs topFieldDocs) {
             shardDocs = new TopFieldDocs[aggregations.size()];
-            for (int i = 0; i < shardDocs.length; i++) {
-                InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-                shardDocs[i] = topHitsAgg.topDocs.topDocs;
-                shardHits[i] = topHitsAgg.searchHits;
-                for (ScoreDoc doc : shardDocs[i].scoreDocs) {
-                    doc.shardIndex = i;
-                }
-            }
-            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
+            maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
+            reducedTopDocs = TopDocs.merge(new Sort(topFieldDocs.fields), from, size, (TopFieldDocs[]) shardDocs);
         } else {
             shardDocs = new TopDocs[aggregations.size()];
-            for (int i = 0; i < shardDocs.length; i++) {
-                InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-                shardDocs[i] = topHitsAgg.topDocs.topDocs;
-                shardHits[i] = topHitsAgg.searchHits;
-                for (ScoreDoc doc : shardDocs[i].scoreDocs) {
-                    doc.shardIndex = i;
-                }
-            }
+            maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
             reducedTopDocs = TopDocs.merge(from, size, shardDocs);
         }
-
-        float maxScore = Float.NaN;
-        for (InternalAggregation agg : aggregations) {
-            InternalTopHits topHitsAgg = (InternalTopHits) agg;
-            if (Float.isNaN(topHitsAgg.topDocs.maxScore) == false) {
-                if (Float.isNaN(maxScore)) {
-                    maxScore = topHitsAgg.topDocs.maxScore;
-                } else {
-                    maxScore = Math.max(maxScore, topHitsAgg.topDocs.maxScore);
-                }
-            }
-        }
-
-        final int[] tracker = new int[shardHits.length];
-        SearchHit[] hits = new SearchHit[reducedTopDocs.scoreDocs.length];
-        for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
-            ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
-            int position;
-            do {
-                position = tracker[scoreDoc.shardIndex]++;
-            } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
-            hits[i] = shardHits[scoreDoc.shardIndex].getAt(position);
-        }
         assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
+
         return new InternalTopHits(
             name,
             this.from,
             this.size,
             new TopDocsAndMaxScore(reducedTopDocs, maxScore),
-            new SearchHits(hits, reducedTopDocs.totalHits, maxScore),
+            extractSearchHits(aggregations, reducedTopDocs, shardDocs, maxScore),
             getMetadata()
         );
+    }
+
+    private static SearchHits extractSearchHits(
+        List<InternalAggregation> aggregations,
+        TopDocs reducedTopDocs,
+        TopDocs[] shardDocs,
+        float maxScore
+    ) {
+        final int[] tracker = new int[aggregations.size()];
+        ScoreDoc[] scoreDocs = reducedTopDocs.scoreDocs;
+        SearchHit[] hits = new SearchHit[scoreDocs.length];
+        for (int i = 0; i < scoreDocs.length; i++) {
+            ScoreDoc scoreDoc = scoreDocs[i];
+            int shardIndex = scoreDoc.shardIndex;
+            TopDocs topDocsForShard = shardDocs[shardIndex];
+            int position;
+            do {
+                position = tracker[shardIndex]++;
+            } while (topDocsForShard.scoreDocs[position] != scoreDoc);
+            hits[i] = ((InternalTopHits) aggregations.get(shardIndex)).searchHits.getAt(position);
+        }
+        return new SearchHits(hits, reducedTopDocs.totalHits, maxScore);
+    }
+
+    private static float reduceAndFindMaxScore(List<InternalAggregation> aggregations, TopDocs[] shardDocs) {
+        float maxScore = Float.NaN;
+        for (int i = 0; i < shardDocs.length; i++) {
+            InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
+            shardDocs[i] = topHitsAgg.topDocs.topDocs;
+            for (ScoreDoc doc : shardDocs[i].scoreDocs) {
+                doc.shardIndex = i;
+            }
+            final float max = topHitsAgg.topDocs.maxScore;
+            if (Float.isNaN(max) == false) {
+                maxScore = Float.isNaN(maxScore) ? max : Math.max(maxScore, max);
+            }
+        }
+        return maxScore;
     }
 
     @Override

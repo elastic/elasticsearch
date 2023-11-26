@@ -658,10 +658,6 @@ public class TaskManager implements ClusterStateApplier {
             ExceptionsHelper.reThrowIfNotNull(rootException);
         }
 
-        public boolean hasParent(TaskId parentTaskId) {
-            return task.getParentTaskId().equals(parentTaskId);
-        }
-
         public CancellableTask getTask() {
             return task;
         }

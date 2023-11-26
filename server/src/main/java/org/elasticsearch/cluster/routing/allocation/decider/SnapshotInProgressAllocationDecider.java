@@ -66,6 +66,11 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
             return YES_NOT_RUNNING;
         }
 
+        if (shardRouting.currentNodeId() == null) {
+            // Shard is not assigned to a node
+            return YES_NOT_SNAPSHOTTED;
+        }
+
         for (final var entriesByRepo : snapshotsInProgress.entriesByRepo()) {
             for (final var entry : entriesByRepo) {
                 if (entry.isClone()) {
@@ -74,20 +79,20 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
                 }
 
                 if (entry.hasShardsInInitState() == false) {
-                    // snapshot has no running shards
-                    // NB if all shards are paused this permits them to move even if the corresponding nodes aren't shutting down
+                    // this snapshot has no running shard snapshots
+                    // (NB this means we let ABORTED shards move without waiting for them to complete)
                     continue;
                 }
 
                 final var shardSnapshotStatus = entry.shards().get(shardRouting.shardId());
 
                 if (shardSnapshotStatus == null) {
-                    // snapshot is not snapshotting shard to allocate
+                    // this snapshot is not snapshotting the shard to allocate
                     continue;
                 }
 
                 if (shardSnapshotStatus.state().completed()) {
-                    // shard snapshot is complete
+                    // this shard snapshot is complete
 
                     /* TODO we want to block INIT and ABORTED shards from moving because they are still doing work on the data node, but can
                      *  we allow a WAITING shard to move? But if we allow all WAITING shards to move, they may move forever and never reach
@@ -96,16 +101,19 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
                     continue;
                 }
 
-                if (Objects.equals(shardSnapshotStatus.nodeId(), shardRouting.currentNodeId())) {
-                    return allocation.decision(
-                        Decision.THROTTLE,
-                        NAME,
-                        "waiting for snapshot [%s] of shard [%s] to complete on this node [%s]",
-                        entry.snapshot(),
-                        shardRouting.shardId(),
-                        shardRouting.currentNodeId()
-                    );
+                if (Objects.equals(shardRouting.currentNodeId(), shardSnapshotStatus.nodeId()) == false) {
+                    // this shard snapshot is allocated to a different node
+                    continue;
                 }
+
+                return allocation.decision(
+                    Decision.THROTTLE,
+                    NAME,
+                    "waiting for snapshot [%s] of shard [%s] to complete on node [%s]",
+                    entry.snapshot(),
+                    shardRouting.shardId(),
+                    shardRouting.currentNodeId()
+                );
             }
         }
 

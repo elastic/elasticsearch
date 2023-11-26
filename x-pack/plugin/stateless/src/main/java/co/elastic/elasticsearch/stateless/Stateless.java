@@ -233,6 +233,8 @@ public class Stateless extends Plugin
     public static final String SHARD_THREAD_POOL_SETTING = "stateless." + SHARD_THREAD_POOL + "_thread_pool";
     public static final String TRANSLOG_THREAD_POOL = BlobStoreRepository.STATELESS_TRANSLOG_THREAD_NAME;
     public static final String TRANSLOG_THREAD_POOL_SETTING = "stateless." + TRANSLOG_THREAD_POOL + "_thread_pool";
+    public static final String UPLOAD_THREAD_POOL = BlobStoreRepository.STATELESS_UPLOAD_THREAD_NAME;
+    public static final String UPLOAD_THREAD_POOL_SETTING = "stateless." + UPLOAD_THREAD_POOL + "_thread_pool";
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
@@ -521,15 +523,21 @@ public class Stateless extends Plugin
         final int shardMaxThreads;
         final int translogCoreThreads;
         final int translogMaxThreads;
+        final int uploadCoreThreads;
+        final int uploadMaxThreads;
 
         if (hasIndexRole) {
             shardMaxThreads = Math.min(processors * 4, 20);
             translogCoreThreads = 2;
             translogMaxThreads = Math.min(processors * 2, 8);
+            uploadCoreThreads = 2;
+            uploadMaxThreads = Math.min(processors * 2, 10);
         } else {
             shardMaxThreads = Math.min(processors * 4, 28);
             translogCoreThreads = 0;
             translogMaxThreads = 1;
+            uploadCoreThreads = 0;
+            uploadMaxThreads = 1;
         }
 
         return new ExecutorBuilder<?>[] {
@@ -548,6 +556,14 @@ public class Stateless extends Plugin
                 TimeValue.timeValueSeconds(30L),
                 true,
                 TRANSLOG_THREAD_POOL_SETTING
+            ),
+            new ScalingExecutorBuilder(
+                UPLOAD_THREAD_POOL,
+                uploadCoreThreads,
+                uploadMaxThreads,
+                TimeValue.timeValueSeconds(30L),
+                true,
+                UPLOAD_THREAD_POOL_SETTING
             ) };
     }
 

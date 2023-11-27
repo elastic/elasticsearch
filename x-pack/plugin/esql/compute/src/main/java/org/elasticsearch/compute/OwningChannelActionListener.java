@@ -18,7 +18,7 @@ import org.elasticsearch.transport.TransportResponse;
  *
  * Deprecated: use {@link ChannelActionListener} instead and ensure responses sent to it are properly closed after.
  */
-@Deprecated
+@Deprecated(forRemoval = true)
 public final class OwningChannelActionListener<Response extends TransportResponse> implements ActionListener<Response> {
     private final ChannelActionListener<Response> listener;
 

@@ -459,10 +459,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             if (missing.isPresent()) {
                 long missingGeneration = missing.getAsLong();
                 logger.trace("{} waiting for commit [{}] to finish before uploading commit [{}]", shardId, missingGeneration, generation);
-                shardCommitState.addListenerForUploadedGeneration(
-                    missingGeneration,
-                    notReadyListener.delegateFailure((l, unused) -> executeUpload(notReadyListener))
-                );
+                shardCommitState.addListenerForUploadedGeneration(missingGeneration, notReadyListener.delegateFailure((l, unused) -> {
+                    assert shardCommitState.pendingUploadGenerations.contains(missingGeneration) == false
+                        : "missingGeneration [" + missingGeneration + "] still in " + shardCommitState.pendingUploadGenerations;
+                    executeUpload(notReadyListener);
+                }));
             } else {
                 readyListener.onResponse(null);
             }
@@ -796,7 +797,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             recoveredPrimaryTerm = recoveredCommit.primaryTerm();
             recoveredGeneration = recoveredCommit.generation();
             assert assertRecoveredCommitFilesHaveBlobLocations(Map.copyOf(recoveredCommit.commitFiles()), Map.copyOf(blobLocations));
-            handleUploadedCommit(recoveredCommit);
+            handleUploadedCommit(recoveredCommit, false);
         }
 
         // Returns true if the upload should proceed. False if the upload should be skipped because shard stopping.
@@ -872,40 +873,63 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         public void markCommitUploaded(StatelessCompoundCommit commit) {
-            boolean removed = pendingUploadGenerations.remove(commit.generation());
-            assert removed;
-            handleUploadedCommit(commit);
+            handleUploadedCommit(commit, true);
         }
 
-        private void handleUploadedCommit(StatelessCompoundCommit commit) {
+        private void handleUploadedCommit(StatelessCompoundCommit commit, boolean isUpload) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to handle uploaded commit " + commit;
             final long newGeneration = commit.generation();
 
-            List<ActionListener<UploadedCommitInfo>> listenersToFire = null;
-            List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;
+            // We use two synchronized blocks to ensure:
+            // 1. Listeners are completed outside the synchronized blocks
+            // 2. Upload consumers are triggered in generation order
+            // 3. latestUploadedCommit, pendingUploadGenerations and generationListeners
+            // are updated in a single synchronized block to avoid racing
+
+            final List<ActionListener<UploadedCommitInfo>> listenersToFire = new ArrayList<>();
             synchronized (this) {
-                if (newGeneration > getMaxUploadedGeneration()) {
-                    latestUploadedCommit = commit;
-                } else {
-                    // Generation did not increase so just bail early
+                if (newGeneration <= getMaxUploadedGeneration()) {
+                    if (isUpload) {
+                        // Remove the commit from the pending list regardless just in case
+                        pendingUploadGenerations.remove(newGeneration);
+                    }
+                    assert false
+                        : "out of order generation [" + newGeneration + "] <= [" + getMaxUploadedGeneration() + "] for shard " + shardId;
                     return;
                 }
 
                 if (uploadedCommitConsumers != null) {
-                    listenersToFire = new ArrayList<>();
-
                     for (var consumer : uploadedCommitConsumers) {
                         listenersToFire.add(ActionListener.wrap(consumer::accept, e -> {}));
                     }
                 }
+            }
 
+            final UploadedCommitInfo uploadedCommitInfo = new UploadedCommitInfo(commit, Set.copyOf(blobLocations.keySet()));
+            // upload consumers must be triggered in generation order, hence trigger before removing from `pendingUploadGenerations`.
+            Exception exception = null;
+            try {
+                ActionListener.onResponse(listenersToFire, uploadedCommitInfo);
+            } catch (Exception e) {
+                assert false : e;
+                exception = e;
+            }
+
+            listenersToFire.clear();
+            synchronized (this) {
+                assert newGeneration > getMaxUploadedGeneration()
+                    : "out of order generation [" + newGeneration + "] <= [" + getMaxUploadedGeneration() + "] for shard " + shardId;
+                latestUploadedCommit = commit;
+                if (isUpload) {
+                    // Remove the commit from the pending list *after* upload consumers but *before* generation listeners are fired
+                    boolean removed = pendingUploadGenerations.remove(newGeneration);
+                    assert removed;
+                }
                 if (generationListeners != null) {
+                    List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;
                     for (Tuple<Long, ActionListener<Void>> tuple : generationListeners) {
                         Long generation = tuple.v1();
-                        if (getMaxUploadedGeneration() >= generation) {
-                            if (listenersToFire == null) {
-                                listenersToFire = new ArrayList<>();
-                            }
+                        if (newGeneration >= generation) {
                             listenersToFire.add(tuple.v2().map(c -> null));
                         } else {
                             if (listenersToReregister == null) {
@@ -918,8 +942,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
             }
 
-            if (listenersToFire != null) {
-                ActionListener.onResponse(listenersToFire, new UploadedCommitInfo(commit, Set.copyOf(blobLocations.keySet())));
+            // It is OK for generation listeners to be completed out of generation order
+            try {
+                ActionListener.onResponse(listenersToFire, uploadedCommitInfo);
+            } catch (Exception e) {
+                assert false : e;
+                if (exception != null) {
+                    exception.addSuppressed(e);
+                } else {
+                    exception = e;
+                }
+            }
+
+            if (exception != null) {
+                throw (RuntimeException) exception;
             }
         }
 

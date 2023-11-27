@@ -621,8 +621,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         new ShardSnapshotStatus(
                             localNodeId,
                             ShardState.FAILED,
-                            "failed to clone shard snapshot",
-                            shardStatusBefore.generation()
+                            shardStatusBefore.generation(),
+                            "failed to clone shard snapshot"
                         ),
                         ActionListener.runBefore(
                             ActionListener.wrap(
@@ -1171,8 +1171,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final ShardSnapshotStatus failedState = new ShardSnapshotStatus(
                     shardStatus.nodeId(),
                     ShardState.FAILED,
-                    "shard is unassigned",
-                    shardStatus.generation()
+                    shardStatus.generation(),
+                    "shard is unassigned"
                 );
                 shards.put(shardId, failedState);
                 knownFailures.put(shardEntry.getKey(), failedState);
@@ -1186,8 +1186,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     final ShardSnapshotStatus failedState = new ShardSnapshotStatus(
                         shardStatus.nodeId(),
                         ShardState.FAILED,
-                        "node left the cluster during snapshot",
-                        shardStatus.generation()
+                        shardStatus.generation(),
+                        "node left the cluster during snapshot"
                     );
                     shards.put(shardId, failedState);
                     knownFailures.put(shardEntry.getKey(), failedState);
@@ -2855,15 +2855,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private static ShardSnapshotStatus initShardSnapshotStatus(ShardGeneration shardRepoGeneration, ShardRouting primary) {
         ShardSnapshotStatus shardSnapshotStatus;
         if (primary == null || primary.assignedToNode() == false) {
-            shardSnapshotStatus = new ShardSnapshotStatus(null, ShardState.MISSING, "primary shard is not allocated", shardRepoGeneration);
+            shardSnapshotStatus = new ShardSnapshotStatus(null, ShardState.MISSING, shardRepoGeneration, "primary shard is not allocated");
         } else if (primary.relocating() || primary.initializing()) {
             shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration);
         } else if (primary.started() == false) {
             shardSnapshotStatus = new ShardSnapshotStatus(
                 primary.currentNodeId(),
                 ShardState.MISSING,
-                "primary shard hasn't been started yet",
-                shardRepoGeneration
+                shardRepoGeneration,
+                "primary shard hasn't been started yet"
             );
         } else {
             shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);

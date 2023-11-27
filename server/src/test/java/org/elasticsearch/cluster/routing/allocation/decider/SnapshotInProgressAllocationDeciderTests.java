@@ -210,8 +210,8 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
                 nodeId,
                 shardState,
-                randomAlphaOfLength(10),
-                ShardGeneration.newGeneration(random())
+                ShardGeneration.newGeneration(random()),
+                randomAlphaOfLength(10)
             );
         } else {
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, ShardGeneration.newGeneration(random()));

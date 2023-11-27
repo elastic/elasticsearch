@@ -22,7 +22,15 @@ public enum FeatureMetric {
     LIMIT,
     SORT,
     STATS,
-    WHERE;
+    WHERE,
+    ENRICH,
+    MV_EXPAND,
+    SHOW,
+    ROW,
+    FROM,
+    DROP,
+    KEEP,
+    RENAME;
 
     @Override
     public String toString() {

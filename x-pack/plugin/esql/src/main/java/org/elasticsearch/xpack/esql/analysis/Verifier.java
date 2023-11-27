@@ -12,10 +12,14 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotE
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -34,8 +38,8 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunctio
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
@@ -51,9 +55,13 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.DISSECT;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.ENRICH;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.EVAL;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.FROM;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.GROK;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.MV_EXPAND;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.ROW;
+import static org.elasticsearch.xpack.esql.stats.FeatureMetric.SHOW;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.SORT;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.WHERE;
@@ -73,9 +81,11 @@ public class Verifier {
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
+     * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
      * @return a collection of verification failures; empty if and only if the plan is valid
      */
-    Collection<Failure> verify(LogicalPlan plan) {
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
+        assert partialMetrics != null;
         Set<Failure> failures = new LinkedHashSet<>();
 
         // quick verification for unresolved attributes
@@ -152,7 +162,7 @@ public class Verifier {
 
         // gather metrics
         if (failures.isEmpty()) {
-            gatherMetrics(plan);
+            gatherMetrics(plan, partialMetrics);
         }
 
         return failures;
@@ -259,17 +269,24 @@ public class Verifier {
         });
     }
 
-    private void gatherMetrics(LogicalPlan plan) {
-        BitSet b = new BitSet(FeatureMetric.values().length);
+    private void gatherMetrics(LogicalPlan plan, BitSet b) {
         plan.forEachDown(p -> {
             if (p instanceof Dissect) {
                 b.set(DISSECT.ordinal());
+            } else if (p instanceof Enrich) {
+                b.set(ENRICH.ordinal());
             } else if (p instanceof Eval) {
                 b.set(EVAL.ordinal());
+            } else if (p instanceof EsRelation) {
+                b.set(FROM.ordinal());
             } else if (p instanceof Grok) {
                 b.set(GROK.ordinal());
-            } else if (p instanceof Limit) {
-                b.set(LIMIT.ordinal());
+            } else if (p instanceof MvExpand) {
+                b.set(MV_EXPAND.ordinal());
+            } else if (p instanceof Row) {
+                b.set(ROW.ordinal());
+            } else if (p instanceof ShowInfo || p instanceof ShowFunctions) {
+                b.set(SHOW.ordinal());
             } else if (p instanceof OrderBy) {
                 b.set(SORT.ordinal());
             } else if (p instanceof Aggregate) {

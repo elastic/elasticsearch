@@ -498,8 +498,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 System.getProperty("es.real_memory_circuit_breaker.g1_over_limit_strategy.lock_timeout_ms", "500")
             );
             TimeValue lockTimeout = TimeValue.timeValueMillis(lockTimeoutInMillis);
-            // TODO: consider a separate property for the lock timeout under full GC
-            TimeValue fullGCLockTimeout = TimeValue.timeValueMillis(lockTimeoutInMillis * 2);
+            // TODO: consider a separate property for the lock timeout under full GC and/or a ratio
+            TimeValue fullGCLockTimeout = TimeValue.timeValueMillis(lockTimeoutInMillis);
             // hardcode interval, do not want any tuning of it outside code changes.
             return new G1OverLimitStrategy(
                 jvmInfo,
@@ -734,20 +734,20 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
                 this.lastCheckTime = timeSupplier.getAsLong();
                 this.attemptNo = 0;
+            }
 
-                long reclaimedMemory = memoryUsed.baseUsage - currentMemoryUsageSupplier.getAsLong();
-                // TODO: use a threshold? Relative to % of memory?
-                if (reclaimedMemory <= 0) {
-                    long now = timeSupplier.getAsLong();
-                    boolean canPerformFullGC = now >= lastFullGCTime + fullGCMinimumInterval;
-                    if (canPerformFullGC) {
-                        // Enough time passed between 2 full GC fallbacks
-                        performingFullGC = true;
-                        logger.info("attempt to trigger young GC failed to bring memory down, triggering full GC");
-                        performFullGC();
-                        performingFullGC = false;
-                        this.lastFullGCTime = timeSupplier.getAsLong();
-                    }
+            long reclaimedMemory = memoryUsed.baseUsage - currentMemoryUsageSupplier.getAsLong();
+            // TODO: use a threshold? Relative to % of memory?
+            if (reclaimedMemory <= 0) {
+                long now = timeSupplier.getAsLong();
+                boolean canPerformFullGC = now >= lastFullGCTime + fullGCMinimumInterval;
+                if (canPerformFullGC) {
+                    // Enough time passed between 2 full GC fallbacks
+                    performingFullGC = true;
+                    logger.info("attempt to trigger young GC failed to bring memory down, triggering full GC");
+                    performFullGC();
+                    performingFullGC = false;
+                    this.lastFullGCTime = timeSupplier.getAsLong();
                 }
             }
 

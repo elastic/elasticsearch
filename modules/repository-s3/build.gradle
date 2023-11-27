@@ -48,6 +48,7 @@ dependencies {
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')
 
   yamlRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+  internalClusterTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 }
 
 restResources {

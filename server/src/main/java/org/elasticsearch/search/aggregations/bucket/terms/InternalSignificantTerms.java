@@ -213,11 +213,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             @SuppressWarnings("unchecked")
             InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
             for (B bucket : terms.getBuckets()) {
-                List<B> existingBuckets = buckets.get(bucket.getKeyAsString());
-                if (existingBuckets == null) {
-                    existingBuckets = new ArrayList<>(aggregations.size());
-                    buckets.put(bucket.getKeyAsString(), existingBuckets);
-                }
+                List<B> existingBuckets = buckets.computeIfAbsent(bucket.getKeyAsString(), k -> new ArrayList<>(aggregations.size()));
                 // Adjust the buckets with the global stats representing the
                 // total size of the pots from which the stats are drawn
                 existingBuckets.add(

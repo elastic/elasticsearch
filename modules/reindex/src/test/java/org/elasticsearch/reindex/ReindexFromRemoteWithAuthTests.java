@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -81,7 +81,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Before
     public void setupSourceIndex() {
-        client().prepareIndex("source").setSource("test", "test").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("source").setSource("test", "test").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
     }
 
     @Before
@@ -199,7 +199,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
             ActionListener<Response> listener,
             ActionFilterChain<Request, Response> chain
         ) {
-            if (false == action.equals(SearchAction.NAME)) {
+            if (false == action.equals(TransportSearchAction.TYPE.name())) {
                 chain.proceed(task, action, request, listener);
                 return;
             }

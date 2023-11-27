@@ -35,20 +35,18 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      DoubleBlock valBlock = (DoubleBlock) valRef.block();
-      try (Block.Ref decimalsRef = decimals.eval(page)) {
-        LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
+  public Block eval(Page page) {
+    try (DoubleBlock valBlock = (DoubleBlock) val.eval(page)) {
+      try (LongBlock decimalsBlock = (LongBlock) decimals.eval(page)) {
         DoubleVector valVector = valBlock.asVector();
         if (valVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+          return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
         LongVector decimalsVector = decimalsBlock.asVector();
         if (decimalsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+          return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), valVector, decimalsVector).asBlock());
+        return eval(page.getPositionCount(), valVector, decimalsVector).asBlock();
       }
     }
   }

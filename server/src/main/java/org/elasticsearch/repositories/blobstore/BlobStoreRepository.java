@@ -179,6 +179,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final String STATELESS_SHARD_THREAD_NAME = "stateless_shard";
     public static final String STATELESS_TRANSLOG_THREAD_NAME = "stateless_translog";
+    public static final String STATELESS_UPLOAD_THREAD_NAME = "stateless_upload";
 
     public static final String SNAPSHOT_PREFIX = "snap-";
 
@@ -1984,7 +1985,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             ThreadPool.Names.SNAPSHOT_META,
             ThreadPool.Names.GENERIC,
             STATELESS_SHARD_THREAD_NAME,
-            STATELESS_TRANSLOG_THREAD_NAME
+            STATELESS_TRANSLOG_THREAD_NAME,
+            STATELESS_UPLOAD_THREAD_NAME
         );
     }
 

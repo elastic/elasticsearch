@@ -177,7 +177,8 @@ public class TransportVersions {
     public static final TransportVersion TRANSFORM_GET_CHECKPOINT_QUERY_AND_CLUSTER_ADDED = def(8_544_00_0);
     public static final TransportVersion GRANT_API_KEY_CLIENT_AUTHENTICATION_ADDED = def(8_545_00_0);
     public static final TransportVersion PIT_WITH_INDEX_FILTER = def(8_546_00_0);
-
+    public static final TransportVersion NODE_INFO_VERSION_AS_STRING = def(8_547_00_0);
+    public static final TransportVersion GET_API_KEY_INVALIDATION_TIME_ADDED = def(8_548_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

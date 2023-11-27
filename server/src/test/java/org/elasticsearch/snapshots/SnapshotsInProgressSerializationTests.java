@@ -523,8 +523,12 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     }
 
     public static State randomState(Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
-        return SnapshotsInProgress.completed(shards.values())
-            ? randomFrom(State.SUCCESS, State.FAILED)
-            : randomFrom(State.STARTED, State.INIT, State.ABORTED);
+        return SnapshotsInProgress.completed(shards.values()) ? randomFrom(State.SUCCESS, State.FAILED)
+            : shards.values()
+                .stream()
+                .map(SnapshotsInProgress.ShardSnapshotStatus::state)
+                .allMatch(st -> st.completed() || st == ShardState.ABORTED)
+                ? State.ABORTED
+            : randomFrom(State.STARTED, State.INIT);
     }
 }

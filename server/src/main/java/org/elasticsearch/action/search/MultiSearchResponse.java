@@ -188,6 +188,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     @Override
     public Iterator<Item> iterator() {
+        assert hasReferences();
         return Iterators.forArray(items);
     }
 
@@ -195,6 +196,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
      * The list of responses, the order is the same as the one provided in the request.
      */
     public Item[] getResponses() {
+        assert hasReferences();
         return this.items;
     }
 

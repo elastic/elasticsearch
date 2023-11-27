@@ -29,6 +29,7 @@ date_extract             |? date_extract(arg1:?, arg2:?)                        
 date_format              |? date_format(arg1:?, arg2:?)                           |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 date_parse               |"date date_parse(?datePattern:keyword, dateString:keyword|text)"|[datePattern, dateString]|["keyword", "keyword|text"]|[A valid date pattern, A string representing a date]|date                 |Parses a string into a date value | [true, false]       | false         
 date_trunc               |? date_trunc(arg1:?, arg2:?)                            |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+delay                    |? delay(arg1:?)                                         | arg1                    | ?                |""                                                  |?                    | ""                      | false                | false
 e                        |? e()                                                   | null                    | null             | null                                               |?                    | ""                      | null                 | false
 ends_with                |? ends_with(arg1:?, arg2:?)                             |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 floor                    |"? floor(n:integer|long|double|unsigned_long)"    |n                        |"integer|long|double|unsigned_long"    | ""                                                 |?                    | ""                      | false                | false
@@ -117,7 +118,8 @@ synopsis:keyword
 ? date_extract(arg1:?, arg2:?)                          
 ? date_format(arg1:?, arg2:?)                           
 "date date_parse(?datePattern:keyword, dateString:keyword|text)"
-? date_trunc(arg1:?, arg2:?)                            
+? date_trunc(arg1:?, arg2:?)       
+? delay(arg1:?)                      
 ? e()                                                   
 ? ends_with(arg1:?, arg2:?)                             
 "? floor(n:integer|long|double|unsigned_long)"    

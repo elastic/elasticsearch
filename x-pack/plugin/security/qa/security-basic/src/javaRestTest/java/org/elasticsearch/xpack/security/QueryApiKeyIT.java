@@ -164,6 +164,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final String queryString = randomFrom("""
             {"query": { "term": {"name": "temporary-key-1"} } }""", Strings.format("""
             {"query":{"bool":{"must":[{"term":{"name":{"value":"temporary-key-1"}}},\
+            {"range": {"invalidation": {"lte": "now"}}},
             {"term":{"invalidated":{"value":"%s"}}}]}}}
             """, randomBoolean()));
 

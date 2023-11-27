@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -154,7 +154,7 @@ class ScrollDataExtractor implements DataExtractor {
             .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.extractedFields.timeField(), start, context.end))
             .runtimeMappings(context.runtimeMappings);
 
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE).setScroll(SCROLL_TIMEOUT)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, TransportSearchAction.TYPE).setScroll(SCROLL_TIMEOUT)
             .setIndices(context.indices)
             .setIndicesOptions(context.indicesOptions)
             .setAllowPartialSearchResults(false)
@@ -250,7 +250,9 @@ class ScrollDataExtractor implements DataExtractor {
             context.headers,
             ClientHelper.ML_ORIGIN,
             client,
-            () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId).get()
+            () -> new SearchScrollRequestBuilder(client, TransportSearchScrollAction.TYPE).setScroll(SCROLL_TIMEOUT)
+                .setScrollId(scrollId)
+                .get()
         );
         try {
             checkForSkippedClusters(searchResponse);
@@ -284,7 +286,7 @@ class ScrollDataExtractor implements DataExtractor {
                 context.headers,
                 ClientHelper.ML_ORIGIN,
                 client,
-                () -> client.execute(ClearScrollAction.INSTANCE, request).actionGet()
+                () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
             );
         }
     }

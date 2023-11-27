@@ -58,7 +58,6 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchRequest;
@@ -2000,7 +1999,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
                 SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
                 actions.put(
-                    SearchAction.INSTANCE,
+                    TransportSearchAction.TYPE,
                     new TransportSearchAction(
                         threadPool,
                         new NoneCircuitBreakerService(),

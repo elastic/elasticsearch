@@ -149,10 +149,11 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         licenseChecker.requireSupportedLicense();
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
         responseBuilder.setRequestedDuration(request.getRequestedDuration());
-        responseBuilder.setCustomCostFactor(request.getCustomCostFactor());
+        responseBuilder.setAwsCostFactor(request.getAwsCostFactor());
         responseBuilder.setCustomCO2PerKWH(request.getCustomCO2PerKWH());
         responseBuilder.setCustomDatacenterPUE(request.getCustomDatacenterPUE());
         responseBuilder.setCustomPerCoreWatt(request.getCustomPerCoreWatt());
+        responseBuilder.setCustomCostPerCoreHour(request.getCustomCostPerCoreHour());
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         if (request.getIndices() == null) {
             searchProfilingEvents(client, request, submitListener, responseBuilder);
@@ -531,7 +532,8 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 instanceTypeService,
                 hostsTable,
                 responseBuilder.getRequestedDuration(),
-                responseBuilder.customCostFactor
+                responseBuilder.awsCostFactor,
+                responseBuilder.customCostPerCoreHour
             );
             Map<String, TraceEvent> events = responseBuilder.stackTraceEvents;
             List<String> missingStackTraces = new ArrayList<>();
@@ -738,10 +740,11 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private double samplingRate;
         private long totalSamples;
         private Double requestedDuration;
-        private Double customCostFactor;
+        private Double awsCostFactor;
         private Double customCO2PerKWH;
         private Double customDatacenterPUE;
         private Double customPerCoreWatt;
+        private Double customCostPerCoreHour;
 
         public void setStackTraces(Map<String, StackTrace> stackTraces) {
             this.stackTraces = stackTraces;
@@ -807,8 +810,8 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             return end.getEpochSecond() - start.getEpochSecond();
         }
 
-        public void setCustomCostFactor(Double customCostFactor) {
-            this.customCostFactor = customCostFactor;
+        public void setAwsCostFactor(Double awsCostFactor) {
+            this.awsCostFactor = awsCostFactor;
         }
 
         public void setCustomCO2PerKWH(Double customCO2PerKWH) {
@@ -821,6 +824,10 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
         public void setCustomPerCoreWatt(Double customPerCoreWatt) {
             this.customPerCoreWatt = customPerCoreWatt;
+        }
+
+        public void setCustomCostPerCoreHour(Double customCostPerCoreHour) {
+            this.customCostPerCoreHour = customCostPerCoreHour;
         }
 
         public void setTotalSamples(long totalSamples) {

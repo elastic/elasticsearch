@@ -38,7 +38,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids");
     public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
-    public static final ParseField CUSTOM_COST_FACTOR_FIELD = new ParseField("custom_cost_factor");
+    public static final ParseField AWS_COST_FACTOR_FIELD = new ParseField("aws_cost_factor");
     public static final ParseField CUSTOM_CO2_PER_KWH = new ParseField("co2_per_kwh");
     public static final ParseField CUSTOM_DATACENTER_PUE = new ParseField("datacenter_pue");
     public static final ParseField CUSTOM_PER_CORE_WATT = new ParseField("per_core_watt");
@@ -49,7 +49,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private String indices;
     private String stackTraceIds;
     private Double requestedDuration;
-    private Double customCostFactor;
+    private Double awsCostFactor;
     private Double customCO2PerKWH;
     private Double customDatacenterPUE;
     private Double customPerCoreWatt;
@@ -66,7 +66,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public GetStackTracesRequest(
         Integer sampleSize,
         Double requestedDuration,
-        Double customCostFactor,
+        Double awsCostFactor,
         QueryBuilder query,
         String indices,
         String stackTraceIds,
@@ -76,7 +76,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     ) {
         this.sampleSize = sampleSize;
         this.requestedDuration = requestedDuration;
-        this.customCostFactor = customCostFactor;
+        this.awsCostFactor = awsCostFactor;
         this.query = query;
         this.indices = indices;
         this.stackTraceIds = stackTraceIds;
@@ -89,7 +89,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.sampleSize = in.readOptionalInt();
         this.requestedDuration = in.readOptionalDouble();
-        this.customCostFactor = in.readOptionalDouble();
+        this.awsCostFactor = in.readOptionalDouble();
         this.adjustSampleCount = in.readOptionalBoolean();
         this.indices = in.readOptionalString();
         this.stackTraceIds = in.readOptionalString();
@@ -103,7 +103,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalInt(sampleSize);
         out.writeOptionalDouble(requestedDuration);
-        out.writeOptionalDouble(customCostFactor);
+        out.writeOptionalDouble(awsCostFactor);
         out.writeOptionalBoolean(adjustSampleCount);
         out.writeOptionalString(indices);
         out.writeOptionalString(stackTraceIds);
@@ -120,8 +120,8 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         return requestedDuration;
     }
 
-    public Double getCustomCostFactor() {
-        return customCostFactor;
+    public Double getAwsCostFactor() {
+        return awsCostFactor;
     }
 
     public Double getCustomCO2PerKWH() {
@@ -179,8 +179,8 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                     this.stackTraceIds = parser.text();
                 } else if (REQUESTED_DURATION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.requestedDuration = parser.doubleValue();
-                } else if (CUSTOM_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    this.customCostFactor = parser.doubleValue();
+                } else if (AWS_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.awsCostFactor = parser.doubleValue();
                 } else if (CUSTOM_CO2_PER_KWH.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.customCO2PerKWH = parser.doubleValue();
                 } else if (CUSTOM_DATACENTER_PUE.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -240,7 +240,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
             validationException = requirePositive(SAMPLE_SIZE_FIELD, sampleSize, validationException);
         }
         validationException = requirePositive(REQUESTED_DURATION_FIELD, requestedDuration, validationException);
-        validationException = requirePositive(CUSTOM_COST_FACTOR_FIELD, customCostFactor, validationException);
+        validationException = requirePositive(AWS_COST_FACTOR_FIELD, awsCostFactor, validationException);
         validationException = requirePositive(CUSTOM_CO2_PER_KWH, customCO2PerKWH, validationException);
         validationException = requirePositive(CUSTOM_DATACENTER_PUE, customDatacenterPUE, validationException);
         validationException = requirePositive(CUSTOM_PER_CORE_WATT, customPerCoreWatt, validationException);
@@ -267,7 +267,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 appendField(sb, "stacktrace_ids", stackTraceIds);
                 appendField(sb, "sample_size", sampleSize);
                 appendField(sb, "requested_duration", requestedDuration);
-                appendField(sb, "custom_cost_factor", customCostFactor);
+                appendField(sb, "aws_cost_factor", awsCostFactor);
                 appendField(sb, "co2_per_kwh", customCO2PerKWH);
                 appendField(sb, "datacenter_pue", customDatacenterPUE);
                 appendField(sb, "per_core_watt", customPerCoreWatt);

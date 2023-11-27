@@ -1091,6 +1091,70 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         latch.await();
     }
 
+    public void testNoopMappingUpdateInfiniteLoopPrevention() throws Exception {
+        UpdateRequest writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
+
+        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(
+            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()),
+            "id"
+        );
+
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenAnswer(
+            ir -> mappingUpdate
+        );
+        when(shard.shardId()).thenReturn(shardId);
+        MapperService mapperService = mock(MapperService.class);
+        when(shard.mapperService()).thenReturn(mapperService);
+        when(shard.getBulkOperationListener()).thenReturn(mock(ShardBulkStats.class));
+        when(shard.getFailedIndexResult(any(Exception.class), anyLong(), anyString())).thenCallRealMethod();
+
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        when(documentMapper.mappingSource()).thenReturn(CompressedXContent.fromJSON("{}"));
+        // returning the same document mapper to simulate a noop mapping update
+        when(mapperService.documentMapper()).thenReturn(documentMapper);
+        when(mapperService.merge(any(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
+
+        UpdateHelper updateHelper = mock(UpdateHelper.class);
+        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+            new UpdateHelper.Result(
+                updateResponse,
+                randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
+                Collections.singletonMap("field", "value"),
+                Requests.INDEX_CONTENT_TYPE
+            )
+        );
+
+        BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest,
+            shard,
+            updateHelper,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            listener -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
+                BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();
+                assertThat(
+                    primaryResponse.getFailure().getCause().getMessage(),
+                    equalTo(
+                        "On retry, this indexing request resulted in another noop mapping update."
+                            + " Failing the indexing operation to prevent an infinite retry loop."
+                    )
+                );
+            }), latch),
+            threadPool,
+            Names.WRITE
+        );
+        latch.await();
+    }
+
     private void randomlySetIgnoredPrimaryResponse(BulkItemRequest primaryRequest) {
         if (randomBoolean()) {
             // add a response to the request and thereby check that it is ignored for the primary.

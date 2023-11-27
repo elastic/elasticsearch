@@ -164,18 +164,18 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     @Override
     public boolean tryIncRef() {
-        boolean incremented = false;
+        boolean incremented = true;
         for (BulkItemRequest item : items) {
-            incremented = item.tryIncRef() || incremented;
+            incremented = item.tryIncRef() && incremented;
         }
         return incremented;
     }
 
     @Override
     public boolean decRef() {
-        boolean decremented = false;
+        boolean decremented = true;
         for (BulkItemRequest item : items) {
-            decremented = item.decRef() || decremented;
+            decremented = item.decRef() && decremented;
         }
         return decremented;
     }

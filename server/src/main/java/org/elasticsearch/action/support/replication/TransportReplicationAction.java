@@ -593,10 +593,8 @@ public abstract class TransportReplicationAction<
     ) {
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
         replicaRequest.incRef();
-        ActionListener<ReplicaResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), () -> {
-            releasable.close();
-            replicaRequest.decRef();
-        });
+        ActionListener<ReplicaResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
+        listener = ActionListener.runAfter(listener, replicaRequest::decRef);
         try {
             new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
         } catch (RuntimeException e) {

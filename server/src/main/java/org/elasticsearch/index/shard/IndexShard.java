@@ -985,8 +985,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             verifyNotClosed(e);
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo, sourceToParse.id());
         }
+        Engine.IndexResult result = index(engine, operation);
         operation.close();
-        return index(engine, operation);
+        return result;
     }
 
     public static Engine.Index prepareIndex(

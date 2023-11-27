@@ -130,6 +130,8 @@ public class ReplicationOperation<
         this.primaryResult = primaryResult;
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         if (replicaRequest != null) {
+
+            replicaRequest.incRef();
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] op [{}] completed on primary for request [{}]", primary.routingEntry().shardId(), opType, request);
             }
@@ -170,6 +172,7 @@ public class ReplicationOperation<
             final PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
             markUnavailableShardsAsStale(replicaRequest, replicationGroup);
             performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup, pendingReplicationActions);
+            replicaRequest.decRef();
         }
         primaryResult.runPostReplicationActions(new ActionListener<>() {
 

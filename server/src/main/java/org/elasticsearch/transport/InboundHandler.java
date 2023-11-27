@@ -379,7 +379,9 @@ public class InboundHandler {
         final var executor = handler.executor(threadPool);
         if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             // no need to provide a buffer release here, we never escape the buffer when handling directly
+            inboundMessage.incRef();
             doHandleResponse(handler, remoteAddress, stream, inboundMessage.getHeader(), () -> {});
+            inboundMessage.decRef();
         } else {
             inboundMessage.incRef();
             // release buffer once we deserialize the message, but have a fail-safe in #onAfter below in case that didn't work out

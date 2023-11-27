@@ -17,6 +17,14 @@ If you're interested in using {es} with Python, check out Elastic Search Labs. T
 ====
 
 [discrete]
+[[getting-started-video]]
+== Video
+
+This video walks you through the steps in this guide, using {ecloud}.
+
+video::888724429[vimeo,height=480]
+
+[discrete]
 [[run-elasticsearch]]
 === Run {es}
 

@@ -177,24 +177,6 @@ javaRestTest      |employees      |VIEW      |ALIAS
 ;
 
 
-//
-// include FROZEN
-//
-showTablesIncludeFrozen
-// tag::showTablesIncludeFrozen
-SHOW TABLES INCLUDE FROZEN;
-
- catalog       |     name      | type     |     kind
----------------+---------------+----------+---------------
-javaRestTest      |archive        |TABLE     |FROZEN INDEX
-javaRestTest      |emp            |TABLE     |INDEX
-javaRestTest      |employees      |VIEW      |ALIAS
-javaRestTest      |library        |TABLE     |INDEX
-
-// end::showTablesIncludeFrozen
-;
-
-
 ///////////////////////////////
 //
 // Show Functions
@@ -516,17 +498,6 @@ SELECT * FROM "emp" LIMIT 1;
 1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |Georgi Facello |57305
 
 // end::fromTableQuoted
-;
-
-fromTableIncludeFrozen
-// tag::fromTableIncludeFrozen
-SELECT * FROM FROZEN archive LIMIT 1;
-
-     author      |        name        |  page_count   |    release_date    
------------------+--------------------+---------------+--------------------
-James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00Z
-
-// end::fromTableIncludeFrozen
 ;
 
 fromTableQuoted

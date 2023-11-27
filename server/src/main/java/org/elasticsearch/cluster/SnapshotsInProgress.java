@@ -77,8 +77,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     // all those WAITING shards back to state INIT. The problem is that the data node needs to be able to distinguish an INIT shard whose
     // snapshot was successfully paused and now needs to be resumed from an INIT shard whose move to state WAITING has not yet been
     // processed on the master: the latter kind of shard will move back to state WAITING in a subsequent update and so shouldn't be resumed.
-    // The solution is to avoid moving any shards back to state INIT while the node appears in this set and, conversely, only remove nodes
-    // from this set when none of their shards are in INIT state.
+    // The solution is to wait for all the shards on the previously-shutting-down node to finish pausing before resuming any of them. We do
+    // this by tracking the nodes in this field, avoiding moving any shards back to state INIT while the node appears in this set and,
+    // conversely, we only remove nodes from this set when none of their shards are in INIT state.
     private final Set<String> nodesIdsForRemoval;
 
     public static SnapshotsInProgress get(ClusterState state) {

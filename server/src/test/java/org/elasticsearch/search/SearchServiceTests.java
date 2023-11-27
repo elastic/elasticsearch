@@ -47,8 +47,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -83,7 +81,6 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -102,8 +99,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.NonCountingTermQuery;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -125,8 +120,6 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1956,80 +1949,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testDetermineMaximumNumberOfSlices() {
-        IndexService indexService = createIndex("index", Settings.EMPTY);
-        IndexShard indexShard = indexService.getShard(0);
-        ShardSearchRequest parallelReq = new ShardSearchRequest(
-            OriginalIndices.NONE,
-            new SearchRequest().allowPartialSearchResults(randomBoolean()),
-            indexShard.shardId(),
-            0,
-            indexService.numberOfShards(),
-            AliasFilter.EMPTY,
-            1f,
-            System.currentTimeMillis(),
-            null
-        );
-        ShardSearchRequest singleSliceReq = new ShardSearchRequest(
-            OriginalIndices.NONE,
-            new SearchRequest().allowPartialSearchResults(randomBoolean())
-                .source(new SearchSourceBuilder().sort(SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME))),
-            indexShard.shardId(),
-            0,
-            indexService.numberOfShards(),
-            AliasFilter.EMPTY,
-            1f,
-            System.currentTimeMillis(),
-            null
-        );
-        int executorPoolSize = randomIntBetween(1, 100);
-        ExecutorService threadPoolExecutor = EsExecutors.newFixed(
-            "test",
-            executorPoolSize,
-            0,
-            Thread::new,
-            new ThreadContext(Settings.EMPTY),
-            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
-        );
-        ExecutorService notThreadPoolExecutor = Executors.newWorkStealingPool();
-
-        SearchService service = getInstanceFromNode(SearchService.class);
-        {
-            assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(threadPoolExecutor, parallelReq, ResultsType.DFS));
-            assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(threadPoolExecutor, singleSliceReq, ResultsType.DFS));
-            assertEquals(1, service.determineMaximumNumberOfSlices(null, parallelReq, ResultsType.DFS));
-            assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(threadPoolExecutor, parallelReq, ResultsType.QUERY));
-            assertEquals(1, service.determineMaximumNumberOfSlices(threadPoolExecutor, singleSliceReq, ResultsType.QUERY));
-            assertEquals(1, service.determineMaximumNumberOfSlices(notThreadPoolExecutor, parallelReq, ResultsType.DFS));
-        }
-        try {
-            ClusterUpdateSettingsResponse response = client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false).build())
-                .get();
-            assertTrue(response.isAcknowledged());
-            {
-                assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(threadPoolExecutor, parallelReq, ResultsType.DFS));
-                assertEquals(1, service.determineMaximumNumberOfSlices(null, parallelReq, ResultsType.DFS));
-                assertEquals(1, service.determineMaximumNumberOfSlices(threadPoolExecutor, parallelReq, ResultsType.QUERY));
-                assertEquals(1, service.determineMaximumNumberOfSlices(null, parallelReq, ResultsType.QUERY));
-                assertEquals(1, service.determineMaximumNumberOfSlices(notThreadPoolExecutor, parallelReq, ResultsType.DFS));
-            }
-        } finally {
-            // reset original default setting
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey()).build())
-                .get();
-            {
-                assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(threadPoolExecutor, parallelReq, ResultsType.DFS));
-                assertEquals(executorPoolSize, service.determineMaximumNumberOfSlices(threadPoolExecutor, parallelReq, ResultsType.QUERY));
-            }
-        }
-    }
-
     /**
      * Verify that a single slice is created for requests that don't support parallel collection, while computation
      * is still offloaded to the worker threads. Also ensure multiple slices are created for requests that do support
@@ -2214,74 +2133,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         );
                     }
                 }
-            }
-        }
-    }
-
-    public void testIsParallelCollectionSupportedForResults() throws Exception {
-        SearchSourceBuilder searchSourceBuilderOrNull = randomBoolean() ? null : new SearchSourceBuilder();
-        for (var resultsType : ResultsType.values()) {
-            switch (resultsType) {
-                case NONE, FETCH -> assertFalse(
-                    "NONE and FETCH phases do not support parallel collection.",
-                    SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderOrNull, randomBoolean())
-                );
-                case DFS -> assertTrue(
-                    "DFS phase always supports parallel collection.",
-                    SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderOrNull, randomBoolean())
-                );
-                case QUERY -> {
-                    SearchSourceBuilder searchSourceBuilderNoAgg = new SearchSourceBuilder();
-                    assertTrue(
-                        "Parallel collection should be supported for the query phase when no agg is present.",
-                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderNoAgg, true)
-                    );
-                    assertTrue(
-                        "Parallel collection should be supported for the query phase when the source is null.",
-                        SearchService.isParallelCollectionSupportedForResults(resultsType, null, true)
-                    );
-
-                    SearchSourceBuilder searchSourceAggSupportsParallelCollection = new SearchSourceBuilder();
-                    searchSourceAggSupportsParallelCollection.aggregation(new DateRangeAggregationBuilder("dateRange"));
-                    assertTrue(
-                        "Parallel collection should be supported for the query phase when when enabled && contains supported agg.",
-                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceAggSupportsParallelCollection, true)
-                    );
-
-                    assertFalse(
-                        "Parallel collection should not be supported for the query phase when disabled.",
-                        SearchService.isParallelCollectionSupportedForResults(resultsType, searchSourceBuilderNoAgg, false)
-                    );
-                    assertFalse(
-                        "Parallel collection should not be supported for the query phase when disabled and source is null.",
-                        SearchService.isParallelCollectionSupportedForResults(resultsType, null, false)
-                    );
-
-                    SearchSourceBuilder searchSourceAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
-                    searchSourceAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
-                    assertFalse(
-                        "Parallel collection should not be supported for the query phase when "
-                            + "enabled && does not contains supported agg.",
-                        SearchService.isParallelCollectionSupportedForResults(
-                            resultsType,
-                            searchSourceAggDoesNotSupportParallelCollection,
-                            true
-                        )
-                    );
-
-                    SearchSourceBuilder searchSourceMultiAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
-                    searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
-                    searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new DateRangeAggregationBuilder("dateRange"));
-                    assertFalse(
-                        "Parallel collection should not be supported for the query phase when when enabled && contains unsupported agg.",
-                        SearchService.isParallelCollectionSupportedForResults(
-                            resultsType,
-                            searchSourceMultiAggDoesNotSupportParallelCollection,
-                            true
-                        )
-                    );
-                }
-                default -> throw new UnsupportedOperationException("Untested ResultsType added, please add new testcases.");
             }
         }
     }

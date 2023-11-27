@@ -73,7 +73,7 @@ public interface InferenceResults extends NamedWriteable, ToXContentFragment {
         for (InferenceResults result : results) {
             Map<String, Object> outputMap = new HashMap<>();
             outputMap.put("inference", result.asMap(outputField).get(outputField));
-            outputMap.putAll(inputValues.get(currentResult));
+            outputMap.putAll(inputValues.get(currentResult++));
             outputValues.add(outputMap);
         }
 

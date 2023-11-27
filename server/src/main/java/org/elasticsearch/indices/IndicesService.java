@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -26,6 +27,8 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -154,6 +157,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -1730,8 +1734,19 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return new QueryRewriteContext(parserConfig, client, nowInMillis);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest indicesRequest) {
+        Index[] indices = indexNameExpressionResolver.concreteIndices(clusterService.state(), indicesRequest);
+        Map<String, Set<String>> fieldsToModelIds = new HashMap<>();
+        for (Index index : indices) {
+            Map<String, Set<String>> inferenceModelsForFields = indexService(index).getMetadata().getInferenceModelsForFields();
+            for (Map.Entry<String, Set<String>> entry : inferenceModelsForFields.entrySet()) {
+                for (String fieldName : entry.getValue()) {
+                    Set<String> modelIds = fieldsToModelIds.computeIfAbsent(fieldName, v -> new HashSet<>());
+                    modelIds.add(entry.getKey());
+                }
+            }
+        }
+        return new QueryRewriteContext(parserConfig, client, nowInMillis, fieldsToModelIds);
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {

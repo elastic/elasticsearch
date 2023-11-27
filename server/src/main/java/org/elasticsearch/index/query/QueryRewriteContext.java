@@ -56,6 +56,7 @@ public class QueryRewriteContext {
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
+    private final Map<String, Set<String>> fieldsToInferenceModels;
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
@@ -74,7 +75,8 @@ public class QueryRewriteContext {
         final NamedWriteableRegistry namedWriteableRegistry,
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
-        final ScriptCompiler scriptService
+        final ScriptCompiler scriptService,
+        final Map<String, Set<String>> fieldsToInferenceModels
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -92,9 +94,11 @@ public class QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.scriptService = scriptService;
+        this.fieldsToInferenceModels = fieldsToInferenceModels;
     }
 
-    public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
+    public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis,
+                               Map<String, Set<String>> fieldsToInferenceModels) {
         this(
             parserConfiguration,
             client,
@@ -109,7 +113,8 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            null
+            null,
+            fieldsToInferenceModels
         );
     }
 
@@ -333,5 +338,9 @@ public class QueryRewriteContext {
         return runtimeMappings.isEmpty()
             ? allFromMapping
             : () -> Iterators.concat(allFromMapping.iterator(), runtimeMappings.keySet().iterator());
+    }
+
+    public Set<String> getModelIdsForField(String fieldName) {
+        return fieldsToInferenceModels.get(fieldName);
     }
 }

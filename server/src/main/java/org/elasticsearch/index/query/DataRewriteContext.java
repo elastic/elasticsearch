@@ -21,7 +21,7 @@ import java.util.function.LongSupplier;
  */
 public class DataRewriteContext extends QueryRewriteContext {
     public DataRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
-        super(parserConfiguration, client, nowInMillis);
+        super(parserConfiguration, client, nowInMillis, null);
     }
 
     @Override

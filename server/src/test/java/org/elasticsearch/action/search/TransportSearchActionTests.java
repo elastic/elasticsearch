@@ -1527,7 +1527,7 @@ public class TransportSearchActionTests extends ESTestCase {
             NodeClient client = new NodeClient(settings, threadPool);
 
             SearchService searchService = mock(SearchService.class);
-            when(searchService.getRewriteContext(any())).thenReturn(new QueryRewriteContext(null, null, null));
+            when(searchService.getRewriteContext(any(), searchRequest)).thenReturn(new QueryRewriteContext(null, null, null));
             ClusterService clusterService = new ClusterService(
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

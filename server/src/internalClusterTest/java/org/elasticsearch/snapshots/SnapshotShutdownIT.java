@@ -153,8 +153,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
             (handler, request, channel, task) -> masterTransportService.getThreadPool().generic().execute(() -> {
                 safeAwait(snapshotStatusUpdateBarrier);
+                safeAwait(snapshotStatusUpdateBarrier);
                 try {
-                    snapshotStatusUpdateBarrier.await(); // TODO safeAwait
                     handler.messageReceived(request, channel, task);
                 } catch (Exception e) {
                     fail(e);

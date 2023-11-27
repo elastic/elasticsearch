@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.apache.http.HttpHeaders;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -51,6 +52,7 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSet
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -594,6 +596,34 @@ public class OpenAiServiceTests extends ESTestCase {
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
             assertThat(requestMap.get("model"), Matchers.is("model"));
             assertThat(requestMap.get("user"), Matchers.is("user"));
+        }
+    }
+
+    public void testInfer_UnauthorisedResponse() throws IOException {
+        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var service = new OpenAiService(new SetOnce<>(senderFactory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
+
+            String responseJson = """
+                {
+                    "error": {
+                        "message": "Incorrect API key provided:",
+                        "type": "invalid_request_error",
+                        "param": null,
+                        "code": "invalid_api_key"
+                    }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
+
+            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
+            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            service.infer(model, List.of("abc"), new HashMap<>(), listener);
+
+            var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(error.getMessage(), containsString("Received a authentication error status code for request"));
+            assertThat(error.getMessage(), containsString("Error message: [Incorrect API key provided:]"));
+            assertThat(webServer.requests(), hasSize(1));
         }
     }
 

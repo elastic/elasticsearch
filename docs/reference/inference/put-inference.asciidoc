@@ -152,3 +152,22 @@ Example response:
 }
 ------------------------------------------------------------
 // NOTCONSOLE
+
+
+The following example shows how to create an {infer} model called
+`openai_embeddings` to perform a `text_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/openai_embeddings
+{
+    "service": "openai",
+    "service_settings": {
+        "api_key": "<api_key>"
+    },
+    "task_settings": {
+       "model": "text-embedding-ada-002"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]

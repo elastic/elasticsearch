@@ -14,22 +14,22 @@ final class CostCalculator {
     private static final double SECONDS_PER_HOUR = 60 * 60;
     private static final double SECONDS_PER_YEAR = SECONDS_PER_HOUR * 24 * 365.0d; // unit: seconds
     private static final double DEFAULT_COST_USD_PER_CORE_HOUR = 0.0425d; // unit: USD / (core * hour)
-    private static final double DEFAULT_CUSTOM_COST_FACTOR = 1.0d;
+    private static final double DEFAULT_AWS_COST_FACTOR = 1.0d;
     private final InstanceTypeService instanceTypeService;
     private final Map<String, HostMetadata> hostMetadata;
     private final double samplingDurationInSeconds;
-    private final double customCostFactor;
+    private final double awsCostFactor;
 
     CostCalculator(
         InstanceTypeService instanceTypeService,
         Map<String, HostMetadata> hostMetadata,
         double samplingDurationInSeconds,
-        Double customCostFactor
+        Double awsCostFactor
     ) {
         this.instanceTypeService = instanceTypeService;
         this.hostMetadata = hostMetadata;
         this.samplingDurationInSeconds = samplingDurationInSeconds > 0 ? samplingDurationInSeconds : 1.0d; // avoid division by zero
-        this.customCostFactor = customCostFactor == null ? DEFAULT_CUSTOM_COST_FACTOR : customCostFactor;
+        this.awsCostFactor = awsCostFactor == null ? DEFAULT_AWS_COST_FACTOR : awsCostFactor;
     }
 
     public double annualCostsUSD(String hostID, double samples) {
@@ -40,12 +40,14 @@ final class CostCalculator {
             return annualCoreHours * DEFAULT_COST_USD_PER_CORE_HOUR;
         }
 
+        double providerCostFactor = host.instanceType.provider.equals("aws") ? awsCostFactor : 1.0d;
+
         CostEntry costs = instanceTypeService.getCosts(host.instanceType);
         if (costs == null) {
-            return annualCoreHours * DEFAULT_COST_USD_PER_CORE_HOUR;
+            return annualCoreHours * DEFAULT_COST_USD_PER_CORE_HOUR * providerCostFactor;
         }
 
-        return annualCoreHours * costs.costFactor * customCostFactor;
+        return annualCoreHours * costs.costFactor * providerCostFactor;
     }
 
     public static double annualCoreHours(double duration, double samples, double samplingFrequency) {

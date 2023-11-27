@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.ToLongFunction;
 
 public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder> {
 
@@ -164,4 +166,66 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         return orders;
     }
 
+    public void testSupportsParallelCollection() {
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").executionHint("map");
+            builder.addAggregator(terms);
+            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(-1, 100)));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").executionHint("global_ordinals");
+            builder.addAggregator(terms);
+            assertTrue(builder.supportsParallelCollection(field -> 0));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").order(BucketOrder.key(randomBoolean()));
+            if (randomBoolean()) {
+                terms.shardSize(randomIntBetween(1, 100));
+            }
+            builder.addAggregator(terms);
+            assertTrue(builder.supportsParallelCollection(field -> randomIntBetween(0, 49)));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").order(BucketOrder.key(randomBoolean()));
+            if (randomBoolean()) {
+                terms.shardSize(randomIntBetween(1, 100));
+            }
+            builder.addAggregator(terms);
+            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(51, 100)));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new TermsAggregationBuilder("terms"));
+            assertFalse(builder.supportsParallelCollection(field -> -1));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new TermsAggregationBuilder("terms"));
+            assertTrue(builder.supportsParallelCollection(field -> 0));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.subAggregation(new TermsAggregationBuilder("name") {
+                @Override
+                public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+                    return false;
+                }
+            });
+            builder.addAggregator(terms);
+            assertFalse(builder.supportsParallelCollection(field -> 0));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.shardSize(10);
+            builder.addAggregator(terms);
+            assertTrue(builder.supportsParallelCollection(field -> randomIntBetween(1, 10)));
+            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(11, 100)));
+        }
+    }
 }

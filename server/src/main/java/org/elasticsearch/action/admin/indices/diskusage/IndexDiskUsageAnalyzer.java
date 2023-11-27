@@ -542,7 +542,10 @@ final class IndexDiskUsageAnalyzer {
 
                         // do a couple of randomized searches to figure out min and max offsets of index file
                         ByteVectorValues vectorValues = vectorReader.getByteVectorValues(field.name);
-                        final KnnCollector collector = new TopKnnCollector(Math.max(1, Math.min(100, vectorValues.size() - 1)), Integer.MAX_VALUE);
+                        final KnnCollector collector = new TopKnnCollector(
+                            Math.max(1, Math.min(100, vectorValues.size() - 1)),
+                            Integer.MAX_VALUE
+                        );
                         int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
                         int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
                         for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
@@ -562,7 +565,10 @@ final class IndexDiskUsageAnalyzer {
 
                         // do a couple of randomized searches to figure out min and max offsets of index file
                         FloatVectorValues vectorValues = vectorReader.getFloatVectorValues(field.name);
-                        final KnnCollector collector = new TopKnnCollector(Math.max(1, Math.min(100, vectorValues.size() - 1)), Integer.MAX_VALUE);
+                        final KnnCollector collector = new TopKnnCollector(
+                            Math.max(1, Math.min(100, vectorValues.size() - 1)),
+                            Integer.MAX_VALUE
+                        );
                         int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
                         int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
                         for (int i = 0; i < reader.maxDoc(); i += skipFactor) {

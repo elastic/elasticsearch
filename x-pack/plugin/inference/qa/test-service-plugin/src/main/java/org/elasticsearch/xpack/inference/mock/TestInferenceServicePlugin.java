@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -157,7 +158,12 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case SPARSE_EMBEDDING -> {
-                    listener.onResponse(new TestResults("bar"));
+                    var strings = new ArrayList<String>();
+                    for (int i = 0; i < input.size(); i++) {
+                        strings.add(Integer.toString(i));
+                    }
+
+                    listener.onResponse(new TestResults(strings));
                 }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
@@ -345,9 +351,9 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
     private static class TestResults implements InferenceServiceResults, InferenceResults {
 
         private static final String RESULTS_FIELD = "result";
-        private String result;
+        private List<String> result;
 
-        TestResults(String result) {
+        TestResults(List<String> result) {
             this.result = result;
         }
 
@@ -364,7 +370,7 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(result);
+            out.writeStringCollection(result);
         }
 
         @Override

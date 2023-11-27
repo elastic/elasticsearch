@@ -37,6 +37,7 @@ final class FieldTypeLookup {
     private final Map<String, Set<String>> fieldToCopiedFields;
 
     private final Map<String, Set<String>> fieldsForModel;
+    private final Map<String, String> modelForField;
 
     private final int maxParentPathDots;
 
@@ -51,6 +52,7 @@ final class FieldTypeLookup {
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
         final Map<String, Set<String>> fieldsForModel = new HashMap<>();
+        final Map<String, String> modelForField = new HashMap<>();
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
@@ -71,6 +73,7 @@ final class FieldTypeLookup {
             if (fieldType.hasInferenceModel()) {
                 Collection<String> fields = fieldsForModel.computeIfAbsent(fieldType.getInferenceModel(), v -> new HashSet<>());
                 fields.add(fieldName);
+                modelForField.put(fieldName, fieldType.getInferenceModel());
             }
         }
 
@@ -105,6 +108,7 @@ final class FieldTypeLookup {
         fieldToCopiedFields.entrySet().forEach(e -> e.setValue(Set.copyOf(e.getValue())));
         this.fieldToCopiedFields = Map.copyOf(fieldToCopiedFields);
         this.fieldsForModel = Map.copyOf(fieldsForModel);
+        this.modelForField = Map.copyOf(modelForField);
     }
 
     public static int dotCount(String path) {
@@ -123,6 +127,10 @@ final class FieldTypeLookup {
 
     Map<String, Set<String>> fieldsForModel() {
         return this.fieldsForModel;
+    }
+
+    String modelForField(String fieldName) {
+        return this.modelForField.get(fieldName);
     }
 
     /**

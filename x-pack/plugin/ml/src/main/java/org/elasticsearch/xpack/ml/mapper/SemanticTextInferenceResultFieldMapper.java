@@ -9,6 +9,7 @@
 package org.elasticsearch.xpack.ml.mapper;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -68,6 +69,13 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         public Query termQuery(Object value, SearchExecutionContext context) {
             return null;
         }
+
+        private static String indexedValueForSearch(Object value) {
+            if (value instanceof BytesRef) {
+                return ((BytesRef) value).utf8ToString();
+            }
+            return value.toString();
+        }
     }
 
     private SemanticTextInferenceResultFieldMapper() {
@@ -84,7 +92,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             );
         }
 
-        MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(false, false).createChildContext(NAME);
+        MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(false, false);
 
         for (XContentParser.Token token = context.parser().nextToken(); token != XContentParser.Token.END_OBJECT; token = context.parser()
             .nextToken()) {
@@ -113,6 +121,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
                 .store(false);
             nestedBuilder.add(textFieldMapperBuilder);
             NestedObjectMapper nestedObjectMapper = nestedBuilder.build(mapperBuilderContext);
+            context.path().add(fieldName);
 
             if (context.parser().nextToken() != XContentParser.Token.START_ARRAY) {
                 throw new IllegalArgumentException(
@@ -122,7 +131,8 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             }
             for (token = context.parser().nextToken(); token != XContentParser.Token.END_ARRAY; token = context.parser()
                 .nextToken()) {
-                DocumentParserContext nestedContext = context.createNestedContext(nestedObjectMapper);
+                DocumentParserContext nestedContext = context.createChildContext(nestedObjectMapper).createNestedContext(nestedObjectMapper);
+
 
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new IllegalArgumentException(
@@ -142,6 +152,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
                     }
 
                     String inferenceField = context.parser().currentName();
+                    context.path().add(inferenceField);
                     FieldMapper childNestedMapper = (FieldMapper) nestedObjectMapper.getMapper(inferenceField);
                     if (childNestedMapper == null) {
                         throw new IllegalArgumentException("unexpected inference result field name: " + inferenceField);
@@ -149,12 +160,13 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
                     context.parser().nextToken();
                     childNestedMapper.parse(nestedContext);
                     visitedFields.add(inferenceField);
+                    context.path().remove();
                 }
                 if (visitedFields.size() != nestedObjectMapper.getChildren().size()) {
                     throw new IllegalArgumentException("unexpected inference fields: " + visitedFields);
                 }
             }
-
+            context.path().remove();
         }
     }
 

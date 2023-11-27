@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
@@ -75,15 +76,25 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
     public static class SemanticTextFieldType extends SimpleMappedFieldType {
 
+        private final SparseVectorFieldMapper.SparseVectorFieldType sparseVectorFieldType;
+
         private final String modelId;
 
         public SemanticTextFieldType(String name, String modelId, Map<String, String> meta) {
             super(name, true, false, false, TextSearchInfo.NONE, meta);
+            this.sparseVectorFieldType = new SparseVectorFieldMapper.SparseVectorFieldType(
+                SemanticTextInferenceResultFieldMapper.NAME + "." + name + "." + "inference",
+                meta
+            );
             this.modelId = modelId;
         }
 
         public String modelId() {
             return modelId;
+        }
+
+        public SparseVectorFieldMapper.SparseVectorFieldType getSparseVectorFieldType() {
+            return this.sparseVectorFieldType;
         }
 
         @Override
@@ -97,15 +108,13 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return null;
+            return sparseVectorFieldType.termQuery(value, context);
         }
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }
-
-
     }
 
     private final String modelId;

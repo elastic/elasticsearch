@@ -27,8 +27,7 @@ public class SemanticTextInferenceProcessor extends AbstractProcessor implements
 
     public static final String TYPE = "semanticTextInference";
     public static final String TAG = "semantic_text";
-    public static final String TEXT_SUFFIX = ".text";
-    public static final String INFERENCE_SUFFIX = ".inference";
+    public static final String TEXT_SUFFIX = "text";
 
     private final Map<String, Set<String>> modelForFields;
 
@@ -94,7 +93,7 @@ public class SemanticTextInferenceProcessor extends AbstractProcessor implements
                 String[] chunks = value.split("\\.");
                 ingestDocument.setFieldValue(SemanticTextInferenceResultFieldMapper.NAME + "." + field, new ArrayList<>());
                 for (String chunk : chunks) {
-                    ingestDocument.appendFieldValue(SemanticTextInferenceResultFieldMapper.NAME + "." + field, Map.of("text", chunk));
+                    ingestDocument.appendFieldValue(SemanticTextInferenceResultFieldMapper.NAME + "." + field, Map.of(SemanticTextInferenceProcessor.TEXT_SUFFIX, chunk));
                 }
             }
         }

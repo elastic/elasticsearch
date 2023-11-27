@@ -228,10 +228,10 @@ public class IdLoaderTests extends ESTestCase {
         fields.add(new LongPoint(DataStreamTimestampFieldMapper.DEFAULT_PATH, doc.timestamp));
         for (Dimension dimension : doc.dimensions) {
             if (dimension.value instanceof Number n) {
-                builder.addLongDimension(dimension.field, n.longValue());
+                builder.addLong(dimension.field, n.longValue());
                 fields.add(new SortedNumericDocValuesField(dimension.field, ((Number) dimension.value).longValue()));
             } else {
-                builder.addKeywordDimension(dimension.field, dimension.value.toString());
+                builder.addString(dimension.field, dimension.value.toString());
                 fields.add(new SortedSetDocValuesField(dimension.field, new BytesRef(dimension.value.toString())));
             }
         }
@@ -245,9 +245,9 @@ public class IdLoaderTests extends ESTestCase {
         var timeSeriesIdBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routingBuilder);
         for (Dimension dimension : doc.dimensions) {
             if (dimension.value instanceof Number n) {
-                timeSeriesIdBuilder.addLongDimension(dimension.field, n.longValue());
+                timeSeriesIdBuilder.addLong(dimension.field, n.longValue());
             } else {
-                timeSeriesIdBuilder.addKeywordDimension(dimension.field, dimension.value.toString());
+                timeSeriesIdBuilder.addString(dimension.field, dimension.value.toString());
             }
         }
         return TsidExtractingIdFieldMapper.createId(

@@ -633,9 +633,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         if (dimension && numericValue != null) {
-            context.getDocumentFields().addUnsignedLongDimension(fieldType().name(), numericValue);
-        } else if (fieldType().getMetricType() != null) {
-            context.getDocumentFields().addMetric(fieldType().name());
+            context.getDimensions().addUnsignedLong(fieldType().name(), numericValue);
         }
 
         List<Field> fields = new ArrayList<>();

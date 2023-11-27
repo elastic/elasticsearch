@@ -18,12 +18,12 @@ import java.util.Set;
 /**
  * Collects dimensions from documents.
  */
-public interface DocumentFields {
+public interface DocumentDimensions {
 
     /**
      * Build an index's DocumentDimensions using its settings
      */
-    static DocumentFields fromIndexSettings(IndexSettings indexSettings) {
+    static DocumentDimensions fromIndexSettings(IndexSettings indexSettings) {
         return indexSettings.getMode().buildDocumentDimensions(indexSettings);
     }
 
@@ -32,47 +32,47 @@ public interface DocumentFields {
      * value is already computed in some cases when we want to collect
      * dimensions, so we can save re-computing the UTF-8 encoding.
      */
-    void addKeywordDimension(String fieldName, BytesRef utf8Value);
+    void addString(String fieldName, BytesRef utf8Value);
 
-    default void addKeywordDimension(String fieldName, String value) {
-        addKeywordDimension(fieldName, new BytesRef(value));
+    default void addString(String fieldName, String value) {
+        addString(fieldName, new BytesRef(value));
     }
 
-    void addIpDimension(String fieldName, InetAddress value);
+    void addIp(String fieldName, InetAddress value);
 
-    void addLongDimension(String fieldName, long value);
+    void addLong(String fieldName, long value);
 
-    void addUnsignedLongDimension(String fieldName, long value);
+    void addUnsignedLong(String fieldName, long value);
 
     /**
      * Makes sure that each dimension only appears on time.
      */
-    class OnlySingleValueAllowed implements DocumentFields {
+    class OnlySingleValueAllowed implements DocumentDimensions {
         private final Set<String> names = new HashSet<>();
 
         @Override
-        public void addKeywordDimension(String fieldName, BytesRef value) {
+        public void addString(String fieldName, BytesRef value) {
             add(fieldName);
         }
 
         // Override to skip the UTF-8 conversion that happens in the default implementation
         @Override
-        public void addKeywordDimension(String fieldName, String value) {
+        public void addString(String fieldName, String value) {
             add(fieldName);
         }
 
         @Override
-        public void addIpDimension(String fieldName, InetAddress value) {
+        public void addIp(String fieldName, InetAddress value) {
             add(fieldName);
         }
 
         @Override
-        public void addLongDimension(String fieldName, long value) {
+        public void addLong(String fieldName, long value) {
             add(fieldName);
         }
 
         @Override
-        public void addUnsignedLongDimension(String fieldName, long value) {
+        public void addUnsignedLong(String fieldName, long value) {
             add(fieldName);
         }
 

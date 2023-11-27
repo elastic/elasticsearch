@@ -725,14 +725,14 @@ public interface DocValueFormat extends NamedWriteable {
                 Object v = entry.getValue();
 
                 if (v instanceof String s) {
-                    builder.addKeywordDimension(f, s);
+                    builder.addString(f, s);
                 } else if (v instanceof Long l) {
-                    builder.addLongDimension(f, l);
+                    builder.addLong(f, l);
                 } else if (v instanceof Integer i) {
-                    builder.addLongDimension(f, i.longValue());
+                    builder.addLong(f, i.longValue());
                 } else if (v instanceof BigInteger ul) {
                     long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
-                    builder.addUnsignedLongDimension(f, ll);
+                    builder.addUnsignedLong(f, ll);
                 } else {
                     throw new IllegalArgumentException("Unexpected value in tsid object [" + v + "]");
                 }

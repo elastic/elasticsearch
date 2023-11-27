@@ -88,7 +88,7 @@ public abstract class DocumentParserContext {
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper.Builder> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
-    private final DocumentFields documentFields;
+    private final DocumentDimensions dimensions;
     private final ObjectMapper parent;
     private final ObjectMapper.Dynamic dynamic;
     private String id;
@@ -109,7 +109,7 @@ public abstract class DocumentParserContext {
         String id,
         Field version,
         SeqNoFieldMapper.SequenceIDFields seqID,
-        DocumentFields documentFields,
+        DocumentDimensions dimensions,
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
@@ -126,7 +126,7 @@ public abstract class DocumentParserContext {
         this.id = id;
         this.version = version;
         this.seqID = seqID;
-        this.documentFields = documentFields;
+        this.dimensions = dimensions;
         this.parent = parent;
         this.dynamic = dynamic;
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
@@ -146,7 +146,7 @@ public abstract class DocumentParserContext {
             in.id,
             in.version,
             in.seqID,
-            in.documentFields,
+            in.dimensions,
             parent,
             dynamic,
             in.fieldsAppliedFromTemplates,
@@ -173,7 +173,7 @@ public abstract class DocumentParserContext {
             null,
             null,
             null,
-            DocumentFields.fromIndexSettings(mappingParserContext.getIndexSettings()),
+            DocumentDimensions.fromIndexSettings(mappingParserContext.getIndexSettings()),
             parent,
             dynamic,
             new HashSet<>(),
@@ -524,8 +524,8 @@ public abstract class DocumentParserContext {
     /**
      * The collection of dimensions for this document.
      */
-    public DocumentFields getDocumentFields() {
-        return documentFields;
+    public DocumentDimensions getDimensions() {
+        return dimensions;
     }
 
     public abstract ContentPath path();

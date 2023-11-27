@@ -50,7 +50,7 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
             long docCount = randomLongBetween(0, Long.MAX_VALUE / (20L * numberOfBuckets));
             var builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
             for (var entry : keys.get(j).entrySet()) {
-                builder.addKeywordDimension(entry.getKey(), (String) entry.getValue());
+                builder.addString(entry.getKey(), (String) entry.getValue());
             }
             try {
                 var key = builder.withHash().toBytesRef();

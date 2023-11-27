@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentFields;
+import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -103,8 +103,8 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentFields buildDocumentDimensions(IndexSettings settings) {
-            return new DocumentFields.OnlySingleValueAllowed();
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+            return new DocumentDimensions.OnlySingleValueAllowed();
         }
 
         @Override
@@ -196,7 +196,7 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentFields buildDocumentDimensions(IndexSettings settings) {
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
             IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
             return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routing.builder());
         }
@@ -325,7 +325,7 @@ public enum IndexMode {
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
-    public abstract DocumentFields buildDocumentDimensions(IndexSettings settings);
+    public abstract DocumentDimensions buildDocumentDimensions(IndexSettings settings);
 
     /**
      * @return Whether timestamps should be validated for being withing the time range of an index.

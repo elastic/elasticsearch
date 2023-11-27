@@ -130,7 +130,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
 
-        final TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDocumentFields();
+        final TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
         final BytesRef timeSeriesId = getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ID_HASHING)
             ? timeSeriesIdBuilder.withoutHash().toBytesRef()
             : timeSeriesIdBuilder.withHash().toBytesRef();
@@ -163,7 +163,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TimeSeriesIdBuilder implements DocumentFields {
+    public static class TimeSeriesIdBuilder implements DocumentDimensions {
 
         private static final int SEED = 0;
 
@@ -268,7 +268,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public void addKeywordDimension(String fieldName, BytesRef utf8Value) {
+        public void addString(String fieldName, BytesRef utf8Value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.write((byte) 's');
                 /*
@@ -288,12 +288,12 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public void addIpDimension(String fieldName, InetAddress value) {
-            addKeywordDimension(fieldName, NetworkAddress.format(value));
+        public void addIp(String fieldName, InetAddress value) {
+            addString(fieldName, NetworkAddress.format(value));
         }
 
         @Override
-        public void addLongDimension(String fieldName, long value) {
+        public void addLong(String fieldName, long value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.write((byte) 'l');
                 out.writeLong(value);
@@ -304,7 +304,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public void addUnsignedLongDimension(String fieldName, long value) {
+        public void addUnsignedLong(String fieldName, long value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value);
                 if (ul instanceof Long l) {

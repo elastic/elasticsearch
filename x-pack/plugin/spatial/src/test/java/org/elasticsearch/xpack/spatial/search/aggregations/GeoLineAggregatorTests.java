@@ -803,7 +803,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 ArrayList<Long> timestamps = testData.timestampsForGroup(g);
                 for (int i = 0; i < points.size(); i++) {
                     final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
-                    builder.addKeywordDimension("group_id", testData.groups[g]);
+                    builder.addString("group_id", testData.groups[g]);
                     ArrayList<Field> fields = new ArrayList<>(
                         Arrays.asList(
                             new SortedDocValuesField("group_id", new BytesRef(testData.groups[g])),

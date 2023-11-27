@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
-import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -60,6 +59,7 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
@@ -112,6 +112,7 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -185,6 +186,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -207,6 +209,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -661,7 +664,9 @@ class NodeConstruction {
         IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
         modules.add(indicesModule);
 
+        final Map<String, LongCounter> customTripCounters = new TreeMap<>();
         CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
+            new CircuitBreakerMetrics(telemetryProvider, customTripCounters),
             settingsModule.getSettings(),
             settingsModule.getClusterSettings()
         );
@@ -1084,7 +1089,6 @@ class NodeConstruction {
             b.bind(FsHealthService.class).toInstance(fsHealthService);
             b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
             b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
-            b.bind(DesiredNodesSettingsValidator.class).toInstance(new DesiredNodesSettingsValidator());
             b.bind(Tracer.class).toInstance(tracer);
             b.bind(FileSettingsService.class).toInstance(fileSettingsService);
             b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
@@ -1272,7 +1276,11 @@ class NodeConstruction {
      *
      * @see Node#BREAKER_TYPE_KEY
      */
-    private CircuitBreakerService createCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
+    private CircuitBreakerService createCircuitBreakerService(
+        CircuitBreakerMetrics metrics,
+        Settings settings,
+        ClusterSettings clusterSettings
+    ) {
         var pluginBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
             .map(p -> Tuple.tuple(p, p.getCircuitBreaker(settings)))
             .toList();
@@ -1280,6 +1288,7 @@ class NodeConstruction {
         String type = Node.BREAKER_TYPE_KEY.get(settings);
         CircuitBreakerService circuitBreakerService = switch (type) {
             case "hierarchy" -> new HierarchyCircuitBreakerService(
+                metrics,
                 settings,
                 pluginBreakers.stream().map(Tuple::v2).toList(),
                 clusterSettings
@@ -1290,7 +1299,11 @@ class NodeConstruction {
         resourcesToClose.add(circuitBreakerService);
         modules.bindToInstance(CircuitBreakerService.class, circuitBreakerService);
 
-        pluginBreakers.forEach(t -> t.v1().setCircuitBreaker(circuitBreakerService.getBreaker(t.v2().getName())));
+        pluginBreakers.forEach(t -> {
+            final CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(t.v2().getName());
+            t.v1().setCircuitBreaker(circuitBreaker);
+            metrics.addCustomCircuitBreaker(circuitBreaker);
+        });
 
         return circuitBreakerService;
     }

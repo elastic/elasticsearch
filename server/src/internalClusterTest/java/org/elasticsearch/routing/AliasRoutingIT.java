@@ -9,7 +9,6 @@
 package org.elasticsearch.routing;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.internal.Requests;
@@ -20,6 +19,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -395,16 +395,16 @@ public class AliasRoutingIT extends ESIntegTestCase {
         logger.info("--> indexing on index_2 which is a concrete index");
         prepareIndex("index_2").setId("2").setSource("field", "value2").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
-        SearchResponse searchResponse = prepareSearch("index_*").setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setSize(1)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .get();
-
-        logger.info("--> search all on index_* should find two");
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
-        // Let's make sure that, even though 2 docs are available, only one is returned according to the size we set in the request
-        // Therefore the reduce phase has taken place, which proves that the QUERY_AND_FETCH search type wasn't erroneously forced.
-        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+        assertResponse(
+            prepareSearch("index_*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1).setQuery(QueryBuilders.matchAllQuery()),
+            response -> {
+                logger.info("--> search all on index_* should find two");
+                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                // Let's make sure that, even though 2 docs are available, only one is returned according to the size we set in the request
+                // Therefore the reduce phase has taken place, which proves that the QUERY_AND_FETCH search type wasn't erroneously forced.
+                assertThat(response.getHits().getHits().length, equalTo(1));
+            }
+        );
     }
 
     public void testIndexingAliasesOverTime() throws Exception {

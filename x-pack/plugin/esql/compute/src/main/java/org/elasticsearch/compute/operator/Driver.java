@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -60,7 +59,7 @@ public class Driver implements Releasable, Describable {
     private final AtomicReference<SubscribableListener<Void>> blocked = new AtomicReference<>();
 
     private final AtomicBoolean started = new AtomicBoolean();
-    private final CompletionListener completionListener;
+    private final SubscribableListener<Void> completionListener = new SubscribableListener<>();
 
     /**
      * Status reported to the tasks API. We write the status at most once every
@@ -98,7 +97,6 @@ public class Driver implements Releasable, Describable {
         this.activeOperators.add(sink);
         this.statusNanos = statusInterval.nanos();
         this.releasable = releasable;
-        this.completionListener = new CompletionListener(driverContext);
         this.status = new AtomicReference<>(new DriverStatus(sessionId, System.currentTimeMillis(), DriverStatus.Status.QUEUED, List.of()));
     }
 
@@ -318,7 +316,7 @@ public class Driver implements Releasable, Describable {
             @Override
             protected void doRun() {
                 if (driver.isFinished()) {
-                    listener.onResponse(null);
+                    onComplete(listener);
                     return;
                 }
                 SubscribableListener<Void> fut = driver.run(maxTime, maxIterations);
@@ -341,7 +339,11 @@ public class Driver implements Releasable, Describable {
             @Override
             public void onFailure(Exception e) {
                 driver.drainAndCloseOperators(e);
-                listener.onFailure(e);
+                onComplete(ActionListener.running(() -> listener.onFailure(e)));
+            }
+
+            void onComplete(ActionListener<Void> listener) {
+                driver.driverContext.waitForAsyncActions(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
             }
         });
     }
@@ -394,35 +396,5 @@ public class Driver implements Releasable, Describable {
             status,
             activeOperators.stream().map(o -> new DriverStatus.OperatorStatus(o.toString(), o.status())).toList()
         );
-    }
-
-    /**
-     * A listener that is notified when both the Driver and its DriverContext are completed.
-     */
-    private static class CompletionListener implements ActionListener<Void> {
-        private final SubscribableListener<Void> completionListener;
-        private final ActionListener<Void> driverListener;
-
-        CompletionListener(DriverContext driverContext) {
-            this.completionListener = new SubscribableListener<>();
-            try (var refs = new RefCountingListener(1, completionListener)) {
-                driverListener = refs.acquire();
-                driverContext.waitForAsyncActions(refs.acquire());
-            }
-        }
-
-        void addListener(ActionListener<Void> listener) {
-            completionListener.addListener(listener);
-        }
-
-        @Override
-        public void onResponse(Void unused) {
-            driverListener.onResponse(null);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            driverListener.onFailure(e);
-        }
     }
 }

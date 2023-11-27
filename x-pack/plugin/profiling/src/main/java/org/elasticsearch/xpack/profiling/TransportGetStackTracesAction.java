@@ -149,7 +149,10 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         licenseChecker.requireSupportedLicense();
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
         responseBuilder.setRequestedDuration(request.getRequestedDuration());
-        responseBuilder.setCustomCostFactor(request.getCustomCostFactor());
+        responseBuilder.setAwsCostFactor(request.getAwsCostFactor());
+        responseBuilder.setCustomCO2PerKWH(request.getCustomCO2PerKWH());
+        responseBuilder.setCustomDatacenterPUE(request.getCustomDatacenterPUE());
+        responseBuilder.setCustomPerCoreWatt(request.getCustomPerCoreWatt());
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         if (request.getIndices() == null) {
             searchProfilingEvents(client, request, submitListener, responseBuilder);
@@ -516,12 +519,19 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         public void calculateCO2AndCosts() {
             // Do the CO2 and cost calculation in parallel to waiting for frame metadata.
             StopWatch watch = new StopWatch("calculateCO2AndCosts");
-            CO2Calculator co2Calculator = new CO2Calculator(instanceTypeService, hostsTable, responseBuilder.requestedDuration);
+            CO2Calculator co2Calculator = new CO2Calculator(
+                instanceTypeService,
+                hostsTable,
+                responseBuilder.getRequestedDuration(),
+                responseBuilder.customCO2PerKWH,
+                responseBuilder.customDatacenterPUE,
+                responseBuilder.customPerCoreWatt
+            );
             CostCalculator costCalculator = new CostCalculator(
                 instanceTypeService,
                 hostsTable,
-                responseBuilder.requestedDuration,
-                responseBuilder.customCostFactor
+                responseBuilder.getRequestedDuration(),
+                responseBuilder.awsCostFactor
             );
             Map<String, TraceEvent> events = responseBuilder.stackTraceEvents;
             List<String> missingStackTraces = new ArrayList<>();
@@ -727,8 +737,11 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private List<HostEventCount> hostEventCounts;
         private double samplingRate;
         private long totalSamples;
-        private double requestedDuration;
-        private Double customCostFactor;
+        private Double requestedDuration;
+        private Double awsCostFactor;
+        private Double customCO2PerKWH;
+        private Double customDatacenterPUE;
+        private Double customPerCoreWatt;
 
         public void setStackTraces(Map<String, StackTrace> stackTraces) {
             this.stackTraces = stackTraces;
@@ -786,8 +799,28 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             this.requestedDuration = requestedDuration;
         }
 
-        public void setCustomCostFactor(Double customCostFactor) {
-            this.customCostFactor = customCostFactor;
+        public double getRequestedDuration() {
+            if (requestedDuration != null) {
+                return requestedDuration;
+            }
+            // If "requested_duration" wasn't specified, we use the time range from the query response.
+            return end.getEpochSecond() - start.getEpochSecond();
+        }
+
+        public void setAwsCostFactor(Double awsCostFactor) {
+            this.awsCostFactor = awsCostFactor;
+        }
+
+        public void setCustomCO2PerKWH(Double customCO2PerKWH) {
+            this.customCO2PerKWH = customCO2PerKWH;
+        }
+
+        public void setCustomDatacenterPUE(Double customDatacenterPUE) {
+            this.customDatacenterPUE = customDatacenterPUE;
+        }
+
+        public void setCustomPerCoreWatt(Double customPerCoreWatt) {
+            this.customPerCoreWatt = customPerCoreWatt;
         }
 
         public void setTotalSamples(long totalSamples) {

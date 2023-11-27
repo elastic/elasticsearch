@@ -1618,11 +1618,11 @@ public abstract class AbstractClient implements Client {
             }
         }
 
-        private final AtomicBoolean gotCalled = new AtomicBoolean(false);
+        private final AtomicBoolean getCalled = new AtomicBoolean(false);
 
         @Override
         public R get() throws InterruptedException, ExecutionException {
-            final boolean firstCall = gotCalled.compareAndSet(false, true);
+            final boolean firstCall = getCalled.compareAndSet(false, true);
             if (firstCall == false) {
                 final IllegalStateException ise = new IllegalStateException("must only call .get() once per instance to avoid leaks");
                 assert false : ise;

@@ -13,7 +13,9 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -355,7 +357,10 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertResponse(ActionRequestBuilder<?, SearchResponse> searchRequestBuilder, Consumer<SearchResponse> consumer) {
+    public static <Q extends ActionRequest, R extends ActionResponse> void assertResponse(
+        ActionRequestBuilder<Q, R> searchRequestBuilder,
+        Consumer<R> consumer
+    ) {
         var res = searchRequestBuilder.get();
         try {
             consumer.accept(res);

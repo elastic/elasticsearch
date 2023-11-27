@@ -698,7 +698,7 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(Object value) {
             if (value instanceof BytesRef valueAsBytesRef) {
-                return new BytesRef(Base64.getUrlEncoder().withoutPadding().encodeToString(valueAsBytesRef.bytes));
+                return valueAsBytesRef;
             }
             if (value instanceof String valueAsString) {
                 return new BytesRef(valueAsString);

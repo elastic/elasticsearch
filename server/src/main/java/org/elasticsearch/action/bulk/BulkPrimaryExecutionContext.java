@@ -61,7 +61,7 @@ class BulkPrimaryExecutionContext {
     private DocWriteRequest<?> requestToExecute;
     private BulkItemResponse executionResult;
     private int updateRetryCounter;
-    private boolean noopMappingUpdateRetry;
+    private long noopMappingUpdateRetryForMappingVersion;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
@@ -90,7 +90,7 @@ class BulkPrimaryExecutionContext {
         updateRetryCounter = 0;
         requestToExecute = null;
         executionResult = null;
-        noopMappingUpdateRetry = false;
+        noopMappingUpdateRetryForMappingVersion = -1;
         assert assertInvariants(ItemProcessingState.INITIAL);
     }
 
@@ -193,17 +193,30 @@ class BulkPrimaryExecutionContext {
         resetForExecutionRetry();
     }
 
-    public void resetForNoopMappingUpdateRetry() {
+    /**
+     * Don't bother the master node if the mapping update is a noop.
+     * This may happen if there was a concurrent mapping update that added the same field.
+     *
+     * @param mappingVersion the current mapping version. This is used to guard against infinite loops.
+     * @throws IllegalStateException if retried multiple times with the same mapping version, to guard against infinite loops.
+     */
+    public void resetForNoopMappingUpdateRetry(long mappingVersion) {
         assert assertInvariants(ItemProcessingState.TRANSLATED);
-        if (noopMappingUpdateRetry) {
+        if (noopMappingUpdateRetryForMappingVersion == mappingVersion) {
+            // seems like we're in a live lock/infinite loop here
+            // we've already re-tried and are about to retry again
+            // as no state has changed in the meantime (the mapping version is still the same),
+            // we can't expect another retry would yield a different result
+            // a possible cause:
             // maybe we added more dynamic mappers in DocumentParserContext.addDynamicMapper than possible according to the field limit
+            // the additional fields are then ignored by the mapping merge and the process repeats
             throw new IllegalStateException(
                 "On retry, this indexing request resulted in another noop mapping update. "
                     + "Failing the indexing operation to prevent an infinite retry loop."
             );
         }
-        noopMappingUpdateRetry = true;
         resetForExecutionRetry();
+        noopMappingUpdateRetryForMappingVersion = mappingVersion;
     }
 
     /** resets the current item state, prepare for a new execution */
@@ -211,6 +224,7 @@ class BulkPrimaryExecutionContext {
         currentItemState = ItemProcessingState.INITIAL;
         requestToExecute = null;
         executionResult = null;
+        noopMappingUpdateRetryForMappingVersion = -1;
         assert assertInvariants(ItemProcessingState.INITIAL);
     }
 

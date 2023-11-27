@@ -372,19 +372,19 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
 
             try {
-                DocumentMapper merged = primary.mapperService()
-                    .merge(
-                        MapperService.SINGLE_MAPPING_NAME,
-                        new CompressedXContent(result.getRequiredMappingUpdate()),
-                        MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
-                    );
-                CompressedXContent previousSource = Optional.ofNullable(primary.mapperService().documentMapper())
-                    .map(DocumentMapper::mappingSource)
-                    .orElse(null);
-                if (merged.mappingSource().equals(previousSource)) {
-                    // don't bother the master node if the mapping update is a noop
-                    // this may happen if there was a concurrent mapping update that added the same field
-                    context.resetForNoopMappingUpdateRetry();
+                Optional<CompressedXContent> mergedSource = Optional.ofNullable(
+                    primary.mapperService()
+                        .merge(
+                            MapperService.SINGLE_MAPPING_NAME,
+                            new CompressedXContent(result.getRequiredMappingUpdate()),
+                            MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
+                        )
+                ).map(DocumentMapper::mappingSource);
+                Optional<CompressedXContent> previousSource = Optional.ofNullable(primary.mapperService().documentMapper())
+                    .map(DocumentMapper::mappingSource);
+
+                if (mergedSource.equals(previousSource)) {
+                    context.resetForNoopMappingUpdateRetry(primary.mapperService().mappingVersion());
                     return true;
                 }
             } catch (Exception e) {

@@ -28,24 +28,23 @@ class TestFeatureService {
         Collection<Version> nodeVersions,
         Set<String> clusterStateFeatures
     ) {
-
-        var message = hasHistoricalFeaturesInformation
-            ? "Check the feature has been added to the correct FeatureSpecification in the relevant module or, if this is a "
-                + "legacy feature used only in tests, to a test-only FeatureSpecification"
-            : "This test seems to run on the legacy test plugins; historical features from production code will not be available."
-                + " You need to port the test to the new test plugins in order to use historical features from production code."
-                + " If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification";
-
         var minNodeVersion = nodeVersions.stream().min(Version::compareTo);
         var featureData = FeatureData.createFromSpecifications(specs);
         var historicalFeatures = featureData.getHistoricalFeatures();
         var allHistoricalFeatures = historicalFeatures.lastEntry() == null ? Set.of() : historicalFeatures.lastEntry().getValue();
+
+        var errorMessage = hasHistoricalFeaturesInformation
+            ? "Check the feature has been added to the correct FeatureSpecification in the relevant module or, if this is a "
+            + "legacy feature used only in tests, to a test-only FeatureSpecification"
+            : "This test seems to run on the legacy test plugins; historical features from production code will not be available."
+            + " You need to port the test to the new test plugins in order to use historical features from production code."
+            + " If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification";
         this.historicalFeaturesPredicate = minNodeVersion.<Predicate<String>>map(v -> featureId -> {
-            assert allHistoricalFeatures.contains(featureId) : String.format("Unknown historical feature %s: %s", featureId, message);
+            assert allHistoricalFeatures.contains(featureId) : String.format("Unknown historical feature %s: %s", featureId, errorMessage);
             return hasHistoricalFeature(historicalFeatures, v, featureId);
         }).orElse(featureId -> {
             // We can safely assume that new non-semantic versions (serverless) support all historical features
-            assert allHistoricalFeatures.contains(featureId) : String.format("Unknown historical feature %s: %s", featureId, message);
+            assert allHistoricalFeatures.contains(featureId) : String.format("Unknown historical feature %s: %s", featureId, errorMessage);
             return true;
         });
         this.clusterStateFeatures = clusterStateFeatures;

@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -321,7 +322,6 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1066")
     public void testStaleNodeDoesNotDeleteFile() throws Exception {
         String masterNode = startMasterOnlyNode(
             Settings.builder()
@@ -334,6 +334,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
                 .put(DISCOVERY_FIND_PEERS_INTERVAL_SETTING.getKey(), "100ms")
                 .put(LEADER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
                 .put(LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+                // Ensure that the disk controller does not flush the indices accidentally
+                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1))
                 .build()
         );
         ensureStableCluster(2);
@@ -352,7 +354,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         SeqNoStats beforeSeqNoStats = client(indexNodeA).admin().indices().prepareStats(indexName).get().getShards()[0].getSeqNoStats();
 
-        String indexNodeB = startIndexNode();
+        String indexNodeB = startIndexNode(
+            // Ensure that the disk controller does not flush the indices accidentally
+            Settings.builder().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1)).build()
+        );
 
         ensureStableCluster(3);
 

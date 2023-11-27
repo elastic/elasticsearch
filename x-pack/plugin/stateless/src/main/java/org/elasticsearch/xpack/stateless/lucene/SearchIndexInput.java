@@ -92,13 +92,21 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) {
         BlobCacheUtils.ensureSlice(sliceDescription, offset, length, this);
-        return new SearchIndexInput(sliceDescription, cacheFile, context, blobContainer, cacheService, length, this.offset + offset);
+        return new SearchIndexInput(
+            "(" + sliceDescription + ") " + super.toString(),
+            cacheFile,
+            context,
+            blobContainer,
+            cacheService,
+            length,
+            this.offset + offset
+        );
     }
 
     @Override
     public SearchIndexInput clone() {
         SearchIndexInput searchIndexInput = new SearchIndexInput(
-            "(clone of) " + toString(),
+            "(clone of) " + super.toString(),
             cacheFile,
             context,
             blobContainer,
@@ -239,5 +247,20 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     // for tests only
     SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile() {
         return cacheFile;
+    }
+
+    @Override
+    public String toString() {
+        return "SearchIndexInput{["
+            + super.toString()
+            + "], context="
+            + context
+            + ", cacheFile="
+            + cacheFile
+            + ", length="
+            + length
+            + ", offset="
+            + offset
+            + '}';
     }
 }

@@ -138,8 +138,10 @@ public final class ExchangeSinkHandler {
             } finally {
                 promised.release();
             }
-            onChanged();
-            listener.onResponse(response);
+            try (response) {
+                onChanged();
+                listener.onResponse(response);
+            }
         }
     }
 

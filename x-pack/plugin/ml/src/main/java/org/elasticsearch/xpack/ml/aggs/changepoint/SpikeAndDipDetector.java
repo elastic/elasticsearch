@@ -11,11 +11,12 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
  * Detects spikes and dips in a time series.
  */
 final class SpikeAndDipDetector {
-    
-    private record Extremum(int index, int startExcluded, int endExcluded) {
+
+    private record SpikeOrDip(int index, int startExcluded, int endExcluded) {
         double value(double[] values) {
             return values[index];
         }
+
         boolean includes(int i) {
             return i >= startExcluded && i < endExcluded;
         }
@@ -42,12 +43,12 @@ final class SpikeAndDipDetector {
         return sum / (double) (end - start);
     }
 
-    private Extremum computeExtremum(double[] values, int extent, boolean negate) {
+    private SpikeOrDip findSpikeOrDip(double[] values, int extent, boolean negate) {
 
         extent = Math.min(extent, values.length - 1);
 
         final int argmax = argmax(values, 0, values.length, negate);
-        
+
         // Find the maximum average interval of width extent which includes argmax.
         int maxStart = Math.max(0, argmax + 1 - extent);
         int maxEnd = Math.min(maxStart + extent, values.length);
@@ -63,7 +64,7 @@ final class SpikeAndDipDetector {
             }
         }
 
-        return new Extremum(argmax, maxStart, maxStart + extent);
+        return new SpikeOrDip(argmax, maxStart, maxStart + extent);
     }
 
     private interface ExcludedPredicate {
@@ -112,14 +113,14 @@ final class SpikeAndDipDetector {
         // Usually roughly 10% of values.
         int spikeLength = Math.max((int) (0.1 * values.length + 0.5), 2) - 1;
 
-        Extremum dip = computeExtremum(values, spikeLength, true);
-        Extremum spike = computeExtremum(values, spikeLength, false);
+        SpikeOrDip dip = findSpikeOrDip(values, spikeLength, true);
+        SpikeOrDip spike = findSpikeOrDip(values, spikeLength, false);
 
         dipIndex = dip.index();
         spikeIndex = spike.index();
         dipValue = dip.value(values);
         spikeValue = spike.value(values);
-        
+
         double[] dipKDEValues = removeIf((i) -> (dip.includes(i) || i == spike.index()), values);
         double[] spikeKDEValues = removeIf((i) -> (spike.includes(i) || i == dip.index()), values);
 
@@ -155,11 +156,19 @@ final class SpikeAndDipDetector {
         return new ChangeType.Stationary();
     }
 
-    double dipValue() { return dipValue; }
+    double dipValue() {
+        return dipValue;
+    }
 
-    double spikeValue() { return spikeValue; }
+    double spikeValue() {
+        return spikeValue;
+    }
 
-    KDE spikeTestKDE() { return spikeTestKDE; }
+    KDE spikeTestKDE() {
+        return spikeTestKDE;
+    }
 
-    KDE dipTestKDE() { return dipTestKDE; }
+    KDE dipTestKDE() {
+        return dipTestKDE;
+    }
 }

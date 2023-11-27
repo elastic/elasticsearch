@@ -95,9 +95,13 @@ final class KDE {
         return 0.5 * Erf.erfc(dev / (bandwidth * SQRT2));
     }
 
-    int size() { return orderedValues.length; }
+    int size() {
+        return orderedValues.length;
+    }
 
-    double[] data() { return orderedValues; }
+    double[] data() {
+        return orderedValues;
+    }
 
     record ValueAndMagnitude(double value, double magnitude) {
         boolean isMoreSignificant(ValueAndMagnitude o) {

@@ -64,10 +64,18 @@ final class KDE {
     // A value of 1.06 is recommended by Silverman, which is optimal for Gaussian data with
     // Gaussian Kernel. This tends to oversmooth from an minimum (M)ISE perspective on many
     // distributions. However, we actually prefer oversmoothing for our use case.
-    KDE(double[] values, double smoothing) {
-        this.orderedValues = Arrays.copyOf(values, values.length);
-        Arrays.sort(this.orderedValues);
-        bandwidth = smoothing * Math.pow(values.length, -0.2) * Math.sqrt(variance(this.orderedValues));
+    //
+    // Note that orderedValues must be ordered ascending and are shallow copied.
+    KDE(double[] orderedValues, double smoothing) {
+
+        for (int i = 1; i < orderedValues.length; i++) {
+            if (orderedValues[i - 1] > orderedValues[i]) {
+                throw new IllegalArgumentException("Values must be ordered ascending, got [" + Arrays.toString(orderedValues) + "].");
+            }
+        }
+
+        this.orderedValues = orderedValues;
+        bandwidth = smoothing * Math.pow(orderedValues.length, -0.2) * Math.sqrt(variance(orderedValues));
     }
 
     ValueAndMagnitude cdf(double x) {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
+import java.util.Arrays;
+
 /**
  * Detects spikes and dips in a time series.
  */
@@ -35,12 +37,12 @@ final class SpikeAndDipDetector {
         return argmax;
     }
 
-    private double average(double[] values, int start, int end, boolean negate) {
+    private double sum(double[] values, int start, int end, boolean negate) {
         double sum = 0.0;
         for (int i = start; i < end; i++) {
-            sum += negate ? -values[i] : values[i];
+            sum += values[i];
         }
-        return sum / (double) (end - start);
+        return negate ? -sum : sum;
     }
 
     private SpikeOrDip findSpikeOrDip(double[] values, int extent, boolean negate) {
@@ -52,15 +54,15 @@ final class SpikeAndDipDetector {
         // Find the maximum average interval of width extent which includes argmax.
         int maxStart = Math.max(0, argmax + 1 - extent);
         int maxEnd = Math.min(maxStart + extent, values.length);
-        double maxAvg = average(values, maxStart, maxEnd, negate);
+        double maxSum = sum(values, maxStart, maxEnd, negate);
         for (int start = maxStart + 1; start <= argmax; start++) {
             if (start + extent >= values.length) {
                 break;
             }
-            double average = average(values, start, start + extent, negate);
-            if (average > maxAvg) {
+            double average = sum(values, start, start + extent, negate);
+            if (average > maxSum) {
                 maxStart = start;
-                maxAvg = average;
+                maxSum = average;
             }
         }
 
@@ -105,8 +107,8 @@ final class SpikeAndDipDetector {
             spikeIndex = -1;
             dipValue = Double.NaN;
             spikeValue = Double.NaN;
-            spikeTestKDE = new KDE(values, 0.8);
-            dipTestKDE = new KDE(values, 0.8);
+            spikeTestKDE = null;
+            dipTestKDE = null;
             return;
         }
 
@@ -123,6 +125,8 @@ final class SpikeAndDipDetector {
 
         double[] dipKDEValues = removeIf((i) -> (dip.includes(i) || i == spike.index()), values);
         double[] spikeKDEValues = removeIf((i) -> (spike.includes(i) || i == dip.index()), values);
+        Arrays.sort(dipKDEValues);
+        Arrays.sort(spikeKDEValues);
 
         // We purposely over smooth to only surface visually significant spikes and dips.
         dipTestKDE = new KDE(dipKDEValues, 1.36);

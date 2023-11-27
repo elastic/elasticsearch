@@ -120,6 +120,11 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     private final boolean realtime;
 
     /**
+     * The host metadata is needed to calculate the CO2 emission and the costs for each TraceEvent.
+     * We cache the host metadata to avoid querying the same host metadata multiple times and thus reduce API latency.
+     *
+     * TODO: Add timestamp to the HostMetadata and make the key a tuple of (hostID, timestamp).
+     *
      * We just apply an upper limit to the number of cached hosts to ensure it doesn't blow up
      * in unforeseen situations.
      * The value itself is relatively arbitrary, but high enough to cover most foreseeable use cases.

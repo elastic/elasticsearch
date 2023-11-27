@@ -31,13 +31,13 @@ public class GetStackTracesRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         Integer sampleSize = randomIntBetween(1, Integer.MAX_VALUE);
         Double requestedDuration = randomBoolean() ? randomDoubleBetween(0.001d, Double.MAX_VALUE, true) : null;
-        Double customCostFactor = randomBoolean() ? randomDoubleBetween(0.1d, 5.0d, true) : null;
+        Double awsCostFactor = randomBoolean() ? randomDoubleBetween(0.1d, 5.0d, true) : null;
         QueryBuilder query = randomBoolean() ? new BoolQueryBuilder() : null;
 
         GetStackTracesRequest request = new GetStackTracesRequest(
             sampleSize,
             requestedDuration,
-            customCostFactor,
+            awsCostFactor,
             query,
             null,
             null,

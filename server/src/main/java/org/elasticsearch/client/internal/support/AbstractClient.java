@@ -1612,8 +1612,9 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public final void onResponse(R result) {
-            if (set(result)) {
-                result.mustIncRef();
+            result.mustIncRef();
+            if (set(result) == false) {
+                result.decRef();
             }
         }
 

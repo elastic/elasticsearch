@@ -151,6 +151,7 @@ public class Mapper {
         }
 
         if (p instanceof MvExpand mvExpand) {
+            assert mvExpand.limit() < 0;
             return new MvExpandExec(mvExpand.source(), map(mvExpand.child()), mvExpand.target(), mvExpand.expanded());
         }
 

@@ -156,7 +156,7 @@ unsupported:
   - match: { columns.16.name: name }
   - match: { columns.16.type: keyword }
   - match: { columns.17.name: point }
-  - match: { columns.17.type: unsupported }
+  - match: { columns.17.type: cartesian_point }
   - match: { columns.18.name: rank_feature }
   - match: { columns.18.type: unsupported }
   - match: { columns.19.name: rank_features }
@@ -252,7 +252,7 @@ unsupported:
   - match: { columns.16.name: name }
   - match: { columns.16.type: keyword }
   - match: { columns.17.name: point }
-  - match: { columns.17.type: unsupported }
+  - match: { columns.17.type: cartesian_point }
   - match: { columns.18.name: rank_feature }
   - match: { columns.18.type: unsupported }
   - match: { columns.19.name: rank_features }
@@ -336,7 +336,7 @@ unsupported with sort:
   - match: { columns.16.name: name }
   - match: { columns.16.type: keyword }
   - match: { columns.17.name: point }
-  - match: { columns.17.type: unsupported }
+  - match: { columns.17.type: cartesian_point }
   - match: { columns.18.name: rank_feature }
   - match: { columns.18.type: unsupported }
   - match: { columns.19.name: rank_features }
@@ -410,7 +410,7 @@ spatial types unsupported in 8.11:
   - match: { columns.1.name: geo_point_alias }
   - match: { columns.1.type: unsupported }
   - match: { columns.2.name: point }
-  - match: { columns.2.type: unsupported }
+  - match: { columns.2.type: cartesian_point }
   - match: { columns.3.name: geo_shape }
   - match: { columns.3.type: unsupported }
   - match: { columns.4.name: shape }

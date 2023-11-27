@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -37,8 +41,73 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         DocWriteResponse resp = awaitPutConnector(connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+    }
 
-        // TODO: more checks once GET endpoint is implemented :)
+    public void testDeleteConnector() throws Exception {
+        int numConnectors = 5;
+        List<String> connectorIds = new ArrayList<>();
+        for (int i = 0; i < numConnectors; i++) {
+            Connector connector = ConnectorTestUtils.getRandomConnector();
+            connectorIds.add(connector.getConnectorId());
+            DocWriteResponse resp = awaitPutConnector(connector);
+            assertThat(resp.status(), equalTo(RestStatus.CREATED));
+        }
+
+        String connectorIdToDelete = connectorIds.get(0);
+        DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete);
+        assertThat(resp.status(), equalTo(RestStatus.OK));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
+
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete));
+    }
+
+    // TODO: figure out how to use ConnectorTemplateRegistry in the test node
+    // public void testListConnector() throws Exception {
+    // int numConnectors = 10;
+    // List<String> connectorIds = new ArrayList<>();
+    // for (int i = 0; i < numConnectors; i++) {
+    // Connector connector = ConnectorTestUtils.getRandomConnector();
+    // connectorIds.add(connector.getConnectorId());
+    // DocWriteResponse resp = awaitPutConnector(connector);
+    // assertThat(resp.status(), equalTo(RestStatus.CREATED));
+    // }
+    // {
+    // ConnectorIndexService.ConnectorResult searchResponse = awaitListConnector(0, 10);
+    // final List<Connector> connectors = searchResponse.connectors();
+    // assertNotNull(connectors);
+    // assertThat(connectors.size(), equalTo(10));
+    // assertThat(searchResponse.totalResults(), equalTo(10L));
+    //
+    // for (int i = 0; i < numConnectors; i++) {
+    // String connectorId = connectors.get(i).getConnectorId();
+    // assertThat(connectorId, equalTo(connectorIds.get(i)));
+    // }
+    // }
+    // }
+
+    private DeleteResponse awaitDeleteConnector(String connectorId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.deleteConnector(connectorId, new ActionListener<>() {
+            @Override
+            public void onResponse(DeleteResponse deleteResponse) {
+                resp.set(deleteResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for delete request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from delete request", resp.get());
+        return resp.get();
     }
 
     private DocWriteResponse awaitPutConnector(Connector connector) throws Exception {
@@ -63,6 +132,56 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             throw exc.get();
         }
         assertNotNull("Received null response from put request", resp.get());
+        return resp.get();
+    }
+
+    private Connector awaitGetConnector(String connectorId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Connector> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.getConnector(connectorId, new ActionListener<>() {
+            @Override
+            public void onResponse(Connector connector) {
+                resp.set(connector);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for get request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from get request", resp.get());
+        return resp.get();
+    }
+
+    private ConnectorIndexService.ConnectorResult awaitListConnector(int from, int size) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<ConnectorIndexService.ConnectorResult> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.listConnectors(from, size, new ActionListener<>() {
+            @Override
+            public void onResponse(ConnectorIndexService.ConnectorResult result) {
+                resp.set(result);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for list request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from list request", resp.get());
         return resp.get();
     }
 

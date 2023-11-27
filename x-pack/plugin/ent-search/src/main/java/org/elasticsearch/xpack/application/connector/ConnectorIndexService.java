@@ -22,18 +22,17 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -79,7 +78,7 @@ public class ConnectorIndexService {
      * @param connectorId The id of the connector object.
      * @param listener    The action listener to invoke on response/failure.
      */
-    public void getConnector(String connectorId, ActionListener<BytesReference> listener) {
+    public void getConnector(String connectorId, ActionListener<Connector> listener) {
 
         final GetRequest getRequest = new GetRequest(CONNECTOR_INDEX_NAME).id(connectorId).realtime(true);
 
@@ -88,7 +87,8 @@ public class ConnectorIndexService {
                 l.onFailure(new ResourceNotFoundException(connectorId));
                 return;
             }
-            l.onResponse(getResponse.getSourceAsBytesRef());
+            final Connector connector = Connector.fromXContentBytes(getResponse.getSourceAsBytesRef(), XContentType.JSON);
+            l.onResponse(connector);
         }));
     }
 
@@ -124,7 +124,7 @@ public class ConnectorIndexService {
      * List the {@link Connector} in ascending order of their ids.
      *
      * @param from From index to start the search from.
-     * @param size The maximum number of {@link ConnectorListItem}s to return.
+     * @param size The maximum number of {@link Connector}s to return.
      * @param listener The action listener to invoke on response/failure.
      */
     public void listConnectors(int from, int size, ActionListener<ConnectorIndexService.ConnectorResult> listener) {
@@ -132,7 +132,7 @@ public class ConnectorIndexService {
             final SearchSourceBuilder source = new SearchSourceBuilder().from(from)
                 .size(size)
                 .query(new MatchAllQueryBuilder())
-                .fetchSource(new String[] { Connector.ID_FIELD.getPreferredName(), Connector.NAME_FIELD.getPreferredName() }, null)
+                .fetchSource(true)
                 .sort(Connector.ID_FIELD.getPreferredName(), SortOrder.ASC);
             final SearchRequest req = new SearchRequest(CONNECTOR_INDEX_NAME).source(source);
             clientWithOrigin.search(req, new ActionListener<>() {
@@ -156,24 +156,20 @@ public class ConnectorIndexService {
     }
 
     private static ConnectorIndexService.ConnectorResult mapSearchResponseToConnectorList(SearchResponse response) {
-        final List<ConnectorListItem> connectorResults = Arrays.stream(response.getHits().getHits())
-            .map(ConnectorIndexService::hitToConnectorListItem)
+        final List<Connector> connectorResults = Arrays.stream(response.getHits().getHits())
+            .map(ConnectorIndexService::hitToConnector)
             .toList();
         return new ConnectorIndexService.ConnectorResult(connectorResults, (int) response.getHits().getTotalHits().value);
     }
 
-    private static ConnectorListItem hitToConnectorListItem(SearchHit searchHit) {
+    private static Connector hitToConnector(SearchHit searchHit) {
 
-        // todo: don't return sensitive data in list endpoint
+        // todo: don't return sensitive data from configuration in list endpoint
 
-        final Map<String, Object> sourceMap = searchHit.getSourceAsMap();
-        final String connectorId = (String) sourceMap.get(Connector.ID_FIELD.getPreferredName());
-        final String name = (String) sourceMap.get(Connector.NAME_FIELD.getPreferredName());
-
-        return new ConnectorListItem(connectorId, name);
+        return Connector.fromXContentBytes(searchHit.getSourceRef(), XContentType.JSON);
     }
 
-    public record ConnectorResult(List<ConnectorListItem> connectors, long totalResults) {}
+    public record ConnectorResult(List<Connector> connectors, long totalResults) {}
 
     /**
      * Listeners that checks failures for IndexNotFoundException, and transforms them in ResourceNotFoundException,

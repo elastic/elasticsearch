@@ -7,11 +7,20 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -20,6 +29,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ConnectorFiltering implements Writeable, ToXContentObject {
 
@@ -46,16 +57,47 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         this.draft = new FilteringRules(in);
     }
 
+    private static final ParseField ACTIVE_FIELD = new ParseField("active");
+    private static final ParseField DOMAIN_FIELD = new ParseField("domain");
+    private static final ParseField DRAFT_FIELD = new ParseField("draft");
+
+    private static final ConstructingObjectParser<ConnectorFiltering, Void> PARSER = new ConstructingObjectParser<>(
+        "connector_filtering",
+        true,
+        args -> new ConnectorFiltering.Builder().setActive((FilteringRules) args[0])
+            .setDomain((String) args[1])
+            .setDraft((FilteringRules) args[2])
+            .build()
+    );
+
+    static {
+        PARSER.declareObject(constructorArg(), (p, c) -> FilteringRules.fromXContent(p), ACTIVE_FIELD);
+        PARSER.declareString(constructorArg(), DOMAIN_FIELD);
+        PARSER.declareObject(constructorArg(), (p, c) -> FilteringRules.fromXContent(p), DRAFT_FIELD);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field("active", active);
-            builder.field("domain", domain);
-            builder.field("draft", draft);
+            builder.field(ACTIVE_FIELD.getPreferredName(), active);
+            builder.field(DOMAIN_FIELD.getPreferredName(), domain);
+            builder.field(DRAFT_FIELD.getPreferredName(), draft);
         }
         builder.endObject();
         return builder;
+    }
+
+    public static ConnectorFiltering fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    public static ConnectorFiltering fromXContentBytes(BytesReference source, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            return ConnectorFiltering.fromXContent(parser);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse a connector filtering.", e);
+        }
     }
 
     @Override
@@ -106,89 +148,73 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
 
     public static class FilteringRules implements Writeable, ToXContentObject {
 
-        private final Instant advancedSnippetCreatedAt;
-        private final Instant advancedSnippetUpdatedAt;
-        private final Map<String, Object> advancedSnippetValue;
+        private final AdvancedSnippet advancedSnippet;
         private final List<FilteringRule> rules;
-        private final List<FilteringValidation> validationErrors;
-        private final FilteringValidationState validationState;
+
+        private final FilteringValidationInfo filteringValidationInfo;
 
         /**
          * Constructs a new FilteringRules instance.
          *
-         * @param advancedSnippetCreatedAt The creation timestamp of the advanced snippet.
-         * @param advancedSnippetUpdatedAt The update timestamp of the advanced snippet.
-         * @param advancedSnippetValue The map of the advanced snippet.
+         * @param advancedSnippet The {@link AdvancedSnippet} object.
          * @param rules The list of {@link FilteringRule} objects
-         * @param validationErrors The list of {@link FilteringValidation} errors for the filtering rules.
-         * @param validationState The {@link FilteringValidationState} of the filtering rules.
+         * @param filteringValidationInfo The {@link FilteringValidationInfo} object.
          */
-        public FilteringRules(
-            Instant advancedSnippetCreatedAt,
-            Instant advancedSnippetUpdatedAt,
-            Map<String, Object> advancedSnippetValue,
-            List<FilteringRule> rules,
-            List<FilteringValidation> validationErrors,
-            FilteringValidationState validationState
-        ) {
-            this.advancedSnippetCreatedAt = advancedSnippetCreatedAt;
-            this.advancedSnippetUpdatedAt = advancedSnippetUpdatedAt;
-            this.advancedSnippetValue = advancedSnippetValue;
+        public FilteringRules(AdvancedSnippet advancedSnippet, List<FilteringRule> rules, FilteringValidationInfo filteringValidationInfo) {
+            this.advancedSnippet = advancedSnippet;
             this.rules = rules;
-            this.validationErrors = validationErrors;
-            this.validationState = validationState;
+            this.filteringValidationInfo = filteringValidationInfo;
         }
 
         public FilteringRules(StreamInput in) throws IOException {
-            this.advancedSnippetCreatedAt = in.readInstant();
-            this.advancedSnippetUpdatedAt = in.readInstant();
-            this.advancedSnippetValue = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
+            this.advancedSnippet = new AdvancedSnippet(in);
             this.rules = in.readCollectionAsList(FilteringRule::new);
-            this.validationErrors = in.readCollectionAsList(FilteringValidation::new);
-            this.validationState = in.readEnum(FilteringValidationState.class);
+            this.filteringValidationInfo = new FilteringValidationInfo(in);
+        }
+
+        private static final ParseField ADVANCED_SNIPPET_FIELD = new ParseField("advanced_snippet");
+        private static final ParseField RULES_FIELD = new ParseField("rules");
+        private static final ParseField VALIDATION_FIELD = new ParseField("validation");
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<FilteringRules, Void> PARSER = new ConstructingObjectParser<>(
+            "connector_filtering_rules",
+            true,
+            args -> new FilteringRules.Builder().setAdvancedSnippet((AdvancedSnippet) args[0])
+                .setRules((List<FilteringRule>) args[1])
+                .setFilteringValidationInfo((FilteringValidationInfo) args[2])
+                .build()
+        );
+
+        static {
+            PARSER.declareObject(constructorArg(), (p, c) -> AdvancedSnippet.fromXContent(p), ADVANCED_SNIPPET_FIELD);
+            PARSER.declareObjectArray(constructorArg(), (p, c) -> FilteringRule.fromXContent(p), RULES_FIELD);
+            PARSER.declareObject(constructorArg(), (p, c) -> FilteringValidationInfo.fromXContent(p), VALIDATION_FIELD);
+
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.startObject("advanced_snippet");
-                {
-                    builder.field("created_at", advancedSnippetCreatedAt);
-                    builder.field("updated_at", advancedSnippetUpdatedAt);
-                    builder.field("value", advancedSnippetValue);
-                }
-                builder.endObject();
-
-                builder.startArray("rules");
-                for (FilteringRule rule : rules) {
-                    rule.toXContent(builder, params);
-                }
-                builder.endArray();
-
-                builder.startObject("validation");
-                {
-                    builder.startArray("errors");
-                    for (FilteringValidation error : validationErrors) {
-                        error.toXContent(builder, params);
-                    }
-                    builder.endArray();
-                    builder.field("state", validationState.toString());
-                }
-                builder.endObject();
+                builder.field(ADVANCED_SNIPPET_FIELD.getPreferredName(), advancedSnippet);
+                builder.xContentList(RULES_FIELD.getPreferredName(), rules);
+                builder.field(VALIDATION_FIELD.getPreferredName(), filteringValidationInfo);
             }
             builder.endObject();
             return builder;
         }
 
+        public static FilteringRules fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeInstant(advancedSnippetCreatedAt);
-            out.writeInstant(advancedSnippetUpdatedAt);
-            out.writeMap(advancedSnippetValue, StreamOutput::writeString, StreamOutput::writeGenericValue);
+            advancedSnippet.writeTo(out);
             out.writeCollection(rules);
-            out.writeCollection(validationErrors);
-            out.writeEnum(validationState);
+            filteringValidationInfo.writeTo(out);
+
         }
 
         @Override
@@ -196,24 +222,126 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             FilteringRules that = (FilteringRules) o;
-            return Objects.equals(advancedSnippetCreatedAt, that.advancedSnippetCreatedAt)
-                && Objects.equals(advancedSnippetUpdatedAt, that.advancedSnippetUpdatedAt)
-                && Objects.equals(advancedSnippetValue, that.advancedSnippetValue)
+            return Objects.equals(advancedSnippet, that.advancedSnippet)
                 && Objects.equals(rules, that.rules)
-                && Objects.equals(validationErrors, that.validationErrors)
-                && validationState == that.validationState;
+                && Objects.equals(filteringValidationInfo, that.filteringValidationInfo);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(
-                advancedSnippetCreatedAt,
-                advancedSnippetUpdatedAt,
-                advancedSnippetValue,
-                rules,
-                validationErrors,
-                validationState
-            );
+            return Objects.hash(advancedSnippet, rules, filteringValidationInfo);
+        }
+
+        public static class Builder {
+
+            private AdvancedSnippet advancedSnippet;
+            private List<FilteringRule> rules;
+            private FilteringValidationInfo filteringValidationInfo;
+
+            public Builder setAdvancedSnippet(AdvancedSnippet advancedSnippet) {
+                this.advancedSnippet = advancedSnippet;
+                return this;
+            }
+
+            public Builder setRules(List<FilteringRule> rules) {
+                this.rules = rules;
+                return this;
+            }
+
+            public Builder setFilteringValidationInfo(FilteringValidationInfo filteringValidationInfo) {
+                this.filteringValidationInfo = filteringValidationInfo;
+                return this;
+            }
+
+            public FilteringRules build() {
+                return new FilteringRules(advancedSnippet, rules, filteringValidationInfo);
+            }
+        }
+    }
+
+    public static class AdvancedSnippet implements Writeable, ToXContentObject {
+
+        private final Instant advancedSnippetCreatedAt;
+        private final Instant advancedSnippetUpdatedAt;
+        private final Map<String, Object> advancedSnippetValue;
+
+        /**
+         * @param advancedSnippetCreatedAt The creation timestamp of the advanced snippet.
+         * @param advancedSnippetUpdatedAt The update timestamp of the advanced snippet.
+         * @param advancedSnippetValue     The map of the advanced snippet.
+         */
+        private AdvancedSnippet(
+            Instant advancedSnippetCreatedAt,
+            Instant advancedSnippetUpdatedAt,
+            Map<String, Object> advancedSnippetValue
+        ) {
+            this.advancedSnippetCreatedAt = advancedSnippetCreatedAt;
+            this.advancedSnippetUpdatedAt = advancedSnippetUpdatedAt;
+            this.advancedSnippetValue = advancedSnippetValue;
+        }
+
+        public AdvancedSnippet(StreamInput in) throws IOException {
+            this.advancedSnippetCreatedAt = in.readInstant();
+            this.advancedSnippetUpdatedAt = in.readInstant();
+            this.advancedSnippetValue = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
+        }
+
+        private static final ParseField CREATED_AT_FIELD = new ParseField("created_at");
+        private static final ParseField UPDATED_AT_FIELD = new ParseField("updated_at");
+        private static final ParseField VALUE_FIELD = new ParseField("value");
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<AdvancedSnippet, Void> PARSER = new ConstructingObjectParser<>(
+            "connector_filtering_advanced_snippet",
+            true,
+            args -> new Builder().setAdvancedSnippetCreatedAt((Instant) args[0])
+                .setAdvancedSnippetUpdatedAt((Instant) args[1])
+                .setAdvancedSnippetValue((Map<String, Object>) args[2])
+                .build()
+        );
+
+        static {
+            PARSER.declareField(constructorArg(), (p, c) -> Instant.parse(p.text()), CREATED_AT_FIELD, ObjectParser.ValueType.STRING);
+            PARSER.declareField(constructorArg(), (p, c) -> Instant.parse(p.text()), UPDATED_AT_FIELD, ObjectParser.ValueType.STRING);
+            PARSER.declareField(constructorArg(), (p, c) -> p.map(), VALUE_FIELD, ObjectParser.ValueType.OBJECT);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field(CREATED_AT_FIELD.getPreferredName(), advancedSnippetCreatedAt);
+                builder.field(UPDATED_AT_FIELD.getPreferredName(), advancedSnippetUpdatedAt);
+                builder.field(VALUE_FIELD.getPreferredName(), advancedSnippetValue);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public static AdvancedSnippet fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInstant(advancedSnippetCreatedAt);
+            out.writeInstant(advancedSnippetUpdatedAt);
+            out.writeMap(advancedSnippetValue, StreamOutput::writeString, StreamOutput::writeGenericValue);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AdvancedSnippet that = (AdvancedSnippet) o;
+            return Objects.equals(advancedSnippetCreatedAt, that.advancedSnippetCreatedAt)
+                && Objects.equals(advancedSnippetUpdatedAt, that.advancedSnippetUpdatedAt)
+                && Objects.equals(advancedSnippetValue, that.advancedSnippetValue);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(advancedSnippetCreatedAt, advancedSnippetUpdatedAt, advancedSnippetValue);
         }
 
         public static class Builder {
@@ -221,9 +349,6 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
             private Instant advancedSnippetCreatedAt;
             private Instant advancedSnippetUpdatedAt;
             private Map<String, Object> advancedSnippetValue;
-            private List<FilteringRule> rules;
-            private List<FilteringValidation> validationErrors;
-            private FilteringValidationState validationState;
 
             public Builder setAdvancedSnippetCreatedAt(Instant advancedSnippetCreatedAt) {
                 this.advancedSnippetCreatedAt = advancedSnippetCreatedAt;
@@ -240,10 +365,91 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
                 return this;
             }
 
-            public Builder setRules(List<FilteringRule> rules) {
-                this.rules = rules;
-                return this;
+            public AdvancedSnippet build() {
+                return new AdvancedSnippet(advancedSnippetCreatedAt, advancedSnippetUpdatedAt, advancedSnippetValue);
             }
+        }
+    }
+
+    public static class FilteringValidationInfo implements Writeable, ToXContentObject {
+
+        private final List<FilteringValidation> validationErrors;
+        private final FilteringValidationState validationState;
+
+        /**
+         * @param validationErrors The list of {@link FilteringValidation} errors for the filtering rules.
+         * @param validationState  The {@link FilteringValidationState} of the filtering rules.
+         */
+        public FilteringValidationInfo(List<FilteringValidation> validationErrors, FilteringValidationState validationState) {
+            this.validationErrors = validationErrors;
+            this.validationState = validationState;
+        }
+
+        public FilteringValidationInfo(StreamInput in) throws IOException {
+            this.validationErrors = in.readCollectionAsList(FilteringValidation::new);
+            this.validationState = in.readEnum(FilteringValidationState.class);
+        }
+
+        private static final ParseField ERRORS_FIELD = new ParseField("errors");
+        private static final ParseField STATE_FIELD = new ParseField("state");
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<FilteringValidationInfo, Void> PARSER = new ConstructingObjectParser<>(
+            "filtering_validation_info",
+            true,
+            args -> new Builder().setValidationErrors((List<FilteringValidation>) args[0])
+                .setValidationState((FilteringValidationState) args[1])
+                .build()
+        );
+
+        static {
+            PARSER.declareObjectArray(constructorArg(), (p, c) -> FilteringValidation.fromXContent(p), ERRORS_FIELD);
+            PARSER.declareField(
+                constructorArg(),
+                (p, c) -> FilteringValidationState.filteringValidationState(p.text()),
+                STATE_FIELD,
+                ObjectParser.ValueType.STRING
+            );
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field(ERRORS_FIELD.getPreferredName(), validationErrors);
+                builder.field(STATE_FIELD.getPreferredName(), validationState);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public static FilteringValidationInfo fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(validationErrors);
+            out.writeEnum(validationState);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FilteringValidationInfo that = (FilteringValidationInfo) o;
+            return Objects.equals(validationErrors, that.validationErrors) && validationState == that.validationState;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(validationErrors, validationState);
+        }
+
+        public static class Builder {
+
+            private List<FilteringValidation> validationErrors;
+            private FilteringValidationState validationState;
 
             public Builder setValidationErrors(List<FilteringValidation> validationErrors) {
                 this.validationErrors = validationErrors;
@@ -255,15 +461,8 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
                 return this;
             }
 
-            public FilteringRules build() {
-                return new FilteringRules(
-                    advancedSnippetCreatedAt,
-                    advancedSnippetUpdatedAt,
-                    advancedSnippetValue,
-                    rules,
-                    validationErrors,
-                    validationState
-                );
+            public FilteringValidationInfo build() {
+                return new FilteringValidationInfo(validationErrors, validationState);
             }
         }
     }
@@ -322,19 +521,67 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
             this.value = in.readString();
         }
 
+        private static final ParseField CREATED_AT_FIELD = new ParseField("created_at");
+        private static final ParseField FIELD_FIELD = new ParseField("field");
+        private static final ParseField ID_FIELD = new ParseField("id");
+        private static final ParseField ORDER_FIELD = new ParseField("order");
+        private static final ParseField POLICY_FIELD = new ParseField("policy");
+        private static final ParseField RULE_FIELD = new ParseField("rule");
+        private static final ParseField UPDATED_AT_FIELD = new ParseField("updated_at");
+        private static final ParseField VALUE_FIELD = new ParseField("value");
+
+        private static final ConstructingObjectParser<FilteringRule, Void> PARSER = new ConstructingObjectParser<>(
+            "connector_filtering_rule",
+            true,
+            args -> new FilteringRule.Builder().setCreatedAt((Instant) args[0])
+                .setField((String) args[1])
+                .setId((String) args[2])
+                .setOrder((Integer) args[3])
+                .setPolicy((FilteringPolicy) args[4])
+                .setRule((FilteringRuleCondition) args[5])
+                .setUpdatedAt((Instant) args[6])
+                .setValue((String) args[7])
+                .build()
+        );
+
+        static {
+            PARSER.declareField(constructorArg(), (p, c) -> Instant.parse(p.text()), CREATED_AT_FIELD, ObjectParser.ValueType.STRING);
+            PARSER.declareString(constructorArg(), FIELD_FIELD);
+            PARSER.declareString(constructorArg(), ID_FIELD);
+            PARSER.declareInt(constructorArg(), ORDER_FIELD);
+            PARSER.declareField(
+                constructorArg(),
+                (p, c) -> FilteringPolicy.filteringPolicy(p.text()),
+                POLICY_FIELD,
+                ObjectParser.ValueType.STRING
+            );
+            PARSER.declareField(
+                constructorArg(),
+                (p, c) -> FilteringRuleCondition.filteringRuleCondition(p.text()),
+                RULE_FIELD,
+                ObjectParser.ValueType.STRING
+            );
+            PARSER.declareField(constructorArg(), (p, c) -> Instant.parse(p.text()), UPDATED_AT_FIELD, ObjectParser.ValueType.STRING);
+            PARSER.declareString(constructorArg(), VALUE_FIELD);
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("createdAt", createdAt);
-            builder.field("field", field);
-            builder.field("id", id);
-            builder.field("order", order);
-            builder.field("policy", policy.toString());
-            builder.field("rule", rule.toString());
-            builder.field("updatedAt", updatedAt);
-            builder.field("value", value);
+            builder.field(CREATED_AT_FIELD.getPreferredName(), createdAt);
+            builder.field(FIELD_FIELD.getPreferredName(), field);
+            builder.field(ID_FIELD.getPreferredName(), id);
+            builder.field(ORDER_FIELD.getPreferredName(), order);
+            builder.field(POLICY_FIELD.getPreferredName(), policy.toString());
+            builder.field(RULE_FIELD.getPreferredName(), rule.toString());
+            builder.field(UPDATED_AT_FIELD.getPreferredName(), updatedAt);
+            builder.field(VALUE_FIELD.getPreferredName(), value);
             builder.endObject();
             return builder;
+        }
+
+        public static FilteringRule fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
         }
 
         @Override
@@ -446,14 +693,33 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
             this.messages = in.readStringCollectionAsList();
         }
 
+        private static final ParseField IDS_FIELD = new ParseField("ids");
+        private static final ParseField MESSAGES_FIELD = new ParseField("messages");
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<FilteringValidation, Void> PARSER = new ConstructingObjectParser<>(
+            "connector_filtering_validation",
+            true,
+            args -> new FilteringValidation.Builder().setIds((List<String>) args[0]).setMessages((List<String>) args[1]).build()
+        );
+
+        static {
+            PARSER.declareStringArray(constructorArg(), IDS_FIELD);
+            PARSER.declareStringArray(constructorArg(), MESSAGES_FIELD);
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.stringListField("ids", ids);
-                builder.stringListField("messages", messages);
+                builder.stringListField(IDS_FIELD.getPreferredName(), ids);
+                builder.stringListField(MESSAGES_FIELD.getPreferredName(), messages);
             }
             return builder;
+        }
+
+        public static FilteringValidation fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
         }
 
         @Override
@@ -505,6 +771,15 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
         }
+
+        public static FilteringValidationState filteringValidationState(String validationState) {
+            for (FilteringValidationState filteringValidationState : FilteringValidationState.values()) {
+                if (filteringValidationState.name().equalsIgnoreCase(validationState)) {
+                    return filteringValidationState;
+                }
+            }
+            throw new IllegalArgumentException("Unknown FilteringValidationState: " + validationState);
+        }
     }
 
     public enum FilteringPolicy {
@@ -514,6 +789,15 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         @Override
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
+        }
+
+        public static FilteringPolicy filteringPolicy(String policy) {
+            for (FilteringPolicy filteringPolicy : FilteringPolicy.values()) {
+                if (filteringPolicy.name().equalsIgnoreCase(policy)) {
+                    return filteringPolicy;
+                }
+            }
+            throw new IllegalArgumentException("Unknown FilteringPolicy: " + policy);
         }
     }
 
@@ -536,6 +820,15 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         public String toString() {
             return this.value;
         }
+
+        public static FilteringRuleCondition filteringRuleCondition(String condition) {
+            for (FilteringRuleCondition filteringRuleCondition : FilteringRuleCondition.values()) {
+                if (filteringRuleCondition.name().equalsIgnoreCase(condition)) {
+                    return filteringRuleCondition;
+                }
+            }
+            throw new IllegalArgumentException("Unknown FilteringRuleCondition: " + condition);
+        }
     }
 
     public static ConnectorFiltering getDefaultConnectorFilteringConfig() {
@@ -543,9 +836,12 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         Instant currentTimestamp = Instant.now();
 
         return new ConnectorFiltering.Builder().setActive(
-            new FilteringRules.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
-                .setAdvancedSnippetUpdatedAt(currentTimestamp)
-                .setAdvancedSnippetValue(Collections.emptyMap())
+            new FilteringRules.Builder().setAdvancedSnippet(
+                new AdvancedSnippet.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
+                    .setAdvancedSnippetUpdatedAt(currentTimestamp)
+                    .setAdvancedSnippetValue(Collections.emptyMap())
+                    .build()
+            )
                 .setRules(
                     List.of(
                         new FilteringRule.Builder().setCreatedAt(currentTimestamp)
@@ -559,15 +855,21 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
                             .build()
                     )
                 )
-                .setValidationErrors(Collections.emptyList())
-                .setValidationState(FilteringValidationState.VALID)
+                .setFilteringValidationInfo(
+                    new FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
+                        .setValidationState(FilteringValidationState.VALID)
+                        .build()
+                )
                 .build()
         )
             .setDomain("DEFAULT")
             .setDraft(
-                new FilteringRules.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
-                    .setAdvancedSnippetUpdatedAt(currentTimestamp)
-                    .setAdvancedSnippetValue(Collections.emptyMap())
+                new FilteringRules.Builder().setAdvancedSnippet(
+                    new AdvancedSnippet.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
+                        .setAdvancedSnippetUpdatedAt(currentTimestamp)
+                        .setAdvancedSnippetValue(Collections.emptyMap())
+                        .build()
+                )
                     .setRules(
                         List.of(
                             new FilteringRule.Builder().setCreatedAt(currentTimestamp)
@@ -581,8 +883,11 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
                                 .build()
                         )
                     )
-                    .setValidationErrors(Collections.emptyList())
-                    .setValidationState(FilteringValidationState.VALID)
+                    .setFilteringValidationInfo(
+                        new FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
+                            .setValidationState(FilteringValidationState.VALID)
+                            .build()
+                    )
                     .build()
             )
             .build();

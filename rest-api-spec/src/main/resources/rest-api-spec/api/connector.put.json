@@ -17,12 +17,6 @@
     "url": {
       "paths": [
         {
-          "path":"/_connector",
-          "methods":[
-            "POST"
-          ]
-        },
-        {
           "path": "/_connector/{connector_id}",
           "methods": [
             "PUT"

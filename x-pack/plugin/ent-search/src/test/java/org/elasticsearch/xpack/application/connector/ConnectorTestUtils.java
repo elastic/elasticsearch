@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -85,12 +86,11 @@ public final class ConnectorTestUtils {
     }
 
     public static ConnectorFeatures getRandomConnectorFeatures() {
-        return new ConnectorFeatures.Builder().setDocumentLevelSecurityEnabled(randomFrom(new Boolean[] { null, randomBoolean() }))
+        return new ConnectorFeatures.Builder().setDocumentLevelSecurityEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
             .setFilteringRules(randomFrom(new Boolean[] { null, randomBoolean() }))
             .setFilteringAdvancedConfig(randomFrom(new Boolean[] { null, randomBoolean() }))
-            .setIncrementalSyncEnabled(randomFrom(new Boolean[] { null, randomBoolean() }))
-            .setSyncRulesAdvancedEnabled(randomFrom(new Boolean[] { null, randomBoolean() }))
-            .setSyncRulesBasicEnabled(randomFrom(new Boolean[] { null, randomBoolean() }))
+            .setIncrementalSyncEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null)
+            .setSyncRulesFeatures(randomBoolean() ? randomSyncRulesFeatures() : null)
             .build();
     }
 
@@ -115,9 +115,12 @@ public final class ConnectorTestUtils {
         Instant currentTimestamp = Instant.now();
 
         return new ConnectorFiltering.Builder().setActive(
-            new ConnectorFiltering.FilteringRules.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
-                .setAdvancedSnippetUpdatedAt(currentTimestamp)
-                .setAdvancedSnippetValue(Collections.emptyMap())
+            new ConnectorFiltering.FilteringRules.Builder().setAdvancedSnippet(
+                new ConnectorFiltering.AdvancedSnippet.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
+                    .setAdvancedSnippetUpdatedAt(currentTimestamp)
+                    .setAdvancedSnippetValue(Collections.emptyMap())
+                    .build()
+            )
                 .setRules(
                     List.of(
                         new ConnectorFiltering.FilteringRule.Builder().setCreatedAt(currentTimestamp)
@@ -131,15 +134,21 @@ public final class ConnectorTestUtils {
                             .build()
                     )
                 )
-                .setValidationErrors(Collections.emptyList())
-                .setValidationState(getRandomFilteringValidationState())
+                .setFilteringValidationInfo(
+                    new ConnectorFiltering.FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
+                        .setValidationState(getRandomFilteringValidationState())
+                        .build()
+                )
                 .build()
         )
             .setDomain(randomAlphaOfLength(10))
             .setDraft(
-                new ConnectorFiltering.FilteringRules.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
-                    .setAdvancedSnippetUpdatedAt(currentTimestamp)
-                    .setAdvancedSnippetValue(Collections.emptyMap())
+                new ConnectorFiltering.FilteringRules.Builder().setAdvancedSnippet(
+                    new ConnectorFiltering.AdvancedSnippet.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)
+                        .setAdvancedSnippetUpdatedAt(currentTimestamp)
+                        .setAdvancedSnippetValue(Collections.emptyMap())
+                        .build()
+                )
                     .setRules(
                         List.of(
                             new ConnectorFiltering.FilteringRule.Builder().setCreatedAt(currentTimestamp)
@@ -153,8 +162,11 @@ public final class ConnectorTestUtils {
                                 .build()
                         )
                     )
-                    .setValidationErrors(Collections.emptyList())
-                    .setValidationState(getRandomFilteringValidationState())
+                    .setFilteringValidationInfo(
+                        new ConnectorFiltering.FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
+                            .setValidationState(getRandomFilteringValidationState())
+                            .build()
+                    )
                     .build()
             )
             .build();
@@ -164,7 +176,7 @@ public final class ConnectorTestUtils {
         return new Connector.Builder().setConnectorId(randomAlphaOfLength(10))
             .setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setConfiguration(Collections.emptyMap())
-            .setCustomScheduling(randomBoolean() ? getRandomConnectorCustomSchedule() : null)
+            .setCustomScheduling(Map.of(randomAlphaOfLengthBetween(5, 10), getRandomConnectorCustomSchedule()))
             .setDescription(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setError(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setFeatures(randomBoolean() ? getRandomConnectorFeatures() : null)
@@ -180,6 +192,16 @@ public final class ConnectorTestUtils {
             .setSyncCursor(randomFrom(new Object[] { null, randomAlphaOfLength(1) }))
             .setSyncNow(randomBoolean())
             .build();
+    }
+
+    private static ConnectorFeatures.FeatureEnabled randomConnectorFeatureEnabled() {
+        return new ConnectorFeatures.FeatureEnabled(randomBoolean());
+    }
+
+    private static ConnectorFeatures.SyncRulesFeatures randomSyncRulesFeatures() {
+        return new ConnectorFeatures.SyncRulesFeatures.Builder().setSyncRulesAdvancedEnabled(
+            randomBoolean() ? randomConnectorFeatureEnabled() : null
+        ).setSyncRulesBasicEnabled(randomBoolean() ? randomConnectorFeatureEnabled() : null).build();
     }
 
     /**

@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -20,7 +19,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.Connector;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -111,26 +110,25 @@ public class GetConnectorAction extends ActionType<GetConnectorAction.Response> 
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final BytesReference connector;
+        private final Connector connector;
 
-        public Response(BytesReference connector) {
+        public Response(Connector connector) {
             this.connector = connector;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.connector = in.readBytesReference();
+            this.connector = new Connector(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesReference(connector);
+            connector.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.rawValue(connector.streamInput(), XContentType.JSON);
-            return builder;
+            return connector.toXContent(builder, params);
         }
 
         @Override

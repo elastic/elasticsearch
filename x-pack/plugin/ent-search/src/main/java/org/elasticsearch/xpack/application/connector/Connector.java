@@ -7,19 +7,32 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents a Connector in the Elasticsearch ecosystem. Connectors are used for integrating
@@ -55,7 +68,7 @@ public class Connector implements Writeable, ToXContentObject {
     @Nullable
     private final Map<String, Object> configuration; // TODO: add explicit types
     @Nullable
-    private final ConnectorCustomSchedule customScheduling;
+    private final Map<String, ConnectorCustomSchedule> customScheduling;
     @Nullable
     private final String description;
     @Nullable
@@ -112,7 +125,7 @@ public class Connector implements Writeable, ToXContentObject {
         String connectorId,
         String apiKeyId,
         Map<String, Object> configuration,
-        ConnectorCustomSchedule customScheduling,
+        Map<String, ConnectorCustomSchedule> customScheduling,
         String description,
         String error,
         ConnectorFeatures features,
@@ -153,8 +166,8 @@ public class Connector implements Writeable, ToXContentObject {
     public Connector(StreamInput in) throws IOException {
         this.connectorId = in.readString();
         this.apiKeyId = in.readOptionalString();
-        this.configuration = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
-        this.customScheduling = in.readOptionalWriteable(ConnectorCustomSchedule::new);
+        this.configuration = in.readMap(StreamInput::readGenericValue);
+        this.customScheduling = in.readMap(ConnectorCustomSchedule::new);
         this.description = in.readOptionalString();
         this.error = in.readOptionalString();
         this.features = in.readOptionalWriteable(ConnectorFeatures::new);
@@ -191,6 +204,160 @@ public class Connector implements Writeable, ToXContentObject {
     protected static final ParseField STATUS_FIELD = new ParseField("status");
     protected static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
     protected static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<Connector, Void> PARSER = new ConstructingObjectParser<>("connector", true, (args) -> {
+        int i = 0;
+        return new Builder().setConnectorId((String) args[i++])
+            .setApiKeyId((String) args[i++])
+            .setConfiguration((Map<String, Object>) args[i++])
+            .setCustomScheduling((Map<String, ConnectorCustomSchedule>) args[i++])
+            .setDescription((String) args[i++])
+            .setError((String) args[i++])
+            .setFeatures((ConnectorFeatures) args[i++])
+            .setFiltering((List<ConnectorFiltering>) args[i++])
+            .setIndexName((String) args[i++])
+            .setIsNative((Boolean) args[i++])
+            .setLanguage((String) args[i++])
+            .setSyncInfo(
+                new ConnectorSyncInfo.Builder().setLastAccessControlSyncError((String) args[i++])
+                    .setLastAccessControlSyncScheduledAt((Instant) args[i++])
+                    .setLastAccessControlSyncStatus((ConnectorSyncStatus) args[i++])
+                    .setLastDeletedDocumentCount((Long) args[i++])
+                    .setLastIncrementalSyncScheduledAt((Instant) args[i++])
+                    .setLastIndexedDocumentCount((Long) args[i++])
+                    .setLastSeen((Instant) args[i++])
+                    .setLastSyncError((String) args[i++])
+                    .setLastSyncScheduledAt((Instant) args[i++])
+                    .setLastSyncStatus((ConnectorSyncStatus) args[i++])
+                    .setLastSynced((Instant) args[i++])
+                    .build()
+            )
+            .setName((String) args[i++])
+            .setPipeline((ConnectorIngestPipeline) args[i++])
+            .setScheduling((ConnectorScheduling) args[i++])
+            .setServiceType((String) args[i++])
+            .setStatus((ConnectorStatus) args[i++])
+            .setSyncCursor(args[i++])
+            .setSyncNow((Boolean) args[i])
+            .build();
+    });
+
+    static {
+        PARSER.declareString(constructorArg(), ID_FIELD);
+        PARSER.declareString(optionalConstructorArg(), API_KEY_ID_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (parser, context) -> parser.map(),
+            CONFIGURATION_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> p.map(HashMap::new, ConnectorCustomSchedule::fromXContent),
+            CUSTOM_SCHEDULING_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareString(optionalConstructorArg(), DESCRIPTION_FIELD);
+        PARSER.declareString(optionalConstructorArg(), ERROR_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorFeatures.fromXContent(p),
+            FEATURES_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ConnectorFiltering.fromXContent(p), FILTERING_FIELD);
+        PARSER.declareString(optionalConstructorArg(), INDEX_NAME_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), IS_NATIVE_FIELD);
+        PARSER.declareString(optionalConstructorArg(), LANGUAGE_FIELD);
+
+        PARSER.declareString(optionalConstructorArg(), ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_ERROR);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> Instant.parse(p.text()),
+            ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_SCHEDULED_AT_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorSyncStatus.connectorSyncStatus(p.text()),
+            ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_DELETED_DOCUMENT_COUNT_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> Instant.parse(p.text()),
+            ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_INDEXED_DOCUMENT_COUNT_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> Instant.parse(p.text()),
+            ConnectorSyncInfo.LAST_SEEN_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareString(optionalConstructorArg(), ConnectorSyncInfo.LAST_SYNC_ERROR_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> Instant.parse(p.text()),
+            ConnectorSyncInfo.LAST_SYNC_SCHEDULED_AT_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorSyncStatus.connectorSyncStatus(p.text()),
+            ConnectorSyncInfo.LAST_SYNC_STATUS_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> Instant.parse(p.text()),
+            ConnectorSyncInfo.LAST_SYNCED_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+
+        PARSER.declareString(optionalConstructorArg(), NAME_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorIngestPipeline.fromXContent(p),
+            PIPELINE_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorScheduling.fromXContent(p),
+            SCHEDULING_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareString(optionalConstructorArg(), SERVICE_TYPE_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorStatus.connectorStatus(p.text()),
+            STATUS_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (parser, context) -> parser.map(),
+            SYNC_CURSOR_FIELD,
+            ObjectParser.ValueType.OBJECT_OR_NULL
+        );
+        PARSER.declareBoolean(optionalConstructorArg(), SYNC_NOW_FIELD);
+    }
+
+    public static Connector fromXContentBytes(BytesReference source, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            return Connector.fromXContent(parser);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse a connector document.", e);
+        }
+    }
+
+    public static Connector fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -255,8 +422,8 @@ public class Connector implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(connectorId);
         out.writeOptionalString(apiKeyId);
-        out.writeMap(configuration, StreamOutput::writeString, StreamOutput::writeGenericValue);
-        out.writeOptionalWriteable(customScheduling);
+        out.writeMap(configuration, StreamOutput::writeGenericValue);
+        out.writeMap(customScheduling, StreamOutput::writeWriteable);
         out.writeOptionalString(description);
         out.writeOptionalString(error);
         out.writeOptionalWriteable(features);
@@ -334,7 +501,7 @@ public class Connector implements Writeable, ToXContentObject {
         private String connectorId;
         private String apiKeyId;
         private Map<String, Object> configuration = Collections.emptyMap();
-        private ConnectorCustomSchedule customScheduling;
+        private Map<String, ConnectorCustomSchedule> customScheduling = Collections.emptyMap();
         private String description;
         private String error;
         private ConnectorFeatures features;
@@ -366,7 +533,7 @@ public class Connector implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setCustomScheduling(ConnectorCustomSchedule customScheduling) {
+        public Builder setCustomScheduling(Map<String, ConnectorCustomSchedule> customScheduling) {
             this.customScheduling = customScheduling;
             return this;
         }

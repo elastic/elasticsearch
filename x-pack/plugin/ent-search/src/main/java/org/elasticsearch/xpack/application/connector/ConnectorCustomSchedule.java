@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -17,6 +20,8 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
@@ -94,12 +99,20 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         );
         PARSER.declareBoolean(constructorArg(), ENABLED_FIELD);
         PARSER.declareString(constructorArg(), INTERVAL_FIELD);
-        PARSER.declareString(optionalConstructorArg(), LAST_SYNCED_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), LAST_SYNCED_FIELD);
         PARSER.declareString(constructorArg(), NAME_FIELD);
     }
 
     public static ConnectorCustomSchedule fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    public static ConnectorCustomSchedule fromXContentBytes(BytesReference source, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            return ConnectorCustomSchedule.fromXContent(parser);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse a connector custom schedule.", e);
+        }
     }
 
     @Override

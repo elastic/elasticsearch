@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.connector.ConnectorListItem;
+import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 
@@ -107,14 +107,14 @@ public class ListConnectorAction extends ActionType<ListConnectorAction.Response
 
         public static final ParseField RESULT_FIELD = new ParseField("results");
 
-        final QueryPage<ConnectorListItem> queryPage;
+        final QueryPage<Connector> queryPage;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.queryPage = new QueryPage<>(in, ConnectorListItem::new);
+            this.queryPage = new QueryPage<>(in, Connector::new);
         }
 
-        public Response(List<ConnectorListItem> items, Long totalResults) {
+        public Response(List<Connector> items, Long totalResults) {
             this.queryPage = new QueryPage<>(items, totalResults, RESULT_FIELD);
         }
 
@@ -128,7 +128,7 @@ public class ListConnectorAction extends ActionType<ListConnectorAction.Response
             return queryPage.toXContent(builder, params);
         }
 
-        public QueryPage<ConnectorListItem> queryPage() {
+        public QueryPage<Connector> queryPage() {
             return queryPage;
         }
 

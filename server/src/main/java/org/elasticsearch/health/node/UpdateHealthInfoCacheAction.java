@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health.node;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.action.HealthNodeRequest;
 import org.elasticsearch.health.node.action.TransportHealthNodeAction;
 import org.elasticsearch.tasks.Task;
@@ -36,17 +38,33 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
 
     public static class Request extends HealthNodeRequest {
         private final String nodeId;
+        @Nullable
         private final DiskHealthInfo diskHealthInfo;
+        @Nullable
+        private final DataStreamLifecycleHealthInfo dslHealthInfo;
 
         public Request(String nodeId, DiskHealthInfo diskHealthInfo) {
             this.nodeId = nodeId;
             this.diskHealthInfo = diskHealthInfo;
+            this.dslHealthInfo = null;
+        }
+
+        public Request(String nodeId, DataStreamLifecycleHealthInfo dslHealthInfo) {
+            this.nodeId = nodeId;
+            this.diskHealthInfo = null;
+            this.dslHealthInfo = dslHealthInfo;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
-            this.diskHealthInfo = new DiskHealthInfo(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS)) {
+                this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
+                this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
+            } else {
+                this.diskHealthInfo = new DiskHealthInfo(in);
+                this.dslHealthInfo = null;
+            }
         }
 
         public String getNodeId() {
@@ -55,6 +73,10 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
 
         public DiskHealthInfo getDiskHealthInfo() {
             return diskHealthInfo;
+        }
+
+        public DataStreamLifecycleHealthInfo getDslHealthInfo() {
+            return dslHealthInfo;
         }
 
         @Override
@@ -66,25 +88,43 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            diskHealthInfo.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS)) {
+                out.writeOptionalWriteable(diskHealthInfo);
+                out.writeOptionalWriteable(dslHealthInfo);
+            } else {
+                diskHealthInfo.writeTo(out);
+            }
         }
 
         @Override
         public String getDescription() {
-            return "Update health info cache for node [" + nodeId + "] with health info [" + diskHealthInfo + "].";
+            return "Update health info cache for node ["
+                + nodeId
+                + "] with disk health info ["
+                + diskHealthInfo
+                + "] and DSL health info"
+                + " ["
+                + dslHealthInfo
+                + "].";
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Request request = (Request) o;
-            return Objects.equals(nodeId, request.nodeId) && Objects.equals(diskHealthInfo, request.diskHealthInfo);
+            return Objects.equals(nodeId, request.nodeId)
+                && Objects.equals(diskHealthInfo, request.diskHealthInfo)
+                && Objects.equals(dslHealthInfo, request.dslHealthInfo);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(nodeId, diskHealthInfo);
+            return Objects.hash(nodeId, diskHealthInfo, dslHealthInfo);
         }
     }
 
@@ -126,7 +166,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             ClusterState clusterState,
             ActionListener<AcknowledgedResponse> listener
         ) {
-            nodeHealthOverview.updateNodeHealth(request.getNodeId(), request.getDiskHealthInfo());
+            nodeHealthOverview.updateNodeHealth(request.getNodeId(), request.getDiskHealthInfo(), request.getDslHealthInfo());
             listener.onResponse(AcknowledgedResponse.of(true));
         }
     }

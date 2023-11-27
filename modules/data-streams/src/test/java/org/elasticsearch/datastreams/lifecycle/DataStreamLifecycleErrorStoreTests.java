@@ -9,10 +9,13 @@
 package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
+import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.Set;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore.MAX_ERROR_MESSAGE_LENGTH;
@@ -83,5 +86,33 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
         errorStore.recordError("test", exceptionWithLongMessage);
         assertThat(errorStore.getError("test"), is(notNullValue()));
         assertThat(errorStore.getError("test").error().length(), is(MAX_ERROR_MESSAGE_LENGTH));
+    }
+
+    public void testGetFilteredEntries() {
+        IntStream.range(0, 20).forEach(i -> errorStore.recordError("test10", new NullPointerException("testing")));
+        IntStream.range(0, 5).forEach(i -> errorStore.recordError("test5", new NullPointerException("testing")));
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 7, 100);
+            assertThat(entries.size(), is(1));
+            assertThat(entries.get(0).indexName(), is("test10"));
+        }
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 7, 0);
+            assertThat(entries.size(), is(0));
+        }
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 50, 100);
+            assertThat(entries.size(), is(0));
+        }
+
+        {
+            List<DslErrorInfo> entries = errorStore.getErrorsInfo(entry -> entry.retryCount() > 2, 100);
+            assertThat(entries.size(), is(2));
+            assertThat(entries.get(0).indexName(), is("test10"));
+            assertThat(entries.get(1).indexName(), is("test5"));
+        }
     }
 }

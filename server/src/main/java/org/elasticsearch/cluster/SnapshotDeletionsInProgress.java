@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.ToXContent;
@@ -209,6 +210,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             Writeable,
             RepositoryOperation {
 
+        @SuppressForbidden(reason = "using private constructor")
         public Entry(String repoName, List<SnapshotId> snapshots, long startTime, long repositoryStateId, State state) {
             this(repoName, snapshots, startTime, repositoryStateId, state, UUIDs.randomBase64UUID());
         }
@@ -217,6 +219,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             assert snapshots.size() == new HashSet<>(snapshots).size() : "Duplicate snapshot ids in " + snapshots;
         }
 
+        @SuppressForbidden(reason = "using private constructor")
         public static Entry readFrom(StreamInput in) throws IOException {
             return new Entry(
                 in.readString(),
@@ -228,11 +231,13 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             );
         }
 
+        @SuppressForbidden(reason = "using private constructor")
         public Entry started() {
             assert state == State.WAITING;
             return new Entry(repository(), snapshots, startTime, repositoryStateId, State.STARTED, uuid);
         }
 
+        @SuppressForbidden(reason = "using private constructor")
         public Entry withAddedSnapshots(Collection<SnapshotId> newSnapshots) {
             assert state == State.WAITING;
             final Collection<SnapshotId> updatedSnapshots = new HashSet<>(snapshots);
@@ -242,10 +247,12 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             return new Entry(repository(), List.copyOf(updatedSnapshots), startTime, repositoryStateId, State.WAITING, uuid);
         }
 
+        @SuppressForbidden(reason = "using private constructor")
         public Entry withSnapshots(Collection<SnapshotId> snapshots) {
             return new Entry(repository(), List.copyOf(snapshots), startTime, repositoryStateId, state, uuid);
         }
 
+        @SuppressForbidden(reason = "using private constructor")
         public Entry withRepoGen(long repoGen) {
             return new Entry(repository(), snapshots, startTime, repoGen, state, uuid);
         }

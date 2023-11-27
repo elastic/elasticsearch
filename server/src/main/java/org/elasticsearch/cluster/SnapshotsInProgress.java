@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -505,6 +506,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this(nodeId, assertNotSuccess(state), generation, null);
         }
 
+        @SuppressForbidden(reason = "using private constructor")
         public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, @Nullable ShardGeneration generation, String reason) {
             this(nodeId, assertNotSuccess(state), generation, reason, null);
         }
@@ -514,6 +516,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return shardState;
         }
 
+        @SuppressForbidden(reason = "using private constructor")
         public static ShardSnapshotStatus success(String nodeId, ShardSnapshotResult shardSnapshotResult) {
             return new ShardSnapshotStatus(nodeId, ShardState.SUCCESS, shardSnapshotResult.getGeneration(), null, shardSnapshotResult);
         }
@@ -545,6 +548,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return true;
         }
 
+        @SuppressForbidden(reason = "using private constructor")
         public static ShardSnapshotStatus readFrom(StreamInput in) throws IOException {
             final String nodeId = DiscoveryNode.deduplicateNodeIdentifier(in.readOptionalString());
             final ShardState state = ShardState.fromValue(in.readByte());
@@ -557,6 +561,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return new ShardSnapshotStatus(nodeId, state, generation, reason, shardSnapshotResult);
         }
 
+        @SuppressForbidden(reason = "using private constructor")
         public ShardSnapshotStatus withUpdatedGeneration(ShardGeneration newGeneration) {
             assert state == ShardState.SUCCESS : "can't move generation in state " + state;
             return new ShardSnapshotStatus(

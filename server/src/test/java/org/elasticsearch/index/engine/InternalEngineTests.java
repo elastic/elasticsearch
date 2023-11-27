@@ -2599,8 +2599,8 @@ public class InternalEngineTests extends EngineTestCase {
                 } else if (event.getLoggerName().endsWith(".MS")
                     && formattedMessage.contains("MS: merge thread")
                     && formattedMessage.endsWith("end")) {
-                    luceneMergeSchedulerEnded.set(true);
-                }
+                        luceneMergeSchedulerEnded.set(true);
+                    }
             }
         }
     }

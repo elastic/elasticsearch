@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
@@ -34,6 +35,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Cartesian;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
 
 public class ToString extends AbstractConvertFunction implements EvaluatorMapper {
@@ -49,14 +51,27 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(TEXT, (fieldEval, source) -> fieldEval),
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
-        Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new)
+        Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),
+        Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new)
     );
 
     public ToString(
         Source source,
         @Param(
             name = "v",
-            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long", "geo_point" }
+            type = {
+                "unsigned_long",
+                "date",
+                "boolean",
+                "double",
+                "ip",
+                "text",
+                "integer",
+                "keyword",
+                "version",
+                "long",
+                "geo_point",
+                "cartesian_point" }
         ) Expression v
     ) {
         super(source, v);
@@ -125,5 +140,10 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromGeoPoint")
     static BytesRef fromGeoPoint(long point) {
         return new BytesRef(Geo.pointAsString(Geo.longAsPoint(point)));
+    }
+
+    @ConvertEvaluator(extraName = "FromCartesianPoint")
+    static BytesRef fromCartesianPoint(long point) {
+        return new BytesRef(Cartesian.pointAsString(Cartesian.longAsPoint(point)));
     }
 }

@@ -156,7 +156,7 @@ unsupported:
   - match: { columns.16.name: name }
   - match: { columns.16.type: keyword }
   - match: { columns.17.name: point }
-  - match: { columns.17.type: unsupported }
+  - match: { columns.17.type: cartesian_point }
   - match: { columns.18.name: rank_feature }
   - match: { columns.18.type: unsupported }
   - match: { columns.19.name: rank_features }
@@ -198,7 +198,7 @@ unsupported:
   - match: { values.0.14: null }
   - match: { values.0.15: "foo bar baz" }
   - match: { values.0.16: Alice }
-  - match: { values.0.17: null }
+  - match: { values.0.17: "POINT (-97.15447235107422 25.996152877807617)" }
   - match: { values.0.18: null }
   - match: { values.0.19: null }
   - match: { values.0.20: null }
@@ -252,7 +252,7 @@ unsupported:
   - match: { columns.16.name: name }
   - match: { columns.16.type: keyword }
   - match: { columns.17.name: point }
-  - match: { columns.17.type: unsupported }
+  - match: { columns.17.type: cartesian_point }
   - match: { columns.18.name: rank_feature }
   - match: { columns.18.type: unsupported }
   - match: { columns.19.name: rank_features }
@@ -336,7 +336,7 @@ unsupported with sort:
   - match: { columns.16.name: name }
   - match: { columns.16.type: keyword }
   - match: { columns.17.name: point }
-  - match: { columns.17.type: unsupported }
+  - match: { columns.17.type: cartesian_point }
   - match: { columns.18.name: rank_feature }
   - match: { columns.18.type: unsupported }
   - match: { columns.19.name: rank_features }
@@ -378,7 +378,7 @@ unsupported with sort:
   - match: { values.0.14: null }
   - match: { values.0.15: "foo bar baz" }
   - match: { values.0.16: Alice }
-  - match: { values.0.17: null }
+  - match: { values.0.17: "POINT (-97.15447235107422 25.996152877807617)" }
   - match: { values.0.18: null }
   - match: { values.0.19: null }
   - match: { values.0.20: null }

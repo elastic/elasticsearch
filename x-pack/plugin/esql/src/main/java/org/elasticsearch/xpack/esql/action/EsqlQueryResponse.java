@@ -58,6 +58,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Cartesian;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
 import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
@@ -263,6 +264,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
             case "geo_point" -> Geo.longAsPoint(((LongBlock) block).getLong(offset));
+            case "cartesian_point" -> Cartesian.longAsPoint(((LongBlock) block).getLong(offset));
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             case "_source" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -322,6 +324,10 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     }
                     case "geo_point" -> {
                         long longVal = Geo.pointAsLong(Geo.stringAsPoint(value.toString()));
+                        ((LongBlock.Builder) builder).appendLong(longVal);
+                    }
+                    case "cartesian_point" -> {
+                        long longVal = Cartesian.pointAsLong(Cartesian.stringAsPoint(value.toString()));
                         ((LongBlock.Builder) builder).appendLong(longVal);
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));

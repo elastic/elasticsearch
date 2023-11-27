@@ -53,6 +53,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset LANGUAGES = new TestsDataset("languages", "mapping-languages.json", "languages.csv");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs", "mapping-ul_logs.json", "ul_logs.csv");
     private static final TestsDataset AIRPORTS = new TestsDataset("airports", "mapping-airports.json", "airports.csv");
+    private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web", "mapping-airports_web.json", "airports_web.csv");
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.of(
         EMPLOYEES.indexName,
@@ -66,7 +67,9 @@ public class CsvTestsDataLoader {
         UL_LOGS.indexName,
         UL_LOGS,
         AIRPORTS.indexName,
-        AIRPORTS
+        AIRPORTS,
+        AIRPORTS_WEB.indexName,
+        AIRPORTS_WEB
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enricy-policy-languages.json");

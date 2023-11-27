@@ -493,6 +493,4 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         }
     }
 
-    private record ModelAndDeployment(String modelId, String deploymentId) {}
-
 }

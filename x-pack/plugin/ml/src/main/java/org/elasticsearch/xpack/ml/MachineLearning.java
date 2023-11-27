@@ -324,6 +324,7 @@ import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.ltr.InferenceRescorerFeature;
 import org.elasticsearch.xpack.ml.inference.ltr.LearnToRankRescorerBuilder;
+import org.elasticsearch.xpack.ml.inference.ltr.LearnToRankService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
@@ -653,6 +654,23 @@ public class MachineLearning extends Plugin
         Property.NodeScope
     );
 
+    // The next two settings currently only have an effect in serverless. They can be set as overrides to
+    // trigger a scale up of the ML tier so that it could accommodate the dummy entity in addition to
+    // whatever the standard autoscaling formula thinks is necessary.
+    public static final Setting<ByteSizeValue> DUMMY_ENTITY_MEMORY = Setting.memorySizeSetting(
+        "xpack.ml.dummy_entity_memory",
+        ByteSizeValue.ZERO,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Integer> DUMMY_ENTITY_PROCESSORS = Setting.intSetting(
+        "xpack.ml.dummy_entity_processors",
+        0,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<TimeValue> PROCESS_CONNECT_TIMEOUT = Setting.timeSetting(
         "xpack.ml.process_connect_timeout",
         TimeValue.timeValueSeconds(10),
@@ -742,6 +760,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<MlLifeCycleService> mlLifeCycleService = new SetOnce<>();
     private final SetOnce<CircuitBreaker> inferenceModelBreaker = new SetOnce<>();
     private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
+    private final SetOnce<LearnToRankService> learnToRankService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
@@ -782,7 +801,9 @@ public class MachineLearning extends Plugin
             NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
-            DELAYED_DATA_CHECK_FREQ
+            DELAYED_DATA_CHECK_FREQ,
+            DUMMY_ENTITY_MEMORY,
+            DUMMY_ENTITY_PROCESSORS
         );
     }
 
@@ -868,8 +889,8 @@ public class MachineLearning extends Plugin
             return List.of(
                 new RescorerSpec<>(
                     LearnToRankRescorerBuilder.NAME,
-                    in -> new LearnToRankRescorerBuilder(in, modelLoadingService::get),
-                    parser -> LearnToRankRescorerBuilder.fromXContent(parser, modelLoadingService::get)
+                    in -> new LearnToRankRescorerBuilder(in, learnToRankService.get()),
+                    parser -> LearnToRankRescorerBuilder.fromXContent(parser, learnToRankService.get())
                 )
             );
         }
@@ -1097,6 +1118,11 @@ public class MachineLearning extends Plugin
             getLicenseState()
         );
         this.modelLoadingService.set(modelLoadingService);
+
+        this.learnToRankService.set(
+            new LearnToRankService(modelLoadingService, trainedModelProvider, services.scriptService(), services.xContentRegistry())
+        );
+
         this.deploymentManager.set(
             new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory, getMaxModelDeploymentsPerNode())
         );

@@ -31,12 +31,20 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
               "input": {"field_names": ["cost", "product"]},
               "inference_config": {
                 "learn_to_rank": {
-                  "feature_extractors": [{
-                    "query_extractor": {
-                      "feature_name": "two",
-                      "query": { "script_score": { "query": { "match_all":{} }, "script": { "source": "return 2.0;" } } }
+                  "feature_extractors": [
+                    {
+                      "query_extractor": {
+                        "feature_name": "two",
+                        "query": {"script_score": {"query": {"match_all":{}}, "script": {"source": "return 2.0;"}}}
+                      }
+                    },
+                    {
+                      "query_extractor": {
+                        "feature_name": "product_bm25",
+                        "query": {"term": {"product": "{{keyword}}"}}
+                      }
                     }
-                  }]
+                  ]
                 }
               },
               "definition": {
@@ -57,9 +65,7 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
                     "trained_models": [
                       {
                         "tree": {
-                          "feature_names": [
-                            "cost"
-                          ],
+                          "feature_names": ["cost"],
                           "tree_structure": [
                             {
                               "node_index": 0,
@@ -171,11 +177,12 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
                   }
                 }
               }
-            }""");
+            }
+            """);
         createIndex(INDEX_NAME, Settings.EMPTY, """
-            "properties": {
-              "product": { "type": "keyword" },
-              "cost": { "type": "integer" }
+            "properties":{
+              "product":{"type": "keyword"},
+              "cost":{"type": "integer"}
             }""");
         indexData("{ \"product\": \"TV\", \"cost\": 300}");
         indexData("{ \"product\": \"TV\", \"cost\": 400}");
@@ -189,8 +196,7 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
         adminClient().performRequest(new Request("POST", INDEX_NAME + "/_refresh"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98372")
-    public void testInferenceRescore() throws Exception {
+    public void testLearnToRankRescore() throws Exception {
         Request request = new Request("GET", "store/_search?size=3&error_trace");
         request.setJsonEntity("""
             {
@@ -207,12 +213,8 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
                 "window_size": 10,
                 "learn_to_rank": {
                   "model_id": "ltr-model",
-                  "inference_config": {
-                    "learn_to_rank": {
-                      "feature_extractors":[
-                        { "query_extractor": { "feature_name": "product_bm25", "query": { "term": { "product": "Laptop" } } } }
-                      ]
-                    }
+                  "params": {
+                    "keyword": "Laptop"
                   }
                 }
               }
@@ -220,7 +222,7 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
         assertHitScores(client().performRequest(request), List.of(12.0, 12.0, 9.0));
         request.setJsonEntity("""
             {
-              "query": { "term": { "product": "Laptop" } },
+              "query": {"term": { "product": "Laptop" } },
               "rescore": {
                 "window_size": 10,
                 "learn_to_rank": { "model_id": "ltr-model"}
@@ -229,8 +231,7 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
         assertHitScores(client().performRequest(request), List.of(9.0, 9.0, 6.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98372")
-    public void testInferenceRescoreSmallWindow() throws Exception {
+    public void testLearnToRankRescoreSmallWindow() throws Exception {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""
             {
@@ -242,26 +243,25 @@ public class LearnToRankRescorerIT extends InferenceTestCase {
         assertHitScores(client().performRequest(request), List.of(20.0, 20.0, 1.0, 1.0, 1.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98372")
-    public void testInferenceRescorerWithChainedRescorers() throws IOException {
+    public void testLearnToRankRescorerWithChainedRescorers() throws IOException {
         Request request = new Request("GET", "store/_search?size=5");
         request.setJsonEntity("""
             {
-              "rescore": [
-                {
-                  "window_size": 4,
-                  "query": { "rescore_query": { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 4"} } } }
-                },
-                {
-                  "window_size": 3,
-                  "learn_to_rank": { "model_id": "ltr-model" }
-                },
-                {
-                  "window_size": 2,
-                   "query": { "rescore_query": { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 20" } } } }
-                }
+               "rescore": [
+                   {
+                     "window_size": 4,
+                     "query": { "rescore_query" : { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 4" } } } }
+                   },
+                   {
+                     "window_size": 3,
+                     "learn_to_rank": { "model_id": "ltr-model" }
+                   },
+                   {
+                     "window_size": 2,
+                     "query": { "rescore_query": { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 20"} } } }
+                   }
               ]
-             }""");
+            }""");
         assertHitScores(client().performRequest(request), List.of(40.0, 40.0, 17.0, 5.0, 1.0));
     }
 

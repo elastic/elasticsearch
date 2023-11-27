@@ -1,0 +1,5 @@
+pr: 102562
+summary: Track blocks of intermediate state of aggs
+area: ES|QL
+type: enhancement
+issues: []

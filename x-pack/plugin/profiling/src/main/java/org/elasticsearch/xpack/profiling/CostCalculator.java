@@ -28,7 +28,7 @@ final class CostCalculator {
     ) {
         this.instanceTypeService = instanceTypeService;
         this.hostMetadata = hostMetadata;
-        this.samplingDurationInSeconds = samplingDurationInSeconds;
+        this.samplingDurationInSeconds = samplingDurationInSeconds > 0 ? samplingDurationInSeconds : 1.0d; // avoid division by zero
         this.customCostFactor = customCostFactor == null ? DEFAULT_CUSTOM_COST_FACTOR : customCostFactor;
     }
 

@@ -1,0 +1,5 @@
+pr: 102655
+summary: "ESQL: CARTESIAN_POINT type support"
+area: ES|QL
+type: enhancement
+issues: []

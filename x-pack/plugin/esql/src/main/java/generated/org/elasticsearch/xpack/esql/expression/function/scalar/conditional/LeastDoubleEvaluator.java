@@ -32,22 +32,20 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    Block.Ref[] valuesRefs = new Block.Ref[values.length];
-    try (Releasable valuesRelease = Releasables.wrap(valuesRefs)) {
-      DoubleBlock[] valuesBlocks = new DoubleBlock[values.length];
+  public Block eval(Page page) {
+    DoubleBlock[] valuesBlocks = new DoubleBlock[values.length];
+    try (Releasable valuesRelease = Releasables.wrap(valuesBlocks)) {
       for (int i = 0; i < valuesBlocks.length; i++) {
-        valuesRefs[i] = values[i].eval(page);
-        valuesBlocks[i] = (DoubleBlock) valuesRefs[i].block();
+        valuesBlocks[i] = (DoubleBlock)values[i].eval(page);
       }
       DoubleVector[] valuesVectors = new DoubleVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesVectors[i] = valuesBlocks[i].asVector();
         if (valuesVectors[i] == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valuesBlocks));
+          return eval(page.getPositionCount(), valuesBlocks);
         }
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valuesVectors).asBlock());
+      return eval(page.getPositionCount(), valuesVectors).asBlock();
     }
   }
 

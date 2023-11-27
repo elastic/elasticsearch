@@ -12,6 +12,7 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -30,6 +31,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -58,6 +60,7 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -115,6 +118,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> randomVersion().toBytesRef();
             case "null" -> null;
+            case "_source" -> {
+                try {
+                    yield BytesReference.bytes(
+                        JsonXContent.contentBuilder().startObject().field(randomAlphaOfLength(3), randomAlphaOfLength(10)).endObject()
+                    ).toBytesRef();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
             default -> throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
         }, type);
     }
@@ -221,8 +233,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result;
         try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
-            try (Block.Ref ref = evaluator.eval(row(testCase.getDataValues()))) {
-                result = toJavaObject(ref.block(), 0);
+            try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
+                result = toJavaObject(block, 0);
             }
         }
         assertThat(result, not(equalTo(Double.NaN)));
@@ -373,18 +385,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 }
             }
             Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block.Ref ref = eval.eval(new Page(manyPositionsBlocks))) {
-                assertThat(ref.block().getPositionCount(), equalTo(ref.block().getPositionCount()));
+            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(new Page(manyPositionsBlocks))) {
                 for (int p = 0; p < positions; p++) {
                     if (nullPositions.contains(p)) {
-                        assertThat(toJavaObject(ref.block(), p), allNullsMatcher());
+                        assertThat(toJavaObject(block, p), allNullsMatcher());
                         continue;
                     }
-                    assertThat(toJavaObject(ref.block(), p), testCase.getMatcher());
+                    assertThat(toJavaObject(block, p), testCase.getMatcher());
                 }
                 assertThat(
                     "evaluates to tracked block",
-                    ref.block().blockFactory(),
+                    block.blockFactory(),
                     either(sameInstance(context.blockFactory())).or(sameInstance(inputBlockFactory))
                 );
             }
@@ -416,8 +427,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         data.add(simpleData.get(b));
                     }
                 }
-                try (Block.Ref ref = eval.eval(new Page(blocks))) {
-                    assertSimpleWithNulls(data, ref.block(), i);
+                try (Block block = eval.eval(new Page(blocks))) {
+                    assertSimpleWithNulls(data, block, i);
                 }
             }
         }
@@ -444,8 +455,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 futures.add(exec.submit(() -> {
                     try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
                         for (int c = 0; c < count; c++) {
-                            try (Block.Ref ref = eval.eval(page)) {
-                                assertThat(toJavaObject(ref.block(), 0), testCase.getMatcher());
+                            try (Block block = eval.eval(page)) {
+                                assertThat(toJavaObject(block, 0), testCase.getMatcher());
                             }
                         }
                     }
@@ -669,6 +680,30 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
              */
             .filter(types -> types.stream().filter(t -> t == DataTypes.NULL).count() <= 1)
             .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types))
+            .forEach(suppliers::add);
+        return suppliers;
+    }
+
+    /**
+     * Adds test cases containing unsupported parameter types that immediately fail.
+     */
+    protected static List<TestCaseSupplier> failureForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
+        typesRequired(testCaseSuppliers);
+        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
+        suppliers.addAll(testCaseSuppliers);
+
+        Set<List<DataType>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
+        List<Set<DataType>> validPerPosition = validPerPosition(valid);
+
+        testCaseSuppliers.stream()
+            .map(s -> s.types().size())
+            .collect(Collectors.toSet())
+            .stream()
+            .flatMap(count -> allPermutations(count))
+            .filter(types -> valid.contains(types) == false)
+            .map(types -> new TestCaseSupplier("type error for " + TestCaseSupplier.nameFromTypes(types), types, () -> {
+                throw new IllegalStateException("must implement a case for " + types);
+            }))
             .forEach(suppliers::add);
         return suppliers;
     }
@@ -934,5 +969,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case 2 -> new Version(between(0, 100) + "." + between(0, 100) + "." + between(0, 100));
             default -> throw new IllegalArgumentException();
         };
+    }
+
+    /**
+     * All string types (keyword, text, match_only_text, etc).
+     */
+    protected static DataType[] strings() {
+        return EsqlDataTypes.types().stream().filter(DataTypes::isString).toArray(DataType[]::new);
     }
 }

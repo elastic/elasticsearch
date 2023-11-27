@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -44,6 +45,7 @@ public class IndexVersions {
         return new IndexVersion(id, luceneVersion);
     }
 
+    @UpdateForV9 // remove the index versions with which v9 will not need to interact
     public static final IndexVersion ZERO = def(0, Version.LATEST);
     public static final IndexVersion V_7_0_0 = def(7_00_00_99, Version.LUCENE_8_0_0);
 
@@ -87,6 +89,7 @@ public class IndexVersions {
     public static final IndexVersion NEW_SPARSE_VECTOR = def(8_500_001, Version.LUCENE_9_7_0);
     public static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_SUPPORT = def(8_500_002, Version.LUCENE_9_7_0);
     public static final IndexVersion UPGRADE_LUCENE_9_8 = def(8_500_003, Version.LUCENE_9_8_0);
+    public static final IndexVersion ES_VERSION_8_12 = def(8_500_004, Version.LUCENE_9_8_0);
 
     public static final IndexVersion UPGRADE_TO_LUCENE_9_9 = def(8_500_010, Version.LUCENE_9_9_0);
 

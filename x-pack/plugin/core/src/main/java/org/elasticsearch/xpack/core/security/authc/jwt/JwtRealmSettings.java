@@ -33,6 +33,8 @@ import java.util.stream.Stream;
  */
 public class JwtRealmSettings {
 
+    public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
+
     private JwtRealmSettings() {}
 
     public static final String TYPE = "jwt";

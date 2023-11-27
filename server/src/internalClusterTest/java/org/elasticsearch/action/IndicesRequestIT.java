@@ -233,7 +233,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
-        client().prepareIndex(indexOrAlias).setId("id").setSource("field", "value").get();
+        prepareIndex(indexOrAlias).setId("id").setSource("field", "value").get();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
@@ -263,7 +263,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
-        client().prepareIndex(indexOrAlias).setId("id").setSource("field", "value").get();
+        prepareIndex(indexOrAlias).setId("id").setSource("field", "value").get();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "id").script(
             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op='delete'", Collections.emptyMap())
         );
@@ -554,7 +554,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
-            client().prepareIndex(randomIndicesOrAliases[i]).setId("id-" + i).setSource("field", "value").get();
+            prepareIndex(randomIndicesOrAliases[i]).setId("id-" + i).setSource("field", "value").get();
         }
         refresh();
 
@@ -584,7 +584,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
-            client().prepareIndex(randomIndicesOrAliases[i]).setId("id-" + i).setSource("field", "value").get();
+            prepareIndex(randomIndicesOrAliases[i]).setId("id-" + i).setSource("field", "value").get();
         }
         refresh();
 
@@ -607,10 +607,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {
         assertSameIndices(originalRequest, false, actions);
-    }
-
-    private static void assertSameIndicesOptionalRequests(IndicesRequest originalRequest, String... actions) {
-        assertSameIndices(originalRequest, true, actions);
     }
 
     private static void assertSameIndices(IndicesRequest originalRequest, boolean optional, String... actions) {

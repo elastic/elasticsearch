@@ -74,8 +74,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         createIndex("index", 1, 1);
 
-        final DocWriteResponse indexResponse = client().prepareIndex("index")
-            .setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567Z")
+        final DocWriteResponse indexResponse = prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567Z")
             .get();
 
         ensureGreen("index");
@@ -172,7 +171,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         ensureGreen("index");
         if (randomBoolean()) {
-            client().prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, date).get();
+            prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, date).get();
         }
 
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
@@ -225,7 +224,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         );
         int numDocs = randomIntBetween(1, 100);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex(indexName).setSource("created_date", "2011-02-02").get();
+            prepareIndex(indexName).setSource("created_date", "2011-02-02").get();
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
         final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
@@ -269,13 +268,13 @@ public class FrozenIndexIT extends ESIntegTestCase {
         int index1 = randomIntBetween(10, 50);
         for (int i = 0; i < index1; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index-1").setId(id).setSource("value", i).get();
+            prepareIndex("index-1").setId(id).setSource("value", i).get();
         }
 
         int index2 = randomIntBetween(10, 50);
         for (int i = 0; i < index2; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index-2").setId(id).setSource("value", i).get();
+            prepareIndex("index-2").setId(id).setSource("value", i).get();
         }
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index-1", "index-2")).actionGet());
@@ -310,7 +309,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(10, 50);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("test-index").setId(id).setSource("value", i).get();
+            prepareIndex("test-index").setId(id).setSource("value", i).get();
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("test-index")).actionGet());
         // include the frozen indices

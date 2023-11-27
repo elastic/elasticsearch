@@ -542,8 +542,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         verifyResolvability(
             dataStreamName,
-            client().prepareIndex(dataStreamName)
-                .setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+            prepareIndex(dataStreamName).setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
                 .setOpType(DocWriteRequest.OpType.CREATE),
             false
         );
@@ -586,8 +585,7 @@ public class DataStreamIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, request).actionGet();
         verifyResolvability(
             "logs-barbaz",
-            client().prepareIndex("logs-barbaz")
-                .setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+            prepareIndex("logs-barbaz").setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
                 .setOpType(DocWriteRequest.OpType.CREATE),
             false
         );
@@ -703,13 +701,11 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testDataSteamAliasWithFilter() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-*"));
         String dataStreamName = "logs-foobar";
-        client().prepareIndex(dataStreamName)
-            .setId("1")
+        prepareIndex(dataStreamName).setId("1")
             .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
-        client().prepareIndex(dataStreamName)
-            .setId("2")
+        prepareIndex(dataStreamName).setId("2")
             .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
@@ -778,13 +774,11 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testSearchFilteredAndUnfilteredAlias() throws Exception {
         putComposableIndexTemplate("id1", List.of("logs-*"));
         String dataStreamName = "logs-foobar";
-        client().prepareIndex(dataStreamName)
-            .setId("1")
+        prepareIndex(dataStreamName).setId("1")
             .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
-        client().prepareIndex(dataStreamName)
-            .setId("2")
+        prepareIndex(dataStreamName).setId("2")
             .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
             .get();
@@ -1852,10 +1846,14 @@ public class DataStreamIT extends ESIntegTestCase {
             String expectedErrorMessage = "no such index [" + dataStream + "]";
             if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
-                assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
-                assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
+                try {
+                    assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                    assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
+                    assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
+                    assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
+                } finally {
+                    multiSearchResponse.decRef();
+                }
             } else if (requestBuilder instanceof ValidateQueryRequestBuilder) {
                 Exception e = expectThrows(IndexNotFoundException.class, requestBuilder::get);
                 assertThat(e.getMessage(), equalTo(expectedErrorMessage));
@@ -1868,7 +1866,11 @@ public class DataStreamIT extends ESIntegTestCase {
                 assertHitCount(searchRequestBuilder, expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));
+                try {
+                    assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));
+                } finally {
+                    multiSearchResponse.decRef();
+                }
             } else {
                 requestBuilder.get();
             }

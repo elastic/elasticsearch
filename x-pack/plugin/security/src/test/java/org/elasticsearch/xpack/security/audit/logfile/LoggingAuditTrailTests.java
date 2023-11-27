@@ -31,7 +31,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -145,11 +144,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -2976,13 +2973,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
             @Override
             public void clearCredentials() {}
         };
-    }
-
-    private ClusterSettings mockClusterSettings() {
-        final List<Setting<?>> settingsList = new ArrayList<>();
-        LoggingAuditTrail.registerSettings(settingsList);
-        settingsList.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        return new ClusterSettings(settings, new HashSet<>(settingsList));
     }
 
     private Authentication createApiKeyAuthenticationAndMaybeWithRunAs(Authentication authentication) throws Exception {

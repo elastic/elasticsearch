@@ -29,17 +29,25 @@ public class MlRescorerIT extends ESRestTestCase {
     @Before
     public void setupModelAndData() throws IOException {
         putRegressionModel(MODEL_ID, """
-             {
+            {
               "description": "super complex model for tests",
-              "input": {"field_names": ["cost", "product"]},
+              "input": { "field_names": ["cost", "product"] },
               "inference_config": {
                 "learn_to_rank": {
-                  "feature_extractors": [{
-                    "query_extractor": {
-                      "feature_name": "two",
-                      "query": {"script_score": {"query": {"match_all":{}}, "script": {"source": "return 2.0;"}}}
+                  "feature_extractors": [
+                    {
+                        "query_extractor": {
+                            "feature_name": "two",
+                            "query": { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 2.0;" } } }
+                        }
+                    },
+                    {
+                        "query_extractor": {
+                            "feature_name": "product_bm25",
+                            "query": { "term": { "product": "{{keyword}}" } }
+                        }
                     }
-                  }]
+                  ]
                 }
               },
               "definition": {
@@ -174,11 +182,13 @@ public class MlRescorerIT extends ESRestTestCase {
                   }
                 }
               }
-            }""");
+            }
+            """);
         createIndex(INDEX_NAME, Settings.builder().put("number_of_shards", randomIntBetween(1, 3)).build(), """
             "properties":{
-             "product":{"type": "keyword"},
-             "cost":{"type": "integer"}}""");
+                "product":{ "type": "keyword" },
+                "cost":{ "type": "integer" }
+            }""");
         indexData("{ \"product\": \"TV\", \"cost\": 300 }");
         indexData("{ \"product\": \"TV\", \"cost\": 400 }");
         indexData("{ \"product\": \"VCR\", \"cost\": 150 }");
@@ -191,16 +201,15 @@ public class MlRescorerIT extends ESRestTestCase {
     public void testLtrSimple() throws Exception {
         Response searchResponse = search("""
             {
-            "query": {
-              "match": { "product": { "query": "TV"}}
-            },
-            "rescore": {
+                "query": {
+                    "match": { "product": { "query": "TV" } }
+                },
+                "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model"
-                        }
+                    }
                 }
-
             }""");
 
         Map<String, Object> response = responseAsMap(searchResponse);
@@ -211,23 +220,16 @@ public class MlRescorerIT extends ESRestTestCase {
     public void testLtrSimpleDFS() throws Exception {
         Response searchResponse = searchDfs("""
             {
-            "query": {
-              "match": { "product": { "query": "TV"}}
-            },
-            "rescore": {
+                "query": {
+                    "match": { "product": { "query": "TV" } }
+                },
+                "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model",
-                        "inference_config": {
-                          "learn_to_rank": {
-                            "feature_extractors":[
-                              {"query_extractor": {"feature_name": "product_bm25", "query": {"term": {"product": "TV"}}}}
-                            ]
-                          }
-                        }
-                      }
+                        "params": { "keyword": "TV" }
+                    }
                 }
-
             }""");
 
         Map<String, Object> response = responseAsMap(searchResponse);
@@ -235,20 +237,13 @@ public class MlRescorerIT extends ESRestTestCase {
 
         searchResponse = searchDfs("""
             {
-            "rescore": {
+                "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model",
-                        "inference_config": {
-                          "learn_to_rank": {
-                            "feature_extractors":[
-                              {"query_extractor": {"feature_name": "product_bm25", "query": {"term": {"product": "TV"}}}}
-                              ]
-                            }
-                          }
-                        }
+                        "params": { "keyword": "TV" }
+                    }
                 }
-
             }""");
 
         response = responseAsMap(searchResponse);
@@ -262,16 +257,16 @@ public class MlRescorerIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testLtrSimpleEmpty() throws Exception {
         Response searchResponse = search("""
-            { "query": {
-              "term": { "product": "computer"}
-            },
-            "rescore": {
+            {
+                "query": {
+                    "term": { "product": "computer" }
+                },
+                "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model"
-                        }
+                    }
                 }
-
             }""");
 
         Map<String, Object> response = responseAsMap(searchResponse);
@@ -281,16 +276,16 @@ public class MlRescorerIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testLtrEmptyDFS() throws Exception {
         Response searchResponse = searchDfs("""
-            { "query": {
-              "match": { "product": { "query": "computer"}}
-            },
-            "rescore": {
+            {
+                "query": {
+                    "match": { "product": { "query": "computer"} }
+                },
+                "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model"
-                        }
+                    }
                 }
-
             }""");
 
         Map<String, Object> response = responseAsMap(searchResponse);
@@ -300,30 +295,31 @@ public class MlRescorerIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testLtrCanMatch() throws Exception {
         Response searchResponse = searchCanMatch("""
-            { "query": {
-              "match": { "product": { "query": "TV"}}
-            },
-            "rescore": {
+            {
+                "query": {
+                    "match": { "product": { "query": "TV" } }
+                },
+                "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model"
-                        }
+                    }
                 }
-
             }""", false);
 
         Map<String, Object> response = responseAsMap(searchResponse);
         assertThat(response.toString(), (List<Double>) XContentMapValues.extractValue("hits.hits._score", response), contains(20.0, 20.0));
 
         searchResponse = searchCanMatch("""
-            { "query": {
-              "match": { "product": { "query": "TV"}}
-            },
-            "rescore": {
+            {
+                "query": {
+                    "match": { "product": { "query": "TV" } }
+                },
+                "rescore": {
                     "window_size": 10,
-                    "inference": {
+                    "learn_to_rank": {
                         "model_id": "basic-ltr-model"
-                        }
+                    }
                 }
 
             }""", true);
@@ -363,5 +359,4 @@ public class MlRescorerIT extends ESRestTestCase {
         model.setJsonEntity(body);
         assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
     }
-
 }

@@ -476,18 +476,26 @@ The API returns the following response:
 // TEST[skip: hard to reproduce initial state]
 
 <1> The async search id.
-<2> When `ccs_minimize_roundtrips` = `true` and searches on the remote clusters
+<2> When `ccs_minimize_roundtrips`=`true` and searches on the remote clusters
 are still running, this section indicates the number of shards in scope for the
 local cluster only. This will be updated to include the total number of shards
 across all clusters only when the search is completed. When
-`ccs_minimize_roundtrips`= `false`, the total shard count is known up front and
+`ccs_minimize_roundtrips`=`false`, the total shard count is known up front and
 will be correct.
 <3> The `_clusters` section indicates that 3 clusters are in scope for the search
 and all are currently in the "running" state.
 
 If you query the <<get-async-search,get async search>> endpoint while the query is
 still running, you will see an update in the `_clusters` and `_shards` section of
-the response when the local search has finished.
+the response as each cluster reports back.
+
+NOTE: As of Elasticsearch 8.12, incremental results are shown when using minimize roundtrips.
+As each cluster reports back, its search results will be merged with all the search
+responses received so far. This is true for both search hits (top hits) and aggregations.
+Because of scoring or sorting, the list of top hits can change as each cluster returns
+its results. Check the `is_running` field in the async search response to see whether the
+search results are complete.
+
 
 [source,console]
 --------------------------------------------------
@@ -506,20 +514,20 @@ Response:
   "start_time_in_millis": 1685564911108,
   "expiration_time_in_millis": 1685996911108,
   "response": {
-    "took": 11164,
+    "took": 4155,
     "timed_out": false,
     "terminated_early": false,
     "_shards": {
-      "total": 10,
-      "successful": 10,  <1>
+      "total": 22,
+      "successful": 22,  <1>
       "skipped": 0,
       "failed": 0
     },
     "_clusters": {
       "total": 3,
-      "successful": 1,  <2>
+      "successful": 2,  <2>
       "skipped": 0,
-      "running": 2,
+      "running": 1,
       "partial": 0,
       "failed": 0,
       "details": {
@@ -536,9 +544,16 @@ Response:
           }
         },
         "cluster_one": {
-          "status": "running",
+          "status": "successful",
           "indices": "my-index-000001",
-          "timed_out": false
+          "took": 4152,
+          "timed_out": false,
+          "_shards": {
+            "total": 12,
+            "successful": 12,
+            "skipped": 0,
+            "failed": 0
+          }
         },
         "cluster_two": {
           "status": "running",
@@ -549,11 +564,11 @@ Response:
     },
     "hits": {
       "total": {
-        "value": 167,  <3>
+        "value": 823,  <3>
         "relation": "eq"
       },
-      "max_score": null,
-      "hits": []
+      "max_score": 1.8293576,
+      "hits": [...list of (partial) hits here...]  <4>
     }
   }
 }
@@ -561,12 +576,14 @@ Response:
 // TEST[skip: hard to reproduce intermediate results]
 
 
-<1> All the local cluster shards have completed.
-<2> The local cluster search has completed, so the "successful" clusters entry
-is set to 1 and "running" clusters entry reduced to 2. The `_clusters` response metadata will be updated as each cluster
-finishes.
-<3> Number of hits from the local cluster search. Final hits are not
-shown until searches on all clusters have been completed and merged.
+<1> The shards counts are shown from the searches that have completed (local and `cluster_one` in this case).
+<2> The cluster accounting has been updated to show that 2 clusters have completed successfully
+and one is still running.
+<3> Number of hits from the two clusters that have reported back.
+<4> Partial results (hits and any aggregations if they were included in the query) will be shown
+for all clusters that have reported back. The list of hits may change once the final cluster
+results have been merged in and a new round of scoring or sorting is done.
+
 
 
 After searches on all the clusters have completed, querying the
@@ -1024,7 +1041,7 @@ contacted and told to search any indexes matching `my-index-*` except for
 [[ccs-async-search-minimize-roundtrips-false]]
 === Using async search for {ccs} with ccs_minimize_roundtrips=false
 
-The `_shards` and `_clusters` section of the response behave
+The `_shards`, `_clusters` and search results section of the response behave
 differently when `ccs_minimize_roundtrips` is `false`.
 
 Key differences are:
@@ -1039,7 +1056,11 @@ long-running search compared to when minimize roundtrips is used.
 . The `_cluster` section starts off listing all of its shard counts, since
 they are also obtained before the query phase begins.
 
-Example using the same setup as in the previous section (`ccs_minimize_roundtrips=true`):
+. Aggregation results will be updated incrementally as the search is running (in
+increments of `batched_reduce_size` shards, which defaults to 5) but top hits will only
+be shown once the search is complete (all clusters have reported back).
+
+Example using the same setup as in the previous section:
 
 [source,console]
 --------------------------------------------------

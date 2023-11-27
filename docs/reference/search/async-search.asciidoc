@@ -118,7 +118,9 @@ have different default values:
 * `batched_reduce_size` defaults to `5`: this affects how often partial results
 become available, which happens whenever shard results are reduced. A partial
 reduction is performed every time the coordinating node has received a certain
-number of new shard responses (`5` by default).
+number of new shard responses (`5` by default). This setting applies to local-only
+searches and <<modules-cross-cluster-search,cross cluster searches>> that do not minimize
+roundtrips.
 * `request_cache` defaults to `true`
 * `pre_filter_shard_size` defaults to `1` and cannot be changed: this is to
 enforce the execution of a pre-filter roundtrip to retrieve statistics from

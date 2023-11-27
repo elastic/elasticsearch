@@ -442,7 +442,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return RequestOptions.DEFAULT;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99153")
     public void test() throws IOException {
         // skip test if it matches one of the blacklist globs
         for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {

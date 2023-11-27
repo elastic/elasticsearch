@@ -2873,15 +2873,15 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             () -> new CompositeAggregationBuilder("name", Collections.singletonList(new TermsValuesSourceBuilder("tsid").field("_tsid"))),
             (InternalComposite result) -> {
                 assertEquals(4, result.getBuckets().size());
-                assertEquals("{tsid={dim1=foo, dim2=200}}", result.afterKey().toString());
+                assertEquals("{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAyA}", result.afterKey().toString());
 
-                assertEquals("{tsid={dim1=bar, dim2=100}}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{tsid=AgRkaW0xcwNiYXIEZGltMmwAAAAAAAAAZA}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{tsid={dim1=bar, dim2=200}}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals("{tsid=AgRkaW0xcwNiYXIEZGltMmwAAAAAAAAAyA}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
-                assertEquals("{tsid={dim1=foo, dim2=100}}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals("{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAZA}", result.getBuckets().get(2).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(2).getDocCount());
-                assertEquals("{tsid={dim1=foo, dim2=200}}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals("{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAyA}", result.getBuckets().get(3).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(3).getDocCount());
             }
         );
@@ -2893,10 +2893,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             );
         }, (InternalComposite result) -> {
             assertEquals(2, result.getBuckets().size());
-            assertEquals("{tsid={dim1=foo, dim2=200}}", result.afterKey().toString());
-            assertEquals("{tsid={dim1=foo, dim2=100}}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals("{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAyA}", result.afterKey().toString());
+            assertEquals("{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAZA}", result.getBuckets().get(0).getKeyAsString());
             assertEquals(2L, result.getBuckets().get(0).getDocCount());
-            assertEquals("{tsid={dim1=foo, dim2=200}}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals("{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAyA}", result.getBuckets().get(1).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(1).getDocCount());
         });
     }
@@ -2925,15 +2925,27 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             ),
             (InternalComposite result) -> {
                 assertEquals(4, result.getBuckets().size());
-                assertEquals("{tsid={dim1=foo, dim2=200}, date_histo=1634688000000}", result.afterKey().toString());
+                assertEquals("{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAyA, date_histo=1634688000000}", result.afterKey().toString());
 
-                assertEquals("{tsid={dim1=foo, dim2=100}, date_histo=1632096000000}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(
+                    "{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAZA, date_histo=1632096000000}",
+                    result.getBuckets().get(0).getKeyAsString()
+                );
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{tsid={dim1=foo, dim2=100}, date_histo=1634688000000}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(
+                    "{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAZA, date_histo=1634688000000}",
+                    result.getBuckets().get(1).getKeyAsString()
+                );
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
-                assertEquals("{tsid={dim1=foo, dim2=200}, date_histo=1632096000000}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(
+                    "{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAyA, date_histo=1632096000000}",
+                    result.getBuckets().get(2).getKeyAsString()
+                );
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
-                assertEquals("{tsid={dim1=foo, dim2=200}, date_histo=1634688000000}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals(
+                    "{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAyA, date_histo=1634688000000}",
+                    result.getBuckets().get(3).getKeyAsString()
+                );
                 assertEquals(2L, result.getBuckets().get(3).getDocCount());
             }
         );
@@ -2950,10 +2962,16 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             ).aggregateAfter(createAfterKey("tsid", createTsid(Map.of("dim1", "foo", "dim2", 100)), "date_histo", 1634688000000L)),
             (InternalComposite result) -> {
                 assertEquals(2, result.getBuckets().size());
-                assertEquals("{tsid={dim1=foo, dim2=200}, date_histo=1634688000000}", result.afterKey().toString());
-                assertEquals("{tsid={dim1=foo, dim2=200}, date_histo=1632096000000}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals("{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAyA, date_histo=1634688000000}", result.afterKey().toString());
+                assertEquals(
+                    "{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAyA, date_histo=1632096000000}",
+                    result.getBuckets().get(0).getKeyAsString()
+                );
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{tsid={dim1=foo, dim2=200}, date_histo=1634688000000}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(
+                    "{tsid=AgRkaW0xcwNmb28EZGltMmwAAAAAAAAAyA, date_histo=1634688000000}",
+                    result.getBuckets().get(1).getKeyAsString()
+                );
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
             }
         );

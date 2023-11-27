@@ -141,5 +141,11 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
                 Collections.singletonList(new TermsValuesSourceBuilder("name").script(new Script("id")))
             ).supportsParallelCollection(field -> randomIntBetween(-1, 100))
         );
+        assertFalse(
+            new CompositeAggregationBuilder(
+                randomAlphaOfLength(10),
+                List.of(randomDateHistogramSourceBuilder(), new TermsValuesSourceBuilder("name"))
+            ).supportsParallelCollection(field -> randomIntBetween(51, 100))
+        );
     }
 }

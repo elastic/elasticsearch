@@ -430,8 +430,8 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                         SnapshotDeletionsInProgress.of(
                             List.of(
                                 new SnapshotDeletionsInProgress.Entry(
-                                    List.of(new SnapshotId("deleting", "uuid")),
                                     "test-repo",
+                                    List.of(new SnapshotId("deleting", "uuid")),
                                     startTimes[2],
                                     randomNonNegativeLong(),
                                     SnapshotDeletionsInProgress.State.WAITING

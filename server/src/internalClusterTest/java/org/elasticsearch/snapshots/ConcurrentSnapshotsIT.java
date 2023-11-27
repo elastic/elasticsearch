@@ -509,7 +509,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for delete to be enqueued in cluster state");
         awaitClusterState(state -> {
             final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-            return deletionsInProgress.getEntries().size() == 1 && deletionsInProgress.getEntries().get(0).getSnapshots().size() == 3;
+            return deletionsInProgress.getEntries().size() == 1 && deletionsInProgress.getEntries().get(0).snapshots().size() == 3;
         });
 
         logger.info("--> waiting for second snapshot to finish and the other two snapshots to become aborted");

@@ -30,11 +30,11 @@ class TestFeatureService {
     ) {
 
         var message = hasHistoricalFeaturesInformation
-            ? "Check the feature has been added to the correct FeatureSpecification in the relevant module or, if it is a "
+            ? "Check the feature has been added to the correct FeatureSpecification in the relevant module or, if this is a "
                 + "legacy feature used only in tests, to a test-only FeatureSpecification"
             : "This test seems to run on the legacy test plugins; historical features from production code will not be available."
                 + " You need to port the test to the new test plugins in order to use historical features from production code."
-                + " If it is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification";
+                + " If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification";
 
         var minNodeVersion = nodeVersions.stream().min(Version::compareTo);
         var featureData = FeatureData.createFromSpecifications(specs);

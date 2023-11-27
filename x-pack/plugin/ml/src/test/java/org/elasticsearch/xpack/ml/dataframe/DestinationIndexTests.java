@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -783,7 +782,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         assertThat(metadata.hasMetadata(), is(true));
         assertThat(metadata.isCompatible(), is(false));
-        assertThat(metadata.getVersion(), equalTo(Version.V_7_9_3.toString()));
+        assertThat(metadata.getVersion(), equalTo(MlConfigVersion.V_7_9_3.toString()));
     }
 
     private static <Response> Answer<Response> callListenerOnResponse(Response response) {

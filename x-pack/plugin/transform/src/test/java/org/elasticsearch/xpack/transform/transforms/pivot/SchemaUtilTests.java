@@ -17,6 +17,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -104,6 +105,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new String[] { "index-1", "index-2" },
+                    QueryBuilders.matchAllQuery(),
                     null,
                     emptyMap(),
                     listener
@@ -120,6 +122,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new String[] { "index-1", "index-2" },
+                    QueryBuilders.matchAllQuery(),
                     new String[] {},
                     emptyMap(),
                     listener
@@ -136,6 +139,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     null,
+                    QueryBuilders.matchAllQuery(),
                     new String[] { "field-1", "field-2" },
                     emptyMap(),
                     listener
@@ -152,6 +156,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new String[] {},
+                    QueryBuilders.matchAllQuery(),
                     new String[] { "field-1", "field-2" },
                     emptyMap(),
                     listener
@@ -168,6 +173,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new String[] { "index-1", "index-2" },
+                    QueryBuilders.matchAllQuery(),
                     new String[] { "field-1", "field-2" },
                     emptyMap(),
                     listener
@@ -196,6 +202,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new String[] { "index-1", "index-2" },
+                    QueryBuilders.matchAllQuery(),
                     new String[] { "field-1", "field-2" },
                     runtimeMappings,
                     listener

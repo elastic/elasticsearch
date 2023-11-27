@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -59,9 +60,9 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * A legacy version of {@link ReplicaShardAllocatorIT#testPreferCopyCanPerformNoopRecovery()} verifying
  * that the {@link ReplicaShardAllocator} prefers copies with matching sync_id.
- * TODO: Remove this test in 9.0
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@UpdateForV9    // remove this test in v9
 public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
 
     private static final AtomicBoolean allowFlush = new AtomicBoolean();
@@ -170,7 +171,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(100, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(100, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         if (randomBoolean()) {
             indicesAdmin().prepareFlush(indexName).get();
@@ -227,7 +228,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(200, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         if (randomBoolean()) {
             indicesAdmin().prepareFlush(indexName).get();
@@ -265,7 +266,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
-                IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+                IntStream.range(0, between(200, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
             );
         }
         if (randomBoolean()) {

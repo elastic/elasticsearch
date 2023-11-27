@@ -97,7 +97,7 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         };
         int maxConcurrentRequests = randomIntBetween(1, 10);
-        AsyncOperator asyncOperator = new AsyncOperator(maxConcurrentRequests) {
+        AsyncOperator asyncOperator = new AsyncOperator(driverContext, maxConcurrentRequests) {
             final LookupService lookupService = new LookupService(threadPool, driverContext.blockFactory(), dict, maxConcurrentRequests);
 
             @Override
@@ -110,7 +110,16 @@ public class AsyncOperatorTests extends ESTestCase {
 
             }
         };
-        Iterator<Long> it = ids.iterator();
+        List<Operator> intermediateOperators = new ArrayList<>();
+        intermediateOperators.add(asyncOperator);
+        final Iterator<Long> it;
+        if (randomBoolean()) {
+            int limit = between(1, ids.size());
+            it = ids.subList(0, limit).iterator();
+            intermediateOperators.add(new LimitOperator(limit));
+        } else {
+            it = ids.iterator();
+        }
         SinkOperator outputOperator = new PageConsumerOperator(page -> {
             try (Releasable ignored = page::releaseBlocks) {
                 assertThat(page.getBlockCount(), equalTo(2));
@@ -131,7 +140,7 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         });
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = new Driver(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, () -> assertFalse(it.hasNext()));
+        Driver driver = new Driver(driverContext, sourceOperator, intermediateOperators, outputOperator, () -> assertFalse(it.hasNext()));
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
         future.actionGet();
     }
@@ -139,7 +148,7 @@ public class AsyncOperatorTests extends ESTestCase {
     public void testStatus() {
         DriverContext driverContext = driverContext();
         Map<Page, ActionListener<Page>> handlers = new HashMap<>();
-        AsyncOperator operator = new AsyncOperator(2) {
+        AsyncOperator operator = new AsyncOperator(driverContext, 2) {
             @Override
             protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                 handlers.put(inputPage, listener);
@@ -185,7 +194,6 @@ public class AsyncOperatorTests extends ESTestCase {
         operator.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102264")
     public void testFailure() throws Exception {
         DriverContext driverContext = driverContext();
         final SequenceLongBlockSourceOperator sourceOperator = new SequenceLongBlockSourceOperator(
@@ -194,7 +202,7 @@ public class AsyncOperatorTests extends ESTestCase {
         );
         int maxConcurrentRequests = randomIntBetween(1, 10);
         AtomicBoolean failed = new AtomicBoolean();
-        AsyncOperator asyncOperator = new AsyncOperator(maxConcurrentRequests) {
+        AsyncOperator asyncOperator = new AsyncOperator(driverContext, maxConcurrentRequests) {
             @Override
             protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                 ActionRunnable<Page> command = new ActionRunnable<>(listener) {
@@ -226,15 +234,17 @@ public class AsyncOperatorTests extends ESTestCase {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         Driver driver = new Driver(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, () -> {});
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), future);
-        assertBusy(() -> {
-            assertTrue(asyncOperator.isFinished());
-            assertTrue(future.isDone());
-        });
+        assertBusy(() -> assertTrue(future.isDone()));
         if (failed.get()) {
             ElasticsearchException error = expectThrows(ElasticsearchException.class, future::actionGet);
             assertThat(error.getMessage(), containsString("simulated"));
+            error = expectThrows(ElasticsearchException.class, asyncOperator::isFinished);
+            assertThat(error.getMessage(), containsString("simulated"));
+            error = expectThrows(ElasticsearchException.class, asyncOperator::getOutput);
+            assertThat(error.getMessage(), containsString("simulated"));
         } else {
-            future.actionGet();
+            assertTrue(asyncOperator.isFinished());
+            assertNull(asyncOperator.getOutput());
         }
     }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.telemetry.metric.LongCounter;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
@@ -141,17 +142,24 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
+    private final LongCounter parentTripCountTotalMetric;
 
     private final Function<Boolean, OverLimitStrategy> overLimitStrategyFactory;
     private volatile OverLimitStrategy overLimitStrategy;
 
     @SuppressWarnings("this-escape")
-    public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
-        this(settings, customBreakers, clusterSettings, HierarchyCircuitBreakerService::createOverLimitStrategy);
+    public HierarchyCircuitBreakerService(
+        CircuitBreakerMetrics metrics,
+        Settings settings,
+        List<BreakerSettings> customBreakers,
+        ClusterSettings clusterSettings
+    ) {
+        this(metrics, settings, customBreakers, clusterSettings, HierarchyCircuitBreakerService::createOverLimitStrategy);
     }
 
     @SuppressWarnings("this-escape")
     HierarchyCircuitBreakerService(
+        CircuitBreakerMetrics metrics,
         Settings settings,
         List<BreakerSettings> customBreakers,
         ClusterSettings clusterSettings,
@@ -162,6 +170,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.FIELDDATA,
             validateAndCreateBreaker(
+                metrics.getFielddataTripCountTotal(),
                 new BreakerSettings(
                     CircuitBreaker.FIELDDATA,
                     FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -174,6 +183,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.IN_FLIGHT_REQUESTS,
             validateAndCreateBreaker(
+                metrics.getInFlightRequestsCountTotal(),
                 new BreakerSettings(
                     CircuitBreaker.IN_FLIGHT_REQUESTS,
                     IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -186,6 +196,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.REQUEST,
             validateAndCreateBreaker(
+                metrics.getRequestTripCountTotal(),
                 new BreakerSettings(
                     CircuitBreaker.REQUEST,
                     REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -203,7 +214,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         + "] exists. Circuit breaker names must be unique"
                 );
             }
-            childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(breakerSettings));
+            childCircuitBreakers.put(
+                breakerSettings.getName(),
+                validateAndCreateBreaker(metrics.getCustomTripCount(breakerSettings.getName()), breakerSettings)
+            );
         }
         this.breakers = Map.copyOf(childCircuitBreakers);
         this.parentSettings = new BreakerSettings(
@@ -247,6 +261,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         this.overLimitStrategyFactory = overLimitStrategyFactory;
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
+        this.parentTripCountTotalMetric = metrics.getParentTripCountTotal();
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
@@ -399,6 +414,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         long parentLimit = this.parentSettings.getLimit();
         if (memoryUsed.totalUsage > parentLimit && overLimitStrategy.overLimit(memoryUsed).totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
+            this.parentTripCountTotalMetric.increment();
             final String messageString = buildParentTripMessage(
                 newBytesReserved,
                 label,
@@ -474,12 +490,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    private CircuitBreaker validateAndCreateBreaker(BreakerSettings breakerSettings) {
+    private CircuitBreaker validateAndCreateBreaker(LongCounter trippedCountMeter, BreakerSettings breakerSettings) {
         // Validate the settings
         validateSettings(new BreakerSettings[] { breakerSettings });
         return breakerSettings.getType() == CircuitBreaker.Type.NOOP
             ? new NoopCircuitBreaker(breakerSettings.getName())
             : new ChildMemoryCircuitBreaker(
+                trippedCountMeter,
                 breakerSettings,
                 LogManager.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
                 this,
@@ -501,7 +518,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 HierarchyCircuitBreakerService::realMemoryUsage,
                 createYoungGcCountSupplier(),
                 System::currentTimeMillis,
-                5000,
+                500,
                 lockTimeout
             );
         } else {
@@ -542,6 +559,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         private long blackHole;
         private final ReleasableLock lock = new ReleasableLock(new ReentrantLock());
+        // used to throttle logging
+        private int attemptNo;
 
         G1OverLimitStrategy(
             JvmInfo jvmInfo,
@@ -588,9 +607,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             boolean leader = false;
             int allocationIndex = 0;
             long allocationDuration = 0;
+            long begin = 0;
+            int attemptNoCopy = 0;
             try (ReleasableLock locked = lock.tryAcquire(lockTimeout)) {
                 if (locked != null) {
-                    long begin = timeSupplier.getAsLong();
+                    attemptNoCopy = ++this.attemptNo;
+                    begin = timeSupplier.getAsLong();
                     leader = begin >= lastCheckTime + minimumInterval;
                     overLimitTriggered(leader);
                     if (leader) {
@@ -622,9 +644,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         long now = timeSupplier.getAsLong();
                         this.lastCheckTime = now;
                         allocationDuration = now - begin;
+                        this.attemptNo = 0;
                     }
                 }
             } catch (InterruptedException e) {
+                logger.info("could not acquire lock when attempting to trigger G1GC due to high heap usage");
                 Thread.currentThread().interrupt();
                 // fallthrough
             }
@@ -638,6 +662,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         current,
                         allocationIndex,
                         allocationDuration
+                    );
+                } else if (attemptNoCopy < 10 || Long.bitCount(attemptNoCopy) == 1) {
+                    logger.info(
+                        "memory usage down after [{}], before [{}], after [{}]",
+                        begin - lastCheckTime,
+                        memoryUsed.baseUsage,
+                        current
                     );
                 }
                 return new MemoryUsage(
@@ -654,6 +685,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         current,
                         allocationIndex,
                         allocationDuration
+                    );
+                } else if (attemptNoCopy < 10 || Long.bitCount(attemptNoCopy) == 1) {
+                    logger.info(
+                        "memory usage not down after [{}], before [{}], after [{}]",
+                        begin - lastCheckTime,
+                        memoryUsed.baseUsage,
+                        current
                     );
                 }
                 // prefer original measurement when reporting if heap usage was not brought down.

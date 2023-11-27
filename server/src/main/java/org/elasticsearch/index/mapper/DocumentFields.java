@@ -44,8 +44,6 @@ public interface DocumentFields {
 
     void addUnsignedLongDimension(String fieldName, long value);
 
-    void addMetric(String fieldName);
-
     /**
      * Makes sure that each dimension only appears on time.
      */
@@ -75,11 +73,6 @@ public interface DocumentFields {
 
         @Override
         public void addUnsignedLongDimension(String fieldName, long value) {
-            add(fieldName);
-        }
-
-        @Override
-        public void addMetric(String fieldName) {
             add(fieldName);
         }
 

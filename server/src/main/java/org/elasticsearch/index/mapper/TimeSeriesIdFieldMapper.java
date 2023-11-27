@@ -40,7 +40,6 @@ import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -180,7 +179,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
          * to build the _tsid field for the document.
          */
         private final SortedSet<DimensionDataHolder> dimensions = new TreeSet<>(Comparator.comparing(o -> o.name));
-        private final Set<String> metrics = new TreeSet<>();
         /**
          * Builds the routing. Used for building {@code _id}. If null then skipped.
          */
@@ -211,7 +209,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
          * with the following pattern:
          *
          * hash128(catenate(dimension field names)) +
-         * hash128(catenate(metric field names)) +
          * foreach(dimension field value, limit = MAX_DIMENSIONS) { hash32(dimension field value) } +
          * hash128(catenate(dimension field values))
          *
@@ -321,11 +318,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
             }
-        }
-
-        @Override
-        public void addMetric(String fieldName) {
-            metrics.add(fieldName);
         }
 
         private void add(String fieldName, BytesReference encoded) throws IOException {

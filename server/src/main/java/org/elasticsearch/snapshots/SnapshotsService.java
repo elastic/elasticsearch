@@ -844,11 +844,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             assert endingSnapshots.contains(snapshot) == false : snapshot;
                         }
                     }
-                    final Exception cause = new NotMasterException("no longer master");
-                    for (final Iterator<List<ActionListener<Void>>> it = snapshotDeletionListeners.values().iterator(); it.hasNext();) {
-                        final List<ActionListener<Void>> listeners = it.next();
-                        readyToResolveListeners.add(() -> failListenersIgnoringException(listeners, cause));
-                        it.remove();
+                    if (snapshotDeletionListeners.isEmpty() == false) {
+                        final Exception cause = new NotMasterException("no longer master");
+                        for (final Iterator<List<ActionListener<Void>>> it = snapshotDeletionListeners.values().iterator(); it.hasNext();) {
+                            final List<ActionListener<Void>> listeners = it.next();
+                            readyToResolveListeners.add(() -> failListenersIgnoringException(listeners, cause));
+                            it.remove();
+                        }
                     }
                 }
                 // fail snapshot listeners outside mutex
@@ -1537,7 +1539,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             logger.debug(() -> "[" + snapshot + "] failed to update cluster state during snapshot finalization", e);
             failSnapshotCompletionListeners(
                 snapshot,
-                new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e)
+                new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e),
+                Runnable::run
             );
             failAllListenersOnMasterFailOver(e);
         } else {
@@ -1856,14 +1859,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 );
                 failSnapshotCompletionListeners(
                     snapshot,
-                    new SnapshotException(snapshot, "Failed to remove snapshot from cluster state", e)
+                    new SnapshotException(snapshot, "Failed to remove snapshot from cluster state", e),
+                    Runnable::run
                 );
                 failAllListenersOnMasterFailOver(e);
             }
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                failSnapshotCompletionListeners(snapshot, failure);
+                failSnapshotCompletionListeners(snapshot, failure, Runnable::run);
                 if (repositoryData != null) {
                     runNextQueuedOperation(repositoryData, snapshot.getRepository(), true);
                 }
@@ -1904,11 +1908,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
         }
         return changed ? SnapshotDeletionsInProgress.of(updatedEntries) : null;
-    }
-
-    private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e) {
-        failListenersIgnoringException(endAndGetListenersToResolve(snapshot), e);
-        assert repositoryOperations.assertNotQueued(snapshot);
     }
 
     private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e, Consumer<Runnable> failingListenersConsumer) {
@@ -2108,7 +2107,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     logger.info("snapshots {} aborted", completedNoCleanup);
                 }
                 for (Snapshot snapshot : completedNoCleanup) {
-                    failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, SnapshotsInProgress.ABORTED_FAILURE_TEXT));
+                    failSnapshotCompletionListeners(
+                        snapshot,
+                        new SnapshotException(snapshot, SnapshotsInProgress.ABORTED_FAILURE_TEXT),
+                        Runnable::run
+                    );
                 }
                 if (newDelete == null) {
                     listener.onResponse(null);

@@ -16,7 +16,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
@@ -270,10 +269,6 @@ public abstract class IndexRouting {
                 }
             }
             return b.createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
-        }
-
-        public String createId(XContentType sourceType, BytesRef tsid, byte[] suffix) {
-            return hashSource(sourceType, new BytesArray(tsid)).createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
         }
 
         private static int defaultOnEmpty() {

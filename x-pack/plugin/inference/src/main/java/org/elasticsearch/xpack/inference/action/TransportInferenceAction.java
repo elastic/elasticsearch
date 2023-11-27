@@ -19,6 +19,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
@@ -57,7 +58,8 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 return;
             }
 
-            if (request.getTaskType() != unparsedModel.taskType()) {
+            if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
+                // not the wildcard task type and not the model task type
                 listener.onFailure(
                     new ElasticsearchStatusException(
                         "Incompatible task_type, the requested type [{}] does not match the model type [{}]",

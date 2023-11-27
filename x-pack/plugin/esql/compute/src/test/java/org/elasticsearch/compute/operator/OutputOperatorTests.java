@@ -22,7 +22,7 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "OutputOperator[columns=[a]]";
+        return "OutputOperator[columns = [a]]";
     }
 
     @Override
@@ -35,7 +35,7 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
     }
 
     private String expectedDescriptionOfBig() {
-        return "OutputOperator[columns=[20 columns]]";
+        return "OutputOperator[columns = [20 columns]]";
     }
 
     public void testBigToString() {

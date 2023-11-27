@@ -79,7 +79,7 @@ public class OutputOperator extends SinkOperator {
     private static String describe(List<String> columns) {
         StringBuilder sb = new StringBuilder();
         sb.append("OutputOperator").append("[");
-        sb.append("columns=");
+        sb.append("columns = ");
         if (columns.size() <= 10) {
             sb.append(columns);
         } else {

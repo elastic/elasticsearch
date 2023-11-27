@@ -24,6 +24,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -61,6 +62,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TranslogReplicatorTests extends ESTestCase {
 
@@ -658,7 +660,6 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1172")
     public void testCheckShardStillAllocated() throws Exception {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 10);
@@ -899,6 +900,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             listener.onResponse(null);
             return null;
         }).when(consistencyService).ensureClusterStateConsistentWithRootBlob(any(), any());
+        when(consistencyService.state()).thenReturn(ClusterState.EMPTY_STATE);
         return consistencyService;
     }
 

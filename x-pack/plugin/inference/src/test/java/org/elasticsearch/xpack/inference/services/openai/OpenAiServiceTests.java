@@ -609,7 +609,7 @@ public class OpenAiServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
             var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
-            PlainActionFuture<List<? extends InferenceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(model, List.of("abc"), new HashMap<>(), listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

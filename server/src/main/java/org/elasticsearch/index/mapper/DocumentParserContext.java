@@ -361,7 +361,7 @@ public abstract class DocumentParserContext {
      * If we over-count the fields (for example by counting all mappers with the same name),
      * we may reject fields earlier than necessary and before actually hitting the field limit.
      */
-    private int getNewDynamicMappersSize() {
+    int getNewDynamicMappersSize() {
         return dynamicMappers.values()
             .stream()
             // we're taking the largest mapper in case there are multiple mappers for the same field

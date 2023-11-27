@@ -52,6 +52,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -117,7 +118,21 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     private final int desiredSlices;
     private final int desiredDetailSlices;
     private final boolean realtime;
-    private static final Map<String, HostMetadata> hostsTable = new ConcurrentHashMap<>();
+
+    /**
+     * We just apply an upper limit to the number of cached hosts to ensure it doesn't blow up
+     * in unforeseen situations.
+     * The value itself is relatively arbitrary, but high enough to cover most foreseeable use cases.
+     */
+    private static final int MAX_HOSTS_CACHE_SIZE = 20_000;
+    private static final Map<String, HostMetadata> hostsTable = Collections.synchronizedMap(
+        new LinkedHashMap<>(MAX_HOSTS_CACHE_SIZE, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(final Map.Entry<String, HostMetadata> eldest) {
+                return size() >= MAX_HOSTS_CACHE_SIZE;
+            }
+        }
+    );
 
     @Inject
     public TransportGetStackTracesAction(
@@ -509,7 +524,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             SearchHit[] hits = searchResponse.getHits().getHits();
             for (SearchHit hit : hits) {
                 HostMetadata host = HostMetadata.fromSource(hit.getSourceAsMap());
-                hostsTable.putIfAbsent(host.hostID, host);
+                hostsTable.put(host.hostID, host); // update existing entries
             }
             log.debug(hostsWatch::report);
             log.debug("Have [{}] host metadata items", hostsTable.size());

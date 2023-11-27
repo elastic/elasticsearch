@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm;
+package org.elasticsearch.telemetry.apm.internal;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.DoubleCounterBuilder;
@@ -19,6 +19,7 @@ import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableLongCounter;
 import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 
+import org.elasticsearch.telemetry.apm.internal.APMMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.CountDownLatch;

@@ -12,7 +12,7 @@ import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableDoubleGauge;
 
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.telemetry.apm.AbstractInstrument;
+import org.elasticsearch.telemetry.apm.internal.AbstractInstrument;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 
 import java.util.Objects;

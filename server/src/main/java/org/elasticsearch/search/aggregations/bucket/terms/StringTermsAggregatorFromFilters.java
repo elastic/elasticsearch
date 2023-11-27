@@ -186,7 +186,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
                 for (OrdBucket b : queue) {
                     buckets.add(buildBucket(b, terms));
                 }
-                Collections.sort(buckets, reduceOrder.comparator());
+                buckets.sort(reduceOrder.comparator());
             } else {
                 /*
                  * Note for the curious: you can just use a for loop to iterate
@@ -208,7 +208,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
                 }
                 buckets.add(buildBucket(b, terms));
             }
-            Collections.sort(buckets, reduceOrder.comparator());
+            buckets.sort(reduceOrder.comparator());
         }
         return new StringTerms(
             filters.getName(),

@@ -178,6 +178,8 @@ public class TransportVersions {
     public static final TransportVersion GRANT_API_KEY_CLIENT_AUTHENTICATION_ADDED = def(8_545_00_0);
     public static final TransportVersion PIT_WITH_INDEX_FILTER = def(8_546_00_0);
     public static final TransportVersion NODE_INFO_VERSION_AS_STRING = def(8_547_00_0);
+    public static final TransportVersion GET_API_KEY_INVALIDATION_TIME_ADDED = def(8_548_00_0);
+
 
     // Placeholder for features that require the next lucene version. Its id needs to be adjusted when merging lucene_snapshot into main.
     public static final TransportVersion UPGRADE_TO_LUCENE_9_9 = def(8_900_00_0);

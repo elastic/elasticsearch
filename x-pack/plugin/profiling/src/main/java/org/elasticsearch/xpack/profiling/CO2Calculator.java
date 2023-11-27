@@ -19,16 +19,28 @@ final class CO2Calculator {
     private static final double DEFAULT_KILOWATTS_PER_CORE_AARCH64 = 2.8d / 1000.0d; // unit: watt / core
     private static final double DEFAULT_KILOWATTS_PER_CORE = DEFAULT_KILOWATTS_PER_CORE_X86_64; // unit: watt / core
     private static final double DEFAULT_DATACENTER_PUE = 1.7d;
-    private static final double CUSTOM_CO2_FACTOR = 1.0d;
     private static final Provider DEFAULT_PROVIDER = new Provider(DEFAULT_DATACENTER_PUE, Collections.emptyMap());
     private final InstanceTypeService instanceTypeService;
     private final Map<String, HostMetadata> hostMetadata;
     private final double samplingDurationInSeconds;
+    private final double customCO2PerKWH;
+    private final double customDatacenterPUE;
+    private final double customKilowattsPerCore;
 
-    CO2Calculator(InstanceTypeService instanceTypeService, Map<String, HostMetadata> hostMetadata, double samplingDurationInSeconds) {
+    CO2Calculator(
+        InstanceTypeService instanceTypeService,
+        Map<String, HostMetadata> hostMetadata,
+        double samplingDurationInSeconds,
+        Double customCO2PerKWH,
+        Double customDatacenterPUE,
+        Double customPerCoreWatt
+    ) {
         this.instanceTypeService = instanceTypeService;
         this.hostMetadata = hostMetadata;
-        this.samplingDurationInSeconds = samplingDurationInSeconds;
+        this.samplingDurationInSeconds = samplingDurationInSeconds > 0 ? samplingDurationInSeconds : 1.0d; // avoid division by zero
+        this.customCO2PerKWH = customCO2PerKWH == null ? DEFAULT_CO2_TONS_PER_KWH : customCO2PerKWH;
+        this.customDatacenterPUE = customDatacenterPUE == null ? DEFAULT_DATACENTER_PUE : customDatacenterPUE;
+        this.customKilowattsPerCore = customPerCoreWatt == null ? DEFAULT_KILOWATTS_PER_CORE : customPerCoreWatt / 1000.0d;
     }
 
     public double getAnnualCO2Tons(String hostID, long samples) {
@@ -36,7 +48,7 @@ final class CO2Calculator {
 
         HostMetadata host = hostMetadata.get(hostID);
         if (host == null) {
-            return DEFAULT_KILOWATTS_PER_CORE * DEFAULT_CO2_TONS_PER_KWH * annualCoreHours * DEFAULT_DATACENTER_PUE;
+            return customKilowattsPerCore * customCO2PerKWH * annualCoreHours * customDatacenterPUE;
         }
 
         CostEntry costs = instanceTypeService.getCosts(host.instanceType);
@@ -44,20 +56,20 @@ final class CO2Calculator {
             return getKiloWattsPerCore(host) * getCO2TonsPerKWH(host) * annualCoreHours * getDatacenterPUE(host);
         }
 
-        return annualCoreHours * costs.co2Factor * CUSTOM_CO2_FACTOR; // unit: metric tons
+        return annualCoreHours * costs.co2Factor; // unit: metric tons
     }
 
-    private static double getKiloWattsPerCore(HostMetadata host) {
+    private double getKiloWattsPerCore(HostMetadata host) {
         if ("aarch64".equals(host.profilingHostMachine)) {
             // Assume that AARCH64 (aka ARM64) machines are more energy efficient than x86_64 machines.
             return DEFAULT_KILOWATTS_PER_CORE_AARCH64;
         }
-        return DEFAULT_KILOWATTS_PER_CORE;
+        return customKilowattsPerCore;
     }
 
-    private static double getCO2TonsPerKWH(HostMetadata host) {
+    private double getCO2TonsPerKWH(HostMetadata host) {
         Provider provider = PROVIDERS.getOrDefault(host.instanceType.provider, DEFAULT_PROVIDER);
-        return provider.co2TonsPerKWH.getOrDefault(host.instanceType.region, DEFAULT_CO2_TONS_PER_KWH);
+        return provider.co2TonsPerKWH.getOrDefault(host.instanceType.region, customCO2PerKWH);
     }
 
     private static double getDatacenterPUE(HostMetadata host) {
@@ -140,63 +152,63 @@ final class CO2Calculator {
             new Provider(
                 1.185d,
                 Map.<String, Double>ofEntries(
-                    entry("Central US", 0.000426254d),
-                    entry("East US", 0.000379069d),
-                    entry("East US 2", 0.000379069d),
-                    entry("East US 3", 0.000379069d),
-                    entry("North Central US", 0.000410608d),
-                    entry("South Central US", 0.000373231d),
-                    entry("West Central US", 0.000322167d),
-                    entry("West US", 0.000322167d),
-                    entry("West US 2", 0.000322167d),
-                    entry("West US 3", 0.000322167d),
-                    entry("East Asia", 0.00071d),
-                    entry("Southeast Asia", 0.000408d),
-                    entry("South Africa North", 0.0009006d),
-                    entry("South Africa West", 0.0009006d),
-                    entry("South Africa", 0.0009006d),
-                    entry("Australia", 0.00079d),
-                    entry("Australia Central", 0.00079d),
-                    entry("Australia Central 2", 0.00079d),
-                    entry("Australia East", 0.00079d),
-                    entry("Australia South East", 0.00096d),
-                    entry("Japan", 0.0004658d),
-                    entry("Japan West", 0.0004658d),
-                    entry("Japan East", 0.0004658d),
-                    entry("Korea", 0.0004156d),
-                    entry("Korea East", 0.0004156d),
-                    entry("Korea South", 0.0004156d),
-                    entry("India", 0.0007082d),
-                    entry("India West", 0.0007082d),
-                    entry("India Central", 0.0007082d),
-                    entry("India South", 0.0007082d),
-                    entry("North Europe", 0.0002786d),
-                    entry("West Europe", 0.0003284d),
-                    entry("France", 0.00005128d),
-                    entry("France Central", 0.00005128d),
-                    entry("France South", 0.00005128d),
-                    entry("Sweden Central", 0.00000567d),
-                    entry("Switzerland", 0.00000567d),
-                    entry("Switzerland North", 0.00000567d),
-                    entry("Switzerland West", 0.00000567d),
-                    entry("UK", 0.000225d),
-                    entry("UK South", 0.000225d),
-                    entry("UK West", 0.000228d),
-                    entry("Germany", 0.00033866d),
-                    entry("Germany North", 0.00033866d),
-                    entry("Germany West Central", 0.00033866d),
-                    entry("Norway", 0.00000762d),
-                    entry("Norway East", 0.00000762d),
-                    entry("Norway West", 0.00000762d),
-                    entry("United Arab Emirates", 0.0004041d),
-                    entry("United Arab Emirates North", 0.0004041d),
-                    entry("United Arab Emirates Central", 0.0004041d),
-                    entry("Canada", 0.00012d),
-                    entry("Canada Central", 0.00012d),
-                    entry("Canada East", 0.00012d),
-                    entry("Brazil", 0.0000617d),
-                    entry("Brazil South", 0.0000617d),
-                    entry("Brazil South East", 0.0000617d)
+                    entry("centralus", 0.000426254d),
+                    entry("eastus", 0.000379069d),
+                    entry("eastus2", 0.000379069d),
+                    entry("eastus3", 0.000379069d),
+                    entry("northcentralus", 0.000410608d),
+                    entry("southcentralus", 0.000373231d),
+                    entry("westcentralusS", 0.000322167d),
+                    entry("westus", 0.000322167d),
+                    entry("westus2", 0.000322167d),
+                    entry("westus3", 0.000322167d),
+                    entry("eastasia", 0.00071d),
+                    entry("southeastasia", 0.000408d),
+                    entry("southafricanorth", 0.0009006d),
+                    entry("southafricawest", 0.0009006d),
+                    entry("southafrica", 0.0009006d),
+                    entry("australia", 0.00079d),
+                    entry("australiacentral", 0.00079d),
+                    entry("australiacentral2", 0.00079d),
+                    entry("australiaeast", 0.00079d),
+                    entry("australiasoutheast", 0.00096d),
+                    entry("japan", 0.0004658d),
+                    entry("japanwest", 0.0004658d),
+                    entry("japaneast", 0.0004658d),
+                    entry("korea", 0.0004156d),
+                    entry("koreaeast", 0.0004156d),
+                    entry("koreasouth", 0.0004156d),
+                    entry("india", 0.0007082d),
+                    entry("indiawest", 0.0007082d),
+                    entry("indiacentral", 0.0007082d),
+                    entry("indiasouth", 0.0007082d),
+                    entry("northeurope", 0.0002786d),
+                    entry("westeurope", 0.0003284d),
+                    entry("france", 0.00005128d),
+                    entry("francecentral", 0.00005128d),
+                    entry("francesouth", 0.00005128d),
+                    entry("swedencentral", 0.00000567d),
+                    entry("switzerland", 0.00000567d),
+                    entry("switzerlandnorth", 0.00000567d),
+                    entry("switzerlandwest", 0.00000567d),
+                    entry("uk", 0.000225d),
+                    entry("uksouth", 0.000225d),
+                    entry("ukwest", 0.000228d),
+                    entry("germany", 0.00033866d),
+                    entry("germanynorth", 0.00033866d),
+                    entry("germanywestcentral", 0.00033866d),
+                    entry("norway", 0.00000762d),
+                    entry("norwayeast", 0.00000762d),
+                    entry("norwaywest", 0.00000762d),
+                    entry("unitedarabemirates", 0.0004041d),
+                    entry("unitedarabemiratesnorth", 0.0004041d),
+                    entry("unitedarabemiratescentral", 0.0004041d),
+                    entry("canada", 0.00012d),
+                    entry("canadacentral", 0.00012d),
+                    entry("canadaeast", 0.00012d),
+                    entry("brazil", 0.0000617d),
+                    entry("brazilsouth", 0.0000617d),
+                    entry("brazilsoutheast", 0.0000617d)
                 )
             )
         );

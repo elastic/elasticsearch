@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
-import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -1084,7 +1083,6 @@ class NodeConstruction {
             b.bind(FsHealthService.class).toInstance(fsHealthService);
             b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
             b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
-            b.bind(DesiredNodesSettingsValidator.class).toInstance(new DesiredNodesSettingsValidator());
             b.bind(Tracer.class).toInstance(tracer);
             b.bind(FileSettingsService.class).toInstance(fileSettingsService);
             b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);

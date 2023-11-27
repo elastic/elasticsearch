@@ -36,6 +36,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -291,8 +292,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // TODO (ES-7313): add new ESRestTestCaseHistoricalFeatures() too
                 List.of(new RestTestLegacyFeatures()),
                 semanticNodeVersions,
-                // TODO (ES-7316): GET and pass cluster state
-                Set.of()
+                ClusterFeatures.calculateAllNodeFeatures(getClusterStateFeatures().values())
             );
         }
 
@@ -2052,6 +2052,25 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             }
         }, 60, TimeUnit.SECONDS);
+    }
+
+    private static Map<String, Set<String>> getClusterStateFeatures() throws IOException {
+        final Request request = new Request("GET", "_cluster/state");
+        request.addParameter("filter_path", "nodes_features");
+
+        final Response response = adminClient().performRequest(request);
+
+        var responseData = responseAsMap(response);
+        if (responseData.get("nodes_features") instanceof List<?> nodesFeatures) {
+            return nodesFeatures.stream()
+                .map(Map.class::cast)
+                .collect(Collectors.toUnmodifiableMap(nodeFeatureMap -> nodeFeatureMap.get("node_id").toString(), nodeFeatureMap -> {
+                    @SuppressWarnings("unchecked")
+                    var nodeFeatures = (List<String>) nodeFeatureMap.get("features");
+                    return new HashSet<>(nodeFeatures);
+                }));
+        }
+        return Map.of();
     }
 
     /**

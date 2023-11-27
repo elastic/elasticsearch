@@ -1058,18 +1058,21 @@ public class ProfileServiceTests extends ESTestCase {
         }).toArray(MultiSearchResponse.Item[]::new);
 
         final MultiSearchResponse multiSearchResponse = new MultiSearchResponse(items, randomNonNegativeLong());
+        try {
+            doAnswer(invocation -> {
+                @SuppressWarnings("unchecked")
+                final var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+                listener.onResponse(multiSearchResponse);
+                return null;
+            }).when(client).execute(eq(MultiSearchAction.INSTANCE), any(MultiSearchRequest.class), anyActionListener());
 
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            final var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
-            listener.onResponse(multiSearchResponse);
-            return null;
-        }).when(client).execute(eq(MultiSearchAction.INSTANCE), any(MultiSearchRequest.class), anyActionListener());
-
-        when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client, MultiSearchAction.INSTANCE));
-        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
-        profileService.usageStats(future);
-        assertThat(future.actionGet(), equalTo(metrics));
+            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client, MultiSearchAction.INSTANCE));
+            final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+            profileService.usageStats(future);
+            assertThat(future.actionGet(), equalTo(metrics));
+        } finally {
+            multiSearchResponse.decRef();
+        }
     }
 
     public void testUsageStatsWhenNoIndex() {

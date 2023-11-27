@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
 import java.util.stream.DoubleStream;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -22,15 +23,10 @@ public class KDETests extends ESTestCase {
         assertThat(kde.data(), equalTo(new double[0]));
     }
 
-    public void testData() {
-        KDE kde = new KDE(new double[] { 2.0, 1.0, 3.0, 4.9, 3.1 }, 1.06);
-        assertThat(kde.size(), equalTo(5));
-        assertThat(kde.data(), equalTo(new double[] { 1.0, 2.0, 3.0, 3.1, 4.9 }));
-    }
-
     public void testCdfAndSf() {
 
         double[] data = DoubleStream.generate(() -> randomDoubleBetween(0.0, 100.0, true)).limit(101).toArray();
+        Arrays.sort(data);
         KDE kde = new KDE(data, 1.06);
 
         // Very large and small limits are handled correctly.

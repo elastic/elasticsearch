@@ -2217,6 +2217,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     private static <T> T safeResult(SubscribableListener<T> listener) {
         assertTrue("listener is not complete", listener.isDone());
-        return Objects.requireNonNullElseGet(safeAwait(listener), fail(null, "result was null"));
+        return safeAwait(listener);
     }
 }

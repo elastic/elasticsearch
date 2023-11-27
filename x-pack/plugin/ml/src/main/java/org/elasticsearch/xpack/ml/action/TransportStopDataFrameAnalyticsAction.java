@@ -58,6 +58,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.ml.utils.ExceptionCollectionHandling.exceptionCollectionToSingleWith429OrMatchingStatus;
+
 /**
  * Stops the persistent task for running data frame analytics.
  */
@@ -310,7 +312,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
             + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
             + "]";
 
-        ElasticsearchException e = new ElasticsearchException(msg, caughtExceptions.get(0));
+        ElasticsearchStatusException e = exceptionCollectionToSingleWith429OrMatchingStatus(failures, msg);
         listener.onFailure(e);
     }
 

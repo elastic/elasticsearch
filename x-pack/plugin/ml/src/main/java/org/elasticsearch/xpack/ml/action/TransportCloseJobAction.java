@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -63,6 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.ml.utils.ExceptionCollectionHandling.exceptionCollectionToSingleWith429OrMatchingStatus;
 
 public class TransportCloseJobAction extends TransportTasksAction<
     JobTask,
@@ -546,11 +548,11 @@ public class TransportCloseJobAction extends TransportTasksAction<
                             + jobId
                             + "] with ["
                             + caughtExceptions.size()
-                            + "] failures, rethrowing last, all Exceptions: ["
+                            + "] failures, rethrowing last, all Exceptions: [" // TODO why are we saying last?
                             + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
                             + "]";
 
-                        ElasticsearchException e = new ElasticsearchException(msg, caughtExceptions.get(0));
+                        ElasticsearchStatusException e = exceptionCollectionToSingleWith429OrMatchingStatus(failures, msg);
                         listener.onFailure(e);
                     }
                 });

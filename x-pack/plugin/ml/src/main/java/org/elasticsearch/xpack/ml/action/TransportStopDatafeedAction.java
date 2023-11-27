@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -58,6 +59,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ml.utils.ExceptionCollectionHandling.exceptionCollectionToSingleWith429OrMatchingStatus;
 
 public class TransportStopDatafeedAction extends TransportTasksAction<
     TransportStartDatafeedAction.DatafeedTask,
@@ -471,11 +473,11 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
             + datafeedId
             + "] with ["
             + caughtExceptions.size()
-            + "] failures, rethrowing last, all Exceptions: ["
+            + "] failures, rethrowing last, all Exceptions: [" // TODO why this says last, but below we get(0)?
             + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
             + "]";
 
-        ElasticsearchException e = new ElasticsearchException(msg, caughtExceptions.get(0));
+        ElasticsearchStatusException e = exceptionCollectionToSingleWith429OrMatchingStatus(failures, msg);
         listener.onFailure(e);
     }
 

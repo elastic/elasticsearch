@@ -145,12 +145,17 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         if (script() == null
             && (executionHint == null || executionHint.equals(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString()))) {
             long cardinality = fieldCardinalityResolver.applyAsLong(field());
-            if (cardinality == -1) {
-                return false;
-            }
-            BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
-            if (cardinality <= adjusted.getShardSize()) {
-                return super.supportsParallelCollection(fieldCardinalityResolver);
+            if (cardinality != -1) {
+                if (InternalOrder.isKeyOrder(order)) {
+                    if (cardinality <= 50) {
+                        return super.supportsParallelCollection(fieldCardinalityResolver);
+                    }
+                } else {
+                    BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
+                    if (cardinality <= adjusted.getShardSize()) {
+                        return super.supportsParallelCollection(fieldCardinalityResolver);
+                    }
+                }
             }
         }
         return false;

@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -57,6 +58,27 @@ public class SpikeAndDipDetectorTests extends ESTestCase {
 
     public void testDetection() {
 
-        // Check vs expected values...
+        // Check vs some expected values.
+
+        {
+            double[] values = new double[] { 0.1, 3.1, 1.2, 1.7, 0.9, 2.3, -0.8, 3.2, 1.2, 1.3, 1.1, 1.0, 8.5, 0.5, 2.6, 0.7 };
+
+            SpikeAndDipDetector detect = new SpikeAndDipDetector(values);
+
+            ChangeType change = detect.at(0.05);
+
+            assertThat(change, instanceOf(ChangeType.Spike.class));
+            assertThat(change.pValue(), closeTo(1.385e-5, 0.01));
+        }
+        {
+            double[] values = new double[] { 0.1, 3.1, 1.2, 1.7, 0.9, 2.3, -6.2, 3.2, 1.2, 1.3, 1.1, 1.0, 3.5, 0.5, 2.6, 0.7 };
+
+            SpikeAndDipDetector detect = new SpikeAndDipDetector(values);
+
+            ChangeType change = detect.at(0.05);
+
+            assertThat(change, instanceOf(ChangeType.Dip.class));
+            assertThat(change.pValue(), closeTo(2.979e-5, 0.01));
+        }
     }
 }

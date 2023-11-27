@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
 /**
  * Detects spikes and dips in a time series.
  */
-final public class SpikeAndDipDetector {
+final class SpikeAndDipDetector {
     
     private record Extremum(int index, int startExcluded, int endExcluded) {
         double value(double[] values) {

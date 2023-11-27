@@ -701,7 +701,7 @@ public interface DocValueFormat extends NamedWriteable {
                 return valueAsBytesRef;
             }
             if (value instanceof String valueAsString) {
-                return new BytesRef(valueAsString);
+                return new BytesRef(Base64.getUrlDecoder().decode(valueAsString));
             }
             return parseBytesRefMap(value);
         }

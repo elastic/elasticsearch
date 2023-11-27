@@ -140,13 +140,13 @@ composite aggregation on tsid with after:
                 ]
                 after: {
                   tsid: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o",
-                  date: 1619635860000
+                  date: 1619635800000
                 }
 
   - match:  { hits.total.value: 8 }
   - length: { aggregations.tsids.buckets: 1 }
 
-  - match:  { aggregations.tsids.buckets.0.key.tsid: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ" }
+  - match:  { aggregations.tsids.buckets.0.key.tsid: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o" }
   - match:  { aggregations.tsids.buckets.0.key.date:  1619635860000}
   - match:  { aggregations.tsids.buckets.0.doc_count: 1 }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -204,6 +205,13 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
         // but the snapshot itself completes
         safeAwait(ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> SnapshotsInProgress.get(state).isEmpty()));
+
+        // flush master queue to ensure the completion is applied everywhere
+        safeAwait(
+            SubscribableListener.<ClusterHealthResponse>newForked(
+                l -> client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute(l)
+            )
+        );
 
         // and succeeds
         final var snapshots = safeAwait(

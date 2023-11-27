@@ -164,7 +164,7 @@ org.elasticsearch.cluster.ClusterFeatures#allNodeFeatures()
 org.elasticsearch.cluster.ClusterFeatures#clusterHasFeature(org.elasticsearch.features.NodeFeature)
 
 @defaultMessage use dedicated constructors instead
-org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus$ShardSnapshotStatus#<init>(java.lang.String, org.elasticsearch.cluster.SnapshotsInProgress.ShardState, org.elasticsearch.repositories.ShardGeneration, java.lang.String, org.elasticsearch.repositories.ShardSnapshotResult)
+org.elasticsearch.cluster.SnapshotsInProgress$ShardSnapshotStatus#<init>(java.lang.String, org.elasticsearch.cluster.SnapshotsInProgress.ShardState, org.elasticsearch.repositories.ShardGeneration, java.lang.String, org.elasticsearch.repositories.ShardSnapshotResult)
 
 @defaultMessage Use a Thread constructor with a name, anonymous threads are more difficult to debug
 java.lang.Thread#<init>(java.lang.Runnable)

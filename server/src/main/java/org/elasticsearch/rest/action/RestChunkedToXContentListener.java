@@ -24,7 +24,7 @@ import java.io.IOException;
  */
 public class RestChunkedToXContentListener<Response extends ChunkedToXContent> extends RestActionListener<Response> {
 
-    protected final ToXContent.Params params;
+    private final ToXContent.Params params;
 
     public RestChunkedToXContentListener(RestChannel channel) {
         this(channel, channel.request());

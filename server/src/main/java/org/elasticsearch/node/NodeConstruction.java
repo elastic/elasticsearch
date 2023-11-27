@@ -593,16 +593,19 @@ class NodeConstruction {
 
         Settings settings = settingsModule.getSettings();
 
-        final TelemetryProvider telemetryProvider = getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings))
+        TelemetryProvider telemetryProvider = getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings))
             .orElse(TelemetryProvider.NOOP);
+        modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
-        final Tracer tracer = telemetryProvider.getTracer();
-
-        Set<String> taskHeaders = Stream.concat(
-            pluginsService.filterPlugins(ActionPlugin.class).flatMap(p -> p.getTaskHeaders().stream()),
-            Task.HEADERS_TO_COPY.stream()
-        ).collect(Collectors.toSet());
-        final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
+        TaskManager taskManager = new TaskManager(
+            settings,
+            threadPool,
+            Stream.concat(
+                pluginsService.filterPlugins(ActionPlugin.class).flatMap(p -> p.getTaskHeaders().stream()),
+                Task.HEADERS_TO_COPY.stream()
+            ).collect(Collectors.toSet()),
+            telemetryProvider.getTracer()
+        );
 
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
@@ -803,7 +806,7 @@ class NodeConstruction {
             circuitBreakerService,
             createUsageService(),
             systemIndices,
-            tracer,
+            telemetryProvider.getTracer(),
             clusterService,
             buildReservedStateHandlers(
                 settingsModule,
@@ -837,7 +840,7 @@ class NodeConstruction {
             restController,
             actionModule::copyRequestHeadersToThreadContext,
             clusterService.getClusterSettings(),
-            tracer
+            telemetryProvider.getTracer()
         );
         Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.map(
             Plugin::getIndexTemplateMetadataUpgrader
@@ -865,7 +868,7 @@ class NodeConstruction {
             localNodeFactory,
             settingsModule.getClusterSettings(),
             taskManager,
-            tracer
+            telemetryProvider.getTracer()
         );
         final GatewayMetaState gatewayMetaState = new GatewayMetaState();
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -990,7 +993,7 @@ class NodeConstruction {
             responseCollectorService,
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
-            tracer
+            telemetryProvider.getTracer()
         );
 
         modules.add(
@@ -1083,7 +1086,6 @@ class NodeConstruction {
             b.bind(FsHealthService.class).toInstance(fsHealthService);
             b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
             b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
-            b.bind(Tracer.class).toInstance(tracer);
             b.bind(FileSettingsService.class).toInstance(fileSettingsService);
             b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
         });

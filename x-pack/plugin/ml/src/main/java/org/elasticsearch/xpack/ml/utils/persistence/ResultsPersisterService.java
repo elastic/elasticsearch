@@ -192,8 +192,9 @@ public class ResultsPersisterService {
     ) {
         if (isShutdown || isResetMode) {
             finalListener.onFailure(
-                new ElasticsearchException(
+                new ElasticsearchStatusException(
                     "Bulk indexing has failed as {}",
+                    RestStatus.REQUEST_TIMEOUT,
                     isShutdown ? "node is shutting down." : "machine learning feature is being reset."
                 )
             );
@@ -233,8 +234,9 @@ public class ResultsPersisterService {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor
     ) {
         if (isShutdown || isResetMode) {
-            throw new ElasticsearchException(
+            throw new ElasticsearchStatusException(
                 "Bulk indexing has failed as {}",
+                RestStatus.REQUEST_TIMEOUT,
                 isShutdown ? "node is shutting down." : "machine learning feature is being reset."
             );
         }

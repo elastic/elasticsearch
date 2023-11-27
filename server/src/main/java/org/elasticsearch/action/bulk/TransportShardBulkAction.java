@@ -384,21 +384,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     .map(DocumentMapper::mappingSource);
 
                 if (mergedSource.equals(previousSource)) {
-                    // don't bother the master node if the mapping update is a noop
-                    // this may happen if there was a concurrent mapping update that added the same field
-                    try {
-                        context.resetForNoopMappingUpdateRetry();
-                    } catch (IllegalStateException e) {
-                        // TODO remove, this is to find out why the build fails
-                        throw new IllegalStateException(
-                            e.getMessage()
-                                + " mapping update: "
-                                + result.getRequiredMappingUpdate()
-                                + " mapping: "
-                                + mergedSource.orElse(null)
-                        );
-                    }
-
+                    context.resetForNoopMappingUpdateRetry(primary.mapperService().mappingVersion());
                     return true;
                 }
             } catch (Exception e) {

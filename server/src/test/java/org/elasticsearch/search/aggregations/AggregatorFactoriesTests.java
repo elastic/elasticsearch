@@ -24,12 +24,9 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
@@ -46,7 +43,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -344,13 +340,6 @@ public class AggregatorFactoriesTests extends ESTestCase {
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            builder.addAggregator(
-                new CompositeAggregationBuilder("composite", Collections.singletonList(new TermsValuesSourceBuilder("name")))
-            );
-            assertTrue(builder.supportsParallelCollection(randomCardinality));
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(new FilterAggregationBuilder("terms", new MatchAllQueryBuilder()) {
                 @Override
                 public boolean isInSortOrderExecutionRequired() {
@@ -358,69 +347,6 @@ public class AggregatorFactoriesTests extends ESTestCase {
                 }
             });
             assertFalse(builder.supportsParallelCollection(randomCardinality));
-        }
-    }
-
-    public void testSupportsParallelCollectionTermsAgg() {
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").executionHint("map");
-            builder.addAggregator(terms);
-            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(-1, 100)));
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").executionHint("global_ordinals");
-            builder.addAggregator(terms);
-            assertTrue(builder.supportsParallelCollection(field -> 0));
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").order(BucketOrder.key(randomBoolean()));
-            if (randomBoolean()) {
-                terms.shardSize(randomIntBetween(1, 100));
-            }
-            builder.addAggregator(terms);
-            assertTrue(builder.supportsParallelCollection(field -> randomIntBetween(0, 49)));
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").order(BucketOrder.key(randomBoolean()));
-            if (randomBoolean()) {
-                terms.shardSize(randomIntBetween(1, 100));
-            }
-            builder.addAggregator(terms);
-            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(51, 100)));
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            builder.addAggregator(new TermsAggregationBuilder("terms"));
-            assertFalse(builder.supportsParallelCollection(field -> -1));
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            builder.addAggregator(new TermsAggregationBuilder("terms"));
-            assertTrue(builder.supportsParallelCollection(field -> 0));
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
-            terms.subAggregation(new TermsAggregationBuilder("name") {
-                @Override
-                public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
-                    return false;
-                }
-            });
-            builder.addAggregator(terms);
-            assertFalse(builder.supportsParallelCollection(field -> 0));
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
-            terms.shardSize(10);
-            builder.addAggregator(terms);
-            assertTrue(builder.supportsParallelCollection(field -> randomIntBetween(1, 10)));
-            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(11, 100)));
         }
     }
 

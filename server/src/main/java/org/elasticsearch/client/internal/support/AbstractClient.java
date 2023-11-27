@@ -247,10 +247,10 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
@@ -280,21 +280,21 @@ import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
@@ -509,47 +509,47 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public ActionFuture<SearchResponse> search(final SearchRequest request) {
-        return execute(SearchAction.INSTANCE, request);
+        return execute(TransportSearchAction.TYPE, request);
     }
 
     @Override
     public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
-        execute(SearchAction.INSTANCE, request, listener);
+        execute(TransportSearchAction.TYPE, request, listener);
     }
 
     @Override
     public SearchRequestBuilder prepareSearch(String... indices) {
-        return new SearchRequestBuilder(this, SearchAction.INSTANCE).setIndices(indices);
+        return new SearchRequestBuilder(this, TransportSearchAction.TYPE).setIndices(indices);
     }
 
     @Override
     public ActionFuture<SearchResponse> searchScroll(final SearchScrollRequest request) {
-        return execute(SearchScrollAction.INSTANCE, request);
+        return execute(TransportSearchScrollAction.TYPE, request);
     }
 
     @Override
     public void searchScroll(final SearchScrollRequest request, final ActionListener<SearchResponse> listener) {
-        execute(SearchScrollAction.INSTANCE, request, listener);
+        execute(TransportSearchScrollAction.TYPE, request, listener);
     }
 
     @Override
     public SearchScrollRequestBuilder prepareSearchScroll(String scrollId) {
-        return new SearchScrollRequestBuilder(this, SearchScrollAction.INSTANCE, scrollId);
+        return new SearchScrollRequestBuilder(this, TransportSearchScrollAction.TYPE, scrollId);
     }
 
     @Override
     public ActionFuture<MultiSearchResponse> multiSearch(MultiSearchRequest request) {
-        return execute(MultiSearchAction.INSTANCE, request);
+        return execute(TransportMultiSearchAction.TYPE, request);
     }
 
     @Override
     public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
-        execute(MultiSearchAction.INSTANCE, request, listener);
+        execute(TransportMultiSearchAction.TYPE, request, listener);
     }
 
     @Override
     public MultiSearchRequestBuilder prepareMultiSearch() {
-        return new MultiSearchRequestBuilder(this, MultiSearchAction.INSTANCE);
+        return new MultiSearchRequestBuilder(this, TransportMultiSearchAction.TYPE);
     }
 
     @Override
@@ -589,32 +589,32 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public ExplainRequestBuilder prepareExplain(String index, String id) {
-        return new ExplainRequestBuilder(this, ExplainAction.INSTANCE, index, id);
+        return new ExplainRequestBuilder(this, TransportExplainAction.TYPE, index, id);
     }
 
     @Override
     public ActionFuture<ExplainResponse> explain(ExplainRequest request) {
-        return execute(ExplainAction.INSTANCE, request);
+        return execute(TransportExplainAction.TYPE, request);
     }
 
     @Override
     public void explain(ExplainRequest request, ActionListener<ExplainResponse> listener) {
-        execute(ExplainAction.INSTANCE, request, listener);
+        execute(TransportExplainAction.TYPE, request, listener);
     }
 
     @Override
     public void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener) {
-        execute(ClearScrollAction.INSTANCE, request, listener);
+        execute(TransportClearScrollAction.TYPE, request, listener);
     }
 
     @Override
     public ActionFuture<ClearScrollResponse> clearScroll(ClearScrollRequest request) {
-        return execute(ClearScrollAction.INSTANCE, request);
+        return execute(TransportClearScrollAction.TYPE, request);
     }
 
     @Override
     public ClearScrollRequestBuilder prepareClearScroll() {
-        return new ClearScrollRequestBuilder(this, ClearScrollAction.INSTANCE);
+        return new ClearScrollRequestBuilder(this, TransportClearScrollAction.TYPE);
     }
 
     @Override

@@ -8,13 +8,20 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -30,16 +37,22 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.LegacyReaderContext;
@@ -689,6 +702,92 @@ public class DefaultSearchContextTests extends ESTestCase {
                 default -> throw new UnsupportedOperationException("Untested ResultsType added, please add new testcases.");
             }
         }
+    }
+
+    public void testGetFieldCardinalityNoLeaves() throws IOException {
+        try (BaseDirectoryWrapper dir = newDirectory()) {
+            IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig());
+            writer.close();
+            try (DirectoryReader reader = DirectoryReader.open(writer.getDirectory())) {
+                SortedOrdinalsIndexFieldData high = new SortedOrdinalsIndexFieldData(
+                    new IndexFieldDataCache.None(),
+                    "empty",
+                    CoreValuesSourceType.KEYWORD,
+                    new NoneCircuitBreakerService(),
+                    null
+                );
+                assertEquals(0, DefaultSearchContext.getFieldCardinality(high, reader));
+            }
+        }
+    }
+
+    public void testGetFieldCardinalityNoLeavesNoGlobalOrdinals() throws IOException {
+        try (BaseDirectoryWrapper dir = newDirectory()) {
+            IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig());
+            writer.close();
+            try (DirectoryReader reader = DirectoryReader.open(writer.getDirectory())) {
+                BinaryIndexFieldData binaryIndexFieldData = new BinaryIndexFieldData("high", CoreValuesSourceType.KEYWORD);
+                assertEquals(-1, DefaultSearchContext.getFieldCardinality(binaryIndexFieldData, reader));
+            }
+        }
+    }
+
+    public void testGetFieldCardinality() throws IOException {
+        try (BaseDirectoryWrapper dir = newDirectory()) {
+            final int numDocs = scaledRandomIntBetween(100, 200);
+            try (RandomIndexWriter w = new RandomIndexWriter(random(), dir, new IndexWriterConfig())) {
+                for (int i = 0; i < numDocs; ++i) {
+                    Document doc = new Document();
+                    doc.add(new SortedSetDocValuesField("high", new BytesRef(Integer.toString(i))));
+                    doc.add(new SortedSetDocValuesField("low", new BytesRef(Integer.toString(i % 3))));
+                    w.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                BinaryIndexFieldData binaryIndexFieldData = new BinaryIndexFieldData("high", CoreValuesSourceType.KEYWORD);
+                assertEquals(-1, DefaultSearchContext.getFieldCardinality(binaryIndexFieldData, reader));
+                SortedOrdinalsIndexFieldData nonExistent = new SortedOrdinalsIndexFieldData(
+                    new IndexFieldDataCache.None(),
+                    "non_existent",
+                    CoreValuesSourceType.KEYWORD,
+                    new NoneCircuitBreakerService(),
+                    null
+                );
+                assertEquals(0, DefaultSearchContext.getFieldCardinality(nonExistent, reader));
+                SortedOrdinalsIndexFieldData high = new SortedOrdinalsIndexFieldData(
+                    new IndexFieldDataCache.None(),
+                    "high",
+                    CoreValuesSourceType.KEYWORD,
+                    new NoneCircuitBreakerService(),
+                    null
+                );
+                assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(high, reader));
+                SortedOrdinalsIndexFieldData low = new SortedOrdinalsIndexFieldData(
+                    new IndexFieldDataCache.None(),
+                    "low",
+                    CoreValuesSourceType.KEYWORD,
+                    new NoneCircuitBreakerService(),
+                    null
+                );
+                assertEquals(3, DefaultSearchContext.getFieldCardinality(low, reader));
+            }
+        }
+    }
+
+    public void testGetFieldCardinalityUnmappedField() {
+        MapperService mapperService = mock(MapperService.class);
+        IndexService indexService = mock(IndexService.class);
+        when(indexService.mapperService()).thenReturn(mapperService);
+        assertEquals(-1, DefaultSearchContext.getFieldCardinality("field", indexService, null));
+    }
+
+    public void testGetFieldCardinalityRuntimeField() {
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fieldType(anyString())).thenReturn(new MockFieldMapper.FakeFieldType("field"));
+        IndexService indexService = mock(IndexService.class);
+        when(indexService.mapperService()).thenReturn(mapperService);
+        when(indexService.loadFielddata(any(), any())).thenThrow(new RuntimeException());
+        assertEquals(-1, DefaultSearchContext.getFieldCardinality("field", indexService, null));
     }
 
     private DefaultSearchContext createDefaultSearchContext(Settings providedIndexSettings) throws IOException {

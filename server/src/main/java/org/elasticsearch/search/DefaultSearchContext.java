@@ -216,25 +216,31 @@ final class DefaultSearchContext extends SearchContext {
 
     static long getFieldCardinality(String field, IndexService indexService, DirectoryReader directoryReader) {
         MappedFieldType mappedFieldType = indexService.mapperService().fieldType(field);
-        if (mappedFieldType != null) {
-            IndexFieldData<?> indexFieldData;
-            try {
-                indexFieldData = indexService.loadFielddata(mappedFieldType, FieldDataContext.noRuntimeFields("field cardinality"));
-            } catch (Exception e) {
-                // loading fielddata for runtime fields will fail, which is fine as we can't tell the cardinality without running the script
-                return -1;
-            }
-            if (indexFieldData instanceof IndexOrdinalsFieldData indexOrdinalsFieldData) {
-                if (indexOrdinalsFieldData.supportsGlobalOrdinalsMapping()) {
-                    IndexOrdinalsFieldData global = indexOrdinalsFieldData.loadGlobal(directoryReader);
-                    OrdinalMap ordinalMap = global.getOrdinalMap();
-                    if (ordinalMap != null) {
-                        return ordinalMap.getValueCount();
-                    }
-                    if (directoryReader.leaves().size() > 0) {
-                        return global.load(directoryReader.leaves().get(0)).getOrdinalsValues().getValueCount();
-                    }
+        if (mappedFieldType == null) {
+            return -1;
+        }
+        IndexFieldData<?> indexFieldData;
+        try {
+            indexFieldData = indexService.loadFielddata(mappedFieldType, FieldDataContext.noRuntimeFields("field cardinality"));
+        } catch (Exception e) {
+            // loading fielddata for runtime fields will fail, that's ok
+            return -1;
+        }
+        return getFieldCardinality(indexFieldData, directoryReader);
+    }
+
+    static long getFieldCardinality(IndexFieldData<?> indexFieldData, DirectoryReader directoryReader) {
+        if (indexFieldData instanceof IndexOrdinalsFieldData indexOrdinalsFieldData) {
+            if (indexOrdinalsFieldData.supportsGlobalOrdinalsMapping()) {
+                IndexOrdinalsFieldData global = indexOrdinalsFieldData.loadGlobal(directoryReader);
+                OrdinalMap ordinalMap = global.getOrdinalMap();
+                if (ordinalMap != null) {
+                    return ordinalMap.getValueCount();
                 }
+                if (directoryReader.leaves().size() == 0) {
+                    return 0;
+                }
+                return global.load(directoryReader.leaves().get(0)).getOrdinalsValues().getValueCount();
             }
         }
         return -1L;

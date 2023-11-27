@@ -145,16 +145,23 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         if (script() == null
             && (executionHint == null || executionHint.equals(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString()))) {
             long cardinality = fieldCardinalityResolver.applyAsLong(field());
-            if (cardinality != -1) {
-                if (InternalOrder.isKeyOrder(order)) {
-                    if (cardinality <= 50) {
-                        return super.supportsParallelCollection(fieldCardinalityResolver);
-                    }
-                } else {
-                    BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
-                    if (cardinality <= adjusted.getShardSize()) {
-                        return super.supportsParallelCollection(fieldCardinalityResolver);
-                    }
+            if (supportsParallelCollection(cardinality, order, bucketCountThresholds)) {
+                return super.supportsParallelCollection(fieldCardinalityResolver);
+            }
+        }
+        return false;
+    }
+
+    public static boolean supportsParallelCollection(long cardinality, BucketOrder order, BucketCountThresholds bucketCountThresholds) {
+        if (cardinality != -1) {
+            if (InternalOrder.isKeyOrder(order)) {
+                if (cardinality <= 50) {
+                    return true;
+                }
+            } else {
+                BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
+                if (cardinality <= adjusted.getShardSize()) {
+                    return true;
                 }
             }
         }

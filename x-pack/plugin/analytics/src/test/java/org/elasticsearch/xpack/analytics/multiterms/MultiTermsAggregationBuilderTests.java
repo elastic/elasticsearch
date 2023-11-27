@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.analytics.multiterms;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -129,5 +131,46 @@ public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializi
         );
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
+    }
+
+    public void testSupportsParallelCollection() {
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            MultiValuesSourceFieldConfig.Builder sourceBuilder = new MultiValuesSourceFieldConfig.Builder();
+            sourceBuilder.setScript(new Script("id"));
+            MultiTermsAggregationBuilder terms = new MultiTermsAggregationBuilder("terms").terms(List.of(sourceBuilder.build(), sourceBuilder.build()));
+            builder.addAggregator(terms);
+            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(-1, 100)));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            MultiValuesSourceFieldConfig.Builder sourceBuilder = new MultiValuesSourceFieldConfig.Builder();
+            sourceBuilder.setFieldName("field");
+            MultiTermsAggregationBuilder terms = new MultiTermsAggregationBuilder("terms").terms(List.of(sourceBuilder.build(), sourceBuilder.build()));
+            terms.shardSize(10);
+            builder.addAggregator(terms);
+            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(0, 50));
+            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(0, 50));
+            terms.order(BucketOrder.key(randomBoolean()));
+            assertTrue(builder.supportsParallelCollection(field -> randomIntBetween(0, 10)));
+            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(11, 100)));
+            terms.terms(List.of(sourceBuilder.build(), sourceBuilder.build(), new MultiValuesSourceFieldConfig.Builder().setScript(new Script("id")).build()));
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(-1, 100)));
+        }
+         {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            MultiValuesSourceFieldConfig.Builder sourceBuilder = new MultiValuesSourceFieldConfig.Builder();
+            sourceBuilder.setFieldName("field");
+            MultiTermsAggregationBuilder terms = new MultiTermsAggregationBuilder("terms").terms(List.of(sourceBuilder.build(), sourceBuilder.build()));
+            terms.order(BucketOrder.key(randomBoolean()));
+            if (randomBoolean()) {
+                terms.shardSize(randomIntBetween(1, 100));
+            }
+            builder.addAggregator(terms);
+            assertTrue(builder.supportsParallelCollection(field -> randomIntBetween(0, 50)));
+            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(51, 100)));
+            terms.terms(List.of(sourceBuilder.build(), sourceBuilder.build(), new MultiValuesSourceFieldConfig.Builder().setScript(new Script("id")).build()));
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(-1, 100)));
+        }
     }
 }

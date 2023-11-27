@@ -80,26 +80,24 @@ Because of <<esql-limitations-text-fields,the way {esql} treats `text` values>>,
 full-text search is not yet supported. Queries on `text` fields are like queries
 on `keyword` fields: they are case-sensitive and need to match the full string.
 
-For example, the following query does not match because the `LIKE` operator is
-case-sensitive:
+For example, after indexing a field of type `text` with the value `Elasticsearch
+query language`, the following `WHERE` clause does not match because the `LIKE`
+operator is case-sensitive:
 [source,esql]
 ----
-ROW field = "Elasticsearch query language"
 | WHERE field LIKE "elasticsearch query language"
 ----
 
-The following query does not match either, because the `LIKE` operator tries to
-match the whole string:
+The following `WHERE` clause does not match either, because the `LIKE` operator
+tries to match the whole string:
 [source,esql]
 ----
-ROW field = "Elasticsearch query language"
 | WHERE field LIKE "Elasticsearch"
 ----
 
 As a workaround, use wildcards and regular expressions. For example:
 [source,esql]
 ----
-ROW field = "Elasticsearch query language"
 | WHERE field RLIKE "[Ee]lasticsearch.*"
 ----
 

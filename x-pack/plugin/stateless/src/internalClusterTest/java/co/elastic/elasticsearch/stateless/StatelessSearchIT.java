@@ -36,10 +36,10 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
@@ -90,7 +90,6 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
-import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -851,7 +850,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.contains(SearchAction.NAME)) {
+                if (action.contains(TransportSearchAction.NAME)) {
                     assertThat(connection.getNode().getRoles(), contains(DiscoveryNodeRole.INDEX_ROLE));
                 }
                 connection.sendRequest(requestId, action, request, options);

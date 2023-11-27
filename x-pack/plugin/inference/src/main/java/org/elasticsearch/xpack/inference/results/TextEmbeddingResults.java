@@ -41,8 +41,7 @@ import java.util.stream.Collectors;
  * }
  */
 public record TextEmbeddingResults(List<Embedding> embeddings) implements InferenceServiceResults {
-    // TODO: what should the name be here?
-    public static final String NAME = "text_embedding_results_v2";
+    public static final String NAME = "text_embedding_service_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 
     public TextEmbeddingResults(StreamInput in) throws IOException {

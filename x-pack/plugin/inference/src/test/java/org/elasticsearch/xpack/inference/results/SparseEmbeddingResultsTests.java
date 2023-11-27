@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.results.TestUtils.toJsonString;
 import static org.hamcrest.Matchers.is;
 
 public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase<SparseEmbeddingResults> {
@@ -34,7 +33,7 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
             embeddings.add(createRandomEmbedding(numTokens));
         }
 
-        return new SparseEmbeddingResults(embeddings, randomBoolean());
+        return new SparseEmbeddingResults(embeddings);
     }
 
     public static SparseEmbeddingResults createRandomResults(List<String> input) {
@@ -45,7 +44,7 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
             embeddings.add(createRandomEmbedding(numTokens));
         }
 
-        return new SparseEmbeddingResults(embeddings, randomBoolean());
+        return new SparseEmbeddingResults(embeddings);
     }
 
     private static SparseEmbeddingResults.Embedding createRandomEmbedding(int numTokens) {
@@ -54,7 +53,7 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
             tokenList.add(new SparseEmbeddingResults.WeightedToken(Integer.toString(i), (float) randomDoubleBetween(0.0, 5.0, false)));
         }
 
-        return new SparseEmbeddingResults.Embedding(tokenList);
+        return new SparseEmbeddingResults.Embedding(tokenList, randomBoolean());
     }
 
     @Override
@@ -73,73 +72,110 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
         if (randomBoolean()) {
             // -1 to remove at least one item from the list
             int end = randomInt(instance.embeddings().size() - 1);
-            return new SparseEmbeddingResults(instance.embeddings().subList(0, end), instance.isTruncated());
+            return new SparseEmbeddingResults(instance.embeddings().subList(0, end));
         } else {
             List<SparseEmbeddingResults.Embedding> embeddings = new ArrayList<>(instance.embeddings());
             embeddings.add(createRandomEmbedding(randomIntBetween(0, 20)));
-            return new SparseEmbeddingResults(embeddings, instance.isTruncated());
+            return new SparseEmbeddingResults(embeddings);
         }
     }
 
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
-        var entity = create(List.of(List.of(new SparseEmbeddingResults.WeightedToken("token", 0.1F))), false);
-        assertThat(entity.asMap(), is(buildExpectation(List.of(Map.of("token", 0.1F)), false)));
-
-        String xContentResult = toJsonString(entity);
+        var entity = createSparseResult(List.of(createEmbedding(List.of(new SparseEmbeddingResults.WeightedToken("token", 0.1F)), false)));
+        assertThat(entity.asMap(), is(buildExpectation(List.of(new EmbeddingExpectation(Map.of("token", 0.1F), false)))));
+        String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
-              "sparse_embedding" : {
-                "is_truncated" : false,
-                "embedding" : [
-                  {
+              "sparse_embedding" : [
+                {
+                  "is_truncated" : false,
+                  "embedding" : {
                     "token" : 0.1
                   }
-                ]
-              }
+                }
+              ]
             }"""));
     }
 
     public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
-        var entity = create(
+        var entity = createSparseResult(
             List.of(
-                List.of(new SparseEmbeddingResults.WeightedToken("token", 0.1F), new SparseEmbeddingResults.WeightedToken("token2", 0.2F)),
-                List.of(new SparseEmbeddingResults.WeightedToken("token3", 0.3F), new SparseEmbeddingResults.WeightedToken("token4", 0.4F))
-            ),
-            false
+                new SparseEmbeddingResults.Embedding(
+                    List.of(
+                        new SparseEmbeddingResults.WeightedToken("token", 0.1F),
+                        new SparseEmbeddingResults.WeightedToken("token2", 0.2F)
+                    ),
+                    false
+                ),
+                new SparseEmbeddingResults.Embedding(
+                    List.of(
+                        new SparseEmbeddingResults.WeightedToken("token3", 0.3F),
+                        new SparseEmbeddingResults.WeightedToken("token4", 0.4F)
+                    ),
+                    false
+                )
+            )
         );
         assertThat(
             entity.asMap(),
-            is(buildExpectation(List.of(Map.of("token", 0.1F, "token2", 0.2F), Map.of("token3", 0.3F, "token4", 0.4F)), false))
+            is(
+                buildExpectation(
+                    List.of(
+                        new EmbeddingExpectation(Map.of("token", 0.1F, "token2", 0.2F), false),
+                        new EmbeddingExpectation(Map.of("token3", 0.3F, "token4", 0.4F), false)
+                    )
+                )
+            )
         );
 
-        String xContentResult = toJsonString(entity);
+        String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
-              "sparse_embedding" : {
-                "is_truncated" : false,
-                "embedding" : [
-                  {
+              "sparse_embedding" : [
+                {
+                  "is_truncated" : false,
+                  "embedding" : {
                     "token" : 0.1,
                     "token2" : 0.2
-                  },
-                  {
+                  }
+                },
+                {
+                  "is_truncated" : false,
+                  "embedding" : {
                     "token3" : 0.3,
                     "token4" : 0.4
                   }
-                ]
-              }
+                }
+              ]
             }"""));
     }
 
-    public static Map<String, Object> buildExpectation(List<Map<String, Float>> embeddings, boolean isTruncated) {
+    public record EmbeddingExpectation(Map<String, Float> tokens, boolean isTruncated) {}
+
+    public static Map<String, Object> buildExpectation(List<EmbeddingExpectation> embeddings) {
         return Map.of(
             SparseEmbeddingResults.SPARSE_EMBEDDING,
-            Map.of(SparseEmbeddingResults.IS_TRUNCATED, isTruncated, SparseEmbeddingResults.EMBEDDING, embeddings)
+            embeddings.stream()
+                .map(
+                    embedding -> Map.of(
+                        SparseEmbeddingResults.Embedding.EMBEDDING,
+                        embedding.tokens,
+                        SparseEmbeddingResults.Embedding.IS_TRUNCATED,
+                        embedding.isTruncated
+                    )
+                )
+                .toList()
         );
     }
 
-    public static SparseEmbeddingResults create(List<List<SparseEmbeddingResults.WeightedToken>> tokensList, boolean isTruncated) {
-        var embeddings = tokensList.stream().map(SparseEmbeddingResults.Embedding::new).toList();
-        return new SparseEmbeddingResults(embeddings, isTruncated);
+    public static SparseEmbeddingResults createSparseResult(List<SparseEmbeddingResults.Embedding> embeddings) {
+        return new SparseEmbeddingResults(embeddings);
+    }
+
+    public static SparseEmbeddingResults.Embedding createEmbedding(
+        List<SparseEmbeddingResults.WeightedToken> tokensList,
+        boolean isTruncated
+    ) {
+        return new SparseEmbeddingResults.Embedding(tokensList, isTruncated);
     }
 }

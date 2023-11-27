@@ -68,12 +68,10 @@ public class HuggingFaceElserResponseEntity {
             );
 
             if (parsedEmbeddings.isEmpty()) {
-                return new SparseEmbeddingResults(Collections.emptyList(), false);
+                return new SparseEmbeddingResults(Collections.emptyList());
             }
 
-            // TODO how do we know if the tokens were truncated so we can set this appropriately?
-            // This will depend on whether we handle the tokenization or hugging face
-            return new SparseEmbeddingResults(parsedEmbeddings, false);
+            return new SparseEmbeddingResults(parsedEmbeddings);
         }
     }
 
@@ -91,7 +89,9 @@ public class HuggingFaceElserResponseEntity {
             weightedTokens.add(new SparseEmbeddingResults.WeightedToken(parser.currentName(), parser.floatValue()));
         }
 
-        return new SparseEmbeddingResults.Embedding(weightedTokens);
+        // TODO how do we know if the tokens were truncated so we can set this appropriately?
+        // This will depend on whether we handle the tokenization or hugging face
+        return new SparseEmbeddingResults.Embedding(weightedTokens, false);
     }
 
     private HuggingFaceElserResponseEntity() {}

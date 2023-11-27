@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -39,7 +40,14 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.asMap(), is(buildExpectation(List.of(Map.of(".", 0.13315596f, "the", 0.67472112f)), false)));
+        assertThat(
+            parsedResults.asMap(),
+            is(
+                buildExpectation(
+                    List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f, "the", 0.67472112f), false))
+                )
+            )
+        );
     }
 
     public void testFromResponse_CreatesTextExpansionResultsForFirstItem() throws IOException {
@@ -63,8 +71,10 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             parsedResults.asMap(),
             is(
                 buildExpectation(
-                    List.of(Map.of(".", 0.13315596f, "the", 0.67472112f), Map.of("hi", 0.13315596f, "super", 0.67472112f)),
-                    false
+                    List.of(
+                        new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f, "the", 0.67472112f), false),
+                        new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hi", 0.13315596f, "super", 0.67472112f), false)
+                    )
                 )
             )
         );
@@ -125,7 +135,10 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.asMap(), is(buildExpectation(List.of(Map.of("field", 1.0f)), false)));
+        assertThat(
+            parsedResults.asMap(),
+            is(buildExpectation(List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("field", 1.0f), false))))
+        );
     }
 
     public void testFromResponse_CreatesResultsWithValueLong() throws IOException {
@@ -141,7 +154,10 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.asMap(), is(buildExpectation(List.of(Map.of("field", 4.0294965E10F)), false)));
+        assertThat(
+            parsedResults.asMap(),
+            is(buildExpectation(List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("field", 4.0294965E10F), false))))
+        );
     }
 
     public void testFails_ValueObject() {

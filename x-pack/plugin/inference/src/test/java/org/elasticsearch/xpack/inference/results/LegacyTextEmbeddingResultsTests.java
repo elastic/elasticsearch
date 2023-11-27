@@ -59,7 +59,7 @@ public class LegacyTextEmbeddingResultsTests extends AbstractWireSerializingTest
             )
         );
 
-        String xContentResult = toJsonString(entity);
+        String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "text_embedding" : [
@@ -91,7 +91,7 @@ public class LegacyTextEmbeddingResultsTests extends AbstractWireSerializingTest
             )
         );
 
-        String xContentResult = toJsonString(entity);
+        String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "text_embedding" : [

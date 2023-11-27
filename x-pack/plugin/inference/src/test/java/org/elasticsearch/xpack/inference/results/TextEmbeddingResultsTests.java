@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.results;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -15,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.results.TestUtils.toJsonString;
 import static org.hamcrest.Matchers.is;
 
 public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingResults> {
@@ -49,7 +49,7 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             is(Map.of(TextEmbeddingResults.TEXT_EMBEDDING, List.of(Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.1F)))))
         );
 
-        String xContentResult = toJsonString(entity);
+        String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "text_embedding" : [
@@ -81,7 +81,7 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             )
         );
 
-        String xContentResult = toJsonString(entity);
+        String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "text_embedding" : [

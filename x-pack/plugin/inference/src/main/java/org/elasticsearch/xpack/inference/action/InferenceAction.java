@@ -198,24 +198,19 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             super(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_RESULTS_ADDED)) {
                 results = in.readNamedWriteable(InferenceServiceResults.class);
-            } else if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_OPENAI_ADDED)) {
-                // It could be either a List<LegacyTextEmbeddingResults> if it was the openai result
-                // or it would be the List<InferenceResults> aka List<TextEmbeddingResults> from ml plugin
-                // for hugging face elser and elser
-                results = transformToServiceResults(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             } else if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
                 // It should only be List<InferenceResults> aka List<TextEmbeddingResults> from ml plugin for
                 // hugging face elser and elser
-                results = transformToSparseEmbeddingResult(in.readNamedWriteableCollectionAsList(InferenceResults.class));
+                results = transformToServiceResults(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             } else {
                 // It should only be InferenceResults aka TextEmbeddingResults from ml plugin for
                 // hugging face elser and elser
-                results = transformToSparseEmbeddingResult(List.of(in.readNamedWriteable(InferenceResults.class)));
+                results = transformToServiceResults(List.of(in.readNamedWriteable(InferenceResults.class)));
             }
         }
 
         @SuppressWarnings("deprecation")
-        private static InferenceServiceResults transformToServiceResults(List<? extends InferenceResults> parsedResults) {
+        static InferenceServiceResults transformToServiceResults(List<? extends InferenceResults> parsedResults) {
             if (parsedResults.isEmpty()) {
                 throw new ElasticsearchStatusException(
                     "Failed to transform results to response format, expected a non-empty list, please remove and re-add the service",
@@ -258,7 +253,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 }
             }
 
-            return SparseEmbeddingResults.create(textExpansionResults);
+            return SparseEmbeddingResults.of(textExpansionResults);
         }
 
         public InferenceServiceResults getResults() {

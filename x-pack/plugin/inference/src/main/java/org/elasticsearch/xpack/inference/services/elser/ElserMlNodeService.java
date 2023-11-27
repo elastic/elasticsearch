@@ -177,7 +177,7 @@ public class ElserMlNodeService implements InferenceService {
             TimeValue.timeValueSeconds(10)  // TODO get timeout from request
         );
         client.execute(InferTrainedModelDeploymentAction.INSTANCE, request, ActionListener.wrap(inferenceResult -> {
-            listener.onResponse(SparseEmbeddingResults.create(inferenceResult.getResults()));
+            listener.onResponse(SparseEmbeddingResults.of(inferenceResult.getResults()));
         }, listener::onFailure));
     }
 

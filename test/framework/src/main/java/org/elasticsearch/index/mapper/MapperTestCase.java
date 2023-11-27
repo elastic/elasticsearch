@@ -1292,7 +1292,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 TestBlock block;
                 if (columnReader) {
                     if (supportsColumnAtATimeReader(mapper.fieldType("field"))) {
-                        block = (TestBlock) loader.columnAtATimeReader(ctx).read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(0));
+                        block = (TestBlock) loader.columnAtATimeReader(ctx)
+                            .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(0));
                     } else {
                         assertNull(loader.columnAtATimeReader(ctx));
                         return;

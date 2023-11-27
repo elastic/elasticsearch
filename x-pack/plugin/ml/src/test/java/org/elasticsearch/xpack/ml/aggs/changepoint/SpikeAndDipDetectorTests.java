@@ -10,9 +10,7 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.stream.DoubleStream;
 
-import static org.junit.Assert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 

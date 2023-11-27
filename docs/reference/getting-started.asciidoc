@@ -24,6 +24,10 @@ This video walks you through the steps in this guide, using {ecloud}.
 
 video::888724429[vimeo,height=480]
 
+Maybe you'd like to try this crash course?
+
+video::gS_nHTWZEJ8[youtube,height=480]
+
 [discrete]
 [[run-elasticsearch]]
 === Run {es}

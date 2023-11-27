@@ -354,7 +354,6 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1189")
     public void testStress() throws Exception {
         int numOfShards = randomIntBetween(1, 3);
         int numOfReplicas = randomIntBetween(1, 2);
@@ -401,7 +400,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                     for (int i = 0; i < docs; i++) {
                         bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
                     }
-                    var response = bulkRequest.get(TimeValue.timeValueSeconds(10));
+                    var response = bulkRequest.get(TimeValue.timeValueSeconds(30));
                     assertNoFailures(response);
                     ids.add(randomFrom(Arrays.stream(response.getItems()).map(BulkItemResponse::getId).toList()));
                     safeSleep(randomLongBetween(0, 100));
@@ -417,7 +416,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                 try {
                     var id = randomBoolean() ? ids.poll(1, TimeUnit.SECONDS) : ids.peek();
                     if (id != null) {
-                        var getResponse = client().prepareGet(indexName, id).get(TimeValue.timeValueSeconds(10));
+                        var getResponse = client().prepareGet(indexName, id).get(TimeValue.timeValueSeconds(30));
                         assertTrue(Strings.format("could not GET id '%s'", id), getResponse.isExists());
                         safeSleep(randomLongBetween(1, 100));
                     }

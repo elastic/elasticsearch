@@ -248,6 +248,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             public Set<String> sourcePaths(String name) {
                 return mapper.mappingLookup().sourcePaths(name);
             }
+
+            @Override
+            public String parentField(String field) {
+                throw new UnsupportedOperationException();
+            }
         });
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);

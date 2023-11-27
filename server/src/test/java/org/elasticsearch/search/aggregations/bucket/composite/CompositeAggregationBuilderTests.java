@@ -93,11 +93,9 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
     @Override
     protected CompositeAggregationBuilder createTestAggregatorBuilder() {
         int numSources = randomIntBetween(1, 10);
-        numSources = 1;
         List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
         for (int i = 0; i < numSources; i++) {
             int type = randomIntBetween(0, 3);
-            type = 3;
             switch (type) {
                 case 0 -> sources.add(randomTermsSourceBuilder());
                 case 1 -> sources.add(randomDateHistogramSourceBuilder());

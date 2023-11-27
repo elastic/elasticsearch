@@ -648,7 +648,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
             @Override
             public String toString() {
-                return "LocalDelegate [input=" + in.getClass() + ", refCount=" + refCounted.refCount() + ", localFile=" + localFile + ']';
+                return "LocalDelegate [input=" + in + ", refCount=" + refCounted.refCount() + ", localFile=" + localFile + ']';
             }
 
             /**
@@ -704,7 +704,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
                 @Override
                 public String toString() {
-                    return "Clone of LocalDelegate [input=" + in.getClass() + ", parent=" + parent + ']';
+                    return "Clone of LocalDelegate [input=" + in + ", parent=" + parent + ']';
                 }
             }
         }
@@ -758,7 +758,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
             @Override
             public String toString() {
-                return "CachedDelegate [input=" + in.getClass() + ", clone=" + clone + ']';
+                return "CachedDelegate [input=" + in + ", clone=" + clone + ']';
             }
         }
 

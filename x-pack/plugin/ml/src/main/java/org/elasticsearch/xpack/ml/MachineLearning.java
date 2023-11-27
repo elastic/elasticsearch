@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -72,6 +73,7 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1026,12 +1028,13 @@ public class MachineLearning extends Plugin
                 // only log this at the lowest level of detail. It's almost always "file not found" on a named pipe we expect to be
                 // able to connect to, but the thing we really need to know is what stopped the native process creating the named pipe.
                 logger.trace("Failed to connect to ML native controller", e);
-                throw new ElasticsearchException(
+                throw new ElasticsearchStatusException(
                     "Failure running machine learning native code. This could be due to running "
                         + "on an unsupported OS or distribution, missing OS libraries, or a problem with the temp directory. To "
                         + "bypass this problem by running Elasticsearch without machine learning functionality set ["
                         + XPackSettings.MACHINE_LEARNING_ENABLED.getKey()
-                        + ": false]."
+                        + ": false].",
+                    RestStatus.TOO_MANY_REQUESTS
                 );
             }
         } else {

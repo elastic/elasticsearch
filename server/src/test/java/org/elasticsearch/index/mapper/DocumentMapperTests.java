@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -355,7 +356,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         })));
         assertThat(
             e.getMessage(),
-            containsString(String.format("Limit of total %sfields [" + max + "] has been exceeded", dimensionErrorSuffix))
+            containsString(String.format(Locale.ROOT, "Limit of total %sfields [" + max + "] has been exceeded", dimensionErrorSuffix))
         );
     }
 

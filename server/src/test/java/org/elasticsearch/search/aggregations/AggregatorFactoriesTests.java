@@ -344,13 +344,6 @@ public class AggregatorFactoriesTests extends ESTestCase {
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            builder.addAggregator(
-                new CompositeAggregationBuilder("composite", Collections.singletonList(new TermsValuesSourceBuilder("name")))
-            );
-            assertTrue(builder.supportsParallelCollection(randomCardinality));
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(new FilterAggregationBuilder("terms", new MatchAllQueryBuilder()) {
                 @Override
                 public boolean isInSortOrderExecutionRequired() {

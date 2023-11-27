@@ -395,7 +395,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                         shardSnapshotStatus
                     );
 
-                    // TODO independent PR to add this assertion
                     assert entry.state() != State.ABORTED
                         || shardSnapshotStatus.state == ShardState.ABORTED
                         || shardSnapshotStatus.state().completed()

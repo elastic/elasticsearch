@@ -166,7 +166,7 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
     public ModelConfigurations getModel(String modelId, TaskType taskType) {
         var response = client().execute(GetInferenceModelAction.INSTANCE, new GetInferenceModelAction.Request(modelId, taskType.toString()))
             .actionGet();
-        return response.getModel();
+        return response.getModels().get(0);
     }
 
     private List<? extends InferenceResults> inferOnMockService(String modelId, TaskType taskType, List<String> input) {

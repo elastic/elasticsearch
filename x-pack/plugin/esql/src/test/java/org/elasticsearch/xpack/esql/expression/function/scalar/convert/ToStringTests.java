@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Cartesian;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
 
 public class ToStringTests extends AbstractFunctionTestCase {
@@ -91,6 +92,13 @@ public class ToStringTests extends AbstractFunctionTestCase {
             "ToStringFromGeoPointEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
             i -> new BytesRef(Geo.pointAsString(Geo.longAsPoint(i))),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryCartesianPoint(
+            suppliers,
+            "ToStringFromCartesianPointEvaluator[field=" + read + "]",
+            DataTypes.KEYWORD,
+            i -> new BytesRef(Cartesian.pointAsString(Cartesian.longAsPoint(i))),
             List.of()
         );
         TestCaseSupplier.forUnaryIp(

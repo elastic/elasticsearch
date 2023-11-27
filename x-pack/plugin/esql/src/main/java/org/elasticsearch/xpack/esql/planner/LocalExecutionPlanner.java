@@ -308,6 +308,9 @@ public class LocalExecutionPlanner {
         if (dataType == EsqlDataTypes.GEO_POINT) {
             return ElementType.LONG;
         }
+        if (dataType == EsqlDataTypes.CARTESIAN_POINT) {
+            return ElementType.LONG;
+        }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }
 
@@ -414,7 +417,7 @@ public class LocalExecutionPlanner {
                 case "text", "keyword" -> TopNEncoder.UTF8;
                 case "version" -> TopNEncoder.VERSION;
                 case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
-                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc", "geo_point" ->
+                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc", "geo_point", "cartesian_point" ->
                     TopNEncoder.DEFAULT_SORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case "unsupported" -> TopNEncoder.UNSUPPORTED;

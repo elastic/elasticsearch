@@ -33,7 +33,19 @@ public class MvMax extends AbstractMultivalueFunction {
         Source source,
         @Param(
             name = "v",
-            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long", "geo_point" }
+            type = {
+                "unsigned_long",
+                "date",
+                "boolean",
+                "double",
+                "ip",
+                "text",
+                "integer",
+                "keyword",
+                "version",
+                "long",
+                "geo_point",
+                "cartesian_point" }
         ) Expression v
     ) {
         super(source, v);

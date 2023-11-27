@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.ql.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Cartesian;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.Geo;
 
 public final class CsvTestUtils {
@@ -388,7 +389,8 @@ public final class CsvTestUtils {
             Long.class
         ),
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
-        GEO_POINT(x -> x == null ? null : Geo.pointAsLong(Geo.stringAsPoint(x)), Long.class);
+        GEO_POINT(x -> x == null ? null : Geo.pointAsLong(Geo.stringAsPoint(x)), Long.class),
+        CARTESIAN_POINT(x -> x == null ? null : Cartesian.pointAsLong(Cartesian.stringAsPoint(x)), Long.class);
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 

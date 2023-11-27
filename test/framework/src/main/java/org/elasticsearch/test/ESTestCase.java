@@ -1182,6 +1182,22 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new GeoPoint(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true));
     }
 
+    public static SpatialPoint randomCartesianPoint() {
+        double x = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        double y = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        return new SpatialPoint() {
+            @Override
+            public double getX() {
+                return x;
+            }
+
+            @Override
+            public double getY() {
+                return y;
+            }
+        };
+    }
+
     /**
      * helper to randomly perform on <code>consumer</code> with <code>value</code>
      */

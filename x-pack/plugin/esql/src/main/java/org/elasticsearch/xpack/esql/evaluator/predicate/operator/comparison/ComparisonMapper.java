@@ -140,6 +140,10 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         if (leftType == EsqlDataTypes.GEO_POINT) {
             return longs.apply(leftEval, rightEval);
         }
+        // TODO: Perhaps neithger geo_point, not cartesian_point should support comparisons?
+        if (leftType == EsqlDataTypes.CARTESIAN_POINT) {
+            return longs.apply(leftEval, rightEval);
+        }
         throw new EsqlIllegalArgumentException("resolved type for [" + bc + "] but didn't implement mapping");
     }
 

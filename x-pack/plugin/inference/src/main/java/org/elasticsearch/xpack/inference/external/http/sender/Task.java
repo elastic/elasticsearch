@@ -7,22 +7,12 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.batching.Handler;
+import org.elasticsearch.xpack.inference.external.http.batching.BatchableRequest;
 
-import java.util.List;
-
-public interface Task<K, R> {
+public interface Task<K, R> extends BatchableRequest<K, R> {
     boolean shouldShutdown();
 
     boolean hasFinished();
-
-    Handler<K, R> handler();
-
-    List<String> input();
-
-    ActionListener<HttpResult> listener();
 
     void onRejection(Exception e);
 }

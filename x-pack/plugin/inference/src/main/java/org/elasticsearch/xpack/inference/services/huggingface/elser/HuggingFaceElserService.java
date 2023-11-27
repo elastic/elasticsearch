@@ -22,6 +22,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceElserAction;
+import org.elasticsearch.xpack.inference.external.http.batching.HuggingFaceRequestBatcher;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -129,7 +130,12 @@ public class HuggingFaceElserService implements InferenceService {
     }
 
     private void init() {
-        sender.updateAndGet(current -> Objects.requireNonNullElseGet(current, () -> factory.get().createSender(name())));
+        sender.updateAndGet(
+            current -> Objects.requireNonNullElseGet(
+                current,
+                () -> factory.get().createSender(name(), HuggingFaceRequestBatcher.Factory::new)
+            )
+        );
         sender.get().start();
     }
 

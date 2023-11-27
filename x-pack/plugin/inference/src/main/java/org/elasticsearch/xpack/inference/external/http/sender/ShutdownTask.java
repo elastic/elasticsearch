@@ -7,15 +7,40 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-class ShutdownTask extends HttpTask {
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.batching.TransactionHandler;
+
+import java.util.List;
+
+class ShutdownTask<K, R> implements Task<K, R> {
     @Override
     public boolean shouldShutdown() {
         return true;
     }
 
     @Override
-    public void onFailure(Exception e) {}
+    public boolean hasFinished() {
+        return true;
+    }
 
     @Override
-    protected void doRun() throws Exception {}
+    public TransactionHandler<K, R> handler() {
+        return null;
+    }
+
+    @Override
+    public List<String> input() {
+        return null;
+    }
+
+    @Override
+    public ActionListener<HttpResult> listener() {
+        return null;
+    }
+
+    @Override
+    public void onRejection(Exception e) {
+
+    }
 }

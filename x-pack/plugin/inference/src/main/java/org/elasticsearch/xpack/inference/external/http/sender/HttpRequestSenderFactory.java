@@ -20,7 +20,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcher;
+import org.elasticsearch.xpack.inference.external.http.batching.BatchingComponents;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcherFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,6 +29,7 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -53,15 +55,25 @@ public class HttpRequestSenderFactory {
         this.settings = Objects.requireNonNull(settings);
     }
 
-    public <T> HttpRequestSender<T> createSender(String serviceName, RequestBatcher<T> requestBatcher) {
-        return new HttpRequestSender<>(serviceName, threadPool, httpClientManager, clusterService, settings, requestBatcher);
+    public <K, R> HttpRequestSender<K, R> createSender(
+        String serviceName,
+        Function<BatchingComponents, RequestBatcherFactory<K, R>> factoryCreator
+    ) {
+        return new HttpRequestSender<>(
+            serviceName,
+            threadPool,
+            httpClientManager,
+            clusterService,
+            settings,
+            factoryCreator.apply(new BatchingComponents(httpClientManager.getHttpClient(), threadPool))
+        );
     }
 
     /**
      * A class for providing a more friendly interface for sending an {@link HttpUriRequest}. This leverages the queuing logic for sending
      * a request.
      */
-    public static final class HttpRequestSender<T> implements Sender {
+    public static final class HttpRequestSender<K, R> implements Sender {
         private static final Logger logger = LogManager.getLogger(HttpRequestSender.class);
         private static final TimeValue START_COMPLETED_WAIT_TIME = TimeValue.timeValueSeconds(5);
 
@@ -79,7 +91,7 @@ public class HttpRequestSenderFactory {
 
         private final ThreadPool threadPool;
         private final HttpClientManager manager;
-        private final HttpRequestExecutorService<T> service;
+        private final HttpRequestExecutorService<K, R> service;
         private final AtomicBoolean started = new AtomicBoolean(false);
         private volatile TimeValue maxRequestTimeout;
         private final CountDownLatch startCompleted = new CountDownLatch(2);
@@ -90,11 +102,11 @@ public class HttpRequestSenderFactory {
             HttpClientManager httpClientManager,
             ClusterService clusterService,
             Settings settings,
-            RequestBatcher<T> requestBatcher
+            RequestBatcherFactory<K, R> batcherFactory
         ) {
             this.threadPool = Objects.requireNonNull(threadPool);
             this.manager = Objects.requireNonNull(httpClientManager);
-            service = new HttpRequestExecutorService<>(serviceName, manager.getHttpClient(), threadPool, startCompleted, requestBatcher);
+            service = new HttpRequestExecutorService<>(serviceName, manager.getHttpClient(), threadPool, startCompleted, batcherFactory);
 
             this.maxRequestTimeout = MAX_REQUEST_TIMEOUT.get(settings);
             addSettingsUpdateConsumers(clusterService);

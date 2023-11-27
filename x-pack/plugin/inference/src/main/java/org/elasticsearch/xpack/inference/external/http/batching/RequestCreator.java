@@ -9,19 +9,21 @@ package org.elasticsearch.xpack.inference.external.http.batching;
 
 import org.apache.http.client.protocol.HttpClientContext;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.util.List;
 
 /**
  * Provides a contract for creating a {@link Runnable} to execute.
+ * @param <GroupingKey> the criteria to group requests together to be sent as a single batch
  */
 public interface RequestCreator<GroupingKey> {
-    Runnable createRequest(List<String> input, Components components, ActionListener<HttpResult> listener);
+    Runnable createRequest(
+        List<String> input,
+        BatchingComponents components,
+        HttpClientContext context,
+        ActionListener<HttpResult> listener
+    );
 
     GroupingKey key();
-
-    record Components(HttpClient httpClient, HttpClientContext context, ThreadPool threadPool) {}
 }

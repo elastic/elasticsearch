@@ -19,7 +19,7 @@ import java.util.List;
  * A contract for clients to specify behavior for handling http responses. Clients can pass this contract to the retry sender to parse
  * the response and help with logging.
  */
-// TODO should T extend InferenceResults?
+// TODO should T extend InferenceServiceResults? Yes
 public interface ResponseHandler2<T> {
 
     /**

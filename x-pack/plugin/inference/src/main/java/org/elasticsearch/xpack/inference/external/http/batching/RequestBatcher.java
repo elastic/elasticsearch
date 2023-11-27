@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.batching;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
-
 import java.util.List;
 
 /**
@@ -26,6 +23,8 @@ import java.util.List;
  *      - A request can have multiple input but they should all be associated with a single request when onResponse is called for that listener
  *      - We'll need to track a range within the array for that
  */
-public interface RequestBatcher<K, R> {
-    void add(Handler<K, R> handler, List<String> input, ActionListener<HttpResult> listener);
+public interface RequestBatcher<GroupingKey, Response> extends Iterable<Runnable> {
+    void add(BatchableRequest<GroupingKey, Response> request);
+
+    void add(List<BatchableRequest<GroupingKey, Response>> request);
 }

@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http.batching;
 
-// TODO: rename
-public record Handler<GroupingKey, Response>(RequestCreator<GroupingKey> creator, ResponseHandler2<Response> responseHandler) {
+import org.apache.http.client.protocol.HttpClientContext;
 
+public interface RequestBatcherFactory<K, R> {
+    RequestBatcher<K, R> create(HttpClientContext context);
 }

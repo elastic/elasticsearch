@@ -14,7 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.batching.Handler;
+import org.elasticsearch.xpack.inference.external.http.batching.TransactionHandler;
 
 import java.util.List;
 import java.util.Objects;
@@ -25,12 +25,12 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 class RequestTask2<K, R> implements Task<K, R> {
 
     private final AtomicBoolean finished = new AtomicBoolean();
-    private final Handler<K, R> handler;
+    private final TransactionHandler<K, R> handler;
     private final List<String> input;
     private final ActionListener<HttpResult> listener;
 
     RequestTask2(
-        Handler<K, R> handler,
+        TransactionHandler<K, R> handler,
         List<String> input,
         @Nullable TimeValue timeout,
         ThreadPool threadPool,
@@ -98,7 +98,7 @@ class RequestTask2<K, R> implements Task<K, R> {
     }
 
     @Override
-    public Handler<K, R> handler() {
+    public TransactionHandler<K, R> handler() {
         return handler;
     }
 }

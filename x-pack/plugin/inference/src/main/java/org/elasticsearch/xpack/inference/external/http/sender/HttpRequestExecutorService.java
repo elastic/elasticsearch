@@ -19,8 +19,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.batching.Handler;
-import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcher;
+import org.elasticsearch.xpack.inference.external.http.batching.RequestBatcherFactory;
+import org.elasticsearch.xpack.inference.external.http.batching.TransactionHandler;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -55,15 +55,15 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
     private static final Logger logger = LogManager.getLogger(HttpRequestExecutorService.class);
 
     private final String serviceName;
-    // TODO this will be BlockingQueue<Task> queue;
-    private final BlockingQueue<HttpTask> queue;
+    private final BlockingQueue<Task<K, R>> queue;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
     private final HttpClientContext httpContext;
+    // TODO: I don't think this will need the http client anymore
     private final HttpClient httpClient;
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
-    private final RequestBatcher<K, R> requestBatcher;
+    private final RequestBatcherFactory<K, R> batcherFactory;
 
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
     HttpRequestExecutorService(
@@ -71,9 +71,9 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
         HttpClient httpClient,
         ThreadPool threadPool,
         @Nullable CountDownLatch startupLatch,
-        RequestBatcher<K, R> requestBatcher
+        RequestBatcherFactory<K, R> batcherFactory
     ) {
-        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(), startupLatch, requestBatcher);
+        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(), startupLatch, batcherFactory);
     }
 
     @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
@@ -83,9 +83,9 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
         ThreadPool threadPool,
         int capacity,
         @Nullable CountDownLatch startupLatch,
-        RequestBatcher<K, R> requestBatcher
+        RequestBatcherFactory<K, R> batcherFactory
     ) {
-        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity), startupLatch, requestBatcher);
+        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity), startupLatch, batcherFactory);
     }
 
     /**
@@ -96,14 +96,14 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
         String serviceName,
         HttpClient httpClient,
         ThreadPool threadPool,
-        BlockingQueue<HttpTask> queue,
+        BlockingQueue<Task<K, R>> queue,
         @Nullable CountDownLatch startupLatch,
-        RequestBatcher<K, R> requestCreator
+        RequestBatcherFactory<K, R> batcherFactory
     ) {
         this.serviceName = Objects.requireNonNull(serviceName);
         this.httpClient = Objects.requireNonNull(httpClient);
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.requestBatcher = Objects.requireNonNull(requestCreator);
+        this.batcherFactory = Objects.requireNonNull(batcherFactory);
         this.httpContext = HttpClientContext.create();
         this.queue = queue;
         this.startupLatch = startupLatch;
@@ -142,12 +142,12 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
      */
     private void handleTasks() throws InterruptedException {
         try {
-            HttpTask task = queue.take();
+            var task = queue.take();
             if (task.shouldShutdown() || running.get() == false) {
                 running.set(false);
                 logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
             } else {
-                executeTask(task);
+                batchRequests(task);
             }
         } catch (InterruptedException e) {
             throw e;
@@ -156,11 +156,18 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
         }
     }
 
-    private void executeTask(HttpTask task) {
+    private void batchRequests(Task<K, R> initialTask) {
         try {
-            task.run();
+            var batcher = batcherFactory.create(httpContext);
+            batcher.add(initialTask);
+
+            // TODO make this a setting
+            int batchSize = 20;
+            List<Task<K, R>> batchList = new ArrayList<>(batchSize);
+            queue.drainTo(batchList, batchSize);
+
         } catch (Exception e) {
-            logger.warn(format("Http executor service [%s] failed to execute request [%s]", serviceName, task), e);
+            logger.warn(format("Http executor service [%s] failed to execute request [%s]", serviceName, initialTask), e);
         }
     }
 
@@ -168,10 +175,10 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
         assert isShutdown() : "Requests should only be notified if the executor is shutting down";
 
         try {
-            List<HttpTask> notExecuted = new ArrayList<>();
+            List<Task<K, R>> notExecuted = new ArrayList<>();
             queue.drainTo(notExecuted);
 
-            for (HttpTask task : notExecuted) {
+            for (Task<K, R> task : notExecuted) {
                 rejectTask(task);
             }
         } catch (Exception e) {
@@ -179,7 +186,7 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
         }
     }
 
-    private void rejectTask(HttpTask task) {
+    private void rejectTask(Task<K, R> task) {
         try {
             task.onRejection(
                 new EsRejectedExecutionException(
@@ -202,14 +209,13 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
     public void shutdown() {
         if (running.compareAndSet(true, false)) {
             // if this fails because the queue is full, that's ok, we just want to ensure that queue.take() returns
-            queue.offer(new ShutdownTask());
+            queue.offer(new ShutdownTask<>());
         }
     }
 
     @Override
     public List<Runnable> shutdownNow() {
-        shutdown();
-        return new ArrayList<>(queue);
+        throw new UnsupportedOperationException("use shutdown instead");
     }
 
     @Override
@@ -228,10 +234,38 @@ class HttpRequestExecutorService<K, R> implements ExecutorService {
     }
 
     // TODO: change the listener type to be correct
-    public void send2(Handler<K, R> handler, List<String> input, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+    public void send2(
+        TransactionHandler<K, R> handler,
+        List<String> input,
+        @Nullable TimeValue timeout,
+        ActionListener<HttpResult> listener
+    ) {
         RequestTask2<K, R> task = new RequestTask2<>(handler, input, timeout, threadPool, listener);
 
-        // TODO the rest is the same as the old send
+        if (isShutdown()) {
+            EsRejectedExecutionException rejected = new EsRejectedExecutionException(
+                format("Failed to enqueue task because the http executor service [%s] has already shutdown", serviceName),
+                true
+            );
+
+            task.onRejection(rejected);
+            return;
+        }
+
+        boolean added = queue.offer(task);
+        if (added == false) {
+            EsRejectedExecutionException rejected = new EsRejectedExecutionException(
+                format("Failed to execute task because the http executor service [%s] queue is full", serviceName),
+                false
+            );
+
+            task.onRejection(rejected);
+        } else if (isShutdown()) {
+            // It is possible that a shutdown and notification request occurred after we initially checked for shutdown above
+            // If the task was added after the queue was already drained it could sit there indefinitely. So let's check again if
+            // we shut down and if so we'll redo the notification
+            notifyRequestsOfShutdown();
+        }
     }
 
     /**

@@ -518,7 +518,18 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return new ShardSnapshotStatus(nodeId, ShardState.SUCCESS, shardSnapshotResult.getGeneration(), null, shardSnapshotResult);
         }
 
-        public ShardSnapshotStatus {
+        public ShardSnapshotStatus(
+            @Nullable String nodeId,
+            ShardState state,
+            @Nullable ShardGeneration generation,
+            String reason,
+            @Nullable ShardSnapshotResult shardSnapshotResult
+        ) {
+            this.nodeId = nodeId;
+            this.state = state;
+            this.reason = reason;
+            this.generation = generation;
+            this.shardSnapshotResult = shardSnapshotResult;
             assert assertConsistent();
         }
 

@@ -43,6 +43,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -147,6 +148,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         List<String> validationErrors = request.validate().validationErrors();
@@ -155,7 +157,18 @@ public class GetStackTracesRequestTests extends ESTestCase {
     }
 
     public void testValidateStacktraceWithoutIndices() {
-        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, 1.0d, null, null, randomAlphaOfLength(3), null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            1,
+            1.0d,
+            1.0d,
+            null,
+            null,
+            randomAlphaOfLength(3),
+            null,
+            null,
+            null,
+            null
+        );
         List<String> validationErrors = request.validate().validationErrors();
         assertEquals(1, validationErrors.size());
         assertEquals("[stacktrace_ids] must not be set", validationErrors.get(0));
@@ -169,6 +182,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             randomAlphaOfLength(5),
             randomFrom("", null),
+            null,
             null,
             null,
             null
@@ -189,6 +203,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             randomAlphaOfLength(3),
             null,
             null,
+            null,
             null
         );
         String[] indices = request.indices();
@@ -198,7 +213,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
 
     public void testConsidersDefaultIndicesInRelatedIndices() {
         String customIndex = randomAlphaOfLength(5);
-        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, 1.0d, null, null, null, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, 1.0d, null, null, null, null, null, null, null);
         String[] indices = request.indices();
         assertEquals(15, indices.length);
     }

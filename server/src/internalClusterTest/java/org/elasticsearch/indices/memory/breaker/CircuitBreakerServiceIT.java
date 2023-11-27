@@ -17,7 +17,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -51,6 +50,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -277,11 +277,10 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
         // A terms aggregation on the "test" field should trip the bucket circuit breaker
         try {
-            SearchResponse resp = client.prepareSearch("cb-test")
-                .setQuery(matchAllQuery())
-                .addAggregation(terms("my_terms").field("test"))
-                .get();
-            assertTrue("there should be shard failures", resp.getFailedShards() > 0);
+            assertResponse(
+                client.prepareSearch("cb-test").setQuery(matchAllQuery()).addAggregation(terms("my_terms").field("test")),
+                response -> assertTrue("there should be shard failures", response.getFailedShards() > 0)
+            );
             fail("aggregation should have tripped the breaker");
         } catch (Exception e) {
             Throwable cause = e.getCause();
@@ -293,7 +292,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
     /** Issues a cache clear and waits 30 seconds for the field data breaker to be cleared */
     public void clearFieldData() throws Exception {
-        indicesAdmin().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+        indicesAdmin().prepareClearCache().setFieldDataCache(true).get();
         assertBusy(() -> {
             NodesStatsResponse resp = clusterAdmin().prepareNodesStats().clear().setBreaker(true).get(new TimeValue(15, TimeUnit.SECONDS));
             for (NodeStats nStats : resp.getNodes()) {

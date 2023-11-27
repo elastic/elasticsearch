@@ -68,8 +68,7 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
                 blockBuilders[i] = BytesRefBlock.newBlockBuilder(rowsCount, driverContext.blockFactory());
             }
 
-            try (Block.Ref ref = inputEvaluator.eval(page)) {
-                BytesRefBlock input = (BytesRefBlock) ref.block();
+            try (BytesRefBlock input = (BytesRefBlock) inputEvaluator.eval(page)) {
                 BytesRef spare = new BytesRef();
                 for (int row = 0; row < rowsCount; row++) {
                     if (input.isNull(row)) {

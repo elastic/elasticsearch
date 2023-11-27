@@ -482,8 +482,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 while (stopped.get() == false && docID.get() < 5000) {
                     String id = Integer.toString(docID.incrementAndGet());
                     try {
-                        DocWriteResponse response = client().prepareIndex(index)
-                            .setId(id)
+                        DocWriteResponse response = prepareIndex(index).setId(id)
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));

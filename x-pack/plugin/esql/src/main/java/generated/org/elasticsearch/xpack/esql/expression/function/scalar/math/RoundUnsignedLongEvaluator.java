@@ -33,20 +33,18 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      LongBlock valBlock = (LongBlock) valRef.block();
-      try (Block.Ref decimalsRef = decimals.eval(page)) {
-        LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
+  public Block eval(Page page) {
+    try (LongBlock valBlock = (LongBlock) val.eval(page)) {
+      try (LongBlock decimalsBlock = (LongBlock) decimals.eval(page)) {
         LongVector valVector = valBlock.asVector();
         if (valVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+          return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
         LongVector decimalsVector = decimalsBlock.asVector();
         if (decimalsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+          return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), valVector, decimalsVector).asBlock());
+        return eval(page.getPositionCount(), valVector, decimalsVector).asBlock();
       }
     }
   }

@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,12 +60,13 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     }
 
     public void testSupportsConcurrentExecution() {
+        ToLongFunction<String> fieldCardinality = name -> randomIntBetween(-1, 100);
         AB builder = createTestAggregatorBuilder();
-        boolean supportsConcurrency = builder.supportsParallelCollection();
+        boolean supportsConcurrency = builder.supportsParallelCollection(fieldCardinality);
         AggregationBuilder bucketBuilder = new HistogramAggregationBuilder("test");
-        assertTrue(bucketBuilder.supportsParallelCollection());
+        assertTrue(bucketBuilder.supportsParallelCollection(fieldCardinality));
         bucketBuilder.subAggregation(builder);
-        assertThat(bucketBuilder.supportsParallelCollection(), equalTo(supportsConcurrency));
+        assertThat(bucketBuilder.supportsParallelCollection(fieldCardinality), equalTo(supportsConcurrency));
     }
 
     /**

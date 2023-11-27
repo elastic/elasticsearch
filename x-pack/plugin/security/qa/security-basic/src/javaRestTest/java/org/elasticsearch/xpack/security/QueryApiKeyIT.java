@@ -129,7 +129,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             { "query": { "prefix": {"api_key_hash": "{PBKDF2}10000$"} } }""");
 
         // Search for fields that are not allowed in Query DSL but used internally by the service itself
-        final String fieldName = randomFrom("doc_type", "api_key_invalidated");
+        final String fieldName = randomFrom("doc_type", "api_key_invalidated", "invalidation_time");
         assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, Strings.format("""
             { "query": { "term": {"%s": "%s"} } }""", fieldName, randomAlphaOfLengthBetween(3, 8)));
 
@@ -164,6 +164,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final String queryString = randomFrom("""
             {"query": { "term": {"name": "temporary-key-1"} } }""", Strings.format("""
             {"query":{"bool":{"must":[{"term":{"name":{"value":"temporary-key-1"}}},\
+            {"range": {"invalidation": {"lte": "now"}}},
             {"term":{"invalidated":{"value":"%s"}}}]}}}
             """, randomBoolean()));
 
@@ -387,6 +388,12 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         // Create an invalidated API key
         createAndInvalidateApiKey("test-exists-4", authHeader);
 
+        // Get the invalidated API key
+        assertQuery(authHeader, """
+            {"query": {"exists": {"field": "invalidation" }}}""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("name")).toList(), containsInAnyOrder("test-exists-4"));
+        });
+
         // Ensure the short-lived key is expired
         final long elapsed = Instant.now().toEpochMilli() - startTime;
         if (elapsed < 10) {
@@ -401,6 +408,11 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                   "must": {
                     "term": {
                       "invalidated": false
+                    }
+                  },
+                  "must_not": {
+                    "exists": {
+                      "field": "invalidation"
                     }
                   },
                   "should": [

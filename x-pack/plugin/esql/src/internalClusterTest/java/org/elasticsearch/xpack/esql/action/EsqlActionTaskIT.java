@@ -99,7 +99,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
             \\_AggregationOperator[mode = FINAL, aggs = sum of longs]
             \\_ProjectOperator[projection = [0]]
             \\_LimitOperator[limit = 500]
-            \\_OutputOperator[columns = sum(pause_me)]""";
+            \\_OutputOperator[columns = [sum(pause_me)]]""";
 
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("runtime");

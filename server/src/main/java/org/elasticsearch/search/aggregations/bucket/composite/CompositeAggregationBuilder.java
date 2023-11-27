@@ -246,10 +246,10 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                 Object obj = after.get(sourceName);
                 if (configs[i].missingBucket() && obj == null) {
                     values[i] = null;
-                } else if (obj instanceof String
+                } else if (obj instanceof String s
                     && configs[i].fieldType() != null
                     && configs[i].fieldType().getClass() == TimeSeriesIdFieldType.class) {
-                        values[i] = configs[i].format().parseBytesRef(obj);
+                        values[i] = s;
                     } else if (obj instanceof Comparable<?> c) {
                         values[i] = c;
                     } else if (obj instanceof Map<?, ?> && configs[i].fieldType().getClass() == TimeSeriesIdFieldType.class) {

@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -195,6 +197,90 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
                 + "]",
             decision.getExplanation()
         );
+    }
+
+    public void testYesWhenSnapshotInProgressButShardIsPausedDueToShutdown() {
+
+        // need to have a shard in INIT state to avoid the fast-path
+        final var otherIndex = randomIdentifier();
+
+        final var snapshotsInProgress = SnapshotsInProgress.EMPTY
+            // mark nodeID as shutting down for removal
+            .withUpdatedNodeIdsForRemoval(
+                ClusterState.EMPTY_STATE.copyAndUpdateMetadata(
+                    mdb -> mdb.putCustom(
+                        NodesShutdownMetadata.TYPE,
+                        new NodesShutdownMetadata(
+                            Map.of(
+                                nodeId,
+                                SingleNodeShutdownMetadata.builder()
+                                    .setNodeId(nodeId)
+                                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                                    .setStartedAtMillis(randomNonNegativeLong())
+                                    .setReason("test")
+                                    .build()
+                            )
+                        )
+                    )
+                )
+            )
+            // create a running snapshot with shardId paused
+            .withUpdatedEntriesForRepo(
+                repositoryName,
+                List.of(
+                    SnapshotsInProgress.Entry.snapshot(
+                        snapshot,
+                        randomBoolean(),
+                        randomBoolean(),
+                        SnapshotsInProgress.State.STARTED,
+                        Map.of(
+                            shardId.getIndexName(),
+                            new IndexId(shardId.getIndexName(), randomUUID()),
+                            otherIndex,
+                            new IndexId(otherIndex, randomUUID())
+                        ),
+                        List.of(),
+                        List.of(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        Map.of(
+                            shardId,
+                            new SnapshotsInProgress.ShardSnapshotStatus(
+                                nodeId,
+                                SnapshotsInProgress.ShardState.WAITING,
+                                ShardGeneration.newGeneration(random())
+                            ),
+                            new ShardId(otherIndex, randomUUID(), 0),
+                            new SnapshotsInProgress.ShardSnapshotStatus(
+                                nodeId,
+                                SnapshotsInProgress.ShardState.INIT,
+                                ShardGeneration.newGeneration(random())
+                            )
+                        ),
+                        null,
+                        Map.of(),
+                        IndexVersion.current()
+                    )
+                )
+            );
+
+        final var routingAllocation = new RoutingAllocation(
+            new AllocationDeciders(List.of(decider)),
+            ClusterState.builder(ClusterName.DEFAULT).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build(),
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            randomNonNegativeLong()
+        );
+        routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+
+        final var decision = decider.canAllocate(
+            TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED),
+            null,
+            routingAllocation
+        );
+
+        assertEquals(Decision.Type.YES, decision.type());
+        assertEquals("the shard is not being snapshotted", decision.getExplanation());
     }
 
     private ClusterState makeClusterState(ShardId shardId, SnapshotsInProgress.ShardState shardState) {

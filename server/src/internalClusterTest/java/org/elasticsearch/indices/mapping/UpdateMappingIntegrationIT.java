@@ -11,7 +11,6 @@ package org.elasticsearch.indices.mapping;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
@@ -48,6 +47,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WR
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -84,8 +84,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         logger.info("checking all the documents are there");
         RefreshResponse refreshResponse = indicesAdmin().prepareRefresh().get();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
-        SearchResponse response = prepareSearch("test").setSize(0).get();
-        assertThat(response.getHits().getTotalHits().value, equalTo((long) recCount));
+        assertHitCount(prepareSearch("test").setSize(0), recCount);
 
         logger.info("checking all the fields are in the mappings");
 

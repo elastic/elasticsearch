@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<MultiTermsAggregationBuilder> {
@@ -154,7 +155,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
     }
 
     @Override
-    public boolean supportsParallelCollection() {
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
         return false;
     }
 

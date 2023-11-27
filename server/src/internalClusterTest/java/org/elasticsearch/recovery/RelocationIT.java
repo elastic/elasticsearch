@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -80,6 +79,7 @@ import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.forEachF
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -360,15 +360,15 @@ public class RelocationIT extends ESIntegTestCase {
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
 
             logger.debug("--> verifying all searches return the same number of docs");
-            long expectedCount = -1;
+            long[] expectedCount = new long[] { -1 };
             for (Client client : clients()) {
-                SearchResponse response = client.prepareSearch("test").setPreference("_local").setSize(0).get();
-                assertNoFailures(response);
-                if (expectedCount < 0) {
-                    expectedCount = response.getHits().getTotalHits().value;
-                } else {
-                    assertEquals(expectedCount, response.getHits().getTotalHits().value);
-                }
+                assertNoFailuresAndResponse(client.prepareSearch("test").setPreference("_local").setSize(0), response -> {
+                    if (expectedCount[0] < 0) {
+                        expectedCount[0] = response.getHits().getTotalHits().value;
+                    } else {
+                        assertEquals(expectedCount[0], response.getHits().getTotalHits().value);
+                    }
+                });
             }
 
         }

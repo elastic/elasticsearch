@@ -675,9 +675,13 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         if (fail) {
             if (requestBuilder instanceof MultiSearchRequestBuilder multiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
-                assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
+                try {
+                    assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                    assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
+                    assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
+                } finally {
+                    multiSearchResponse.decRef();
+                }
             } else {
                 try {
                     requestBuilder.get();
@@ -689,8 +693,12 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                 assertHitCount(searchRequestBuilder, expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder multiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].getResponse(), notNullValue());
+                try {
+                    assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                    assertThat(multiSearchResponse.getResponses()[0].getResponse(), notNullValue());
+                } finally {
+                    multiSearchResponse.decRef();
+                }
             } else {
                 requestBuilder.get();
             }

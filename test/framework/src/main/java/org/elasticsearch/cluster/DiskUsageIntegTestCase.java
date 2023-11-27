@@ -12,7 +12,6 @@ import org.apache.lucene.tests.mockfile.FilterFileStore;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
@@ -231,11 +230,5 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
             return trackedPaths.get(containingPaths.iterator().next());
         }
 
-        void clearTrackedPaths() throws IOException {
-            for (Path path : trackedPaths.keySet()) {
-                IOUtils.rm(path);
-            }
-            trackedPaths.clear();
-        }
     }
 }

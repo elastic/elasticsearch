@@ -1,0 +1,5 @@
+pr: 102629
+summary: "[Backport] Upgrade reactor netty http version to 1.0.39"
+area: Snapshot/Restore
+type: upgrade
+issues: []

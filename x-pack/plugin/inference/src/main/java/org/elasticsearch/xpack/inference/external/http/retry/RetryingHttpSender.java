@@ -100,8 +100,8 @@ public class RetryingHttpSender implements Retrier {
 
         @Override
         public boolean shouldRetry(Exception e) {
-            if (e instanceof RetryException) {
-                return ((RetryException) e).shouldRetry();
+            if (e instanceof RetryException retry) {
+                return retry.shouldRetry();
             }
 
             return false;

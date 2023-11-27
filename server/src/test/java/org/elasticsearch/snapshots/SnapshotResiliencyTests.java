@@ -58,7 +58,6 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchRequest;
@@ -150,6 +149,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesFeatures;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.IndicesServiceBuilder;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -1756,44 +1756,39 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
                 );
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
-                indicesService = new IndicesService(
-                    settings,
-                    mock(PluginsService.class),
-                    nodeEnv,
-                    namedXContentRegistry,
-                    new AnalysisRegistry(
-                        environment,
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap()
-                    ),
-                    indexNameExpressionResolver,
-                    mapperRegistry,
-                    namedWriteableRegistry,
-                    threadPool,
-                    indexScopedSettings,
-                    new NoneCircuitBreakerService(),
-                    bigArrays,
-                    scriptService,
-                    clusterService,
-                    client,
-                    new FeatureService(List.of(new IndicesFeatures())),
-                    new MetaStateService(nodeEnv, namedXContentRegistry),
-                    Collections.emptyList(),
-                    emptyMap(),
-                    null,
-                    emptyMap(),
-                    List.of(),
-                    emptyMap(),
-                    null,
-                    () -> DocumentParsingObserver.EMPTY_INSTANCE
-                );
+
+                indicesService = new IndicesServiceBuilder().settings(settings)
+                    .pluginsService(mock(PluginsService.class))
+                    .nodeEnvironment(nodeEnv)
+                    .xContentRegistry(namedXContentRegistry)
+                    .analysisRegistry(
+                        new AnalysisRegistry(
+                            environment,
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap()
+                        )
+                    )
+                    .indexNameExpressionResolver(indexNameExpressionResolver)
+                    .mapperRegistry(mapperRegistry)
+                    .namedWriteableRegistry(namedWriteableRegistry)
+                    .threadPool(threadPool)
+                    .indexScopedSettings(indexScopedSettings)
+                    .circuitBreakerService(new NoneCircuitBreakerService())
+                    .bigArrays(bigArrays)
+                    .scriptService(scriptService)
+                    .clusterService(clusterService)
+                    .client(client)
+                    .featureService(new FeatureService(List.of(new IndicesFeatures())))
+                    .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
+                    .documentParsingObserverSupplier(() -> DocumentParsingObserver.EMPTY_INSTANCE)
+                    .build();
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
                     settings,
@@ -2004,7 +1999,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
                 SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
                 actions.put(
-                    SearchAction.INSTANCE,
+                    TransportSearchAction.TYPE,
                     new TransportSearchAction(
                         threadPool,
                         new NoneCircuitBreakerService(),

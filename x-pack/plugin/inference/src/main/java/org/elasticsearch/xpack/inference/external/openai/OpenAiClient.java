@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.inference.external.http.retry.AlwaysRetryingResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiResponseHandler;
 
 import java.io.IOException;
 
@@ -43,6 +43,6 @@ public class OpenAiClient {
     }
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new AlwaysRetryingResponseHandler("openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse);
+        return new OpenAiResponseHandler("openai text embedding", result -> OpenAiEmbeddingsResponseEntity.fromResponse(result));
     }
 }

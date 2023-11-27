@@ -86,6 +86,7 @@ dependencies {
   testImplementation project(':modules:reindex')
   testImplementation project(':modules:analysis-common')
   testImplementation project(':modules:mapper-extras')
+  testImplementation project(':modules:lang-mustache')
   // This should not be here
   testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation project(path: xpackModule('wildcard'))
@@ -134,3 +135,4 @@ tasks.named("dependencyLicenses").configure {
 }
 
 addQaCheckDependencies(project)
+

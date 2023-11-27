@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.transform.checkpoint;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -81,7 +81,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value > 0L), listener::onFailure)
         );

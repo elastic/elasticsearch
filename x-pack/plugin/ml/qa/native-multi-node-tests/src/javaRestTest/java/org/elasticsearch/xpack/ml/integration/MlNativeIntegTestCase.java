@@ -13,9 +13,9 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
@@ -311,12 +311,12 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         RefreshResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
         assertThat(refreshResponse.getStatus().getStatus(), anyOf(equalTo(200), equalTo(201)));
 
-        SearchRequest searchRequest = new SearchRequestBuilder(client(), SearchAction.INSTANCE).setIndices(
+        SearchRequest searchRequest = new SearchRequestBuilder(client(), TransportSearchAction.TYPE).setIndices(
             NotificationsIndex.NOTIFICATIONS_INDEX
         ).addSort("timestamp", SortOrder.ASC).setQuery(QueryBuilders.termQuery("job_id", jobId)).setSize(100).request();
         List<String> messages = new ArrayList<>();
         assertResponse(
-            client().execute(SearchAction.INSTANCE, searchRequest),
+            client().execute(TransportSearchAction.TYPE, searchRequest),
             searchResponse -> Arrays.stream(searchResponse.getHits().getHits())
                 .map(hit -> (String) hit.getSourceAsMap().get("message"))
                 .forEach(messages::add)

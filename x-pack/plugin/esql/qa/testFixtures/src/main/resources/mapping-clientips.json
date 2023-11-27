@@ -1,0 +1,10 @@
+{
+    "properties": {
+      "client.ip": {
+        "type": "keyword"
+      },
+      "env": {
+        "type": "keyword"
+      }
+    }
+  }

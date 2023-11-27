@@ -1,0 +1,24 @@
+{
+    "properties": {
+        "@timestamp": {
+            "type": "date"
+        },
+        "client": {
+            "properties": {
+                "ip": {
+                    "type": "ip"
+                }
+            }
+        },
+        "event": {
+            "properties": {
+                "duration": {
+                    "type": "long"
+                }
+            }
+        },
+        "message": {
+            "type": "keyword"
+        }
+    }
+}

@@ -104,7 +104,7 @@ Defaults to `https://api.openai.com/v1/embeddings`.
 Settings to configure the {infer} task. These settings are specific to the
 `<task_type>` you specified.
 +
-.`task_settings` for `openai`
+.`task_settings` for `text_embedding`
 [%collapsible%closed]
 =====
 `model`:::

@@ -570,7 +570,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(strategy.overLimit(input), sameInstance(input));
         assertThat(leaderTriggerCount.get(), equalTo(1));
         assertThat(gcCounter.get(), equalTo(2L));
-        assertThat(memoryUsageCounter.get(), equalTo(2L)); // 1 before gc count break and 1 to get resulting memory usage.
+        // 1 before gc count break, 1 for full GC check and 1 to get resulting memory usage.
+        assertThat(memoryUsageCounter.get(), equalTo(3L));
     }
 
     public void testG1OverLimitStrategyThrottling() throws InterruptedException, BrokenBarrierException, TimeoutException {

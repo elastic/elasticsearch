@@ -35,26 +35,24 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      DoubleBlock valBlock = (DoubleBlock) valRef.block();
-      try (Block.Ref decimalsRef = decimals.eval(page)) {
-        LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
+  public Block eval(Page page) {
+    try (DoubleBlock valBlock = (DoubleBlock) val.eval(page)) {
+      try (LongBlock decimalsBlock = (LongBlock) decimals.eval(page)) {
         DoubleVector valVector = valBlock.asVector();
         if (valVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+          return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
         LongVector decimalsVector = decimalsBlock.asVector();
         if (decimalsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+          return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), valVector, decimalsVector).asBlock());
+        return eval(page.getPositionCount(), valVector, decimalsVector).asBlock();
       }
     }
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock, LongBlock decimalsBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -71,7 +69,7 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public DoubleVector eval(int positionCount, DoubleVector valVector, LongVector decimalsVector) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Round.process(valVector.getDouble(p), decimalsVector.getLong(p)));
       }

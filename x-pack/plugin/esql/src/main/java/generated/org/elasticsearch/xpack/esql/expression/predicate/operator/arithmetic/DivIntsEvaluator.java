@@ -39,26 +39,24 @@ public final class DivIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref lhsRef = lhs.eval(page)) {
-      IntBlock lhsBlock = (IntBlock) lhsRef.block();
-      try (Block.Ref rhsRef = rhs.eval(page)) {
-        IntBlock rhsBlock = (IntBlock) rhsRef.block();
+  public Block eval(Page page) {
+    try (IntBlock lhsBlock = (IntBlock) lhs.eval(page)) {
+      try (IntBlock rhsBlock = (IntBlock) rhs.eval(page)) {
         IntVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
         IntVector rhsVector = rhsBlock.asVector();
         if (rhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector));
+        return eval(page.getPositionCount(), lhsVector, rhsVector);
       }
     }
   }
 
   public IntBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
-    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -80,7 +78,7 @@ public final class DivIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public IntBlock eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
-    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendInt(Div.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));

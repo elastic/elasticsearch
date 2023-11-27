@@ -32,27 +32,25 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    Block.Ref[] valuesRefs = new Block.Ref[values.length];
-    try (Releasable valuesRelease = Releasables.wrap(valuesRefs)) {
-      DoubleBlock[] valuesBlocks = new DoubleBlock[values.length];
+  public Block eval(Page page) {
+    DoubleBlock[] valuesBlocks = new DoubleBlock[values.length];
+    try (Releasable valuesRelease = Releasables.wrap(valuesBlocks)) {
       for (int i = 0; i < valuesBlocks.length; i++) {
-        valuesRefs[i] = values[i].eval(page);
-        valuesBlocks[i] = (DoubleBlock) valuesRefs[i].block();
+        valuesBlocks[i] = (DoubleBlock)values[i].eval(page);
       }
       DoubleVector[] valuesVectors = new DoubleVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesVectors[i] = valuesBlocks[i].asVector();
         if (valuesVectors[i] == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valuesBlocks));
+          return eval(page.getPositionCount(), valuesBlocks);
         }
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valuesVectors).asBlock());
+      return eval(page.getPositionCount(), valuesVectors).asBlock();
     }
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock[] valuesBlocks) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       double[] valuesValues = new double[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
@@ -73,7 +71,7 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
   }
 
   public DoubleVector eval(int positionCount, DoubleVector[] valuesVectors) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       double[] valuesValues = new double[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues

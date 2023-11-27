@@ -4,7 +4,7 @@
 
 *Syntax*
 
-[source,txt]
+[source,esql]
 ----
 DATE_PARSE([format,] date_string)
 ----

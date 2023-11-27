@@ -35,7 +35,7 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  */
 public class NamedComponentReader {
 
-    private Logger logger = LogManager.getLogger(NamedComponentReader.class);
+    private static final Logger logger = LogManager.getLogger(NamedComponentReader.class);
     private static final String NAMED_COMPONENTS_FILE_NAME = "named_components.json";
     /**
      * a registry of known classes marked or indirectly marked (extending marked class) with @Extensible

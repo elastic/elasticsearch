@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
@@ -200,7 +201,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         var refreshTokenResponse = client().filterWithHeader(
             Map.of(
                 JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_1,
+                JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_1,
                 JwtRealm.HEADER_END_USER_AUTHENTICATION,
                 JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME + " " + HEADER_JWT_REALM_1
             )
@@ -211,7 +212,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         createTokenResponse = client().filterWithHeader(
             Map.of(
                 JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_1,
+                JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_1,
                 JwtRealm.HEADER_END_USER_AUTHENTICATION,
                 JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME + " " + HEADER_JWT_REALM_1
             )
@@ -292,7 +293,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             () -> client().filterWithHeader(
                 Map.of(
                     JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                    JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_2,
+                    JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + " " + HEADER_SECRET_JWT_REALM_2,
                     JwtRealm.HEADER_END_USER_AUTHENTICATION,
                     JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME + " " + HEADER_JWT_REALM_2
                 )
@@ -319,9 +320,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         ).execute(CreateApiKeyAction.INSTANCE, createApiKeyRequest).actionGet();
 
         final XContentTestUtils.JsonMapView getResponseView = XContentTestUtils.createJsonMapView(
-            new ByteArrayInputStream(
-                client().prepareGet(SECURITY_MAIN_ALIAS, createApiKeyResponse.getId()).execute().actionGet().getSourceAsBytes()
-            )
+            new ByteArrayInputStream(client().prepareGet(SECURITY_MAIN_ALIAS, createApiKeyResponse.getId()).get().getSourceAsBytes())
         );
 
         // domain info is captured
@@ -337,7 +336,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
                             (createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey()).getBytes(StandardCharsets.UTF_8)
                         )
             )
-        ).admin().cluster().prepareHealth().execute().actionGet();
+        ).admin().cluster().prepareHealth().get();
     }
 
     public void testDomainCaptureForServiceToken() {
@@ -354,10 +353,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
 
         final XContentTestUtils.JsonMapView responseView = XContentTestUtils.createJsonMapView(
             new ByteArrayInputStream(
-                client().prepareGet(SECURITY_MAIN_ALIAS, "service_account_token-elastic/fleet-server/" + tokenName)
-                    .execute()
-                    .actionGet()
-                    .getSourceAsBytes()
+                client().prepareGet(SECURITY_MAIN_ALIAS, "service_account_token-elastic/fleet-server/" + tokenName).get().getSourceAsBytes()
             )
         );
 
@@ -368,8 +364,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             .admin()
             .cluster()
             .prepareHealth()
-            .execute()
-            .actionGet();
+            .get();
     }
 
     private void assertAccessToken(CreateTokenResponse createTokenResponse) throws IOException {
@@ -377,9 +372,8 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
             .admin()
             .cluster()
             .prepareHealth()
-            .execute()
-            .actionGet();
-        final SearchResponse searchResponse = prepareSearch(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).execute().actionGet();
+            .get();
+        final SearchResponse searchResponse = prepareSearch(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).get();
 
         final String encodedAuthentication = createTokenResponse.getAuthentication().encode();
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {

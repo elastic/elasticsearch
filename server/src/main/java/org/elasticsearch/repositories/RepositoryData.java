@@ -1229,6 +1229,22 @@ public final class RepositoryData {
             return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis, slmPolicy);
         }
 
+        @Override
+        public String toString() {
+            return "SnapshotDetails{"
+                + "snapshotState="
+                + snapshotState
+                + ", version="
+                + version
+                + ", startTimeMillis="
+                + startTimeMillis
+                + ", endTimeMillis="
+                + endTimeMillis
+                + ", slmPolicy='"
+                + slmPolicy
+                + "'}";
+        }
+
         public static SnapshotDetails fromSnapshotInfo(SnapshotInfo snapshotInfo) {
             return new SnapshotDetails(
                 snapshotInfo.state(),

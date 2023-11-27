@@ -32,27 +32,25 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    Block.Ref[] valuesRefs = new Block.Ref[values.length];
-    try (Releasable valuesRelease = Releasables.wrap(valuesRefs)) {
-      LongBlock[] valuesBlocks = new LongBlock[values.length];
+  public Block eval(Page page) {
+    LongBlock[] valuesBlocks = new LongBlock[values.length];
+    try (Releasable valuesRelease = Releasables.wrap(valuesBlocks)) {
       for (int i = 0; i < valuesBlocks.length; i++) {
-        valuesRefs[i] = values[i].eval(page);
-        valuesBlocks[i] = (LongBlock) valuesRefs[i].block();
+        valuesBlocks[i] = (LongBlock)values[i].eval(page);
       }
       LongVector[] valuesVectors = new LongVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesVectors[i] = valuesBlocks[i].asVector();
         if (valuesVectors[i] == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valuesBlocks));
+          return eval(page.getPositionCount(), valuesBlocks);
         }
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valuesVectors).asBlock());
+      return eval(page.getPositionCount(), valuesVectors).asBlock();
     }
   }
 
   public LongBlock eval(int positionCount, LongBlock[] valuesBlocks) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       long[] valuesValues = new long[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
@@ -73,7 +71,7 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongVector eval(int positionCount, LongVector[] valuesVectors) {
-    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
       long[] valuesValues = new long[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues

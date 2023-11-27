@@ -38,26 +38,24 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref strRef = str.eval(page)) {
-      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
-      try (Block.Ref delimRef = delim.eval(page)) {
-        BytesRefBlock delimBlock = (BytesRefBlock) delimRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (BytesRefBlock delimBlock = (BytesRefBlock) delim.eval(page)) {
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, delimBlock));
+          return eval(page.getPositionCount(), strBlock, delimBlock);
         }
         BytesRefVector delimVector = delimBlock.asVector();
         if (delimVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, delimBlock));
+          return eval(page.getPositionCount(), strBlock, delimBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), strVector, delimVector));
+        return eval(page.getPositionCount(), strVector, delimVector);
       }
     }
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock delimBlock) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef delimScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -77,7 +75,7 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector,
       BytesRefVector delimVector) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef delimScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {

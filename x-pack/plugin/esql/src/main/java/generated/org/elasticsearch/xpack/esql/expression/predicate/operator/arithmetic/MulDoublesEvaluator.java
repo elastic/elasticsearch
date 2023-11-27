@@ -33,26 +33,24 @@ public final class MulDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref lhsRef = lhs.eval(page)) {
-      DoubleBlock lhsBlock = (DoubleBlock) lhsRef.block();
-      try (Block.Ref rhsRef = rhs.eval(page)) {
-        DoubleBlock rhsBlock = (DoubleBlock) rhsRef.block();
+  public Block eval(Page page) {
+    try (DoubleBlock lhsBlock = (DoubleBlock) lhs.eval(page)) {
+      try (DoubleBlock rhsBlock = (DoubleBlock) rhs.eval(page)) {
         DoubleVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
         DoubleVector rhsVector = rhsBlock.asVector();
         if (rhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector).asBlock());
+        return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
       }
     }
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -69,7 +67,7 @@ public final class MulDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public DoubleVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Mul.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
       }

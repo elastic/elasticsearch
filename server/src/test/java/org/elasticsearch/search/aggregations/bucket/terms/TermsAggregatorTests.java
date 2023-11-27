@@ -35,12 +35,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
@@ -87,7 +85,6 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -1730,8 +1727,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
 
-                    AggregationExecutionException e = expectThrows(
-                        AggregationExecutionException.class,
+                    AggregationExecutionException.InvalidPath e = expectThrows(
+                        AggregationExecutionException.InvalidPath.class,
                         () -> searchAndReduce(indexReader, new AggTestConfig(termsAgg, fieldType))
                     );
                     assertEquals(
@@ -2246,29 +2243,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         return aggregator.buildTopLevel();
          */
         return searchAndReduce(reader, new AggTestConfig(builder, fieldType));
-    }
-
-    private <T extends InternalAggregation> T reduce(AggregationBuilder builder, Aggregator agg, BigArrays bigArrays) throws IOException {
-        // now do the final reduce
-        MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
-            Integer.MAX_VALUE,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-        );
-        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
-            bigArrays,
-            getMockScriptService(),
-            () -> false,
-            builder,
-            reduceBucketConsumer,
-            PipelineTree.EMPTY
-        );
-
-        @SuppressWarnings("unchecked")
-        T topLevel = (T) agg.buildTopLevel();
-        @SuppressWarnings("unchecked")
-        T result = (T) topLevel.reduce(Collections.singletonList(topLevel), context);
-        doAssertReducedMultiBucketConsumer(result, reduceBucketConsumer);
-        return result;
     }
 
     @Override

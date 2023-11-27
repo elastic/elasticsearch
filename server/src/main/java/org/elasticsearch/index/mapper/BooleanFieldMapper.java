@@ -68,7 +68,7 @@ public class BooleanFieldMapper extends FieldMapper {
         return (BooleanFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -93,7 +93,6 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
 
-        @SuppressWarnings("this-escape")
         public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -258,9 +257,9 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return BlockDocValuesReader.booleans(name());
+                return new BlockDocValuesReader.BooleansBlockLoader(name());
             }
-            return BlockSourceReader.booleans(sourceValueFetcher(blContext.sourcePaths(name())));
+            return new BlockSourceReader.BooleansBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

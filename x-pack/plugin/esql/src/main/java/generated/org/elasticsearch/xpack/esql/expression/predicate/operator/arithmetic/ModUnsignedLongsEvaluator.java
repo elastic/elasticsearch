@@ -39,26 +39,24 @@ public final class ModUnsignedLongsEvaluator implements EvalOperator.ExpressionE
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref lhsRef = lhs.eval(page)) {
-      LongBlock lhsBlock = (LongBlock) lhsRef.block();
-      try (Block.Ref rhsRef = rhs.eval(page)) {
-        LongBlock rhsBlock = (LongBlock) rhsRef.block();
+  public Block eval(Page page) {
+    try (LongBlock lhsBlock = (LongBlock) lhs.eval(page)) {
+      try (LongBlock rhsBlock = (LongBlock) rhs.eval(page)) {
         LongVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
         LongVector rhsVector = rhsBlock.asVector();
         if (rhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector));
+        return eval(page.getPositionCount(), lhsVector, rhsVector);
       }
     }
   }
 
   public LongBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -80,7 +78,7 @@ public final class ModUnsignedLongsEvaluator implements EvalOperator.ExpressionE
   }
 
   public LongBlock eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendLong(Mod.processUnsignedLongs(lhsVector.getLong(p), rhsVector.getLong(p)));

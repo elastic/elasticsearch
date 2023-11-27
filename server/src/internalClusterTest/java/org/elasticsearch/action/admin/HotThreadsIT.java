@@ -100,9 +100,9 @@ public class HotThreadsIT extends ESIntegTestCase {
 
             indexRandom(
                 true,
-                client().prepareIndex("test").setId("1").setSource("field1", "value1"),
-                client().prepareIndex("test").setId("2").setSource("field1", "value2"),
-                client().prepareIndex("test").setId("3").setSource("field1", "value3")
+                prepareIndex("test").setId("1").setSource("field1", "value1"),
+                prepareIndex("test").setId("2").setSource("field1", "value2"),
+                prepareIndex("test").setId("3").setSource("field1", "value3")
             );
             ensureSearchable();
             while (latch.getCount() > 0) {

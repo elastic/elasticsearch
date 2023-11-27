@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.script.ScriptException;
@@ -51,28 +52,32 @@ class TransformFailureHandler {
     /**
      * Handle a search or indexing failure
      *
-     * @param e the exception caught
+     * @param exception the exception caught
      * @param settingsConfig The settings
      */
-    void handleIndexerFailure(Exception e, SettingsConfig settingsConfig) {
+    void handleIndexerFailure(Exception exception, SettingsConfig settingsConfig) {
         // more detailed reporting in the handlers and below
-        logger.debug(() -> "[" + transformId + "] transform encountered an exception: ", e);
-        Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
+        logger.atDebug().withThrowable(exception).log("[{}] transform encountered an exception", transformId);
+        Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(exception);
         boolean unattended = Boolean.TRUE.equals(settingsConfig.getUnattended());
 
-        if (unwrappedException instanceof CircuitBreakingException circuitBreakingException) {
-            handleCircuitBreakingException(circuitBreakingException, unattended);
-        } else if (unwrappedException instanceof ScriptException scriptException) {
-            handleScriptException(scriptException, unattended);
-        } else if (unwrappedException instanceof BulkIndexingException bulkIndexingException) {
-            handleBulkIndexingException(bulkIndexingException, unattended, getNumFailureRetries(settingsConfig));
-        } else if (unwrappedException instanceof ClusterBlockException clusterBlockException) {
+        if (unwrappedException instanceof CircuitBreakingException e) {
+            handleCircuitBreakingException(e, unattended);
+        } else if (unwrappedException instanceof ScriptException e) {
+            handleScriptException(e, unattended);
+        } else if (unwrappedException instanceof BulkIndexingException e) {
+            handleBulkIndexingException(e, unattended, getNumFailureRetries(settingsConfig));
+        } else if (unwrappedException instanceof ClusterBlockException e) {
             // gh#89802 always retry for a cluster block exception, because a cluster block should be temporary.
-            retry(clusterBlockException, clusterBlockException.getDetailedMessage(), unattended, getNumFailureRetries(settingsConfig));
-        } else if (unwrappedException instanceof ElasticsearchException elasticsearchException) {
-            handleElasticsearchException(elasticsearchException, unattended, getNumFailureRetries(settingsConfig));
-        } else if (unwrappedException instanceof IllegalArgumentException illegalArgumentException) {
-            handleIllegalArgumentException(illegalArgumentException, unattended);
+            retry(e, e.getDetailedMessage(), unattended, getNumFailureRetries(settingsConfig));
+        } else if (unwrappedException instanceof SearchPhaseExecutionException e) {
+            // The reason of a SearchPhaseExecutionException unfortunately contains a full stack trace.
+            // Instead of displaying that to the user, get the cause's message instead.
+            retry(e, e.getCause() != null ? e.getCause().getMessage() : null, unattended, getNumFailureRetries(settingsConfig));
+        } else if (unwrappedException instanceof ElasticsearchException e) {
+            handleElasticsearchException(e, unattended, getNumFailureRetries(settingsConfig));
+        } else if (unwrappedException instanceof IllegalArgumentException e) {
+            handleIllegalArgumentException(e, unattended);
         } else {
             retry(
                 unwrappedException,
@@ -88,21 +93,23 @@ class TransformFailureHandler {
      *
      * @param e the exception caught
      * @param settingsConfig The settings
+     * @return true if there is at least one more retry to be made, false otherwise
      */
     boolean handleStatePersistenceFailure(Exception e, SettingsConfig settingsConfig) {
         // we use the same setting for retries, however a separate counter, because the failure
         // counter for search/index gets reset after a successful bulk index request
         int numFailureRetries = getNumFailureRetries(settingsConfig);
 
-        final int failureCount = context.incrementAndGetStatePersistenceFailureCount(e);
+        int failureCount = context.incrementAndGetStatePersistenceFailureCount(e);
 
         if (numFailureRetries != -1 && failureCount > numFailureRetries) {
             fail(
+                e,
                 "task encountered more than " + numFailureRetries + " failures updating internal state; latest failure: " + e.getMessage()
             );
-            return true;
+            return false;
         }
-        return false;
+        return true;
     }
 
     /**
@@ -130,7 +137,7 @@ class TransformFailureHandler {
             if (unattended) {
                 retry(circuitBreakingException, message, true, -1);
             } else {
-                fail(message);
+                fail(circuitBreakingException, message);
             }
         } else {
             String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize, newPageSize);
@@ -155,7 +162,7 @@ class TransformFailureHandler {
         if (unattended) {
             retry(scriptException, message, true, -1);
         } else {
-            fail(message);
+            fail(scriptException, message);
         }
     }
 
@@ -172,7 +179,7 @@ class TransformFailureHandler {
                 TransformMessages.LOG_TRANSFORM_PIVOT_IRRECOVERABLE_BULK_INDEXING_ERROR,
                 bulkIndexingException.getDetailedMessage()
             );
-            fail(message);
+            fail(bulkIndexingException, message);
         } else {
             retry(bulkIndexingException, bulkIndexingException.getDetailedMessage(), unattended, numFailureRetries);
         }
@@ -190,7 +197,7 @@ class TransformFailureHandler {
     private void handleElasticsearchException(ElasticsearchException elasticsearchException, boolean unattended, int numFailureRetries) {
         if (unattended == false && ExceptionRootCauseFinder.isExceptionIrrecoverable(elasticsearchException)) {
             String message = "task encountered irrecoverable failure: " + elasticsearchException.getDetailedMessage();
-            fail(message);
+            fail(elasticsearchException, message);
         } else {
             retry(elasticsearchException, elasticsearchException.getDetailedMessage(), unattended, numFailureRetries);
         }
@@ -209,7 +216,7 @@ class TransformFailureHandler {
             retry(illegalArgumentException, illegalArgumentException.getMessage(), true, -1);
         } else {
             String message = "task encountered irrecoverable failure: " + illegalArgumentException.getMessage();
-            fail(message);
+            fail(illegalArgumentException, message);
         }
     }
 
@@ -226,14 +233,13 @@ class TransformFailureHandler {
      */
     private void retry(Throwable unwrappedException, String message, boolean unattended, int numFailureRetries) {
         // group failures to decide whether to report it below
-        final boolean repeatedFailure = context.getLastFailure() == null
-            ? false
-            : unwrappedException.getClass().equals(context.getLastFailure().getClass());
+        final boolean repeatedFailure = context.getLastFailure() != null
+            && unwrappedException.getClass().equals(context.getLastFailure().getClass());
 
         final int failureCount = context.incrementAndGetFailureCount(unwrappedException);
 
         if (unattended == false && numFailureRetries != -1 && failureCount > numFailureRetries) {
-            fail("task encountered more than " + numFailureRetries + " failures; latest failure: " + message);
+            fail(unwrappedException, "task encountered more than " + numFailureRetries + " failures; latest failure: " + message);
             return;
         }
 
@@ -248,7 +254,9 @@ class TransformFailureHandler {
                 numFailureRetries
             );
 
-            logger.log(unattended ? Level.INFO : Level.WARN, () -> "[" + transformId + "] " + retryMessage);
+            logger.atLevel(unattended ? Level.INFO : Level.WARN)
+                .withThrowable(unwrappedException)
+                .log("[{}] {}", transformId, retryMessage);
             auditor.audit(unattended ? INFO : WARNING, transformId, retryMessage);
         }
     }
@@ -261,9 +269,9 @@ class TransformFailureHandler {
      *
      * @param failureMessage the reason of the failure
      */
-    private void fail(String failureMessage) {
+    private void fail(Throwable exception, String failureMessage) {
         // note: logging and audit is done as part of context.markAsFailed
-        context.markAsFailed(failureMessage);
+        context.markAsFailed(exception, failureMessage);
     }
 
     /**

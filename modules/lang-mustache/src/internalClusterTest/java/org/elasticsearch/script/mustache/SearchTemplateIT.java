@@ -18,6 +18,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DummyQueryParserPlugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -54,8 +55,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     @Before
     public void setup() throws IOException {
         createIndex("test");
-        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "value1").endObject()).get();
-        client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("text", "value2").endObject()).get();
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "value1").endObject()).get();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("text", "value2").endObject()).get();
         indicesAdmin().prepareRefresh().get();
     }
 
@@ -165,11 +166,11 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         assertNotNull(getResponse.getSource());
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
         indicesAdmin().prepareRefresh().get();
 
@@ -187,6 +188,57 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         getResponse = clusterAdmin().prepareGetStoredScript("testTemplate").get();
         assertNull(getResponse.getSource());
+    }
+
+    public void testBadTemplate() {
+
+        // This template will produce badly formed json if given a multi-valued `text_fields` parameter,
+        // as it does not add commas between the entries. We test that it produces a 400 json parsing
+        // error both when used directly and when used in a render template request.
+
+        String script = """
+            {
+                "query": {
+                    "multi_match": {
+                      "query": "{{query_string}}",
+                      "fields": [{{#text_fields}}"{{name}}^{{boost}}"{{/text_fields}}]
+                    }
+                },
+                "from": "{{from}}",
+                "size": "{{size}}"
+            }""";
+
+        Map<String, Object> params = Map.of(
+            "text_fields",
+            List.of(Map.of("name", "title", "boost", 10), Map.of("name", "description", "boost", 2)),
+            "from",
+            0,
+            "size",
+            0
+        );
+
+        {
+            XContentParseException e = expectThrows(XContentParseException.class, () -> {
+                new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest())
+                    .setScript(script)
+                    .setScriptParams(params)
+                    .setScriptType(ScriptType.INLINE)
+                    .get();
+            });
+            assertThat(e.getMessage(), containsString("Unexpected character"));
+        }
+
+        {
+            XContentParseException e = expectThrows(XContentParseException.class, () -> {
+                new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest())
+                    .setScript(script)
+                    .setScriptParams(params)
+                    .setScriptType(ScriptType.INLINE)
+                    .setSimulate(true)
+                    .get();
+            });
+            assertThat(e.getMessage(), containsString("Unexpected character"));
+        }
     }
 
     public void testIndexedTemplate() throws Exception {
@@ -211,11 +263,11 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         assertAcked(clusterAdmin().preparePutStoredScript().setId("3").setContent(new BytesArray(script), XContentType.JSON));
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
         indicesAdmin().prepareRefresh().get();
 
@@ -252,7 +304,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         createIndex("testindex");
         ensureGreen("testindex");
 
-        client().prepareIndex("testindex").setId("1").setSource(jsonBuilder().startObject().field("searchtext", "dev1").endObject()).get();
+        prepareIndex("testindex").setId("1").setSource(jsonBuilder().startObject().field("searchtext", "dev1").endObject()).get();
         indicesAdmin().prepareRefresh().get();
 
         int iterations = randomIntBetween(2, 11);
@@ -330,11 +382,11 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         assertAcked(clusterAdmin().preparePutStoredScript().setId("4").setContent(new BytesArray(multiQuery), XContentType.JSON));
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
         indicesAdmin().prepareRefresh().get();
 

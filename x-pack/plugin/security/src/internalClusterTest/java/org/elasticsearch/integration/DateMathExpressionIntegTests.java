@@ -83,7 +83,11 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         MultiSearchResponse multiSearchResponse = client.prepareMultiSearch()
             .add(client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()).request())
             .get();
-        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
+        try {
+            assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
+        } finally {
+            multiSearchResponse.decRef();
+        }
 
         UpdateResponse updateResponse = client.prepareUpdate(expression, response.getId())
             .setDoc(Requests.INDEX_CONTENT_TYPE, "new", "field")

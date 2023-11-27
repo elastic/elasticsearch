@@ -31,7 +31,7 @@ import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_NULLABLE_MULTIVALUE_FUNCTION_EVALUATOR;
-import static org.elasticsearch.compute.gen.Types.BLOCK_REF;
+import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
@@ -39,6 +39,8 @@ import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
+import static org.elasticsearch.compute.gen.Types.builderType;
+import static org.elasticsearch.compute.gen.Types.vectorFixedBuilderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class MvEvaluatorImplementer {
@@ -182,7 +184,7 @@ public class MvEvaluatorImplementer {
         Consumer<MethodSpec.Builder> body
     ) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder(name);
-        builder.returns(BLOCK_REF).addParameter(BLOCK_REF, "ref");
+        builder.returns(BLOCK).addParameter(BLOCK, "fieldVal");
         if (override) {
             builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         } else {
@@ -192,32 +194,21 @@ public class MvEvaluatorImplementer {
         TypeName blockType = blockType(fieldType);
 
         preflight.accept(builder);
-
-        builder.beginControlFlow("try (ref)");
-        builder.addStatement("$T v = ($T) ref.block()", blockType, blockType);
+        builder.addStatement("$T v = ($T) fieldVal", blockType, blockType);
         builder.addStatement("int positionCount = v.getPositionCount()");
+        TypeName builderType;
         if (nullable) {
-            TypeName resultBlockType = blockType(resultType);
-            builder.beginControlFlow(
-                "try ($T.Builder builder = $T.newBlockBuilder(positionCount, driverContext.blockFactory()))",
-                resultBlockType,
-                resultBlockType
-            );
+            builderType = builderType(blockType(resultType));
         } else if (resultType.equals(BYTES_REF)) {
-            TypeName resultVectorType = vectorType(resultType);
-            builder.beginControlFlow(
-                "try ($T.Builder builder = $T.newVectorBuilder(positionCount, driverContext.blockFactory()))",
-                resultVectorType,
-                resultVectorType
-            );
+            builderType = builderType(vectorType(resultType));
         } else {
-            TypeName resultVectorType = vectorType(resultType);
-            builder.beginControlFlow(
-                "try ($T.FixedBuilder builder = $T.newVectorFixedBuilder(positionCount, driverContext.blockFactory()))",
-                resultVectorType,
-                resultVectorType
-            );
+            builderType = vectorFixedBuilderType(resultType);
         }
+        builder.beginControlFlow(
+            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            builderType,
+            Methods.buildFromFactory(builderType)
+        );
 
         if (false == workType.equals(fieldType) && workType.isPrimitive() == false) {
             builder.addStatement("$T work = new $T()", workType, workType);
@@ -254,8 +245,7 @@ public class MvEvaluatorImplementer {
         }
         builder.endControlFlow();
 
-        builder.addStatement("return Block.Ref.floating(builder.build()$L)", nullable ? "" : ".asBlock()");
-        builder.endControlFlow();
+        builder.addStatement("return builder.build()$L", nullable ? "" : ".asBlock()");
         builder.endControlFlow();
         return builder.build();
     }
@@ -266,8 +256,8 @@ public class MvEvaluatorImplementer {
             if (ascendingFunction == null) {
                 return;
             }
-            builder.beginControlFlow("if (ref.block().mvSortedAscending())");
-            builder.addStatement("return $L(ref)", name.replace("eval", "evalAscending"));
+            builder.beginControlFlow("if (fieldVal.mvSortedAscending())");
+            builder.addStatement("return $L(fieldVal)", name.replace("eval", "evalAscending"));
             builder.endControlFlow();
         }, builder -> {
             builder.addStatement("int first = v.getFirstValueIndex(p)");

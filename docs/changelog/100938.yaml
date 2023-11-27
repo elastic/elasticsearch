@@ -1,0 +1,5 @@
+pr: 100938
+summary: "Set includeShardsStats = false in NodesStatsRequest where the caller does not use shards-level statistics"
+area: Stats
+type: enhancement
+issues: []

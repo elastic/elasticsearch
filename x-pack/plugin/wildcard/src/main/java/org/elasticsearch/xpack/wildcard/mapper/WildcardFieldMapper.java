@@ -122,8 +122,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
     });
 
-    public static class PunctuationFoldingFilter extends TokenFilter {
-        @SuppressWarnings("this-escape")
+    public static final class PunctuationFoldingFilter extends TokenFilter {
         private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
 
         /**
@@ -137,7 +136,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public final boolean incrementToken() throws IOException {
+        public boolean incrementToken() throws IOException {
             if (input.incrementToken()) {
                 normalize(termAtt.buffer(), 0, termAtt.length());
                 return true;
@@ -587,7 +586,7 @@ public class WildcardFieldMapper extends FieldMapper {
             throw new IllegalStateException("Invalid query type found parsing regex query:" + approxQuery);
         }
 
-        protected void getNgramTokens(Set<String> tokens, String fragment) {
+        private void getNgramTokens(Set<String> tokens, String fragment) {
             if (fragment.equals(TOKEN_START_STRING) || fragment.equals(TOKEN_END_STRING)) {
                 // If a regex is a form of match-all e.g. ".*" we only produce the token start/end markers as search
                 // terms which can be ignored.
@@ -856,9 +855,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                // TODO it'd almost certainly be faster to drop directly to doc values like we do with keyword but this'll do for now
-                IndexFieldData<?> fd = new StringBinaryIndexFieldData(name(), CoreValuesSourceType.KEYWORD, null);
-                return BlockDocValuesReader.bytesRefsFromDocValues(context -> fd.load(context).getBytesValues());
+                return new BlockDocValuesReader.BytesRefsFromBinaryBlockLoader(name());
             }
             return null;
         }

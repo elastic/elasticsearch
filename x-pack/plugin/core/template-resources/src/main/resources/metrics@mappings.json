@@ -19,6 +19,22 @@
               "index": false
             }
           }
+        },
+        {
+          "histogram_metrics": {
+            "mapping": {
+              "type": "histogram"
+            }
+          }
+        },
+        {
+          "summary_metrics": {
+            "mapping": {
+              "type": "aggregate_metric_double",
+              "metrics": ["sum", "value_count"],
+              "default_metric": "value_count"
+            }
+          }
         }
       ],
       "properties": {
@@ -37,5 +53,6 @@
     "description": "default mappings for the metrics index template installed by x-pack",
     "managed": true
   },
-  "version": ${xpack.stack.template.version}
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
 }

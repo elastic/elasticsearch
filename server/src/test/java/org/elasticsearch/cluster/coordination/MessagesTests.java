@@ -43,46 +43,46 @@ public class MessagesTests extends ESTestCase {
                     // change sourceNode
                     new Join(
                         createNode(randomAlphaOfLength(20)),
-                        join.getTargetNode(),
-                        join.getTerm(),
-                        join.getLastAcceptedTerm(),
-                        join.getLastAcceptedVersion()
+                        join.masterCandidateNode(),
+                        join.term(),
+                        join.lastAcceptedTerm(),
+                        join.lastAcceptedVersion()
                     );
                 case 1 ->
                     // change targetNode
                     new Join(
-                        join.getSourceNode(),
+                        join.votingNode(),
                         createNode(randomAlphaOfLength(20)),
-                        join.getTerm(),
-                        join.getLastAcceptedTerm(),
-                        join.getLastAcceptedVersion()
+                        join.term(),
+                        join.lastAcceptedTerm(),
+                        join.lastAcceptedVersion()
                     );
                 case 2 ->
                     // change term
                     new Join(
-                        join.getSourceNode(),
-                        join.getTargetNode(),
-                        randomValueOtherThan(join.getTerm(), ESTestCase::randomNonNegativeLong),
-                        join.getLastAcceptedTerm(),
-                        join.getLastAcceptedVersion()
+                        join.votingNode(),
+                        join.masterCandidateNode(),
+                        randomValueOtherThan(join.term(), ESTestCase::randomNonNegativeLong),
+                        join.lastAcceptedTerm(),
+                        join.lastAcceptedVersion()
                     );
                 case 3 ->
                     // change last accepted term
                     new Join(
-                        join.getSourceNode(),
-                        join.getTargetNode(),
-                        join.getTerm(),
-                        randomValueOtherThan(join.getLastAcceptedTerm(), ESTestCase::randomNonNegativeLong),
-                        join.getLastAcceptedVersion()
+                        join.votingNode(),
+                        join.masterCandidateNode(),
+                        join.term(),
+                        randomValueOtherThan(join.lastAcceptedTerm(), ESTestCase::randomNonNegativeLong),
+                        join.lastAcceptedVersion()
                     );
                 case 4 ->
                     // change version
                     new Join(
-                        join.getSourceNode(),
-                        join.getTargetNode(),
-                        join.getTerm(),
-                        join.getLastAcceptedTerm(),
-                        randomValueOtherThan(join.getLastAcceptedVersion(), ESTestCase::randomNonNegativeLong)
+                        join.votingNode(),
+                        join.masterCandidateNode(),
+                        join.term(),
+                        join.lastAcceptedTerm(),
+                        randomValueOtherThan(join.lastAcceptedVersion(), ESTestCase::randomNonNegativeLong)
                     );
                 default -> throw new AssertionError();
             }
@@ -175,7 +175,7 @@ public class MessagesTests extends ESTestCase {
                 case 1 ->
                     // change term
                     new StartJoinRequest(
-                        startJoinRequest.getSourceNode(),
+                        startJoinRequest.getMasterCandidateNode(),
                         randomValueOtherThan(startJoinRequest.getTerm(), ESTestCase::randomNonNegativeLong)
                     );
                 default -> throw new AssertionError();
@@ -224,20 +224,22 @@ public class MessagesTests extends ESTestCase {
             randomNonNegativeLong()
         );
         JoinRequest initialJoinRequest = new JoinRequest(
-            initialJoin.getSourceNode(),
+            initialJoin.votingNode(),
             CompatibilityVersionsUtils.fakeSystemIndicesRandom(),
+            Set.of(generateRandomStringArray(10, 10, false)),
             randomNonNegativeLong(),
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin)
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             initialJoinRequest,
             joinRequest -> copyWriteable(joinRequest, writableRegistry(), JoinRequest::new),
-            joinRequest -> switch (randomInt(3)) {
+            joinRequest -> switch (randomInt(4)) {
                 case 0 -> {
                     assumeTrue("Optional join needs to be empty", joinRequest.getOptionalJoin().isEmpty());
                     yield new JoinRequest(
                         createNode(randomAlphaOfLength(10)),
                         joinRequest.getCompatibilityVersions(),
+                        joinRequest.getFeatures(),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin()
                     );
@@ -248,16 +250,25 @@ public class MessagesTests extends ESTestCase {
                         TransportVersionUtils.randomVersion(Set.of(joinRequest.getCompatibilityVersions().transportVersion())),
                         Map.of()
                     ),
+                    joinRequest.getFeatures(),
                     joinRequest.getMinimumTerm(),
                     joinRequest.getOptionalJoin()
                 );
                 case 2 -> new JoinRequest(
                     joinRequest.getSourceNode(),
                     joinRequest.getCompatibilityVersions(),
+                    randomValueOtherThan(joinRequest.getFeatures(), () -> Set.of(generateRandomStringArray(10, 10, false))),
+                    joinRequest.getMinimumTerm(),
+                    joinRequest.getOptionalJoin()
+                );
+                case 3 -> new JoinRequest(
+                    joinRequest.getSourceNode(),
+                    joinRequest.getCompatibilityVersions(),
+                    joinRequest.getFeatures(),
                     randomValueOtherThan(joinRequest.getMinimumTerm(), ESTestCase::randomNonNegativeLong),
                     joinRequest.getOptionalJoin()
                 );
-                case 3 -> {
+                case 4 -> {
                     // change OptionalJoin
                     Join newJoin = new Join(
                         joinRequest.getSourceNode(),
@@ -269,6 +280,7 @@ public class MessagesTests extends ESTestCase {
                     yield new JoinRequest(
                         joinRequest.getSourceNode(),
                         joinRequest.getCompatibilityVersions(),
+                        joinRequest.getFeatures(),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin().isPresent() && randomBoolean() ? Optional.empty() : Optional.of(newJoin)
                     );

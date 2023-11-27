@@ -11,12 +11,7 @@ Usually the voting configuration is the same as the set of all the
 master-eligible nodes that are currently in the cluster. However, there are some
 situations in which they may be different.
 
-IMPORTANT: To ensure the cluster remains available, you **must not stop half or
-more of the nodes in the voting configuration at the same time**. As long as more
-than half of the voting nodes are available, the cluster can work normally. For
-example, if there are three or four master-eligible nodes, the cluster
-can tolerate one unavailable node. If there are two or fewer master-eligible
-nodes, they must all remain available.
+include::quorums.asciidoc[tag=quorums-and-availability]
 
 After a node joins or leaves the cluster, {es} reacts by automatically making
 corresponding changes to the voting configuration in order to ensure that the

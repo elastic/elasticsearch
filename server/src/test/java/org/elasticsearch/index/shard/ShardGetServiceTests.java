@@ -30,7 +30,6 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class ShardGetServiceTests extends IndexShardTestCase {
 
@@ -241,16 +240,17 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
         assertNull(getResult);
         var lastUnsafeGeneration = engine.getLastUnsafeSegmentGenerationForGets();
-        assertThat(lastUnsafeGeneration, greaterThan(0L));
+        // last unsafe generation is set to last committed gen after the refresh triggered by realtime get
+        assertThat(lastUnsafeGeneration, equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
         assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
 
         // A flush shouldn't change the recorded last unsafe generation for gets
-        PlainActionFuture<Engine.FlushResult> flushFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<Engine.FlushResult> flushFuture = new PlainActionFuture<>();
         engine.flush(true, true, flushFuture);
         var flushResult = flushFuture.actionGet();
         assertTrue(flushResult.flushPerformed());
-        assertThat(flushResult.generation(), equalTo(lastUnsafeGeneration));
+        assertThat(flushResult.generation(), equalTo(lastUnsafeGeneration + 1));
         assertThat(engine.getLastUnsafeSegmentGenerationForGets(), equalTo(lastUnsafeGeneration));
         // No longer in translog
         getResult = primary.getService()

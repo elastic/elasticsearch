@@ -4,7 +4,7 @@
 
 **Syntax**
 
-[source,txt]
+[source,esql]
 ----
 GROK input "pattern"
 ----

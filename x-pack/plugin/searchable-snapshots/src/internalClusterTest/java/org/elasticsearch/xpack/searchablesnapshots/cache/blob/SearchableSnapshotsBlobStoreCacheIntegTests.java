@@ -132,7 +132,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         for (int i = numberOfDocs; i > 0; i--) {
             XContentBuilder builder = XContentFactory.smileBuilder();
             builder.startObject().field("text", randomRealisticUnicodeOfCodepointLengthBetween(5, 50)).field("num", i).endObject();
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource(builder));
+            indexRequestBuilders.add(prepareIndex(indexName).setSource(builder));
         }
         indexRandom(true, true, true, indexRequestBuilders);
 
@@ -360,7 +360,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
             assertThat(refreshResponse.getSuccessfulShards(), greaterThan(0));
             assertThat(refreshResponse.getFailedShards(), equalTo(0));
         } catch (IndexNotFoundException indexNotFoundException) {
-            throw new AssertionError("unexpected", indexNotFoundException);
+            fail(indexNotFoundException);
         }
     }
 

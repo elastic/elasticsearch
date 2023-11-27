@@ -278,7 +278,7 @@ docsWhereFunction
 // tag::whereFunction[]
 FROM employees
 | KEEP first_name, last_name, height
-| WHERE length(first_name) < 4
+| WHERE LENGTH(first_name) < 4
 // end::whereFunction[]
 | SORT first_name
 ;
@@ -431,7 +431,7 @@ Hello Universe
 docsCase
 // tag::case[]
 FROM employees
-| EVAL type = case(
+| EVAL type = CASE(
     languages <= 1, "monolingual",
     languages <= 2, "bilingual",
      "polyglot")
@@ -554,4 +554,100 @@ ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1"
 msg:keyword  | ip:keyword | date:date
 some text    | 127.0.0.1  | 2023-01-23T12:15:00.000Z
 // end::dissectWithToDatetime-result[]
+;
+
+dissectRightPaddingModifier
+// tag::dissectRightPaddingModifier[]
+ROW message="1998-08-10T17:15:42          WARN"
+| DISSECT message "%{ts->} %{level}"
+// end::dissectRightPaddingModifier[]
+;
+
+// tag::dissectRightPaddingModifier-result[]
+message:keyword  | ts:keyword | level:keyword
+1998-08-10T17:15:42          WARN|1998-08-10T17:15:42|WARN
+// end::dissectRightPaddingModifier-result[]
+;
+
+dissectEmptyRightPaddingModifier
+// tag::dissectEmptyRightPaddingModifier[]
+ROW message="[1998-08-10T17:15:42]          [WARN]"
+| DISSECT message "[%{ts}]%{->}[%{level}]"
+// end::dissectEmptyRightPaddingModifier[]
+| KEEP message, ts, level
+;
+
+// tag::dissectEmptyRightPaddingModifier-result[]
+message:keyword  | ts:keyword | level:keyword
+[1998-08-10T17:15:42]          [WARN]|1998-08-10T17:15:42 |WARN
+// end::dissectEmptyRightPaddingModifier-result[]
+;
+
+dissectAppendModifier
+// tag::dissectAppendModifier[]
+ROW message="john jacob jingleheimer schmidt"
+| DISSECT message "%{+name} %{+name} %{+name} %{+name}" APPEND_SEPARATOR=" "
+// end::dissectAppendModifier[]
+;
+
+// tag::dissectAppendModifier-result[]
+message:keyword  | name:keyword
+john jacob jingleheimer schmidt|john jacob jingleheimer schmidt
+// end::dissectAppendModifier-result[]
+;
+
+dissectAppendWithOrderModifier
+// tag::dissectAppendWithOrderModifier[]
+ROW message="john jacob jingleheimer schmidt"
+| DISSECT message "%{+name/2} %{+name/4} %{+name/3} %{+name/1}" APPEND_SEPARATOR=","
+// end::dissectAppendWithOrderModifier[]
+;
+
+// tag::dissectAppendWithOrderModifier-result[]
+message:keyword  | name:keyword
+john jacob jingleheimer schmidt|schmidt,john,jingleheimer,jacob
+// end::dissectAppendWithOrderModifier-result[]
+;
+
+dissectNamedSkipKey
+// tag::dissectNamedSkipKey[]
+ROW message="1.2.3.4 - - 30/Apr/1998:22:00:52 +0000"
+| DISSECT message "%{clientip} %{?ident} %{?auth} %{@timestamp}"
+// end::dissectNamedSkipKey[]
+;
+
+// tag::dissectNamedSkipKey-result[]
+message:keyword  | clientip:keyword  | @timestamp:keyword
+1.2.3.4 - - 30/Apr/1998:22:00:52 +0000|1.2.3.4        |30/Apr/1998:22:00:52 +0000
+// end::dissectNamedSkipKey-result[]
+;
+
+docsLike
+// tag::like[]
+FROM employees
+| WHERE first_name LIKE "?b*"
+| KEEP first_name, last_name
+// end::like[]
+| SORT first_name
+;
+
+// tag::like-result[]
+first_name:keyword  | last_name:keyword
+Ebbe           |Callaway    
+Eberhardt      |Terkki         
+// end::like-result[]
+;
+
+docsRlike
+// tag::rlike[]
+FROM employees
+| WHERE first_name RLIKE ".leja.*"
+| KEEP first_name, last_name
+// end::rlike[]
+;
+
+// tag::rlike-result[]
+first_name:keyword  | last_name:keyword
+Alejandro      |McAlpine     
+// end::rlike-result[]
 ;

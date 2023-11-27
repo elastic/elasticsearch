@@ -9,6 +9,7 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
@@ -160,6 +161,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         final Settings settings1 = Settings.builder()
             .put(Ec2ClientSettings.PROXY_HOST_SETTING.getKey(), "proxy_host_1")
             .put(Ec2ClientSettings.PROXY_PORT_SETTING.getKey(), 881)
+            .put(Ec2ClientSettings.PROXY_SCHEME_SETTING.getKey(), "http")
             .put(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), "ec2_endpoint_1")
             .setSecureSettings(mockSecure1)
             .build();
@@ -175,6 +177,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         final Settings settings2 = Settings.builder()
             .put(Ec2ClientSettings.PROXY_HOST_SETTING.getKey(), "proxy_host_2")
             .put(Ec2ClientSettings.PROXY_PORT_SETTING.getKey(), 882)
+            .put(Ec2ClientSettings.PROXY_SCHEME_SETTING.getKey(), "http")
             .put(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), "ec2_endpoint_2")
             .setSecureSettings(mockSecure2)
             .build();
@@ -194,6 +197,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
                     assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPassword(), is("proxy_password_1"));
                     assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyHost(), is("proxy_host_1"));
                     assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPort(), is(881));
+                    assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyProtocol(), is(Protocol.HTTP));
                     assertThat(((AmazonEC2Mock) clientReference.client()).endpoint, is("ec2_endpoint_1"));
                 }
                 // reload secure settings2
@@ -211,6 +215,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
                     assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPassword(), is("proxy_password_1"));
                     assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyHost(), is("proxy_host_1"));
                     assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPort(), is(881));
+                    assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyProtocol(), is(Protocol.HTTP));
                     assertThat(((AmazonEC2Mock) clientReference.client()).endpoint, is("ec2_endpoint_1"));
                 }
             }
@@ -228,6 +233,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
                 assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPassword(), is("proxy_password_2"));
                 assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyHost(), is("proxy_host_2"));
                 assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPort(), is(882));
+                assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyProtocol(), is(Protocol.HTTP));
                 assertThat(((AmazonEC2Mock) clientReference.client()).endpoint, is("ec2_endpoint_2"));
             }
         }

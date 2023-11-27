@@ -40,26 +40,24 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      LongBlock valBlock = (LongBlock) valRef.block();
-      try (Block.Ref formatterRef = formatter.eval(page)) {
-        BytesRefBlock formatterBlock = (BytesRefBlock) formatterRef.block();
+  public Block eval(Page page) {
+    try (LongBlock valBlock = (LongBlock) val.eval(page)) {
+      try (BytesRefBlock formatterBlock = (BytesRefBlock) formatter.eval(page)) {
         LongVector valVector = valBlock.asVector();
         if (valVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+          return eval(page.getPositionCount(), valBlock, formatterBlock);
         }
         BytesRefVector formatterVector = formatterBlock.asVector();
         if (formatterVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+          return eval(page.getPositionCount(), valBlock, formatterBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), valVector, formatterVector).asBlock());
+        return eval(page.getPositionCount(), valVector, formatterVector).asBlock();
       }
     }
   }
 
   public BytesRefBlock eval(int positionCount, LongBlock valBlock, BytesRefBlock formatterBlock) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
@@ -78,7 +76,7 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
 
   public BytesRefVector eval(int positionCount, LongVector valVector,
       BytesRefVector formatterVector) {
-    try(BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch), locale));

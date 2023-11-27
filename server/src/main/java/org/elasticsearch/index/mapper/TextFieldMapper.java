@@ -87,7 +87,7 @@ import java.util.function.IntPredicate;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** A {@link FieldMapper} for full-text fields. */
-public class TextFieldMapper extends FieldMapper {
+public final class TextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
@@ -678,7 +678,7 @@ public class TextFieldMapper extends FieldMapper {
             super(name, indexed, stored, false, tsi, meta);
             fielddata = false;
             this.isSyntheticSource = isSyntheticSource;
-            this.syntheticSourceDelegate = syntheticSourceDelegate;
+            this.syntheticSourceDelegate = syntheticSourceDelegate;  // TODO rename to "exactDelegate" or something
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.indexPhrases = indexPhrases;
         }
@@ -939,11 +939,16 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (syntheticSourceDelegate != null) {
-                return syntheticSourceDelegate.blockLoader(blContext);
+                return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
+                    @Override
+                    protected String delegatingTo() {
+                        return syntheticSourceDelegate.name();
+                    }
+                };
             }
             if (isSyntheticSource) {
                 if (isStored()) {
-                    return BlockStoredFieldsReader.bytesRefsFromStrings(name());
+                    return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
                 }
                 /*
                  * We *shouldn't fall to this exception. The mapping should be
@@ -954,10 +959,10 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(
                     "fetching values from a text field ["
                         + name()
-                        + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
+                        + "] is not supported because synthetic _source is enabled and we don't have a way to load the fields"
                 );
             }
-            return BlockSourceReader.bytesRefs(SourceValueFetcher.toString(blContext.sourcePaths(name())));
+            return new BlockSourceReader.BytesRefsBlockLoader(SourceValueFetcher.toString(blContext.sourcePaths(name())));
         }
 
         @Override
@@ -1019,7 +1024,7 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(
                     "fetching values from a text field ["
                         + name()
-                        + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
+                        + "] is not supported because synthetic _source is enabled and we don't have a way to load the fields"
                 );
             }
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
@@ -1033,6 +1038,10 @@ public class TextFieldMapper extends FieldMapper {
 
         public boolean isSyntheticSource() {
             return isSyntheticSource;
+        }
+
+        KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate() {
+            return syntheticSourceDelegate;
         }
     }
 
@@ -1155,8 +1164,7 @@ public class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
-    @SuppressWarnings("this-escape")
-    protected TextFieldMapper(
+    private TextFieldMapper(
         String simpleName,
         FieldType fieldType,
         TextFieldType mappedFieldType,

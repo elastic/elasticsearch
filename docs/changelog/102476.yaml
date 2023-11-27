@@ -1,0 +1,5 @@
+pr: 102476
+summary: Unwrap `ExecutionException` when loading from cache in `AbstractIndexOrdinalsFieldData`
+area: Aggregations
+type: bug
+issues: []

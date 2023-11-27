@@ -46,18 +46,17 @@ import java.util.function.Supplier;
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
  * after reducing all of the matches returned by the query phase
  */
-public class FetchPhase {
+public final class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
 
     private final FetchSubPhase[] fetchSubPhases;
 
-    @SuppressWarnings("this-escape")
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
-    public void execute(SearchContext context) {
+    public void execute(SearchContext context, int[] docIdsToLoad) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -66,7 +65,7 @@ public class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
-        if (context.docIdsToLoad() == null || context.docIdsToLoad().length == 0) {
+        if (docIdsToLoad == null || docIdsToLoad.length == 0) {
             // no individual hits to process, so we shortcut
             SearchHits hits = new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(), context.queryResult().getMaxScore());
             context.fetchResult().shardResult(hits, null);
@@ -76,7 +75,7 @@ public class FetchPhase {
         Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, profiler);
+            hits = buildSearchHits(context, docIdsToLoad, profiler);
         } finally {
             // Always finish profiling
             ProfileResult profileResult = profiler.finish();
@@ -92,12 +91,12 @@ public class FetchPhase {
         Source source;
 
         @Override
-        public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
+        public Source getSource(LeafReaderContext ctx, int doc) {
             return source;
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, Profiler profiler) {
+    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler) {
 
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
@@ -167,7 +166,7 @@ public class FetchPhase {
             }
         };
 
-        SearchHit[] hits = docsIterator.iterate(context.shardTarget(), context.searcher().getIndexReader(), context.docIdsToLoad());
+        SearchHit[] hits = docsIterator.iterate(context.shardTarget(), context.searcher().getIndexReader(), docIdsToLoad);
 
         if (context.isCancelled()) {
             throw new TaskCancelledException("cancelled");

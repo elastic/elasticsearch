@@ -50,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -78,7 +79,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(10, 50);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("test").setId(id).setSource("value", i).get();
+            prepareIndex("test").setId(id).setSource("value", i).get();
         }
         refresh("test");
         String pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
@@ -121,7 +122,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
             String index = "index-" + randomIntBetween(1, numIndices);
-            client().prepareIndex(index).setId(id).setSource("value", i).get();
+            prepareIndex(index).setId(id).setSource("value", i).get();
         }
         refresh();
         String pitId = openPointInTime(new String[] { "*" }, TimeValue.timeValueMinutes(2));
@@ -135,7 +136,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             for (int i = 0; i < moreDocs; i++) {
                 String id = "more-" + i;
                 String index = "index-" + randomIntBetween(1, numIndices);
-                client().prepareIndex(index).setId(id).setSource("value", i).get();
+                prepareIndex(index).setId(id).setSource("value", i).get();
             }
             refresh();
             resp = prepareSearch().get();
@@ -152,13 +153,62 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
     }
 
+    public void testIndexFilter() {
+        int numDocs = randomIntBetween(1, 9);
+        for (int i = 1; i <= 3; i++) {
+            String index = "index-" + i;
+            createIndex(index);
+            for (int j = 1; j <= numDocs; j++) {
+                String id = Integer.toString(j);
+                client().prepareIndex(index).setId(id).setSource("@timestamp", "2023-0" + i + "-0" + j).get();
+            }
+        }
+        refresh();
+
+        {
+
+            OpenPointInTimeRequest request = new OpenPointInTimeRequest("*").keepAlive(TimeValue.timeValueMinutes(2));
+            final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+            try {
+                SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), response.getPointInTimeId());
+                String[] actualIndices = searchContextId.getActualIndices();
+                assertEquals(3, actualIndices.length);
+            } finally {
+                closePointInTime(response.getPointInTimeId());
+            }
+        }
+        {
+            OpenPointInTimeRequest request = new OpenPointInTimeRequest("*").keepAlive(TimeValue.timeValueMinutes(2));
+            request.indexFilter(new RangeQueryBuilder("@timestamp").gte("2023-03-01"));
+            final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
+            String pitId = response.getPointInTimeId();
+            try {
+                SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), pitId);
+                String[] actualIndices = searchContextId.getActualIndices();
+                assertEquals(1, actualIndices.length);
+                assertEquals("index-3", actualIndices[0]);
+                assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setSize(50), resp -> {
+                    assertNoFailures(resp);
+                    assertHitCount(resp, numDocs);
+                    assertNotNull(resp.pointInTimeId());
+                    assertThat(resp.pointInTimeId(), equalTo(pitId));
+                    for (SearchHit hit : resp.getHits()) {
+                        assertEquals("index-3", hit.getIndex());
+                    }
+                });
+            } finally {
+                closePointInTime(pitId);
+            }
+        }
+    }
+
     public void testRelocation() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);
         createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1)).build());
         ensureGreen("test");
         int numDocs = randomIntBetween(10, 50);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("value", i).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("value", i).get();
         }
         refresh();
         String pitId = openPointInTime(new String[] { "test" }, TimeValue.timeValueMinutes(2));
@@ -179,7 +229,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 int moreDocs = randomIntBetween(10, 50);
                 for (int i = 0; i < moreDocs; i++) {
-                    client().prepareIndex("test").setId("more-" + i).setSource("value", i).get();
+                    prepareIndex("test").setId("more-" + i).setSource("value", i).get();
                 }
                 refresh();
             }
@@ -210,7 +260,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         int index1 = randomIntBetween(10, 50);
         for (int i = 0; i < index1; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index").setId(id).setSource("value", i).get();
+            prepareIndex("index").setId(id).setSource("value", i).get();
         }
         refresh();
         String pit = openPointInTime(new String[] { "index" }, TimeValue.timeValueSeconds(5));
@@ -241,13 +291,13 @@ public class PointInTimeIT extends ESIntegTestCase {
         int index1 = randomIntBetween(10, 50);
         for (int i = 0; i < index1; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index-1").setId(id).setSource("value", i).get();
+            prepareIndex("index-1").setId(id).setSource("value", i).get();
         }
 
         int index2 = randomIntBetween(10, 50);
         for (int i = 0; i < index2; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index-2").setId(id).setSource("value", i).get();
+            prepareIndex("index-2").setId(id).setSource("value", i).get();
         }
         refresh();
         String pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueMinutes(2));
@@ -305,7 +355,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                     }
                 }
             }
-            client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
+            prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
             SearchResponse resp = prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setPreference(null)
@@ -356,11 +406,11 @@ public class PointInTimeIT extends ESIntegTestCase {
 
         int numDocs1 = randomIntBetween(10, 50);
         for (int i = 0; i < numDocs1; i++) {
-            client().prepareIndex(randomFrom("test-1")).setId(Integer.toString(i)).setSource("value", i).get();
+            prepareIndex(randomFrom("test-1")).setId(Integer.toString(i)).setSource("value", i).get();
         }
         int numDocs2 = randomIntBetween(10, 50);
         for (int i = 0; i < numDocs2; i++) {
-            client().prepareIndex(randomFrom("test-2")).setId(Integer.toString(i)).setSource("value", i).get();
+            prepareIndex(randomFrom("test-2")).setId(Integer.toString(i)).setSource("value", i).get();
         }
         refresh();
         String pitId = openPointInTime(new String[] { "test-*" }, TimeValue.timeValueMinutes(2));
@@ -392,7 +442,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             createIndex(index, Settings.builder().put("index.number_of_shards", 1).build());
             int numDocs = randomIntBetween(3, 20);
             for (int j = 0; j < numDocs; j++) {
-                client().prepareIndex(index).setSource("value", randomIntBetween(0, 2)).get();
+                prepareIndex(index).setSource("value", randomIntBetween(0, 2)).get();
                 expectedNumDocs++;
             }
         }

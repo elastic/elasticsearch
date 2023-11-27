@@ -616,7 +616,6 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 localShard.getValue().generation()
                             );
                         }
-                        // TODO if we're PAUSING will we definitely notify the new master when we reach PAUSED or is there a race?
                     }
                 }
 

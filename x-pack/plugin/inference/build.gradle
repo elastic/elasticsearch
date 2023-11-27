@@ -18,6 +18,7 @@ dependencies {
   implementation project(path: ':libs:elasticsearch-logging')
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('ql'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:reindex')
 }

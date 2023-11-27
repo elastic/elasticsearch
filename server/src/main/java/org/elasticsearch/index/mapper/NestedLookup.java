@@ -16,6 +16,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Holds information about nested mappings
@@ -78,8 +79,8 @@ public interface NestedLookup {
      * Construct a NestedLookup from a list of NestedObjectMappers
      * @param mappers   the nested mappers to build a lookup over
      */
-    static NestedLookup build(List<NestedObjectMapper> mappers) {
-        if (mappers == null || mappers.isEmpty()) {
+    static NestedLookup build(List<NestedObjectMapper> mappers, Map<String, Set<String>> fieldsForModel) {
+        if ((mappers == null || mappers.isEmpty()) && fieldsForModel.isEmpty()) {
             return NestedLookup.EMPTY;
         }
         mappers = mappers.stream().sorted(Comparator.comparing(ObjectMapper::name)).toList();
@@ -95,7 +96,13 @@ public interface NestedLookup {
             }
             previous = mapper;
         }
-        List<String> nestedPathNames = mappers.stream().map(NestedObjectMapper::name).toList();
+
+        List<String> fieldNestedPathNames = mappers.stream().map(NestedObjectMapper::name).toList();
+        List<String> nestedPathNames = new ArrayList<>();
+        nestedPathNames.addAll(fieldNestedPathNames);
+        nestedPathNames.addAll(fieldsForModel.values().stream()
+            .flatMap(s -> s.stream().map(n ->  "_semantic_text." + n + ".inference"))
+            .toList());
 
         return new NestedLookup() {
 

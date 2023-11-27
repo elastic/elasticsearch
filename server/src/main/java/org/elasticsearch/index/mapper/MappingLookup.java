@@ -140,7 +140,6 @@ public final class MappingLookup {
                 nestedMappers.add((NestedObjectMapper) mapper);
             }
         }
-        this.nestedLookup = NestedLookup.build(nestedMappers);
 
         final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
         final Set<String> completionFields = new HashSet<>();
@@ -185,6 +184,7 @@ public final class MappingLookup {
         this.indexAnalyzersMap = Map.copyOf(indexAnalyzersMap);
         this.completionFields = Set.copyOf(completionFields);
         this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
+        this.nestedLookup = NestedLookup.build(nestedMappers, fieldTypeLookup.fieldsForModel());
 
         runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
         assert assertMapperNamesInterned(this.fieldMappers, this.objectMappers);
@@ -494,5 +494,9 @@ public final class MappingLookup {
 
     public Map<String, Set<String>> fieldsForModels() {
         return fieldTypeLookup.fieldsForModel();
+    }
+
+    public String modelForField(String fieldName) {
+        return fieldTypeLookup.modelForField(fieldName);
     }
 }

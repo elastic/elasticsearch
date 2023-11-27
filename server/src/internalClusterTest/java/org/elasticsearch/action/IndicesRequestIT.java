@@ -609,10 +609,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
         assertSameIndices(originalRequest, false, actions);
     }
 
-    private static void assertSameIndicesOptionalRequests(IndicesRequest originalRequest, String... actions) {
-        assertSameIndices(originalRequest, true, actions);
-    }
-
     private static void assertSameIndices(IndicesRequest originalRequest, boolean optional, String... actions) {
         for (String action : actions) {
             List<TransportRequest> requests = consumeTransportRequests(action);

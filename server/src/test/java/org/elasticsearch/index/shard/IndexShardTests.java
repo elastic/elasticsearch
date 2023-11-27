@@ -4167,9 +4167,11 @@ public class IndexShardTests extends IndexShardTestCase {
             @Override
             public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
                 if (shardStarted.get()) {
+                    logger.info("--> running flush after shard started {} {}", force, waitIfOngoing);
                     pendingListeners.add(listener);
                     safeAwait(flushExecutedBarrier);
                 } else {
+                    logger.info("--> running flush before shard started {} {}", force, waitIfOngoing);
                     super.flush(force, waitIfOngoing, listener);
                 }
             }

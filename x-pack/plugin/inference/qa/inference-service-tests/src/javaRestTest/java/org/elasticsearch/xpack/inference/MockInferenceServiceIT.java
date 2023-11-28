@@ -69,13 +69,14 @@ public class MockInferenceServiceIT extends ESRestTestCase {
             """);
     }
 
+    @SuppressWarnings("unchecked")
     public void testMockService() throws IOException {
         String modelId = "test-mock";
         var putModel = putModel(modelId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        var getModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
-        assertEquals(putModel, getModel);
+        var getModels = getModels(modelId, TaskType.SPARSE_EMBEDDING);
+        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
 
-        for (var modelMap : List.of(putModel, getModel)) {
+        for (var modelMap : List.of(putModel, model)) {
             assertEquals(modelId, modelMap.get("model_id"));
             assertEquals(TaskType.SPARSE_EMBEDDING, TaskType.fromString((String) modelMap.get("task_type")));
             assertEquals("test_service", modelMap.get("service"));
@@ -89,7 +90,7 @@ public class MockInferenceServiceIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testMockServiceWithMultipleInputs() throws IOException {
         String modelId = "test-mock-with-multi-inputs";
-        var putModel = putModel(modelId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel(modelId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
 
         // The response is randomly generated, the input can be anything
         var inference = inferOnMockService(
@@ -107,9 +108,10 @@ public class MockInferenceServiceIT extends ESRestTestCase {
     public void testMockService_DoesNotReturnSecretsInGetResponse() throws IOException {
         String modelId = "test-mock";
         var putModel = putModel(modelId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        var getModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
+        var getModels = getModels(modelId, TaskType.SPARSE_EMBEDDING);
+        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
 
-        var serviceSettings = (Map<String, Object>) getModel.get("service_settings");
+        var serviceSettings = (Map<String, Object>) model.get("service_settings");
         assertNull(serviceSettings.get("api_key"));
         assertNotNull(serviceSettings.get("model"));
 
@@ -127,7 +129,7 @@ public class MockInferenceServiceIT extends ESRestTestCase {
         return entityAsMap(reponse);
     }
 
-    public Map<String, Object> getModel(String modelId, TaskType taskType) throws IOException {
+    public Map<String, Object> getModels(String modelId, TaskType taskType) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         var request = new Request("GET", endpoint);
         var reponse = client().performRequest(request);

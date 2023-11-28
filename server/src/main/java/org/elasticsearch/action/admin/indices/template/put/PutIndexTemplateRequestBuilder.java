@@ -24,10 +24,6 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     AcknowledgedResponse,
     PutIndexTemplateRequestBuilder> {
 
-    public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action) {
-        super(client, action, new PutIndexTemplateRequest());
-    }
-
     public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action, String name) {
         super(client, action, new PutIndexTemplateRequest(name));
     }

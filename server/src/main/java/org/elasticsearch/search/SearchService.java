@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -654,22 +653,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        executor.execute(ActionRunnable.wrap(listener, new CheckedConsumer<>() {
-            @Override
-            public void accept(ActionListener<T> l) throws Exception {
-                var res = executable.get();
-                try {
-                    l.onResponse(res);
-                } finally {
-                    res.decRef();
-                }
-            }
-
-            @Override
-            public String toString() {
-                return executable.toString();
-            }
-        }));
+        executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
     }
 
     /**

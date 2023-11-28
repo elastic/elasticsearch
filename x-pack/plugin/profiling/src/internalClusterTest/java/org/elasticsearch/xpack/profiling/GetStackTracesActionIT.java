@@ -14,7 +14,7 @@ import java.util.List;
 
 public class GetStackTracesActionIT extends ProfilingTestCase {
     public void testGetStackTracesUnfiltered() throws Exception {
-        GetStackTracesRequest request = new GetStackTracesRequest(10, 1.0d, 1.0d, null, null, null, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(10, 1.0d, 1.0d, null, null, null, null, null, null, null);
         request.setAdjustSampleCount(true);
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
         assertEquals(40, response.getTotalSamples());
@@ -53,6 +53,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             "transaction.profiler_stack_trace_ids",
             null,
             null,
+            null,
             null
         );
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
@@ -88,6 +89,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             query,
             "apm-test-*",
             "transaction.profiler_stack_trace_ids",
+            null,
             null,
             null,
             null

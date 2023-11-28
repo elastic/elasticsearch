@@ -270,47 +270,56 @@ public class MultivalueDedupeTests extends ESTestCase {
         if (previousValues.contains(true)) {
             everSeen[2] = true;
         }
-        IntBlock hashes = new MultivalueDedupeBoolean((BooleanBlock) b.block()).hash(everSeen);
-        List<Boolean> hashedValues = new ArrayList<>();
-        if (everSeen[1]) {
-            hashedValues.add(false);
+        try (IntBlock hashes = new MultivalueDedupeBoolean((BooleanBlock) b.block()).hash(blockFactory(), everSeen)) {
+            List<Boolean> hashedValues = new ArrayList<>();
+            if (everSeen[1]) {
+                hashedValues.add(false);
+            }
+            if (everSeen[2]) {
+                hashedValues.add(true);
+            }
+            assertHash(b, hashes, hashedValues.size(), previousValues, i -> hashedValues.get((int) i));
         }
-        if (everSeen[2]) {
-            hashedValues.add(true);
-        }
-        assertHash(b, hashes, hashedValues.size(), previousValues, i -> hashedValues.get((int) i));
     }
 
     private void assertBytesRefHash(Set<BytesRef> previousValues, BasicBlockTests.RandomBlock b) {
         BytesRefHash hash = new BytesRefHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hash(hash);
-        assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> hash.get(i, new BytesRef()));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeBytesRef((BytesRefBlock) b.block()).hash(blockFactory(), hash);
+        try (IntBlock ords = hashes.ords()) {
+            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+            assertHash(b, ords, hash.size(), previousValues, i -> hash.get(i, new BytesRef()));
+        }
     }
 
     private void assertIntHash(Set<Integer> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hash(hash);
-        assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> (int) hash.get(i));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeInt((IntBlock) b.block()).hash(blockFactory(), hash);
+        try (IntBlock ords = hashes.ords()) {
+            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+            assertHash(b, ords, hash.size(), previousValues, i -> (int) hash.get(i));
+        }
     }
 
     private void assertLongHash(Set<Long> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(hash::add);
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hash(hash);
-        assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> hash.get(i));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeLong((LongBlock) b.block()).hash(blockFactory(), hash);
+        try (IntBlock ords = hashes.ords()) {
+            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+            assertHash(b, ords, hash.size(), previousValues, i -> hash.get(i));
+        }
     }
 
     private void assertDoubleHash(Set<Double> previousValues, BasicBlockTests.RandomBlock b) {
         LongHash hash = new LongHash(1, BigArrays.NON_RECYCLING_INSTANCE);
         previousValues.stream().forEach(d -> hash.add(Double.doubleToLongBits(d)));
-        MultivalueDedupe.HashResult hashes = new MultivalueDedupeDouble((DoubleBlock) b.block()).hash(hash);
-        assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
-        assertHash(b, hashes.ords(), hash.size(), previousValues, i -> Double.longBitsToDouble(hash.get(i)));
+        MultivalueDedupe.HashResult hashes = new MultivalueDedupeDouble((DoubleBlock) b.block()).hash(blockFactory(), hash);
+        try (IntBlock ords = hashes.ords()) {
+            assertThat(hashes.sawNull(), equalTo(b.values().stream().anyMatch(v -> v == null)));
+            assertHash(b, ords, hash.size(), previousValues, i -> Double.longBitsToDouble(hash.get(i)));
+        }
     }
 
     private void assertHash(

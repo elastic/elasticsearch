@@ -9,13 +9,14 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
 import java.util.List;
 
 public class ClearScrollRequestBuilder extends ActionRequestBuilder<ClearScrollRequest, ClearScrollResponse> {
 
-    public ClearScrollRequestBuilder(ElasticsearchClient client, ClearScrollAction action) {
+    public ClearScrollRequestBuilder(ElasticsearchClient client, ActionType<ClearScrollResponse> action) {
         super(client, action, new ClearScrollRequest());
     }
 

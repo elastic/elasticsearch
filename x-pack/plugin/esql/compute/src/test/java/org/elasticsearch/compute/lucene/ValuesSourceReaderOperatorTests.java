@@ -333,7 +333,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
             @Override
             public String parentField(String field) {
-                throw new UnsupportedOperationException();
+                return null;
             }
         })));
     }

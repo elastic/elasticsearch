@@ -44,6 +44,7 @@ import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -228,24 +229,19 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.customs = customs;
         this.wasReadFromDiff = wasReadFromDiff;
         this.routingNodes = routingNodes;
-        assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
+        assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
             ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
             : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
     }
 
-    private static boolean assertConsistentRoutingNodes(
-        RoutingTable routingTable,
-        DiscoveryNodes nodes,
-        @Nullable RoutingNodes routingNodes
-    ) {
-        if (routingNodes == null) {
-            return true;
+    private static void assertConsistentRoutingNodes(RoutingTable routingTable, DiscoveryNodes nodes, @Nullable RoutingNodes routingNodes) {
+        // calculating expected routing nodes may be costly, so we only do it when assertions are enabled
+        if (Assertions.ENABLED && Objects.nonNull(routingNodes)) {
+            final RoutingNodes expected = RoutingNodes.immutable(routingTable, nodes);
+            assert routingNodes.equals(expected)
+                : "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + expected + "]";
         }
-        final RoutingNodes expected = RoutingNodes.immutable(routingTable, nodes);
-        assert routingNodes.equals(expected)
-            : "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + expected + "]";
-        return true;
     }
 
     public long term() {

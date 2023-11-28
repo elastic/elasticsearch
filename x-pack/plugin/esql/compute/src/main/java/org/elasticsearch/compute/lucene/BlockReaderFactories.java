@@ -62,6 +62,11 @@ public final class BlockReaderFactories {
                 public Set<String> sourcePaths(String name) {
                     return ctx.sourcePath(name);
                 }
+
+                @Override
+                public String parentField(String field) {
+                    return ctx.parentPath(field);
+                }
             });
             if (loader == null) {
                 HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", fieldName);

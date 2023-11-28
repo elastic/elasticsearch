@@ -26,8 +26,10 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class MockInferenceServiceIT extends ESRestTestCase {
@@ -67,13 +69,14 @@ public class MockInferenceServiceIT extends ESRestTestCase {
             """);
     }
 
+    @SuppressWarnings("unchecked")
     public void testMockService() throws IOException {
         String modelId = "test-mock";
         var putModel = putModel(modelId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        var getModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
-        assertEquals(putModel, getModel);
+        var getModels = getModels(modelId, TaskType.SPARSE_EMBEDDING);
+        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
 
-        for (var modelMap : List.of(putModel, getModel)) {
+        for (var modelMap : List.of(putModel, model)) {
             assertEquals(modelId, modelMap.get("model_id"));
             assertEquals(TaskType.SPARSE_EMBEDDING, TaskType.fromString((String) modelMap.get("task_type")));
             assertEquals("test_service", modelMap.get("service"));
@@ -87,7 +90,7 @@ public class MockInferenceServiceIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testMockServiceWithMultipleInputs() throws IOException {
         String modelId = "test-mock-with-multi-inputs";
-        var putModel = putModel(modelId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putModel(modelId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
 
         // The response is randomly generated, the input can be anything
         var inference = inferOnMockService(
@@ -96,8 +99,8 @@ public class MockInferenceServiceIT extends ESRestTestCase {
             List.of(randomAlphaOfLength(5), randomAlphaOfLength(10), randomAlphaOfLength(15))
         );
 
-        var tokens = (List<Map<String, Object>>) inference.get("inference_results");
-        assertThat(tokens, hasSize(3));
+        var results = (List<Map<String, Object>>) inference.get("result");
+        assertThat(results, hasSize(3));
         assertNonEmptyInferenceResults(inference, TaskType.SPARSE_EMBEDDING);
     }
 
@@ -105,9 +108,10 @@ public class MockInferenceServiceIT extends ESRestTestCase {
     public void testMockService_DoesNotReturnSecretsInGetResponse() throws IOException {
         String modelId = "test-mock";
         var putModel = putModel(modelId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        var getModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
+        var getModels = getModels(modelId, TaskType.SPARSE_EMBEDDING);
+        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
 
-        var serviceSettings = (Map<String, Object>) getModel.get("service_settings");
+        var serviceSettings = (Map<String, Object>) model.get("service_settings");
         assertNull(serviceSettings.get("api_key"));
         assertNotNull(serviceSettings.get("model"));
 
@@ -125,7 +129,7 @@ public class MockInferenceServiceIT extends ESRestTestCase {
         return entityAsMap(reponse);
     }
 
-    public Map<String, Object> getModel(String modelId, TaskType taskType) throws IOException {
+    public Map<String, Object> getModels(String modelId, TaskType taskType) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         var request = new Request("GET", endpoint);
         var reponse = client().performRequest(request);
@@ -155,8 +159,11 @@ public class MockInferenceServiceIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, TaskType taskType) {
         if (taskType == TaskType.SPARSE_EMBEDDING) {
-            var tokens = (List<Map<String, Object>>) resultMap.get("inference_results");
-            tokens.forEach(result -> { assertThat(result.keySet(), not(empty())); });
+            var results = (List<String>) resultMap.get("result");
+            assertThat(results, not(empty()));
+            for (String result : results) {
+                assertThat(result, is(not(emptyString())));
+            }
         } else {
             fail("test with task type [" + taskType + "] are not supported yet");
         }

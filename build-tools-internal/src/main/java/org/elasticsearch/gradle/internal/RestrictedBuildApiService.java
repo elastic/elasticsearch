@@ -35,7 +35,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":modules:percolator");
         map.put(LegacyRestTestBasePlugin.class, ":modules:rank-eval");
         map.put(LegacyRestTestBasePlugin.class, ":modules:reindex");
-        map.put(LegacyRestTestBasePlugin.class, ":modules:repository-s3");
         map.put(LegacyRestTestBasePlugin.class, ":modules:repository-url");
         map.put(LegacyRestTestBasePlugin.class, ":modules:transport-netty4");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:analysis-icu");
@@ -138,11 +137,9 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:multi-cluster-tests-with-security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:native-multi-node-tests");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:single-node-tests");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:repositories-metering-api:qa:s3");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:searchable-snapshots:qa:hdfs");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:searchable-snapshots:qa:minio");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:searchable-snapshots:qa:rest");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:searchable-snapshots:qa:s3");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:searchable-snapshots:qa:url");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:security:qa:tls-basic");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:shutdown:qa:multi-node");
@@ -151,11 +148,9 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:slm:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-based-recoveries:qa:fs");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-based-recoveries:qa:license-enforcing");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-based-recoveries:qa:s3");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-repo-test-kit:qa:hdfs");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-repo-test-kit:qa:minio");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-repo-test-kit:qa:rest");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-repo-test-kit:qa:s3");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:sql:qa:jdbc:multi-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:sql:qa:jdbc:no-sql");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:sql:qa:jdbc:single-node");

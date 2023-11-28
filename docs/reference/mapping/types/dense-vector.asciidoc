@@ -114,7 +114,7 @@ that sacrifices result accuracy for improved speed.
 [[dense-vector-quantization]]
 ==== Automatically quantize vectors for kNN search
 
-The `dense_vector` type supports quantization to reduce the memory footprint required when searching `float` vectors.
+The `dense_vector` type supports quantization to reduce the memory footprint required when <<approximate-knn, searching>> `float` vectors.
 Currently the only quantization method supported is `int8` and provided vectors `element_type` must be `float`. To use
 a quantized index, you can set your index type to `int8_hnsw`.
 

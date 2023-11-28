@@ -316,11 +316,19 @@ sort by tsid:
       search:
         index: test
         body:
+          fields: [ "_tsid" ]
           sort:   [ "_tsid", "@timestamp" ]
 
   - match: {hits.total.value: 8}
-  # NOTE: 98023 - Check possible buffer issue with _tsid Base64 encoding ('AAAAAAAAAAA')
-  - match: {hits.hits.0.sort: ["KMQn1H8GA7xNFfZA53p2lDmKEcP76qjItOI7LSmY_r9EAgT57T50pAAAAAAAAAAA", 1619635803142]}
-  - match: {hits.hits.1.sort: ["KMQn1H8GA7xNFfZA53p2lDmKEcP76qjItOI7LSmY_r9EAgT57T50pAAAAAAAAAAA", 1619635823142]}
-  - match: {hits.hits.4.sort: ["KMQn1H8GA7xNFfZA53p2lHXagOH76qjI1lFA_LjfLfhB3LZ2mzIbSgAAAAAAAAAA", 1619635804467]}
-  - match: {hits.hits.7.sort: ["KMQn1H8GA7xNFfZA53p2lHXagOH76qjI1lFA_LjfLfhB3LZ2mzIbSgAAAAAAAAAA", 1619635864467]}
+  # NOTE: 98023 - Bug: the value returned by 'sort' and 'fields' API should be the same
+  - match: {hits.hits.0.sort: ["KMQn1H8GA7xNFfZA53p2lDmKEcP76qjItOI7LSmY_r9EAgT57T50pA", 1619635803142]}
+  - match: {hits.hits.0.fields._tsid: [ "KMQn1H8GA7xNFfZA53p2lDmKEcP76qjItOI7LSmY_r9EAgT57T50pA"]}
+
+  - match: {hits.hits.1.sort: ["KMQn1H8GA7xNFfZA53p2lDmKEcP76qjItOI7LSmY_r9EAgT57T50pA", 1619635823142]}
+  - match: {hits.hits.1.fields._tsid: [ "KMQn1H8GA7xNFfZA53p2lDmKEcP76qjItOI7LSmY_r9EAgT57T50pA"]}
+
+  - match: {hits.hits.4.sort: ["KMQn1H8GA7xNFfZA53p2lHXagOH76qjI1lFA_LjfLfhB3LZ2mzIbSg", 1619635804467]}
+  - match: {hits.hits.4.fields._tsid: [ "KMQn1H8GA7xNFfZA53p2lHXagOH76qjI1lFA_LjfLfhB3LZ2mzIbSg"]}
+
+  - match: {hits.hits.7.sort: ["KMQn1H8GA7xNFfZA53p2lHXagOH76qjI1lFA_LjfLfhB3LZ2mzIbSg", 1619635864467]}
+  - match: {hits.hits.7.fields._tsid: [ "KMQn1H8GA7xNFfZA53p2lHXagOH76qjI1lFA_LjfLfhB3LZ2mzIbSg"]}

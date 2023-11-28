@@ -97,7 +97,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     private final List<QueryBuilder> filterQueries = new ArrayList<>();
     private final Float vectorSimilarity;
 
-    private Integer size;
+    private Integer neighbors;
 
     public KnnVectorQueryBuilder(String fieldName, float[] queryVector, Integer numCands, Float vectorSimilarity) {
         if (numCands != null && numCands > NUM_CANDS_LIMIT) {
@@ -172,8 +172,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return this;
     }
 
-    public KnnVectorQueryBuilder requestSize(Integer size) {
-        this.size = size;
+    public KnnVectorQueryBuilder neighbors(Integer neighbors) {
+        this.neighbors = neighbors;
         return this;
     }
 
@@ -260,8 +260,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         int requestSize = context.requestSize() == null ? DEFAULT_SIZE : context.requestSize();
-        int adjustedSize = size == null ? requestSize : size;
-        int adjustedNumCands = numCands == null ? Math.min(Math.max(100, requestSize), NUM_CANDS_LIMIT) : numCands;
+        int adjustedSize = neighbors == null ? requestSize : neighbors;
+        int adjustedNumCands = numCands == null ? Math.min(Math.max(100, adjustedSize), NUM_CANDS_LIMIT) : numCands;
         if (adjustedNumCands < adjustedSize) {
             throw new IllegalArgumentException("field [" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than [size]");
         }

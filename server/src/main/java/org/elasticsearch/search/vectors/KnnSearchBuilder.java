@@ -346,16 +346,16 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         Integer requestSize = context.requestSize();
         int size = requestSize == null ? DEFAULT_SIZE : requestSize;
-        int adjustedSize = k == null ? size : k;
-        int adjustedNumCands = numCands == null ? Math.max(NUM_CANDS_DEFAULT, adjustedSize) : numCands;
-        if (adjustedNumCands < adjustedSize) {
+        int adjustedK = k == null ? size : k;
+        int adjustedNumCands = numCands == null ? Math.max(NUM_CANDS_DEFAULT, adjustedK) : numCands;
+        if (adjustedNumCands < adjustedK) {
             throw new IllegalArgumentException(
                 "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
             );
         }
         return new KnnVectorQueryBuilder(field, queryVector, adjustedNumCands, similarity).boost(boost)
             .addFilterQueries(filterQueries)
-            .requestSize(adjustedSize);
+            .neighbors(adjustedK);
     }
 
     @Override

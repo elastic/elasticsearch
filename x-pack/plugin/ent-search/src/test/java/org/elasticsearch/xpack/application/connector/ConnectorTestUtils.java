@@ -149,7 +149,6 @@ public final class ConnectorTestUtils {
     }
 
     public static Connector getRandomSyncJobConnectorInfo() {
-        // TODO: pipeline, LinkedHashMap cast?
         return new Connector.Builder().setConnectorId(randomAlphaOfLength(10))
             .setFiltering(List.of(getRandomConnectorFiltering()))
             .setIndexName(randomAlphaOfLength(10))

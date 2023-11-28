@@ -136,7 +136,6 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         if (dropNullColumns) {
             for (int c = 0; c < keepColumns.length; c++) {
                 keepColumns[c] = allColumnsAreNull(c) == false;
-                System.err.println(c + " "  + keepColumns[c]);
             }
         } else {
             Arrays.fill(keepColumns, true);

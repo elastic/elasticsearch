@@ -170,7 +170,8 @@ public class ApiKeyService {
     public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting(
         "xpack.security.authc.api_key.delete.interval",
         TimeValue.timeValueHours(24L),
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Dynamic
     );
     public static final Setting<TimeValue> DELETE_RETENTION_PERIOD = Setting.positiveTimeSetting(
         "xpack.security.authc.api_key.delete.retention_period",
@@ -209,13 +210,10 @@ public class ApiKeyService {
     private final boolean enabled;
     private final Settings settings;
     private final InactiveApiKeysRemover inactiveApiKeysRemover;
-    private final TimeValue deleteInterval;
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
     private final ApiKeyDocCache apiKeyDocCache;
-
-    private volatile long lastExpirationRunMs;
 
     // The API key secret is a Base64 encoded v4 UUID without padding. The UUID is 128 bits, i.e. 16 byte,
     // which requires 22 digits of Base64 characters for encoding without padding.
@@ -244,7 +242,6 @@ public class ApiKeyService {
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
         this.settings = settings;
-        this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.inactiveApiKeysRemover = new InactiveApiKeysRemover(settings, client, clusterService);
         this.threadPool = threadPool;
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
@@ -1873,15 +1870,12 @@ public class ApiKeyService {
 
     // pkg scoped for testing
     long lastTimeWhenApiKeysRemoverWasTriggered() {
-        return lastExpirationRunMs;
+        return inactiveApiKeysRemover.getLastRunTimestamp();
     }
 
     private void maybeStartApiKeyRemover() {
         if (securityIndex.isAvailable(PRIMARY_SHARDS)) {
-            if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
-                inactiveApiKeysRemover.submit(client.threadPool());
-                lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
-            }
+            inactiveApiKeysRemover.maybeSubmit(client.threadPool());
         }
     }
 

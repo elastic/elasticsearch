@@ -64,11 +64,13 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private static final ParseField PRAGMA_FIELD = new ParseField("pragma");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
+    private static final ParseField PROFILE_FIELD = new ParseField("profile");
 
     private static final ObjectParser<EsqlQueryRequest, Void> PARSER = objectParser(EsqlQueryRequest::new);
 
     private String query;
     private boolean columnar;
+    private boolean profile;
     private ZoneId zoneId;
     private Locale locale;
     private QueryBuilder filter;
@@ -107,6 +109,21 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
 
     public boolean columnar() {
         return columnar;
+    }
+
+    /**
+     * Enable profiling, sacrificing performance to return information about
+     * what operations are taking the most time.
+     */
+    public void profile(boolean profile) {
+        this.profile = profile;
+    }
+
+    /**
+     * Is profiling enabled?
+     */
+    public boolean profile() {
+        return profile;
     }
 
     public void zoneId(ZoneId zoneId) {
@@ -166,6 +183,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         );
         parser.declareField(EsqlQueryRequest::params, EsqlQueryRequest::parseParams, PARAMS_FIELD, VALUE_ARRAY);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
+        parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
 
         return parser;
     }

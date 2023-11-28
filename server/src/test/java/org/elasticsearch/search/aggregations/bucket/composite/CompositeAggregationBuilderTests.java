@@ -157,6 +157,5 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
                 List.of(randomDateHistogramSourceBuilder(), new TermsValuesSourceBuilder("name"))
             ).supportsParallelCollection(field -> randomIntBetween(51, 100))
         );
-
     }
 }

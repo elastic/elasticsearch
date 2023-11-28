@@ -16,12 +16,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ParseField;
@@ -45,6 +46,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private final String fieldName;
     private final String query;
+    private QueryBuilder innerQueryBuilder;
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
@@ -65,6 +67,14 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.fieldName = other.fieldName;
         this.query = other.query;
         this.inferenceResultsSupplier = inferenceResultsSupplier;
+        this.innerQueryBuilder = other.innerQueryBuilder;
+    }
+
+    public SemanticQueryBuilder(SemanticQueryBuilder other, QueryBuilder innerQueryBuilder) {
+        this.fieldName = other.fieldName;
+        this.query = other.query;
+        this.inferenceResultsSupplier = other.inferenceResultsSupplier;
+        this.innerQueryBuilder = innerQueryBuilder;
     }
 
     public SemanticQueryBuilder(StreamInput in) throws IOException {
@@ -80,7 +90,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 // Inference still not returned
                 return this;
             }
-            return inferenceResultsToQuery(fieldName, inferenceResultsSupplier.get());
+            if (innerQueryBuilder == null) {
+                return inferenceResultsToQuery(fieldName, inferenceResultsSupplier.get());
+            }
+            return this;
         }
 
         Set<String> modelsForField =  queryRewriteContext.getModelIdsForField(fieldName);
@@ -114,7 +127,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return new SemanticQueryBuilder(this, inferenceResultsSupplier);
     }
 
-    private static QueryBuilder inferenceResultsToQuery(String fieldName, List<? extends InferenceResults> inferenceResultsList) {
+    private QueryBuilder inferenceResultsToQuery(String fieldName, List<? extends InferenceResults> inferenceResultsList) {
         if (inferenceResultsList.size() != 1) {
             throw new IllegalArgumentException("received multiple inference results for field " + fieldName);
         }
@@ -130,13 +143,17 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 );
             }
             boolQuery.minimumShouldMatch(1);
-            var nestedQuery = QueryBuilders.nestedQuery("_semantic_text_inference." + fieldName, boolQuery, ScoreMode.Total);
-            return nestedQuery;
+            return new SemanticQueryBuilder(this, boolQuery);
         } else {
             throw new IllegalArgumentException(
                 "field [" + fieldName + "] does not use a model that outputs sparse vector inference results"
             );
         }
+    }
+
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        var parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
+        return new ESToParentBlockJoinQuery(innerQueryBuilder.toQuery(context), parentFilter, ScoreMode.Total, fieldName);
     }
 
     @Override
@@ -164,11 +181,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
-    }
-
-    @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        throw new IllegalStateException("semantic_query should have been rewritten to another query type");
     }
 
     @Override

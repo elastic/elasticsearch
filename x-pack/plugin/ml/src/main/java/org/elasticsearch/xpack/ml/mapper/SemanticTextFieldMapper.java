@@ -77,6 +77,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
     public static class SemanticTextFieldType extends SimpleMappedFieldType {
 
         private final SparseVectorFieldMapper.SparseVectorFieldType sparseVectorFieldType;
+        private final SparseVectorFieldMapper.SparseVectorFieldType sparseVectorFieldTypeForSearch;
 
         private final String modelId;
 
@@ -84,6 +85,10 @@ public class SemanticTextFieldMapper extends FieldMapper {
             super(name, true, false, false, TextSearchInfo.NONE, meta);
             this.sparseVectorFieldType = new SparseVectorFieldMapper.SparseVectorFieldType(
                 SemanticTextInferenceResultFieldMapper.NAME + "." + name + "." + "inference",
+                meta
+            );
+            this.sparseVectorFieldTypeForSearch = new SparseVectorFieldMapper.SparseVectorFieldType(
+                name + "." + "inference",
                 meta
             );
             this.modelId = modelId;
@@ -108,7 +113,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return sparseVectorFieldType.termQuery(value, context);
+            return sparseVectorFieldTypeForSearch.termQuery(value, context);
         }
 
         @Override

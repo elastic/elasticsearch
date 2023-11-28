@@ -49,6 +49,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         }
     }
 
+    @Override
     public Wrapper find(String name, List<Object> scopes) {
         Wrapper wrapper = super.find(name, scopes);
 

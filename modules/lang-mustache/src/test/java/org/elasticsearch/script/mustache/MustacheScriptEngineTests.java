@@ -227,6 +227,16 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
     }
 
+    public void testMissingParam() throws IOException {
+        Map<String, String> scriptOptions = Collections.emptyMap();
+        String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
+        TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+
+        // When the DETECT_MISSING_PARAMS_OPTION is not specified, missing variable is replaced with an empty string.
+        assertThat(compiled.newInstance(Collections.emptyMap()).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
+        assertThat(compiled.newInstance(null).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
+    }
+
     public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
         String templateString = """
             {

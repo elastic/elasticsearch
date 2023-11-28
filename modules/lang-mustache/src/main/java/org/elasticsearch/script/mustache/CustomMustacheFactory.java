@@ -47,6 +47,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
     static final String X_WWW_FORM_URLENCODED_MEDIA_TYPE = "application/x-www-form-urlencoded";
 
     private static final String DEFAULT_MEDIA_TYPE = JSON_MEDIA_TYPE;
+    private static final boolean DEFAULT_DETECT_MISSING_PARAMS = false;
 
     private static final Map<String, Supplier<Encoder>> ENCODERS = Map.of(
         V7_JSON_MEDIA_TYPE_WITH_CHARSET,
@@ -366,7 +367,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
      */
     static class Builder {
         private String mediaType = DEFAULT_MEDIA_TYPE;
-        private boolean detectMissingParams = false;
+        private boolean detectMissingParams = DEFAULT_DETECT_MISSING_PARAMS;
 
         private Builder() {}
 

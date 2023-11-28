@@ -117,7 +117,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
             try {
                 template.execute(writer, params);
             } catch (Exception e) {
-                if (logException(e)) {
+                if (shouldLogException(e)) {
                     logger.error(() -> format("Error running %s", template), e);
                 }
                 throw new GeneralScriptException("Error running " + template, e);
@@ -125,11 +125,11 @@ public final class MustacheScriptEngine implements ScriptEngine {
             return writer.toString();
         }
 
-        public boolean logException(Throwable e) {
+        public boolean shouldLogException(Throwable e) {
             if (e instanceof InvalidParameterException) {
                 return false;
             }
-            return e.getCause() == null || logException(e.getCause());
+            return e.getCause() == null || shouldLogException(e.getCause());
         }
     }
 

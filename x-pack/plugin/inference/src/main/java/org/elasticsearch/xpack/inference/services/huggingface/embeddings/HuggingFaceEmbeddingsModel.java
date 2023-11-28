@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.embeddings;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.net.URI;
 import java.util.Map;
 
 public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
@@ -48,6 +50,16 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
     @Override
     public DefaultSecretSettings getSecretSettings() {
         return (DefaultSecretSettings) super.getSecretSettings();
+    }
+
+    @Override
+    public URI getUri() {
+        return getServiceSettings().uri();
+    }
+
+    @Override
+    public SecureString getApiKey() {
+        return getSecretSettings().apiKey();
     }
 
     @Override

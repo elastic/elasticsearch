@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -48,6 +47,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterS
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
@@ -473,49 +473,6 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    public void testStart_InitializesTheSender() throws IOException {
-        var sender = mock(Sender.class);
-
-        var factory = mock(HttpRequestSenderFactory.class);
-        when(factory.createSender(anyString())).thenReturn(sender);
-
-        try (var service = new OpenAiService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
-            PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-            service.start(mock(Model.class), listener);
-
-            listener.actionGet(TIMEOUT);
-            verify(sender, times(1)).start();
-            verify(factory, times(1)).createSender(anyString());
-        }
-
-        verify(sender, times(1)).close();
-        verifyNoMoreInteractions(factory);
-        verifyNoMoreInteractions(sender);
-    }
-
-    public void testStart_CallingStartTwiceKeepsSameSenderReference() throws IOException {
-        var sender = mock(Sender.class);
-
-        var factory = mock(HttpRequestSenderFactory.class);
-        when(factory.createSender(anyString())).thenReturn(sender);
-
-        try (var service = new OpenAiService(new SetOnce<>(factory), new SetOnce<>(createWithEmptySettings(threadPool)))) {
-            PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-            service.start(mock(Model.class), listener);
-            listener.actionGet(TIMEOUT);
-
-            service.start(mock(Model.class), listener);
-            listener.actionGet(TIMEOUT);
-
-            verify(factory, times(1)).createSender(anyString());
-            verify(sender, times(2)).start();
-        }
-
-        verify(sender, times(1)).close();
-        verifyNoMoreInteractions(factory);
-        verifyNoMoreInteractions(sender);
-    }
-
     public void testInfer_ThrowsErrorWhenModelIsNotOpenAiModel() throws IOException {
         var sender = mock(Sender.class);
 
@@ -617,17 +574,6 @@ public class OpenAiServiceTests extends ESTestCase {
             assertThat(error.getMessage(), containsString("Error message: [Incorrect API key provided:]"));
             assertThat(webServer.requests(), hasSize(1));
         }
-    }
-
-    private static Model getInvalidModel(String modelId, String serviceName) {
-        var mockConfigs = mock(ModelConfigurations.class);
-        when(mockConfigs.getModelId()).thenReturn(modelId);
-        when(mockConfigs.getService()).thenReturn(serviceName);
-
-        var mockModel = mock(Model.class);
-        when(mockModel.getConfigurations()).thenReturn(mockConfigs);
-
-        return mockModel;
     }
 
     private Map<String, Object> getRequestConfigMap(

@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredSecureString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
 /**
  * Contains secret settings that are common to all services.

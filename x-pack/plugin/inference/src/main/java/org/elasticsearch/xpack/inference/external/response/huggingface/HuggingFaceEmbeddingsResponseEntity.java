@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.response.openai;
+package org.elasticsearch.xpack.inference.external.response.huggingface;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -22,50 +22,39 @@ import java.util.List;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
-public class OpenAiEmbeddingsResponseEntity {
-    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in OpenAI embeddings response";
+public class HuggingFaceEmbeddingsResponseEntity {
+    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Hugging Face embeddings response";
 
     /**
-     * Parses the OpenAI json response.
-     * For a request like:
+     * The response from hugging face will be formatted as <code>{"embeddings": [[0.1, ...], [0.1, ...]}</code>.
+     * Each entry in the array will correspond to the entry within the inputs array within the request sent to hugging face. For example
+     * for a request like:
      *
      * <pre>
      *     <code>
-     *        {
-     *            "inputs": ["hello this is my name", "I wish I was there!"]
-     *        }
+     *         {
+     *             "inputs": ["hello this is my name", "I wish I was there!"]
+     *         }
      *     </code>
      * </pre>
      *
      * The response would look like:
      *
      * <pre>
-     * <code>
-     * {
-     *  "object": "list",
-     *  "data": [
-     *      {
-     *          "object": "embedding",
-     *          "embedding": [
-     *              -0.009327292,
-     *              .... (1536 floats total for ada-002)
-     *              -0.0028842222,
-     *          ],
-     *          "index": 0
-     *      },
-     *      {
-     *          "object": "embedding",
-     *          "embedding": [ ... ],
-     *          "index": 1
-     *      }
-     *  ],
-     *  "model": "text-embedding-ada-002",
-     *  "usage": {
-     *      "prompt_tokens": 8,
-     *      "total_tokens": 8
-     *  }
-     * }
-     * </code>
+     *     <code>
+     *         {
+     *             "embeddings": [
+     *                  [
+     *                      0.1,
+     *                      0.234
+     *                  ],
+     *                  [
+     *                      0.34,
+     *                      0.56
+     *                  ]
+     *             ]
+     *         }
+     *     </code>
      * </pre>
      */
     public static TextEmbeddingResults fromResponse(HttpResult response) throws IOException {
@@ -77,29 +66,21 @@ public class OpenAiEmbeddingsResponseEntity {
             XContentParser.Token token = jsonParser.currentToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
-            positionParserAtTokenAfterField(jsonParser, "data", FAILED_TO_FIND_FIELD_TEMPLATE);
+            positionParserAtTokenAfterField(jsonParser, "embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);
 
             List<TextEmbeddingResults.Embedding> embeddingList = XContentParserUtils.parseList(
                 jsonParser,
-                OpenAiEmbeddingsResponseEntity::parseEmbeddingObject
+                HuggingFaceEmbeddingsResponseEntity::parseEmbeddingEntry
             );
 
             return new TextEmbeddingResults(embeddingList);
         }
     }
 
-    private static TextEmbeddingResults.Embedding parseEmbeddingObject(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+    private static TextEmbeddingResults.Embedding parseEmbeddingEntry(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
 
-        positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
-
-        List<Float> embeddingValues = XContentParserUtils.parseList(parser, OpenAiEmbeddingsResponseEntity::parseEmbeddingList);
-
-        // the parser is currently sitting at an ARRAY_END so go to the next token
-        parser.nextToken();
-        // if there are additional fields within this object, lets skip them, so we can begin parsing the next embedding array
-        parser.skipChildren();
-
+        List<Float> embeddingValues = XContentParserUtils.parseList(parser, HuggingFaceEmbeddingsResponseEntity::parseEmbeddingList);
         return new TextEmbeddingResults.Embedding(embeddingValues);
     }
 
@@ -109,5 +90,5 @@ public class OpenAiEmbeddingsResponseEntity {
         return parser.floatValue();
     }
 
-    private OpenAiEmbeddingsResponseEntity() {}
+    private HuggingFaceEmbeddingsResponseEntity() {}
 }

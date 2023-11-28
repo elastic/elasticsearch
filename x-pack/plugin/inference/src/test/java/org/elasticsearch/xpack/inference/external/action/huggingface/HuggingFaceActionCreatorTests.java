@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.huggingface;
+package org.elasticsearch.xpack.inference.external.action.huggingface;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
@@ -20,9 +20,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModelTests;
+import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModelTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -37,19 +40,16 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
-import static org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequestTests.createRequest;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
-import static org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests.buildExpectation;
+import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
-public class HuggingFaceClientTests extends ESTestCase {
+public class HuggingFaceActionCreatorTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -59,7 +59,7 @@ public class HuggingFaceClientTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mockThrottlerManager());
+        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
     @After
@@ -70,7 +70,7 @@ public class HuggingFaceClientTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testSend_SuccessfulResponse() throws IOException, URISyntaxException {
+    public void testExecute_ReturnsSuccessfulResponse_ForElserAction() throws IOException {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
         try (var sender = senderFactory.createSender("test_service")) {
@@ -85,19 +85,22 @@ public class HuggingFaceClientTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            HuggingFaceClient huggingFaceClient = new HuggingFaceClient(
-                sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY)
-            );
+            var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
+            var actionCreator = new HuggingFaceActionCreator(sender, createWithEmptySettings(threadPool));
+            var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
+            action.execute(List.of("abc"), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(
                 result.asMap(),
-                is(buildExpectation(List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f), false))))
+                is(
+                    SparseEmbeddingResultsTests.buildExpectation(
+                        List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f), false))
+                    )
+                )
             );
 
             assertThat(webServer.requests(), hasSize(1));
@@ -117,7 +120,7 @@ public class HuggingFaceClientTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testSend_FailsFromInvalidResponseFormat() throws IOException, URISyntaxException {
+    public void testSend_FailsFromInvalidResponseFormat_ForElserAction() throws IOException, URISyntaxException {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
         try (var sender = senderFactory.createSender("test_service")) {
@@ -140,7 +143,8 @@ public class HuggingFaceClientTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            HuggingFaceClient huggingFaceClient = new HuggingFaceClient(
+            var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
+            var actionCreator = new HuggingFaceActionCreator(
                 sender,
                 new ServiceComponents(
                     threadPool,
@@ -149,9 +153,10 @@ public class HuggingFaceClientTests extends ESTestCase {
                     buildSettingsWithRetryFields(TimeValue.timeValueMillis(1), TimeValue.timeValueMinutes(1), TimeValue.timeValueSeconds(0))
                 )
             );
+            var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
+            action.execute(List.of("abc"), listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -175,20 +180,107 @@ public class HuggingFaceClientTests extends ESTestCase {
         }
     }
 
-    public void testSend_ThrowsException() throws URISyntaxException, IOException {
-        var sender = mock(Sender.class);
-        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any());
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction() throws IOException {
+        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
-        HuggingFaceClient huggingFaceClient = new HuggingFaceClient(
-            sender,
-            new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY)
-        );
-        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
 
-        huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
+            String responseJson = """
+                {
+                    "embeddings": [
+                        [
+                            -0.0123,
+                            0.123
+                        ]
+                    ]
+                {
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is("failed"));
+            var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
+            var actionCreator = new HuggingFaceActionCreator(sender, createWithEmptySettings(threadPool));
+            var action = actionCreator.create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(List.of("abc"), listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(TextEmbeddingResultsTests.buildExpectation(List.of(List.of(-0.0123F, 0.123F)))));
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+            );
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(1));
+            assertThat(requestMap.get("inputs"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("inputs");
+            assertThat(inputList, contains("abc"));
+        }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testSend_FailsFromInvalidResponseFormat_ForEmbeddingsAction() throws IOException, URISyntaxException {
+        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
+
+            String responseJson = """
+                [
+                    {
+                        "embeddings": [
+                            [
+                                -0.0123,
+                                0.123
+                            ]
+                        ]
+                    {
+                ]
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
+            var actionCreator = new HuggingFaceActionCreator(
+                sender,
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    // timeout as zero for no retries
+                    buildSettingsWithRetryFields(TimeValue.timeValueMillis(1), TimeValue.timeValueMinutes(1), TimeValue.timeValueSeconds(0))
+                )
+            );
+            var action = actionCreator.create(model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(List.of("abc"), listener);
+
+            var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                thrownException.getMessage(),
+                is("Failed to parse object: expecting token of type [START_OBJECT] but found [START_ARRAY]")
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
+            );
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(1));
+            assertThat(requestMap.get("inputs"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("inputs");
+            assertThat(inputList, contains("abc"));
+        }
+    }
 }

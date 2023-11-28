@@ -43,6 +43,6 @@ public class OpenAiClient {
     }
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new OpenAiResponseHandler("openai text embedding", result -> OpenAiEmbeddingsResponseEntity.fromResponse(result));
+        return new OpenAiResponseHandler("openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse);
     }
 }

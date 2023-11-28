@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionVisitor;
+
+import java.net.URI;
 
 public abstract class HuggingFaceModel extends Model {
     public HuggingFaceModel(ModelConfigurations configurations, ModelSecrets secrets) {
@@ -19,4 +22,8 @@ public abstract class HuggingFaceModel extends Model {
     }
 
     public abstract ExecutableAction accept(HuggingFaceActionVisitor creator);
+
+    public abstract URI getUri();
+
+    public abstract SecureString getApiKey();
 }

@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.inference.external.action.huggingface;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
+import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
+import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
 
 public interface HuggingFaceActionVisitor {
-    ExecutableAction create(HuggingFaceModel mode);
+    ExecutableAction create(HuggingFaceEmbeddingsModel mode);
+
+    ExecutableAction create(HuggingFaceElserModel mode);
 }

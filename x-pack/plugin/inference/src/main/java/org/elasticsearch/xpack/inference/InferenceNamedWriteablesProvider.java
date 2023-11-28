@@ -32,6 +32,7 @@ public class InferenceNamedWriteablesProvider {
 
     private InferenceNamedWriteablesProvider() {}
 
+    @SuppressWarnings("deprecation")
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
 

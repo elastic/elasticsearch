@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredSecureString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
 public record HuggingFaceElserSecretSettings(SecureString apiKey) implements SecretSettings {
     public static final String NAME = "hugging_face_elser_secret_settings";

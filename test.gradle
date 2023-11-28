@@ -1,0 +1,27 @@
+initscript {
+  repositories {
+    mavenCentral()
+  }
+}
+
+gradle.settingsEvaluated { settings ->
+  settings.pluginManager.withPlugin("com.gradle.enterprise") {
+    configureGradleEnterprise(settings)
+  }
+
+  // settings.tasks.named('test', Test) {
+  //     useJUnitPlatform()
+  //     distribution {
+  //         enabled = true
+  //         maxLocalExecutors = 0
+  //     }
+  // }
+}
+
+void configureGradleEnterprise(def settings) {
+  settings.gradleEnterprise {
+    server = 'https://gradle-enterprise.elastic.co'
+  }
+}
+
+

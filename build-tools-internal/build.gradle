@@ -333,12 +333,21 @@ dependencies {
 
 tasks.named('test').configure {
   useJUnitPlatform()
+  distribution {
+    enabled = true
+    maxLocalExecutors = 0
+  }
 }
+
 tasks.register("integTest", Test) {
   systemProperty 'test.version_under_test', version
   testClassesDirs = sourceSets.integTest.output.classesDirs
   classpath = sourceSets.integTest.runtimeClasspath
   useJUnitPlatform()
+  distribution {
+    enabled = true
+    maxLocalExecutors = 0
+  }
 }
 
 tasks.named("check").configure { dependsOn("integTest") }

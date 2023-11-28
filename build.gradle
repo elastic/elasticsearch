@@ -401,3 +401,11 @@ tasks.register("spotlessApply").configure {
   dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
   dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
 }
+
+// tasks.matching { it.name ==~ /t|Test/ }.configureEach {
+//   useJUnitPlatform()
+//   distribution {
+//       enabled = true
+//       maxLocalExecutors = 0
+//   }
+// }

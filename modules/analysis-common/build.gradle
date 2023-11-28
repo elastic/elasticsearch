@@ -27,6 +27,37 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   clusterModules project(':modules:reindex')
   clusterModules project(':modules:mapper-extras')
+
+
+	// testImplementation(platform("org.junit:junit-bom:5.10.1"))
+
+	// testImplementation("org.junit.jupiter:junit-jupiter") {
+	// 	because 'allows to write and run Jupiter tests'
+	// }
+
+	// testImplementation("junit:junit:4.13.2")
+	// testRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
+	// 	because 'allows JUnit 3 and JUnit 4 tests to run'
+	// }
+
+	// testRuntimeOnly("org.junit.platform:junit-platform-launcher") {
+	// 	because 'allows tests to run from IDEs that bundle older version of launcher'
+	// }
+
+    testImplementation "junit:junit:4.13.2"
+    testRuntimeOnly "org.junit.vintage:junit-vintage-engine"
+
+  // testImplementation(platform(buildLibs.junit5.platform))
+  // testImplementation(buildLibs.junit5.jupiter) {
+  //     because 'allows to write and run Jupiter tests'
+  // }
+  // testRuntimeOnly(buildLibs.junit5.vintage) {
+  //     because 'allows JUnit 3 and JUnit 4 tests to run'
+  // }
+
+  // testRuntimeOnly(buildLibs.junit5.platform.launcher) {
+  //     because 'allows tests to run from IDEs that bundle older version of launcher'
+  // }
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
@@ -36,3 +67,26 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.query/50_queries_with_synonyms/Test common terms query with stacked tokens", "#42654 -  `common` query throws an exception")
 }
 
+test {
+    useJUnitPlatform {
+      includeEngines 'junit-vintage'
+    }
+
+
+    distribution {
+      enabled = true
+      maxLocalExecutors = 0
+    }
+}
+
+tasks.named('yamlRestTest').configure {
+    useJUnitPlatform {
+      includeEngines 'junit-vintage'
+    }
+
+
+    distribution {
+      enabled = true
+      maxLocalExecutors = 0
+    }
+}

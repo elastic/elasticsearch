@@ -9,6 +9,10 @@ pluginManagement {
     includeBuild "../build-conventions"
 }
 
+plugins {
+  id "com.gradle.enterprise" version "3.14.1"
+}
+
 include 'reaper'
 
 dependencyResolutionManagement {

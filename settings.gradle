@@ -174,3 +174,7 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
+
+gradleEnterprise {
+  server = 'https://gradle-enterprise.elastic.co'
+}

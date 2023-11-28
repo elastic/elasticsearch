@@ -52,6 +52,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -341,6 +342,12 @@ public class ComputeService {
         String[] originalIndices,
         ActionListener<List<TargetNode>> listener
     ) {
+        var remoteIndices = transportService.getRemoteClusterService().groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, originalIndices);
+        remoteIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        if (remoteIndices.isEmpty() == false) {
+            listener.onFailure(new IllegalArgumentException("ES|QL does not yet support querying remote indices"));
+            return;
+        }
         // Ideally, the search_shards API should be called before the field-caps API; however, this can lead
         // to a situation where the column structure (i.e., matched data types) differs depending on the query.
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();

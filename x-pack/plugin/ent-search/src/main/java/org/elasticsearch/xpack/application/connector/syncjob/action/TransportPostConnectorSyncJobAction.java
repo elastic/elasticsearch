@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobInd
 
 import java.util.Objects;
 
-//TODO: docs
 public class TransportPostConnectorSyncJobAction extends HandledTransportAction<
     PostConnectorSyncJobAction.Request,
     PostConnectorSyncJobAction.Response> {

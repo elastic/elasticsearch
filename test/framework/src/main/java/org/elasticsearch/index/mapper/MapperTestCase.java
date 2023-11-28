@@ -1292,7 +1292,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 TestBlock block;
                 if (columnReader) {
                     if (supportsColumnAtATimeReader(mapper.fieldType("field"))) {
-                        block = (TestBlock) loader.columnAtATimeReader(ctx).read(TestBlock.FACTORY, TestBlock.docs(0));
+                        block = (TestBlock) loader.columnAtATimeReader(ctx)
+                            .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(0));
                     } else {
                         assertNull(loader.columnAtATimeReader(ctx));
                         return;
@@ -1303,7 +1304,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null
                     );
                     storedFieldsLoader.advanceTo(0);
-                    BlockLoader.Builder builder = loader.builder(TestBlock.FACTORY, 1);
+                    BlockLoader.Builder builder = loader.builder(TestBlock.factory(ctx.reader().numDocs()), 1);
                     loader.rowStrideReader(ctx).read(0, storedFieldsLoader, builder);
                     block = (TestBlock) builder.build();
                 }

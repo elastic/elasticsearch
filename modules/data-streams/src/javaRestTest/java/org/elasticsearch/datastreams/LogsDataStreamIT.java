@@ -641,8 +641,8 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             }
             """);
 
+        // verify that both fields are searchable when not querying specific fields
         assertBusy(() -> {
-            // verify that both fields are searchable when not querying specific fields
             List<Object> results = searchDocs(client, dataStreamName, """
                 {
                   "query": {
@@ -665,6 +665,59 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             }
             """);
         assertEquals(1, results.size());
+    }
+
+    public void testDefaultFieldCustomization() throws Exception {
+        Request request = new Request("POST", "/_component_template/logs@custom");
+        request.setJsonEntity("""
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "query": {
+                      "default_field": ["message"]
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertOK(client.performRequest(request));
+
+        final String dataStreamName = "logs-generic-default";
+        createDataStream(client, dataStreamName);
+
+        indexDoc(client, dataStreamName, """
+            {
+              "@timestamp": "2023-04-18",
+              "message": "Hello world",
+              "another.message": "Hi world"
+            }
+            """);
+
+        assertBusy(() -> {
+            List<Object> results = searchDocs(client, dataStreamName, """
+                {
+                  "query": {
+                    "simple_query_string": {
+                      "query": "Hello"
+                    }
+                  }
+                }
+                """);
+            assertEquals(1, results.size());
+        });
+
+        List<Object> results = searchDocs(client, dataStreamName, """
+            {
+              "query": {
+                "simple_query_string": {
+                  "query": "Hi"
+                }
+              }
+            }
+            """);
+        assertEquals(0, results.size());
     }
 
     static void waitForLogs(RestClient client) throws Exception {

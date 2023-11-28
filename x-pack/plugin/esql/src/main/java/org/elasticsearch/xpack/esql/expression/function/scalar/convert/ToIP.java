@@ -19,13 +19,15 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
 public class ToIP extends AbstractConvertFunction {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(IP, (field, source) -> field),
-        Map.entry(KEYWORD, ToIPFromStringEvaluator.Factory::new)
+        Map.entry(KEYWORD, ToIPFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToIPFromStringEvaluator.Factory::new)
     );
 
     public ToIP(Source source, Expression field) {

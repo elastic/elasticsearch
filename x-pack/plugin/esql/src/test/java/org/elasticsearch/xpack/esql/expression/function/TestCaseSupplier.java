@@ -11,6 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -237,7 +238,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         LongFunction<Object> expectedValue,
         long lowerBound,
         long upperBound,
-        List<String> warnings
+        Function<Number, List<String>> expectedWarnings
     ) {
         unaryNumeric(
             suppliers,
@@ -245,8 +246,20 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             longCases(lowerBound, upperBound),
             expectedType,
             n -> expectedValue.apply(n.longValue()),
-            warnings
+            expectedWarnings
         );
+    }
+
+    public static void forUnaryLong(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        LongFunction<Object> expectedValue,
+        long lowerBound,
+        long upperBound,
+        List<String> warnings
+    ) {
+        forUnaryLong(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
     }
 
     /**
@@ -373,7 +386,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<BytesRef, Object> expectedValue,
         Function<BytesRef, List<String>> expectedWarnings
     ) {
-        for (DataType type : EsqlDataTypes.types().stream().filter(EsqlDataTypes::isString).toList()) {
+        for (DataType type : AbstractConvertFunction.STRING_TYPES) {
             unary(
                 suppliers,
                 expectedEvaluatorToString,
@@ -487,7 +500,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unary(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
     }
 
-    private static List<TypedDataSupplier> intCases(int min, int max) {
+    public static List<TypedDataSupplier> intCases(int min, int max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         if (0 <= max && 0 >= min) {
             cases.add(new TypedDataSupplier("<0 int>", () -> 0, DataTypes.INTEGER));
@@ -576,7 +589,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    private static List<TypedDataSupplier> doubleCases(double min, double max) {
+    public static List<TypedDataSupplier> doubleCases(double min, double max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         // Zeros

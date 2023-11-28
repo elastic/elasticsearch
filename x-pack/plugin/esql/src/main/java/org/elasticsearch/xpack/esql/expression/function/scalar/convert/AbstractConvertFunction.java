@@ -43,13 +43,14 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  */
 public abstract class AbstractConvertFunction extends UnaryScalarFunction implements EvaluatorMapper {
 
+    // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
     private static final List<DataType> NUMERIC_TYPES = List.of(
         DataTypes.INTEGER,
         DataTypes.LONG,
         DataTypes.UNSIGNED_LONG,
         DataTypes.DOUBLE
     );
-    private static final List<DataType> STRING_TYPES = DataTypes.types().stream().filter(EsqlDataTypes::isString).toList();
+    public static final List<DataType> STRING_TYPES = DataTypes.types().stream().filter(EsqlDataTypes::isString).toList();
 
     protected AbstractConvertFunction(Source source, Expression field) {
         super(source, field);

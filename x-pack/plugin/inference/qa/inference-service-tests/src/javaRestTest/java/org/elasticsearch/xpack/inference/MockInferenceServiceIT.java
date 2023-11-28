@@ -26,8 +26,10 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class MockInferenceServiceIT extends ESRestTestCase {
@@ -97,8 +99,8 @@ public class MockInferenceServiceIT extends ESRestTestCase {
             List.of(randomAlphaOfLength(5), randomAlphaOfLength(10), randomAlphaOfLength(15))
         );
 
-        var tokens = (List<Map<String, Object>>) inference.get("inference_results");
-        assertThat(tokens, hasSize(3));
+        var results = (List<Map<String, Object>>) inference.get("result");
+        assertThat(results, hasSize(3));
         assertNonEmptyInferenceResults(inference, TaskType.SPARSE_EMBEDDING);
     }
 
@@ -157,8 +159,11 @@ public class MockInferenceServiceIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, TaskType taskType) {
         if (taskType == TaskType.SPARSE_EMBEDDING) {
-            var tokens = (List<Map<String, Object>>) resultMap.get("inference_results");
-            tokens.forEach(result -> { assertThat(result.keySet(), not(empty())); });
+            var results = (List<String>) resultMap.get("result");
+            assertThat(results, not(empty()));
+            for (String result : results) {
+                assertThat(result, is(not(emptyString())));
+            }
         } else {
             fail("test with task type [" + taskType + "] are not supported yet");
         }

@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.inference.results;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,19 +22,20 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingResults> {
-    public static TextEmbeddingResults createRandomResults() {
+@SuppressWarnings("deprecation")
+public class LegacyTextEmbeddingResultsTests extends AbstractWireSerializingTestCase<LegacyTextEmbeddingResults> {
+    public static LegacyTextEmbeddingResults createRandomResults() {
         int embeddings = randomIntBetween(1, 10);
-        List<TextEmbeddingResults.Embedding> embeddingResults = new ArrayList<>(embeddings);
+        List<LegacyTextEmbeddingResults.Embedding> embeddingResults = new ArrayList<>(embeddings);
 
         for (int i = 0; i < embeddings; i++) {
             embeddingResults.add(createRandomEmbedding());
         }
 
-        return new TextEmbeddingResults(embeddingResults);
+        return new LegacyTextEmbeddingResults(embeddingResults);
     }
 
-    private static TextEmbeddingResults.Embedding createRandomEmbedding() {
+    private static LegacyTextEmbeddingResults.Embedding createRandomEmbedding() {
         int columns = randomIntBetween(1, 10);
         List<Float> floats = new ArrayList<>(columns);
 
@@ -38,15 +43,20 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             floats.add(randomFloat());
         }
 
-        return new TextEmbeddingResults.Embedding(floats);
+        return new LegacyTextEmbeddingResults.Embedding(floats);
     }
 
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
-        var entity = new TextEmbeddingResults(List.of(new TextEmbeddingResults.Embedding(List.of(0.1F))));
+        var entity = new LegacyTextEmbeddingResults(List.of(new LegacyTextEmbeddingResults.Embedding(List.of(0.1F))));
 
         assertThat(
             entity.asMap(),
-            is(Map.of(TextEmbeddingResults.TEXT_EMBEDDING, List.of(Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.1F)))))
+            is(
+                Map.of(
+                    LegacyTextEmbeddingResults.TEXT_EMBEDDING,
+                    List.of(Map.of(LegacyTextEmbeddingResults.Embedding.EMBEDDING, List.of(0.1F)))
+                )
+            )
         );
 
         String xContentResult = Strings.toString(entity, true, true);
@@ -63,8 +73,8 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
     }
 
     public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
-        var entity = new TextEmbeddingResults(
-            List.of(new TextEmbeddingResults.Embedding(List.of(0.1F)), new TextEmbeddingResults.Embedding(List.of(0.2F)))
+        var entity = new LegacyTextEmbeddingResults(
+            List.of(new LegacyTextEmbeddingResults.Embedding(List.of(0.1F)), new LegacyTextEmbeddingResults.Embedding(List.of(0.2F)))
 
         );
 
@@ -72,10 +82,10 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             entity.asMap(),
             is(
                 Map.of(
-                    TextEmbeddingResults.TEXT_EMBEDDING,
+                    LegacyTextEmbeddingResults.TEXT_EMBEDDING,
                     List.of(
-                        Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.1F)),
-                        Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.2F))
+                        Map.of(LegacyTextEmbeddingResults.Embedding.EMBEDDING, List.of(0.1F)),
+                        Map.of(LegacyTextEmbeddingResults.Embedding.EMBEDDING, List.of(0.2F))
                     )
                 )
             )
@@ -99,34 +109,36 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             }"""));
     }
 
-    @Override
-    protected Writeable.Reader<TextEmbeddingResults> instanceReader() {
-        return TextEmbeddingResults::new;
+    private static String toJsonString(ToXContentFragment entity) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+        builder.startObject();
+        entity.toXContent(builder, null);
+        builder.endObject();
+
+        return Strings.toString(builder);
     }
 
     @Override
-    protected TextEmbeddingResults createTestInstance() {
+    protected Writeable.Reader<LegacyTextEmbeddingResults> instanceReader() {
+        return LegacyTextEmbeddingResults::new;
+    }
+
+    @Override
+    protected LegacyTextEmbeddingResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected TextEmbeddingResults mutateInstance(TextEmbeddingResults instance) throws IOException {
+    protected LegacyTextEmbeddingResults mutateInstance(LegacyTextEmbeddingResults instance) throws IOException {
         // if true we reduce the embeddings list by a random amount, if false we add an embedding to the list
         if (randomBoolean()) {
             // -1 to remove at least one item from the list
             int end = randomInt(instance.embeddings().size() - 1);
-            return new TextEmbeddingResults(instance.embeddings().subList(0, end));
+            return new LegacyTextEmbeddingResults(instance.embeddings().subList(0, end));
         } else {
-            List<TextEmbeddingResults.Embedding> embeddings = new ArrayList<>(instance.embeddings());
+            List<LegacyTextEmbeddingResults.Embedding> embeddings = new ArrayList<>(instance.embeddings());
             embeddings.add(createRandomEmbedding());
-            return new TextEmbeddingResults(embeddings);
+            return new LegacyTextEmbeddingResults(embeddings);
         }
-    }
-
-    public static Map<String, Object> buildExpectation(List<List<Float>> embeddings) {
-        return Map.of(
-            TextEmbeddingResults.TEXT_EMBEDDING,
-            embeddings.stream().map(embedding -> Map.of(TextEmbeddingResults.Embedding.EMBEDDING, embedding)).toList()
-        );
     }
 }

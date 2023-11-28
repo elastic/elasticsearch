@@ -110,7 +110,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             });
         }
 
-        latch.await();
+        safeAwait(latch);
 
         assertThat(100L, equalTo(service.getTotalIndicesMappingSize().getSizeInBytes()));
     }

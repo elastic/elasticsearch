@@ -53,12 +53,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
@@ -288,7 +286,7 @@ public class SearchShardSizeCollectorTests extends ESTestCase {
 
         service.clusterChanged(new ClusterChangedEvent("test", state1, ClusterState.EMPTY_STATE));
 
-        assertThat(listenerWasCalled.await(10, TimeUnit.SECONDS), equalTo(true));
+        safeAwait(listenerWasCalled);
         verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), any(), any());
         assertThat(
             service.getPastPublications(),
@@ -353,7 +351,7 @@ public class SearchShardSizeCollectorTests extends ESTestCase {
 
         service.clusterChanged(new ClusterChangedEvent("test", state0, ClusterState.EMPTY_STATE));
 
-        assertThat(listenerWasCalled.await(10, TimeUnit.SECONDS), equalTo(true));
+        safeAwait(listenerWasCalled);
         assertThat(
             service.getPastPublications(),
             allOf(aMapWithSize(2), hasKey(new ShardId(indexMetadata1.getIndex(), 0)), hasKey(new ShardId(indexMetadata2.getIndex(), 0)))

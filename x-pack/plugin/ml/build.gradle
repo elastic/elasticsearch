@@ -87,6 +87,7 @@ dependencies {
     changing = true
   }
   testImplementation 'org.ini4j:ini4j:0.5.2'
+  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
 }
 
 def mlCppVersion(){

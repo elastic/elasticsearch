@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -106,7 +106,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         UnparsedModel unparsedModel = UnparsedModel.unparsedModelFromMap(modelHolder.get().config(), modelHolder.get().secrets());
         assertEquals(model.getConfigurations().getService(), unparsedModel.service());
 
-        var elserService = new ElserMlNodeService(new InferenceServicePlugin.InferenceServiceFactoryContext(mock(Client.class)));
+        var elserService = new ElserMlNodeService(new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class)));
         ElserMlNodeModel roundTripModel = elserService.parsePersistedConfig(
             unparsedModel.modelId(),
             unparsedModel.taskType(),

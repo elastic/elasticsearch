@@ -84,7 +84,7 @@ public class MockInferenceServiceIT extends ESRestTestCase {
 
         // The response is randomly generated, the input can be anything
         var inference = inferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomAlphaOfLength(10)));
-        assertNonEmptyInferenceResults(inference, TaskType.SPARSE_EMBEDDING);
+        assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
     }
 
     @SuppressWarnings("unchecked")
@@ -99,9 +99,7 @@ public class MockInferenceServiceIT extends ESRestTestCase {
             List.of(randomAlphaOfLength(5), randomAlphaOfLength(10), randomAlphaOfLength(15))
         );
 
-        var results = (List<Map<String, Object>>) inference.get("result");
-        assertThat(results, hasSize(3));
-        assertNonEmptyInferenceResults(inference, TaskType.SPARSE_EMBEDDING);
+        assertNonEmptyInferenceResults(inference, 3, TaskType.SPARSE_EMBEDDING);
     }
 
     @SuppressWarnings("unchecked")
@@ -149,21 +147,17 @@ public class MockInferenceServiceIT extends ESRestTestCase {
         bodyBuilder.deleteCharAt(bodyBuilder.length() - 1);
         bodyBuilder.append("]}");
 
-        System.out.println("body_request:" + bodyBuilder);
         request.setJsonEntity(bodyBuilder.toString());
-        var reponse = client().performRequest(request);
-        assertOkWithErrorMessage(reponse);
-        return entityAsMap(reponse);
+        var response = client().performRequest(request);
+        assertOkWithErrorMessage(response);
+        return entityAsMap(response);
     }
 
     @SuppressWarnings("unchecked")
-    protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, TaskType taskType) {
+    protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, int expectedNumberOfResults, TaskType taskType) {
         if (taskType == TaskType.SPARSE_EMBEDDING) {
-            var results = (List<String>) resultMap.get("result");
-            assertThat(results, not(empty()));
-            for (String result : results) {
-                assertThat(result, is(not(emptyString())));
-            }
+            var results = (List<Map<String, Object>>) resultMap.get(TaskType.SPARSE_EMBEDDING.toString());
+            assertThat(results, hasSize(expectedNumberOfResults));
         } else {
             fail("test with task type [" + taskType + "] are not supported yet");
         }

@@ -18,7 +18,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
-import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 

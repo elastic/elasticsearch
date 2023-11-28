@@ -5,17 +5,16 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.integration;
+package org.elasticsearch.xpack.inference.mock;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -23,13 +22,10 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.plugins.InferenceServicePlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
-import org.elasticsearch.xpack.inference.services.MapParsingUtils;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.inference.InferenceServiceExtension;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,34 +33,34 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
-
-public class MockServicePlugin extends Plugin implements InferenceServicePlugin {
-
-    public static final String SERVICE_NAME = "mock_service";
-    public static final TaskType SUPPORTED_TASK_TYPE = TaskType.SPARSE_EMBEDDING;
-
+public class TestInferenceServiceExtension implements InferenceServiceExtension {
     @Override
     public List<Factory> getInferenceServiceFactories() {
         return List.of(TestInferenceService::new);
     }
 
-    @Override
-    public List<NamedWriteableRegistry.Entry> getInferenceServiceNamedWriteables() {
-        return List.of(
-            new NamedWriteableRegistry.Entry(ServiceSettings.class, TestServiceSettings.NAME, TestServiceSettings::new),
-            new NamedWriteableRegistry.Entry(TaskSettings.class, TestTaskSettings.NAME, TestTaskSettings::new),
-            new NamedWriteableRegistry.Entry(SecretSettings.class, TestSecretSettings.NAME, TestSecretSettings::new)
-        );
-    }
-
     public static class TestInferenceService implements InferenceService {
+        private static final String NAME = "test_service";
 
+        public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
+        }
+
+        @Override
+        public String name() {
+            return NAME;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @SuppressWarnings("unchecked")
         private static Map<String, Object> getTaskSettingsMap(Map<String, Object> settings) {
             Map<String, Object> taskSettingsMap;
             // task settings are optional
             if (settings.containsKey(ModelConfigurations.TASK_SETTINGS)) {
-                taskSettingsMap = removeFromMapOrThrowIfNull(settings, ModelConfigurations.TASK_SETTINGS);
+                taskSettingsMap = (Map<String, Object>) settings.remove(ModelConfigurations.TASK_SETTINGS);
             } else {
                 taskSettingsMap = Map.of();
             }
@@ -72,23 +68,15 @@ public class MockServicePlugin extends Plugin implements InferenceServicePlugin 
             return taskSettingsMap;
         }
 
-        public TestInferenceService(InferenceServicePlugin.InferenceServiceFactoryContext context) {
-
-        }
-
         @Override
-        public String name() {
-            return SERVICE_NAME;
-        }
-
-        @Override
+        @SuppressWarnings("unchecked")
         public TestServiceModel parseRequestConfig(
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
             Set<String> platfromArchitectures
         ) {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
             var serviceSettings = TestServiceSettings.fromMap(serviceSettingsMap);
             var secretSettings = TestSecretSettings.fromMap(serviceSettingsMap);
 
@@ -99,14 +87,15 @@ public class MockServicePlugin extends Plugin implements InferenceServicePlugin 
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public TestServiceModel parsePersistedConfig(
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
             Map<String, Object> secrets
         ) {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
+            var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
+            var secretSettingsMap = (Map<String, Object>) secrets.remove(ModelSecrets.SECRET_SETTINGS);
 
             var serviceSettings = TestServiceSettings.fromMap(serviceSettingsMap);
             var secretSettings = TestSecretSettings.fromMap(secretSettingsMap);
@@ -122,17 +111,11 @@ public class MockServicePlugin extends Plugin implements InferenceServicePlugin 
             Model model,
             List<String> input,
             Map<String, Object> taskSettings,
-            ActionListener<List<? extends InferenceResults>> listener
+            ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case SPARSE_EMBEDDING -> {
-                    var results = new ArrayList<TextExpansionResults>();
-                    input.forEach(i -> {
-                        int numTokensInResult = Strings.tokenizeToStringArray(i, " ").length;
-                        results.add(TextExpansionResultsTests.createRandomResults(numTokensInResult, numTokensInResult));
-                    });
-                    listener.onResponse(results);
-                }
+                case ANY -> listener.onResponse(makeResults(input));
+                case SPARSE_EMBEDDING -> listener.onResponse(makeResults(input));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -140,17 +123,23 @@ public class MockServicePlugin extends Plugin implements InferenceServicePlugin 
                     )
                 );
             }
+        }
 
+        private SparseEmbeddingResults makeResults(List<String> input) {
+            var embeddings = new ArrayList<SparseEmbeddingResults.Embedding>();
+            for (int i = 0; i < input.size(); i++) {
+                var tokens = new ArrayList<SparseEmbeddingResults.WeightedToken>();
+                for (int j=0; j<5; j++) {
+                    tokens.add(new SparseEmbeddingResults.WeightedToken(Integer.toString(j), (float) j));
+                }
+                embeddings.add(new SparseEmbeddingResults.Embedding(tokens, false));
+            }
+            return new SparseEmbeddingResults(embeddings);
         }
 
         @Override
         public void start(Model model, ActionListener<Boolean> listener) {
             listener.onResponse(true);
-        }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
         }
 
         @Override
@@ -188,10 +177,21 @@ public class MockServicePlugin extends Plugin implements InferenceServicePlugin 
 
     public record TestServiceSettings(String model) implements ServiceSettings {
 
-        private static final String NAME = "test_service_settings";
+        static final String NAME = "test_service_settings";
 
         public static TestServiceSettings fromMap(Map<String, Object> map) {
-            String model = MapParsingUtils.removeAsType(map, "model", String.class);
+            ValidationException validationException = new ValidationException();
+
+            String model = (String) map.remove("model");
+
+            if (model == null) {
+                validationException.addValidationError("missing model");
+            }
+
+            if (validationException.validationErrors().isEmpty() == false) {
+                throw validationException;
+            }
+
             return new TestServiceSettings(model);
         }
 
@@ -225,10 +225,11 @@ public class MockServicePlugin extends Plugin implements InferenceServicePlugin 
 
     public record TestTaskSettings(Integer temperature) implements TaskSettings {
 
-        private static final String NAME = "test_task_settings";
+        static final String NAME = "test_task_settings";
 
         public static TestTaskSettings fromMap(Map<String, Object> map) {
-            return new TestTaskSettings(MapParsingUtils.removeAsType(map, "temperature", Integer.class));
+            Integer temperature = (Integer) map.remove("temperature");
+            return new TestTaskSettings(temperature);
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
@@ -257,16 +258,28 @@ public class MockServicePlugin extends Plugin implements InferenceServicePlugin 
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
+            return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
         }
     }
 
     public record TestSecretSettings(String apiKey) implements SecretSettings {
 
-        private static final String NAME = "test_secret_settings";
+        static final String NAME = "test_secret_settings";
 
         public static TestSecretSettings fromMap(Map<String, Object> map) {
-            return new TestSecretSettings(MapParsingUtils.removeAsType(map, "api_key", String.class));
+            ValidationException validationException = new ValidationException();
+
+            String apiKey = (String) map.remove("api_key");
+
+            if (apiKey == null) {
+                validationException.addValidationError("missing api_key");
+            }
+
+            if (validationException.validationErrors().isEmpty() == false) {
+                throw validationException;
+            }
+
+            return new TestSecretSettings(apiKey);
         }
 
         public TestSecretSettings(StreamInput in) throws IOException {
@@ -293,7 +306,7 @@ public class MockServicePlugin extends Plugin implements InferenceServicePlugin 
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.current();
+            return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
         }
     }
 }

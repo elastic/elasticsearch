@@ -46,7 +46,6 @@ import org.mockito.Mockito;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -257,7 +256,7 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
         when(nodeDelta.masterNodeChanged()).thenReturn(true);
         collector.clusterChanged(event);
 
-        latch.await(10, TimeUnit.SECONDS);
+        safeAwait(latch);
         assertThat("Message to new master was not sent", latch.getCount(), equalTo(0L));
 
         // assert that immediate publication was able to pass through the gate and send metrics over the node client

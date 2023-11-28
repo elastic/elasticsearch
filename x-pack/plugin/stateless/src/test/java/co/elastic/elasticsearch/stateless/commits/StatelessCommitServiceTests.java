@@ -241,12 +241,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
         CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> compoundCommitFileCapture = fileCapture(uploadedBlobs);
         try (var testHarness = createNode(fileCapture(uploadedBlobs), (compoundCommitFile, runnable) -> {
             if (compoundCommitFile.equals(firstCommitFile.get())) {
-                try {
-                    startingUpload.countDown();
-                    blocking.await();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+                startingUpload.countDown();
+                safeAwait(blocking);
                 assertFalse(uploadedBlobs.contains(secondCommitFile.get()));
             } else {
                 assertEquals(compoundCommitFile, secondCommitFile.get());
@@ -277,7 +273,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             secondCommitFile.set(compoundCommitFiles.get(1));
 
             testHarness.commitService.onCommitCreation(firstCommit);
-            startingUpload.await();
+            safeAwait(startingUpload);
             assertThat(uploadedBlobs, not(hasItems(commitFileToBlock.get())));
             assertThat(uploadedBlobs, not(hasItems(firstCommitFile.get())));
 
@@ -407,12 +403,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
         CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> compoundCommitFileCapture = fileCapture(uploadedBlobs);
         try (var testHarness = createNode(fileCapture(uploadedBlobs), (compoundCommitFile, runnable) -> {
             if (compoundCommitFile.equals(firstCommitFile.get())) {
-                try {
-                    startingUpload.countDown();
-                    blocking.await();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+                startingUpload.countDown();
+                safeAwait(blocking);
                 assertFalse(uploadedBlobs.contains(secondCommitFile.get()));
             }
             compoundCommitFileCapture.accept(compoundCommitFile, runnable);
@@ -436,7 +428,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             secondCommitFile.set(compoundCommitFiles.get(1));
 
             testHarness.commitService.onCommitCreation(firstCommit);
-            startingUpload.await();
+            safeAwait(startingUpload);
             assertThat(uploadedBlobs, not(hasItems(commitFileToBlock.get())));
             assertThat(uploadedBlobs, not(hasItems(firstCommitFile.get())));
 

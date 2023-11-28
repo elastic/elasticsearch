@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -87,7 +86,11 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     protected void doExecute(Task submitTask, SubmitAsyncSearchRequest request, ActionListener<AsyncSearchResponse> submitListener) {
         final SearchRequest searchRequest = createSearchRequest(request, submitTask, request.getKeepAlive());
         try (var ignored = threadContext.newTraceContext()) {
-            AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register("transport", SearchAction.INSTANCE.name(), searchRequest);
+            AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register(
+                "transport",
+                TransportSearchAction.TYPE.name(),
+                searchRequest
+            );
             searchAction.execute(searchTask, searchRequest, searchTask.getSearchProgressActionListener());
             searchTask.addCompletionListener(new ActionListener<>() {
                 @Override

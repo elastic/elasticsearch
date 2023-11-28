@@ -38,6 +38,8 @@ import java.util.Objects;
 import java.util.function.ToLongFunction;
 
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
+    public static final int KEY_ORDER_CONCURRENCY_THRESHOLD = 50;
+
     public static final String NAME = "terms";
     public static final ValuesSourceRegistry.RegistryKey<TermsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
@@ -147,7 +149,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             long cardinality = fieldCardinalityResolver.applyAsLong(field());
             if (cardinality != -1) {
                 if (InternalOrder.isKeyOrder(order)) {
-                    if (cardinality <= 50) {
+                    if (cardinality <= KEY_ORDER_CONCURRENCY_THRESHOLD) {
                         return super.supportsParallelCollection(fieldCardinalityResolver);
                     }
                 } else {

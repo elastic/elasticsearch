@@ -26,14 +26,18 @@ public class TestMeterUsages {
     private final LongHistogram longHistogram;
     private final AtomicReference<DoubleWithAttributes> doubleWithAttributes = new AtomicReference<>();
     private final AtomicReference<LongWithAttributes> longWithAttributes = new AtomicReference<>();
+    public static String VERY_LONG_NAME = "a1234567890123456789012345678901234567890123456789012345678901234567890";
 
     public TestMeterUsages(MeterRegistry meterRegistry) {
-        this.doubleCounter = meterRegistry.registerDoubleCounter("testDoubleCounter", "test", "unit");
+        this.doubleCounter = meterRegistry.registerDoubleCounter(VERY_LONG_NAME, "test", "unit");
         this.longCounter = meterRegistry.registerDoubleCounter("testLongCounter", "test", "unit");
         this.doubleHistogram = meterRegistry.registerDoubleHistogram("testDoubleHistogram", "test", "unit");
         this.longHistogram = meterRegistry.registerLongHistogram("testLongHistogram", "test", "unit");
         meterRegistry.registerDoubleGauge("testDoubleGauge", "test", "unit", doubleWithAttributes::get);
         meterRegistry.registerLongGauge("testLongGauge", "test", "unit", longWithAttributes::get);
+
+        meterRegistry.registerLongAsyncCounter("testAsyncLongCounter", "test", "unit", longWithAttributes::get);
+        meterRegistry.registerDoubleGauge("testAsyncDoubleCounter", "test", "unit", doubleWithAttributes::get);
     }
 
     public void testUponRequest() {
@@ -43,6 +47,8 @@ public class TestMeterUsages {
         doubleHistogram.record(2.0);
         longHistogram.record(1);
         longHistogram.record(2);
+
+        // triggers gauges and async counters
         doubleWithAttributes.set(new DoubleWithAttributes(1.0, Map.of()));
         longWithAttributes.set(new LongWithAttributes(1, Map.of()));
     }

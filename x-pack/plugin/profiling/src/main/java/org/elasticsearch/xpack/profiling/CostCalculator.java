@@ -19,17 +19,20 @@ final class CostCalculator {
     private final Map<String, HostMetadata> hostMetadata;
     private final double samplingDurationInSeconds;
     private final double awsCostFactor;
+    private final double customCostPerCoreHour;
 
     CostCalculator(
         InstanceTypeService instanceTypeService,
         Map<String, HostMetadata> hostMetadata,
         double samplingDurationInSeconds,
-        Double awsCostFactor
+        Double awsCostFactor,
+        Double customCostPerCoreHour
     ) {
         this.instanceTypeService = instanceTypeService;
         this.hostMetadata = hostMetadata;
         this.samplingDurationInSeconds = samplingDurationInSeconds > 0 ? samplingDurationInSeconds : 1.0d; // avoid division by zero
         this.awsCostFactor = awsCostFactor == null ? DEFAULT_AWS_COST_FACTOR : awsCostFactor;
+        this.customCostPerCoreHour = customCostPerCoreHour == null ? DEFAULT_COST_USD_PER_CORE_HOUR : customCostPerCoreHour;
     }
 
     public double annualCostsUSD(String hostID, double samples) {
@@ -37,14 +40,14 @@ final class CostCalculator {
 
         HostMetadata host = hostMetadata.get(hostID);
         if (host == null) {
-            return annualCoreHours * DEFAULT_COST_USD_PER_CORE_HOUR;
+            return annualCoreHours * customCostPerCoreHour;
         }
 
         double providerCostFactor = host.instanceType.provider.equals("aws") ? awsCostFactor : 1.0d;
 
         CostEntry costs = instanceTypeService.getCosts(host.instanceType);
         if (costs == null) {
-            return annualCoreHours * DEFAULT_COST_USD_PER_CORE_HOUR * providerCostFactor;
+            return annualCoreHours * customCostPerCoreHour * providerCostFactor;
         }
 
         return annualCoreHours * costs.costFactor * providerCostFactor;

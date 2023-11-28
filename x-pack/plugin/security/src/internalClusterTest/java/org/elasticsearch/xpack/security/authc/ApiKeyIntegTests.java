@@ -470,6 +470,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyIds[0], false), listener);
             verifyInvalidateResponse(1, Collections.singletonList(responses.get(0)), listener.get());
             awaitApiKeysRemoverCompletion();
+            refreshSecurityIndex();
 
             // Get API keys to make sure remover didn't remove any yet
             assertThat(getAllApiKeyInfo(client, false).length, equalTo(3));
@@ -479,13 +480,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyIds[1], false), listener);
             verifyInvalidateResponse(1, Collections.singletonList(responses.get(1)), listener.get());
             awaitApiKeysRemoverCompletion();
+            refreshSecurityIndex();
 
             // Get API keys to make sure remover didn't remove any yet (shouldn't be removed because of the long DELETE_INTERVAL)
             assertThat(getAllApiKeyInfo(client, false).length, equalTo(3));
 
-            // Update DELETE_INTERVAL to every 1 ms
+            // Update DELETE_INTERVAL to every 0 ms
             builder = Settings.builder();
-            deleteIntervalMs = 1;
+            deleteIntervalMs = 0;
             builder.put(ApiKeyService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(deleteIntervalMs));
             updateClusterSettings(builder);
 
@@ -494,9 +496,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyIds[2], false), listener);
             verifyInvalidateResponse(1, Collections.singletonList(responses.get(2)), listener.get());
             awaitApiKeysRemoverCompletion();
+            refreshSecurityIndex();
 
             // Make sure all keys except the last invalidated one are deleted
-            assertThat(getAllApiKeyInfo(client, false).length, equalTo(1));
+            // There is a (tiny) risk that the remover runs after the invalidation and therefore deletes the key that was just
+            // invalidated, so 0 or 1 keys can be returned from the get api
+            assertThat(getAllApiKeyInfo(client, false).length, in(Set.of(0, 1)));
         } finally {
             final Settings.Builder builder = Settings.builder();
             builder.putNull(ApiKeyService.DELETE_INTERVAL.getKey());

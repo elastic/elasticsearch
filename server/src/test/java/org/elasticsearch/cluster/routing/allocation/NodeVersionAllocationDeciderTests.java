@@ -596,10 +596,10 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "can relocate primary shard from a node with version ["
-                    + oldNode.node().getVersion()
+                "can relocate primary shard from a node with max index version ["
+                    + oldNode.node().getMaxIndexVersion()
                     + "] to a node with equal-or-newer version ["
-                    + newNode.node().getVersion()
+                    + newNode.node().getMaxIndexVersion()
                     + "]"
             )
         );
@@ -609,10 +609,10 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "cannot relocate primary shard from a node with version ["
-                    + newNode.node().getVersion()
+                "cannot relocate primary shard from a node with max index version ["
+                    + newNode.node().getMaxIndexVersion()
                     + "] to a node with older version ["
-                    + oldNode.node().getVersion()
+                    + oldNode.node().getMaxIndexVersion()
                     + "]"
             )
         );
@@ -682,10 +682,10 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "cannot allocate replica shard to a node with version ["
-                    + oldNode.node().getVersion()
+                "cannot allocate replica shard to a node with max index version ["
+                    + oldNode.node().getMaxIndexVersion()
                     + "] since this is older than the primary version ["
-                    + newNode.node().getVersion()
+                    + newNode.node().getMaxIndexVersion()
                     + "]"
             )
         );
@@ -704,10 +704,10 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "can allocate replica shard to a node with version ["
-                    + newNode.node().getVersion()
+                "can allocate replica shard to a node with max index version ["
+                    + newNode.node().getMaxIndexVersion()
                     + "] since this is equal-or-newer than the primary version ["
-                    + oldNode.node().getVersion()
+                    + oldNode.node().getMaxIndexVersion()
                     + "]"
             )
         );

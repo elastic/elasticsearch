@@ -69,7 +69,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "can relocate primary shard from a node with version [%s] to a node with equal-or-newer version [%s]",
+                "can relocate primary shard from a node with max index version [%s] to a node with equal-or-newer version [%s]",
                 source.node().getMaxIndexVersion(),
                 target.node().getMaxIndexVersion()
             );
@@ -77,7 +77,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "cannot relocate primary shard from a node with version [%s] to a node with older version [%s]",
+                "cannot relocate primary shard from a node with max index version [%s] to a node with older version [%s]",
                 source.node().getMaxIndexVersion(),
                 target.node().getMaxIndexVersion()
             );
@@ -98,7 +98,8 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "can allocate replica shard to a node with version [%s] since this is equal-or-newer than the primary version [%s]",
+                "can allocate replica shard to a node with max index version [%s]"
+                    + " since this is equal-or-newer than the primary version [%s]",
                 target.node().getMaxIndexVersion(),
                 source.node().getMaxIndexVersion()
             );
@@ -106,7 +107,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "cannot allocate replica shard to a node with version [%s] since this is older than the primary version [%s]",
+                "cannot allocate replica shard to a node with max index version [%s] since this is older than the primary version [%s]",
                 target.node().getMaxIndexVersion(),
                 source.node().getMaxIndexVersion()
             );

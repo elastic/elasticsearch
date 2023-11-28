@@ -311,16 +311,19 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1197")
     public void testRelocationWaitsForAllPendingCommitsAndDoesNotAllowNew() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         AtomicReference<String> commitFileToBlock = new AtomicReference<>();
         AtomicReference<String> firstCommitFile = new AtomicReference<>();
         AtomicReference<String> secondCommitFile = new AtomicReference<>();
 
-        CountDownLatch blocking = new CountDownLatch(1);
+        CountDownLatch blockUploads = new CountDownLatch(1);
 
-        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs))) {
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), (file, runnable) -> {
+            safeAwait(blockUploads);
+            runnable.run();
+            uploadedBlobs.add(file);
+        })) {
 
             List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, 3);
             StatelessCommitRef firstCommit = commitRefs.get(0);
@@ -359,10 +362,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
 
             assertFalse(thirdCommitListener.isDone());
-
             assertFalse(listener.isDone());
 
-            blocking.countDown();
+            blockUploads.countDown();
             listener.actionGet();
 
             relocationListener.onResponse(null);

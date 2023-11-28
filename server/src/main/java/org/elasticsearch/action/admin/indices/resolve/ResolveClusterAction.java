@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -293,24 +295,12 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(request);
             }
-            final ClusterState clusterState = clusterService.state();
-            final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
+            ClusterState clusterState = clusterService.state();
+            Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
                 request.indicesOptions(),
                 request.indices()
             );
-            final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            List<ResolveIndexAction.ResolvedIndex> indices = new ArrayList<>();
-            List<ResolveIndexAction.ResolvedAlias> aliases = new ArrayList<>();           /// MP TODO: need this?
-            List<ResolveIndexAction.ResolvedDataStream> dataStreams = new ArrayList<>();  /// MP TODO: need this?
-            /// MP: TODO: move this to a different shared location?
-            ResolveIndexAction.TransportAction.resolveIndices(
-                localIndices,
-                clusterState,
-                indexNameExpressionResolver,
-                indices,
-                aliases,
-                dataStreams
-            );
+            OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
             Map<String, ResolveClusterInfo> clusterInfoMap = new ConcurrentHashMap<>();
             if (remoteClusterIndices.size() > 0) {
@@ -321,6 +311,14 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                         listener.onResponse(new ResolveClusterAction.Response(clusterInfoMap));
                     }
                 };
+
+                // add local cluster info if in scope of the index-expression from user
+                if (localIndices != null) {
+                    clusterInfoMap.put(
+                        RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                        new ResolveClusterInfo(true, null, hasMatchingIndices(localIndices, clusterState), Build.current())
+                    );
+                }
 
                 // make the cross-cluster calls
                 for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
@@ -343,25 +341,39 @@ public class ResolveClusterAction extends ActionType<ResolveClusterAction.Respon
                     }, failure -> {
                         /// MP TODO: inspect the failure for how to handle? should the response have an error section for each cluster?
                         /// MP for now, just assume all failures mean we aren't connected
+                        System.err.println(">>> FAILURE: " + failure);
+                        System.err.println(ExceptionsHelper.stackTrace(failure));
                         clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
                         terminalHandler.run();
                     }));
                 }
-            }
-            if (localIndices != null) {
+            } else {
                 clusterInfoMap.put(
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                    new ResolveClusterInfo(true, null, hasMatchingIndices(indices, aliases, dataStreams), Build.current())
+                    new ResolveClusterInfo(true, null, hasMatchingIndices(localIndices, clusterState), Build.current())
                 );
                 listener.onResponse(new ResolveClusterAction.Response(clusterInfoMap));
             }
         }
 
-        private boolean hasMatchingIndices(
-            List<ResolveIndexAction.ResolvedIndex> indices,
-            List<ResolveIndexAction.ResolvedAlias> aliases,
-            List<ResolveIndexAction.ResolvedDataStream> dataStreams
-        ) {
+        private boolean hasMatchingIndices(OriginalIndices localIndices, ClusterState clusterState) {
+            List<ResolveIndexAction.ResolvedIndex> indices = new ArrayList<>();
+            List<ResolveIndexAction.ResolvedAlias> aliases = new ArrayList<>();           /// MP TODO: need this?
+            List<ResolveIndexAction.ResolvedDataStream> dataStreams = new ArrayList<>();  /// MP TODO: need this?
+            try {
+                ResolveIndexAction.TransportAction.resolveIndices(
+                    localIndices,
+                    clusterState,
+                    indexNameExpressionResolver,
+                    indices,
+                    aliases,
+                    dataStreams
+                );
+
+            } catch (IndexNotFoundException e) {
+                return false;
+            }
+
             // TODO: not sure that this is right - does aliases.size > 0 imply that there are indices in scope for the search?
             return indices.size() > 0 || aliases.size() > 0 || dataStreams.size() > 0;
         }

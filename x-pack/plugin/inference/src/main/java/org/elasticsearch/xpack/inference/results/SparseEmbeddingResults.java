@@ -75,13 +75,9 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-
         var embeddingList = embeddings.stream().map(Embedding::asMap).toList();
-        // Map<String, Object> sparseEmbeddingMap = new LinkedHashMap<>();
-        // sparseEmbeddingMap.put(EMBEDDING, embeddingList);
 
         map.put(SPARSE_EMBEDDING, embeddingList);
-
         return map;
     }
 

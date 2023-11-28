@@ -199,8 +199,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_RESULTS_ADDED)) {
                 results = in.readNamedWriteable(InferenceServiceResults.class);
             } else if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
-                // It should only be List<InferenceResults> aka List<TextEmbeddingResults> from ml plugin for
-                // hugging face elser and elser
+                // This could be List<InferenceResults> aka List<TextEmbeddingResults> from ml plugin for
+                // hugging face elser and elser or the legacy format for openai
                 results = transformToServiceResults(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             } else {
                 // It should only be InferenceResults aka TextEmbeddingResults from ml plugin for

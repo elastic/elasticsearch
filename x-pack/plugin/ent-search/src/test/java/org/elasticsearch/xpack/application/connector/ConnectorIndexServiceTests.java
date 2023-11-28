@@ -38,7 +38,6 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     public void testPutConnector() throws Exception {
 
         Connector connector = ConnectorTestUtils.getRandomConnector();
-
         DocWriteResponse resp = awaitPutConnector(connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
     }
@@ -60,30 +59,6 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete));
     }
-
-    // TODO: figure out how to use ConnectorTemplateRegistry in the test node
-    // public void testListConnector() throws Exception {
-    // int numConnectors = 10;
-    // List<String> connectorIds = new ArrayList<>();
-    // for (int i = 0; i < numConnectors; i++) {
-    // Connector connector = ConnectorTestUtils.getRandomConnector();
-    // connectorIds.add(connector.getConnectorId());
-    // DocWriteResponse resp = awaitPutConnector(connector);
-    // assertThat(resp.status(), equalTo(RestStatus.CREATED));
-    // }
-    // {
-    // ConnectorIndexService.ConnectorResult searchResponse = awaitListConnector(0, 10);
-    // final List<Connector> connectors = searchResponse.connectors();
-    // assertNotNull(connectors);
-    // assertThat(connectors.size(), equalTo(10));
-    // assertThat(searchResponse.totalResults(), equalTo(10L));
-    //
-    // for (int i = 0; i < numConnectors; i++) {
-    // String connectorId = connectors.get(i).getConnectorId();
-    // assertThat(connectorId, equalTo(connectorIds.get(i)));
-    // }
-    // }
-    // }
 
     private DeleteResponse awaitDeleteConnector(String connectorId) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);

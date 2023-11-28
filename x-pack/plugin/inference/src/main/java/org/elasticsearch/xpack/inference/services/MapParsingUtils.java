@@ -168,4 +168,8 @@ public class MapParsingUtils {
 
         return optionalField;
     }
+
+    public static String parsePersistedConfigErrorMsg(String modelId, String serviceName) {
+        return format("Failed to parse stored model [%s] for [%s] service, please delete and add the service again", modelId, serviceName);
+    }
 }

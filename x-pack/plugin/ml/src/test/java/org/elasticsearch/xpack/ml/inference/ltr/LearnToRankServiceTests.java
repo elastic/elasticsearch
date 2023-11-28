@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
@@ -52,6 +53,7 @@ public class LearnToRankServiceTests extends ESTestCase {
     public static final String GOOD_MODEL = "modelId";
     public static final String BAD_MODEL = "badModel";
     public static final String TEMPLATED_GOOD_MODEL = "templatedModelId";
+    private static final Map<String, Float> DEFAULT_SCORES = Map.ofEntries(Map.entry("feature_1", 0f), Map.entry("feature_2", 1.5f));
     public static final TrainedModelConfig GOOD_MODEL_CONFIG = TrainedModelConfig.builder()
         .setModelId(GOOD_MODEL)
         .setInput(new TrainedModelInput(List.of("field1", "field2")))
@@ -62,8 +64,16 @@ public class LearnToRankServiceTests extends ESTestCase {
             new LearnToRankConfig(
                 2,
                 List.of(
-                    new QueryExtractorBuilder("feature_1", QueryProviderTests.createRandomValidQueryProvider("field_1", "foo")),
-                    new QueryExtractorBuilder("feature_2", QueryProviderTests.createRandomValidQueryProvider("field_2", "bar"))
+                    new QueryExtractorBuilder(
+                        "feature_1",
+                        QueryProviderTests.createRandomValidQueryProvider("field_1", "foo"),
+                        DEFAULT_SCORES.get("feature_1")
+                    ),
+                    new QueryExtractorBuilder(
+                        "feature_2",
+                        QueryProviderTests.createRandomValidQueryProvider("field_2", "bar"),
+                        DEFAULT_SCORES.get("feature_2")
+                    )
                 )
             )
         )
@@ -84,8 +94,16 @@ public class LearnToRankServiceTests extends ESTestCase {
             new LearnToRankConfig(
                 2,
                 List.of(
-                    new QueryExtractorBuilder("feature_1", QueryProviderTests.createRandomValidQueryProvider("field_1", "{{foo_param}}")),
-                    new QueryExtractorBuilder("feature_2", QueryProviderTests.createRandomValidQueryProvider("field_2", "{{bar_param}}"))
+                    new QueryExtractorBuilder(
+                        "feature_1",
+                        QueryProviderTests.createRandomValidQueryProvider("field_1", "{{foo_param}}"),
+                        DEFAULT_SCORES.get("feature_1")
+                    ),
+                    new QueryExtractorBuilder(
+                        "feature_2",
+                        QueryProviderTests.createRandomValidQueryProvider("field_2", "{{bar_param}}"),
+                        DEFAULT_SCORES.get("feature_2")
+                    )
                 )
             )
         )
@@ -161,8 +179,12 @@ public class LearnToRankServiceTests extends ESTestCase {
                 LearnToRankConfig.builder((LearnToRankConfig) TEMPLATED_GOOD_MODEL_CONFIG.getInferenceConfig())
                     .setLearnToRankFeatureExtractorBuilders(
                         List.of(
-                            new QueryExtractorBuilder("feature_1", QueryProvider.fromParsedQuery(new MatchNoneQueryBuilder())),
-                            new QueryExtractorBuilder("feature_2", QueryProvider.fromParsedQuery(new MatchNoneQueryBuilder()))
+                            new QueryExtractorBuilder("feature_1", QueryProvider.fromParsedQuery(new MatchNoneQueryBuilder()), 0),
+                            new QueryExtractorBuilder(
+                                "feature_2",
+                                QueryProvider.fromParsedQuery(new MatchAllQueryBuilder().boost(DEFAULT_SCORES.get("feature_2"))),
+                                DEFAULT_SCORES.get("feature_2")
+                            )
                         )
                     )
                     .build()

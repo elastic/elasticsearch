@@ -70,19 +70,25 @@ public class QueryFeatureExtractorTests extends AbstractBuilderTestCase {
         );
         QueryRewriteContext ctx = createQueryRewriteContext();
         List<QueryExtractorBuilder> queryExtractorBuilders = List.of(
-            new QueryExtractorBuilder("text_score", QueryProvider.fromParsedQuery(QueryBuilders.matchQuery(TEXT_FIELD_NAME, "quick fox")))
-                .rewrite(ctx),
+            new QueryExtractorBuilder(
+                "text_score",
+                QueryProvider.fromParsedQuery(QueryBuilders.matchQuery(TEXT_FIELD_NAME, "quick fox")),
+                randomFloat()
+            ).rewrite(ctx),
             new QueryExtractorBuilder(
                 "number_score",
-                QueryProvider.fromParsedQuery(QueryBuilders.rangeQuery(INT_FIELD_NAME).from(12).to(12))
+                QueryProvider.fromParsedQuery(QueryBuilders.rangeQuery(INT_FIELD_NAME).from(12).to(12)),
+                randomFloat()
             ).rewrite(ctx),
             new QueryExtractorBuilder(
                 "matching_none",
-                QueryProvider.fromParsedQuery(QueryBuilders.termQuery(TEXT_FIELD_NAME, "never found term"))
+                QueryProvider.fromParsedQuery(QueryBuilders.termQuery(TEXT_FIELD_NAME, "never found term")),
+                randomFloat()
             ).rewrite(ctx),
             new QueryExtractorBuilder(
                 "matching_missing_field",
-                QueryProvider.fromParsedQuery(QueryBuilders.termQuery("missing_text", "quick fox"))
+                QueryProvider.fromParsedQuery(QueryBuilders.termQuery("missing_text", "quick fox")),
+                randomFloat()
             ).rewrite(ctx)
         );
         SearchExecutionContext dummySEC = createSearchExecutionContext();

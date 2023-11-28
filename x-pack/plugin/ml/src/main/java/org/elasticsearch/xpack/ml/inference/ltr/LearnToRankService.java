@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.ml.inference.ltr;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -186,14 +188,16 @@ public class LearnToRankService {
 
             return new QueryExtractorBuilder(
                 queryExtractorBuilder.featureName(),
-                QueryProvider.fromXContent(parser, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT)
+                QueryProvider.fromXContent(parser, false, INFERENCE_CONFIG_QUERY_BAD_FORMAT),
+                queryExtractorBuilder.defaultScore()
             );
         } catch (GeneralScriptException e) {
             if (e.getRootCause().getClass().getName().equals(MustacheInvalidParameterException.class.getName())) {
                 // Can't use instanceof since it return unexpected result.
                 return new QueryExtractorBuilder(
                     queryExtractorBuilder.featureName(),
-                    QueryProvider.fromParsedQuery(new MatchNoneQueryBuilder())
+                    defaultQuery(queryExtractorBuilder.defaultScore()),
+                    queryExtractorBuilder.defaultScore()
                 );
             }
             throw e;
@@ -204,5 +208,10 @@ public class LearnToRankService {
         try (XContentBuilder configSourceBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             return BytesReference.bytes(queryProvider.toXContent(configSourceBuilder, EMPTY_PARAMS)).utf8ToString();
         }
+    }
+
+    private QueryProvider defaultQuery(float score) throws IOException {
+        QueryBuilder query = score == 0 ? new MatchNoneQueryBuilder() : new MatchAllQueryBuilder().boost(score);
+        return QueryProvider.fromParsedQuery(query);
     }
 }

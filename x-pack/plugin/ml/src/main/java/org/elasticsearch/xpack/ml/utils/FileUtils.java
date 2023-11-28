@@ -20,6 +20,8 @@ import java.util.EnumSet;
  */
 public final class FileUtils {
 
+    private FileUtils() {}
+
     private static final FileAttribute<?>[] POSIX_TMP_DIR_PERMISSIONS = new FileAttribute<?>[] {
         PosixFilePermissions.asFileAttribute(
             EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE)

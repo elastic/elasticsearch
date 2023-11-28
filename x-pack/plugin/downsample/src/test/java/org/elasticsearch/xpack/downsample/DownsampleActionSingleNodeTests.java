@@ -933,7 +933,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 // NOTE: there is just one dimension with two possible values, this needs to be one of the two possible tsid values.
                 new BytesRef(
                     new byte[] {
-                        0x24,
                         0x42,
                         (byte) 0xe4,
                         (byte) 0x9f,

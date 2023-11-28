@@ -185,7 +185,7 @@ fetch a tag:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}
+  - match: {hits.hits.0.fields._tsid: ["KMQn1H8GA7xNFfZA53p2lHXagOH76qjI1lFA_LjfLfhB3LZ2mzIbSg"]}
 
 ---
 aggregate a dimension:
@@ -282,9 +282,9 @@ aggregate a tag:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}
+  - match: {aggregations.tsids.buckets.0.key: "KMQn1H8GA7xNFfZA53p2lDmKEcP76qjItOI7LSmY_r9EAgT57T50pA"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
+  - match: {aggregations.tsids.buckets.1.key: "KMQn1H8GA7xNFfZA53p2lHXagOH76qjI1lFA_LjfLfhB3LZ2mzIbSg"}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---
@@ -319,7 +319,8 @@ sort by tsid:
           sort:   [ "_tsid", "@timestamp" ]
 
   - match: {hits.total.value: 8}
-  - match: {hits.hits.0.sort: ["KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQAAAAAAAAA", 1619635803142]}
-  - match: {hits.hits.1.sort: ["KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQAAAAAAAAA", 1619635823142]}
-  - match: {hits.hits.4.sort: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0oAAAAAAAAA", 1619635804467]}
-  - match: {hits.hits.7.sort: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0oAAAAAAAAA", 1619635864467]}
+  # NOTE: 98023 - Check possible buffer issue with _tsid Base64 encoding ('AAAAAAAAAAA')
+  - match: {hits.hits.0.sort: ["KMQn1H8GA7xNFfZA53p2lDmKEcP76qjItOI7LSmY_r9EAgT57T50pAAAAAAAAAAA", 1619635803142]}
+  - match: {hits.hits.1.sort: ["KMQn1H8GA7xNFfZA53p2lDmKEcP76qjItOI7LSmY_r9EAgT57T50pAAAAAAAAAAA", 1619635823142]}
+  - match: {hits.hits.4.sort: ["KMQn1H8GA7xNFfZA53p2lHXagOH76qjI1lFA_LjfLfhB3LZ2mzIbSgAAAAAAAAAA", 1619635804467]}
+  - match: {hits.hits.7.sort: ["KMQn1H8GA7xNFfZA53p2lHXagOH76qjI1lFA_LjfLfhB3LZ2mzIbSgAAAAAAAAAA", 1619635864467]}

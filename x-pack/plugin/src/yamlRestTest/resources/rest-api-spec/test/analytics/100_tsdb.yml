@@ -78,11 +78,11 @@ aggretate multi_terms:
                   - field: k8s.pod.ip
 
   - length: { aggregations.m_terms.buckets: 3 }
-  - match: { aggregations.m_terms.buckets.0.key_as_string: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ|10.10.55.3" }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "KMQn1H8GA7xNFfZA53p2lDmKEcP76qjItOI7LSmY_r9EAgT57T50pA|10.10.55.3" }
   - match: { aggregations.m_terms.buckets.0.doc_count: 4 }
-  - match: { aggregations.m_terms.buckets.1.key_as_string: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o|10.10.55.1" }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "KMQn1H8GA7xNFfZA53p2lHXagOH76qjI1lFA_LjfLfhB3LZ2mzIbSg|10.10.55.1" }
   - match: { aggregations.m_terms.buckets.1.doc_count: 3 }
-  - match: { aggregations.m_terms.buckets.2.key_as_string: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o|10.10.55.2" }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "KMQn1H8GA7xNFfZA53p2lHXagOH76qjI1lFA_LjfLfhB3LZ2mzIbSg|10.10.55.2" }
   - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
 
 ---

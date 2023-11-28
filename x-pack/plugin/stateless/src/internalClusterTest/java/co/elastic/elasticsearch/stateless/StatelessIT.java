@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -45,6 +46,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
@@ -60,7 +62,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -72,6 +76,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -100,11 +105,14 @@ import static org.hamcrest.Matchers.notNullValue;
 @LuceneTestCase.SuppressFileSystems(value = { "WindowsFS", "ExtrasFS" })
 public class StatelessIT extends AbstractStatelessIntegTestCase {
 
+    protected Settings.Builder nodeSettings() {
+        return super.nodeSettings().put(BlobStoreHealthIndicator.POLL_INTERVAL, "1s")
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
+    }
+
     @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        settings.put(BlobStoreHealthIndicator.POLL_INTERVAL, "1s");
-        return settings.build();
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.concatLists(List.of(MockRepository.Plugin.class), super.nodePlugins());
     }
 
     public void testCompoundCommitHasNodeEphemeralId() throws Exception {
@@ -296,7 +304,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     public void testAllTranslogOperationsAreWrittenToObjectStore() throws Exception {
         startMasterOnlyNode();
         final int numberOfShards = randomIntBetween(1, 5);
-        startIndexNodes(numberOfShards);
+        List<String> indexingNodes = startIndexNodes(numberOfShards);
+
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -307,12 +316,30 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         assertObjectStoreConsistentWithIndexShards();
 
+        // Ensure that an automatic flush cannot clean translog
+        for (String indexingNode : indexingNodes) {
+            ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexingNode);
+            MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+            repository.setRandomControlIOExceptionRate(1.0);
+            repository.setRandomDataFileIOExceptionRate(1.0);
+            repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
+            repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
+        }
+
         final int iters = randomIntBetween(1, 20);
         for (int i = 0; i < iters; i++) {
             indexDocs(indexName, randomIntBetween(1, 100));
         }
 
         assertReplicatedTranslogConsistentWithShards();
+
+        // Allow flushes again
+        for (String indexingNode : indexingNodes) {
+            ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexingNode);
+            MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+            repository.setRandomControlIOExceptionRate(0.0);
+            repository.setRandomDataFileIOExceptionRate(0.0);
+        }
     }
 
     public void testDownloadNewCommitsFromObjectStore() throws Exception {

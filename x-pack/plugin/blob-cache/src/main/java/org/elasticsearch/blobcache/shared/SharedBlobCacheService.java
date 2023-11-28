@@ -281,8 +281,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final SharedBytes sharedBytes;
     private final long cacheSize;
     private final int regionSize;
-    private final ByteSizeValue rangeSize;
-    private final ByteSizeValue recoveryRangeSize;
+    private final int rangeSize;
+    private final int recoveryRangeSize;
 
     private final int numRegions;
     private final ConcurrentLinkedQueue<SharedBytes.IO> freeRegions = new ConcurrentLinkedQueue<>();
@@ -355,8 +355,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             freeRegions.add(sharedBytes.getFileChannel(i));
         }
 
-        this.rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
-        this.recoveryRangeSize = SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
+        this.rangeSize = BlobCacheUtils.toIntBytes(SHARED_CACHE_RANGE_SIZE_SETTING.get(settings).getBytes());
+        this.recoveryRangeSize = BlobCacheUtils.toIntBytes(SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings).getBytes());
 
         this.blobCacheMetrics = blobCacheMetrics;
     }
@@ -368,11 +368,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     public int getRangeSize() {
-        return BlobCacheUtils.toIntBytes(rangeSize.getBytes());
+        return rangeSize;
     }
 
     public int getRecoveryRangeSize() {
-        return BlobCacheUtils.toIntBytes(recoveryRangeSize.getBytes());
+        return recoveryRangeSize;
     }
 
     private int getRegion(long position) {

@@ -166,3 +166,25 @@ a:keyword | b:keyword | d:keyword
 b c d     | b         | d
 ;
 
+
+multipleEmptyPatterns#[skip:-8.11.99]
+ROW a="b c d e"| DISSECT a "%{b} %{} %{} %{e}";
+
+a:keyword | b:keyword | e:keyword
+b c d e   | b         | e
+;
+
+firstEmptyPattern#[skip:-8.11.99]
+ROW a="x b c d"| DISSECT a "%{} %{b} %{} %{d}";
+
+a:keyword   | b:keyword | d:keyword
+x b c d     | b         | d
+;
+
+
+lastEmptyPattern#[skip:-8.11.99]
+ROW a="b c d x"| DISSECT a "%{b} %{} %{d} %{}";
+
+a:keyword  | b:keyword | d:keyword
+b c d x    | b         | d
+;

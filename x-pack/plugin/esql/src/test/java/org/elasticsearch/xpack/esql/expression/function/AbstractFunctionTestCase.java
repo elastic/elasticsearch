@@ -233,8 +233,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result;
         try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
-            try (Block.Ref ref = evaluator.eval(row(testCase.getDataValues()))) {
-                result = toJavaObject(ref.block(), 0);
+            try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
+                result = toJavaObject(block, 0);
             }
         }
         assertThat(result, not(equalTo(Double.NaN)));
@@ -385,18 +385,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 }
             }
             Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block.Ref ref = eval.eval(new Page(manyPositionsBlocks))) {
-                assertThat(ref.block().getPositionCount(), equalTo(ref.block().getPositionCount()));
+            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(new Page(manyPositionsBlocks))) {
                 for (int p = 0; p < positions; p++) {
                     if (nullPositions.contains(p)) {
-                        assertThat(toJavaObject(ref.block(), p), allNullsMatcher());
+                        assertThat(toJavaObject(block, p), allNullsMatcher());
                         continue;
                     }
-                    assertThat(toJavaObject(ref.block(), p), testCase.getMatcher());
+                    assertThat(toJavaObject(block, p), testCase.getMatcher());
                 }
                 assertThat(
                     "evaluates to tracked block",
-                    ref.block().blockFactory(),
+                    block.blockFactory(),
                     either(sameInstance(context.blockFactory())).or(sameInstance(inputBlockFactory))
                 );
             }
@@ -428,8 +427,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         data.add(simpleData.get(b));
                     }
                 }
-                try (Block.Ref ref = eval.eval(new Page(blocks))) {
-                    assertSimpleWithNulls(data, ref.block(), i);
+                try (Block block = eval.eval(new Page(blocks))) {
+                    assertSimpleWithNulls(data, block, i);
                 }
             }
         }
@@ -456,8 +455,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 futures.add(exec.submit(() -> {
                     try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
                         for (int c = 0; c < count; c++) {
-                            try (Block.Ref ref = eval.eval(page)) {
-                                assertThat(toJavaObject(ref.block(), 0), testCase.getMatcher());
+                            try (Block block = eval.eval(page)) {
+                                assertThat(toJavaObject(block, 0), testCase.getMatcher());
                             }
                         }
                     }

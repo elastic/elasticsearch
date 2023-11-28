@@ -29,9 +29,9 @@ public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
 
     public void testWrapperQueryIsRewritten() throws IOException {
         createIndex("test", Settings.EMPTY, "test", "title", "type=text");
-        client().prepareIndex("test").setId("1").setSource("title", "foo bar baz").get();
-        client().prepareIndex("test").setId("2").setSource("title", "foo foo foo").get();
-        client().prepareIndex("test").setId("3").setSource("title", "bar baz bax").get();
+        prepareIndex("test").setId("1").setSource("title", "foo bar baz").get();
+        prepareIndex("test").setId("2").setSource("title", "foo foo foo").get();
+        prepareIndex("test").setId("3").setSource("title", "bar baz bax").get();
         client().admin().indices().prepareRefresh("test").get();
 
         XContentType xContentType = randomFrom(XContentType.values());

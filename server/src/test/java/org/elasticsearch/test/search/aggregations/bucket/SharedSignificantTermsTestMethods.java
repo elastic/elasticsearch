@@ -50,7 +50,7 @@ public class SharedSignificantTermsTestMethods {
     private static void checkSignificantTermsAggregationCorrect(ESIntegTestCase testCase) {
         SearchResponse response = prepareSearch(INDEX_NAME).addAggregation(
             terms("class").field(CLASS_FIELD).subAggregation(significantTerms("sig_terms").field(TEXT_FIELD))
-        ).execute().actionGet();
+        ).get();
         assertNoFailures(response);
         StringTerms classes = response.getAggregations().get("class");
         Assert.assertThat(classes.getBuckets().size(), equalTo(2));

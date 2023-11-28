@@ -842,8 +842,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setId(Integer.toString(i))
                 .setSource(Collections.singletonMap("@timestamp", "2020-12-12"))
-                .execute()
-                .actionGet();
+                .get();
         }
         refresh();
         assertDocCount(dataStream, 100L);

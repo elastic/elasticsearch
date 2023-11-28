@@ -543,7 +543,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         AbstractRunnable getReceiveRunnable(T request, TransportChannel channel, Task task) {
             final Runnable releaseRequest = new RunOnce(request::decRef);
-            request.incRef();
+            request.mustIncRef();
             return new AbstractRunnable() {
                 @Override
                 public boolean isForceExecution() {

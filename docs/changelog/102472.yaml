@@ -1,0 +1,5 @@
+pr: 102472
+summary: Expose the `invalidation` field in Get/Query `ApiKey` APIs
+area: Security
+type: enhancement
+issues: [ ]

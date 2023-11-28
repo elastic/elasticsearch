@@ -219,6 +219,7 @@ public class SearchEngine extends Engine {
 
             @Override
             protected void doRun() throws Exception {
+                ensureOpen();
                 batchSize = pendingCommitNotifications.get();
                 assert batchSize > 0 : batchSize;
 
@@ -279,12 +280,14 @@ public class SearchEngine extends Engine {
             public void onFailure(Exception e) {
                 if (e instanceof AlreadyClosedException == false) {
                     failEngine("failed to refresh segments", e);
+                } else {
+                    logger.debug("failed to process commit notification, engine is closed", e);
                 }
             }
 
             @Override
             public void onAfter() {
-                if (success == false) {
+                if (success == false && isClosed.get() == false) {
                     doAfter();
                 }
             }

@@ -168,12 +168,19 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 );
             }
             LeafReaderContext ctx = ctx(shard, segment);
+            StoredFieldLoader storedFieldLoader;
+            if (isSequential(docVector.docs())) {
+                storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
+                trackStoredFields(storedFieldsSpec, true);
+            } else {
+                storedFieldLoader = StoredFieldLoader.fromSpec(storedFieldsSpec);
+                trackStoredFields(storedFieldsSpec, false);
+            }
             BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 // TODO enable the optimization by passing non-null to docs if correct
-                StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                storedFieldLoader.getLoader(ctx, null),
                 storedFieldsSpec.requiresSource() ? shardContexts.get(shard).newSourceLoader.get().leaf(ctx.reader(), null) : null
             );
-            trackStoredFields(storedFieldsSpec); // TODO when optimization is enabled add it to tracking
             for (int p = 0; p < docs.getPositionCount(); p++) {
                 int doc = docs.getInt(p);
                 if (storedFields != null) {
@@ -223,7 +230,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                         storedFieldsSpec.requiresSource() ? shardContexts.get(shard).newSourceLoader.get().leaf(ctx.reader(), null) : null
                     );
                     if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-                        trackStoredFields(storedFieldsSpec);
+                        trackStoredFields(storedFieldsSpec, false);
                     }
                 }
                 storedFields.advanceTo(doc);
@@ -241,9 +248,24 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private void trackStoredFields(StoredFieldsSpec spec) {
+    /**
+     * Is it more efficient to use a sequential stored field reader
+     * when reading stored fields for the documents contained in {@code docIds}.
+     */
+    private boolean isSequential(IntVector docIds) {
+        return docIds.getInt(docIds.getPositionCount() - 1) - docIds.getInt(0) == docIds.getPositionCount() - 1;
+    }
+
+    private void trackStoredFields(StoredFieldsSpec spec, boolean sequential) {
         readersBuilt.merge(
-            "stored_fields[" + "requires_source:" + spec.requiresSource() + ", fields:" + spec.requiredStoredFields().size() + "]",
+            "stored_fields["
+                + "requires_source:"
+                + spec.requiresSource()
+                + ", fields:"
+                + spec.requiredStoredFields().size()
+                + ", sequential: "
+                + sequential
+                + "]",
             1,
             (prev, one) -> prev + one
         );

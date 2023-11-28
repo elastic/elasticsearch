@@ -1035,7 +1035,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             assertMap(
                 readers,
                 matchesMap().entry(name + ":row_stride:BlockSourceReader." + type, count)
-                    .entry("stored_fields[requires_source:true, fields:0]", count)
+                    .entry("stored_fields[requires_source:true, fields:0, sequential: " + (false == forcedRowByRow) + "]", count)
             );
         }
 
@@ -1051,7 +1051,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             assertMap(
                 readers,
                 matchesMap().entry(name + ":row_stride:BlockStoredFieldsReader." + type, count)
-                    .entry("stored_fields[requires_source:false, fields:1]", count)
+                    .entry("stored_fields[requires_source:false, fields:1, sequential: " + (false == forcedRowByRow) + "]", count)
             );
         }
 

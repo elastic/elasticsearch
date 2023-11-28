@@ -26,8 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.singletonList;
-
 public class InternalScriptedMetric extends InternalAggregation implements ScriptedMetric {
     final Script reduceScript;
     private final List<Object> aggregations;
@@ -44,7 +42,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     public InternalScriptedMetric(StreamInput in) throws IOException {
         super(in);
         reduceScript = in.readOptionalWriteable(Script::new);
-        aggregations = singletonList(in.readGenericValue());
+        aggregations = in.readCollectionAsList(StreamInput::readGenericValue);
     }
 
     @Override

@@ -15,7 +15,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -187,7 +186,7 @@ public class JwtAuthenticator implements Releasable {
         RealmConfig realmConfig,
         @Nullable Map<String, String> fallbackClaimLookup
     ) {
-        validateAllowedSubjectsSettings(realmConfig);
+        // validateAllowedSubjectsSettings(realmConfig);
         return new JwtStringClaimValidator(
             "sub",
             true,
@@ -195,48 +194,5 @@ public class JwtAuthenticator implements Releasable {
             realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS),
             realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
         );
-    }
-
-    private static void validateAllowedSubjectsSettings(RealmConfig realmConfig) {
-        if (realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECTS) == false
-            && realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS) == false) {
-            throw new SettingsException(
-                "One of either ["
-                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECTS).getKey()
-                    + "] or ["
-                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS).getKey()
-                    + "] must be specified."
-            );
-        }
-        if (realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECTS) == false
-            && realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS).isEmpty()) {
-            throw new SettingsException(
-                "["
-                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS).getKey()
-                    + "] cannot be empty if ["
-                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECTS).getKey()
-                    + "] is left unspecified."
-            );
-        }
-        if (realmConfig.hasSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS) == false
-            && realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS).isEmpty()) {
-            throw new SettingsException(
-                "["
-                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECTS).getKey()
-                    + "] cannot be empty if ["
-                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS).getKey()
-                    + "] is left unspecified."
-            );
-        }
-        if (realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECTS).isEmpty()
-            && realmConfig.getSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS).isEmpty()) {
-            throw new SettingsException(
-                "One of either ["
-                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECTS).getKey()
-                    + "] or ["
-                    + realmConfig.getConcreteSetting(JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS).getKey()
-                    + "] must be non-empty."
-            );
-        }
     }
 }

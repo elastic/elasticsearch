@@ -87,11 +87,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      */
     public QuerySearchResult(StreamInput in, boolean delayedAggregations) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
-            isNull = in.readBoolean();
-        } else {
-            isNull = false;
-        }
+        isNull = in.readBoolean();
         if (isNull == false) {
             ShardSearchContextId id = new ShardSearchContextId(in);
             readFromWithId(id, in, delayedAggregations);
@@ -399,10 +395,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
             hasProfileResults = profileShardResults != null;
             serviceTimeEWMA = in.readZLong();
             nodeQueueSize = in.readInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-                setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-                setRescoreDocIds(new RescoreDocIds(in));
-            }
+            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+            setRescoreDocIds(new RescoreDocIds(in));
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
             }
@@ -421,9 +415,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (aggregations != null && aggregations.isSerialized()) {
             throw new IllegalStateException("cannot send serialized version since it will leak");
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
-            out.writeBoolean(isNull);
-        }
+        out.writeBoolean(isNull);
         if (isNull == false) {
             contextId.writeTo(out);
             writeToNoId(out);
@@ -454,10 +446,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(profileShardResults);
         out.writeZLong(serviceTimeEWMA);
         out.writeInt(nodeQueueSize);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeOptionalWriteable(getShardSearchRequest());
-            getRescoreDocIds().writeTo(out);
-        }
+        out.writeOptionalWriteable(getShardSearchRequest());
+        getRescoreDocIds().writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeOptionalNamedWriteable(rankShardResult);
         } else if (rankShardResult != null) {

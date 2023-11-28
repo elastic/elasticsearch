@@ -57,6 +57,7 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.resolve.ResolveClusterAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
@@ -641,4 +642,17 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Resolves names and wildcard expressions to indices, aliases, and data streams
      */
     ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request);
+
+    /**
+     * Resolves names and wildcard expressions determine if there are any matching indices, aliases, or data streams
+     * as well as additional metadata about the cluster (e.g., Elasticsearch version) useful for cross-cluster search
+     */
+    void resolveCluster(ResolveClusterAction.Request request, ActionListener<ResolveClusterAction.Response> listener);
+
+    /**
+     * Resolves names and wildcard expressions determine if there are any matching indices, aliases, or data streams
+     * as well as additional metadata about the cluster (e.g., Elasticsearch version) useful for cross-cluster search
+     */
+    ActionFuture<ResolveClusterAction.Response> resolveCluster(ResolveClusterAction.Request request);
+
 }

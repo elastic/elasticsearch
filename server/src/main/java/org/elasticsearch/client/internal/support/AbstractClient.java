@@ -196,6 +196,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.resolve.ResolveClusterAction;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -1580,6 +1581,16 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request) {
             return execute(ResolveIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public void resolveCluster(ResolveClusterAction.Request request, ActionListener<ResolveClusterAction.Response> listener) {
+            execute(ResolveClusterAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<ResolveClusterAction.Response> resolveCluster(ResolveClusterAction.Request request) {
+            return execute(ResolveClusterAction.INSTANCE, request);
         }
     }
 

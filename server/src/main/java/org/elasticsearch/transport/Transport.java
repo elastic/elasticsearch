@@ -8,6 +8,8 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,8 +25,8 @@ import org.elasticsearch.core.TimeValue;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -33,6 +35,8 @@ import java.util.function.Predicate;
 import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
 
 public interface Transport extends LifecycleComponent {
+
+    Logger logger = LogManager.getLogger(Transport.class);
 
     /**
      * Registers a new request handler
@@ -231,14 +235,17 @@ public interface Transport extends LifecycleComponent {
         /**
          * Removes and returns all {@link ResponseContext} instances that match the predicate
          */
-        public List<ResponseContext<? extends TransportResponse>> prune(Predicate<ResponseContext<? extends TransportResponse>> predicate) {
-            final List<ResponseContext<? extends TransportResponse>> holders = new ArrayList<>();
+        public Map<Long, ResponseContext<? extends TransportResponse>> prune(
+            Predicate<ResponseContext<? extends TransportResponse>> predicate
+        ) {
+            final Map<Long, ResponseContext<? extends TransportResponse>> holders = new HashMap<>();
             for (Map.Entry<Long, ResponseContext<? extends TransportResponse>> entry : handlers.entrySet()) {
+                Long requestId = entry.getKey();
                 ResponseContext<? extends TransportResponse> holder = entry.getValue();
                 if (predicate.test(holder)) {
-                    ResponseContext<? extends TransportResponse> remove = handlers.remove(entry.getKey());
+                    ResponseContext<? extends TransportResponse> remove = handlers.remove(requestId);
                     if (remove != null) {
-                        holders.add(holder);
+                        holders.put(requestId, holder);
                     }
                 }
             }

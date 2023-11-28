@@ -355,10 +355,15 @@ public class TransportService extends AbstractLifecycleComponent
             // but there may still be pending handlers for node-local requests since this connection is not closed, and we may also
             // (briefly) track handlers for requests which are sent concurrently with stopping even though the underlying connection is
             // now closed. We complete all these outstanding handlers here:
-            for (final Transport.ResponseContext<?> holderToNotify : responseHandlers.prune(h -> true)) {
+            for (final Map.Entry<Long, Transport.ResponseContext<?>> holderToNotifyEntry : responseHandlers.prune(h -> true).entrySet()) {
+                final Transport.ResponseContext<?> holderToNotify = holderToNotifyEntry.getValue();
                 try {
                     final TransportResponseHandler<?> handler = holderToNotify.handler();
                     final var targetNode = holderToNotify.connection().getNode();
+                    final long requestId = holderToNotifyEntry.getKey();
+                    if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
+                        tracerLog.trace("[{}][{}] pruning request for node [{}]", requestId, holderToNotify.action(), targetNode);
+                    }
 
                     assert transport instanceof TcpTransport == false
                         /* other transports (used in tests) may not implement the proper close-connection behaviour. TODO fix this. */
@@ -951,7 +956,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
-    private void handleInternalSendException(
+    protected void handleInternalSendException(
         String action,
         DiscoveryNode node,
         long requestId,
@@ -986,6 +991,9 @@ public class TransportService extends AbstractLifecycleComponent
 
             @Override
             protected void doRun() {
+                if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
+                    tracerLog.trace("[{}][{}] failed to send request to node [{}]", requestId, action, node);
+                }
                 contextToNotify.handler().handleException(sendRequestException);
             }
         });
@@ -1287,7 +1295,7 @@ public class TransportService extends AbstractLifecycleComponent
 
     @Override
     public void onConnectionClosed(Transport.Connection connection) {
-        List<Transport.ResponseContext<? extends TransportResponse>> pruned = responseHandlers.prune(
+        Map<Long, Transport.ResponseContext<? extends TransportResponse>> pruned = responseHandlers.prune(
             h -> h.connection().getCacheKey().equals(connection.getCacheKey())
         );
         if (pruned.isEmpty()) {
@@ -1300,7 +1308,17 @@ public class TransportService extends AbstractLifecycleComponent
         executor.execute(new AbstractRunnable() {
             @Override
             public void doRun() {
-                for (Transport.ResponseContext<?> holderToNotify : pruned) {
+                for (Map.Entry<Long, Transport.ResponseContext<?>> holderToNotifyEntry : pruned.entrySet()) {
+                    final Transport.ResponseContext<?> holderToNotify = holderToNotifyEntry.getValue();
+                    final long requestId = holderToNotifyEntry.getKey();
+                    if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
+                        tracerLog.trace(
+                            "[{}][{}] pruning request because node [{}] closed",
+                            requestId,
+                            holderToNotify.action(),
+                            connection.getNode()
+                        );
+                    }
                     holderToNotify.handler().handleException(new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
                 }
             }

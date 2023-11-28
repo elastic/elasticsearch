@@ -653,7 +653,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        executor.execute(ActionRunnable.supplyRefCounted(listener, executable));
+        executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
     }
 
     /**

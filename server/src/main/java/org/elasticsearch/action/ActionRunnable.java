@@ -62,11 +62,8 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
     /**
      * Same as {@link #supply(ActionListener, CheckedSupplier)} but the supplier always returns an object of reference counted result type
      * which will have its reference count decremented after invoking the listener.
-     * @param listener Listener to invoke
-     * @param supplier Supplier that provides the reference counted value to pass to the listener
-     * @return Wrapped {@code Runnable}
      */
-    public static <T extends RefCounted> ActionRunnable<T> supplyRefCounted(
+    public static <T extends RefCounted> ActionRunnable<T> supplyAndDecRef(
         ActionListener<T> listener,
         CheckedSupplier<T, Exception> supplier
     ) {

@@ -290,7 +290,7 @@ public abstract class TransportTasksAction<
 
         protected NodeTaskRequest(TasksRequest tasksRequest) {
             super();
-            tasksRequest.incRef();
+            tasksRequest.mustIncRef();
             this.tasksRequest = tasksRequest;
         }
 
@@ -354,14 +354,6 @@ public abstract class TransportTasksAction<
             this.nodeId = nodeId;
             this.results = results;
             this.exceptions = exceptions;
-        }
-
-        public String getNodeId() {
-            return nodeId;
-        }
-
-        public List<TaskOperationFailure> getExceptions() {
-            return exceptions;
         }
 
         @Override

@@ -478,8 +478,9 @@ public class AggregatorImplementer {
         builder.addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
             .addParameter(BLOCK_ARRAY, "blocks")
-            .addParameter(TypeName.INT, "offset");
-        builder.addStatement("state.toIntermediate(blocks, offset)");
+            .addParameter(TypeName.INT, "offset")
+            .addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addStatement("state.toIntermediate(blocks, offset, driverContext)");
         return builder.build();
     }
 

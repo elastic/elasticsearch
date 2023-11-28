@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
@@ -47,7 +46,7 @@ public class InMapper extends ExpressionMapper<In> {
 
     record InExpressionEvaluator(List<EvalOperator.ExpressionEvaluator> listEvaluators) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Block.Ref eval(Page page) {
+        public Block eval(Page page) {
             int positionCount = page.getPositionCount();
             boolean[] values = new boolean[positionCount];
             BitSet nulls = new BitSet(positionCount); // at least one evaluation resulted in NULL on a row
@@ -55,22 +54,21 @@ public class InMapper extends ExpressionMapper<In> {
 
             for (int i = 0; i < listEvaluators().size(); i++) {
                 var evaluator = listEvaluators.get(i);
-                try (Block.Ref ref = evaluator.eval(page)) {
-
-                    Vector vector = ref.block().asVector();
+                try (BooleanBlock block = (BooleanBlock) evaluator.eval(page)) {
+                    BooleanVector vector = block.asVector();
                     if (vector != null) {
-                        updateValues((BooleanVector) vector, values);
+                        updateValues(vector, values);
                     } else {
-                        if (ref.block().areAllValuesNull()) {
+                        if (block.areAllValuesNull()) {
                             nullInValues = true;
                         } else {
-                            updateValues((BooleanBlock) ref.block(), values, nulls);
+                            updateValues(block, values, nulls);
                         }
                     }
                 }
             }
 
-            return Block.Ref.floating(evalWithNulls(values, nulls, nullInValues));
+            return evalWithNulls(values, nulls, nullInValues);
         }
 
         private static void updateValues(BooleanVector vector, boolean[] values) {

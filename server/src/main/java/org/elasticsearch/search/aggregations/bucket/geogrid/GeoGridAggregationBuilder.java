@@ -64,7 +64,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         parser.declareInt(GeoGridAggregationBuilder::size, FIELD_SIZE);
         parser.declareInt(GeoGridAggregationBuilder::shardSize, FIELD_SHARD_SIZE);
         parser.declareField(
-            (p, builder, context) -> { builder.setGeoBoundingBox(GeoBoundingBox.parseBoundingBox(p)); },
+            (p, builder, context) -> builder.setGeoBoundingBox(GeoBoundingBox.parseBoundingBox(p)),
             GeoBoundingBox.BOUNDS_FIELD,
             org.elasticsearch.xcontent.ObjectParser.ValueType.OBJECT
         );

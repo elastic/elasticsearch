@@ -198,18 +198,6 @@ public class RollupIndexerStateTests extends ESTestCase {
             Map<String, Object> initialPosition,
             Function<SearchRequest, SearchResponse> searchFunction,
             Function<BulkRequest, BulkResponse> bulkFunction,
-            Consumer<Exception> failureConsumer
-        ) {
-            this(threadPool, job, initialState, initialPosition, searchFunction, bulkFunction, failureConsumer, (i, m) -> {});
-        }
-
-        NonEmptyRollupIndexer(
-            ThreadPool threadPool,
-            RollupJob job,
-            AtomicReference<IndexerState> initialState,
-            Map<String, Object> initialPosition,
-            Function<SearchRequest, SearchResponse> searchFunction,
-            Function<BulkRequest, BulkResponse> bulkFunction,
             Consumer<Exception> failureConsumer,
             BiConsumer<IndexerState, Map<String, Object>> saveStateCheck
         ) {

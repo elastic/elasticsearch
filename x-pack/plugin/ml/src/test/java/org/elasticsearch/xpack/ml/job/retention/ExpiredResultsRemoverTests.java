@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -180,7 +180,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
             listener.onResponse(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(bucket)));
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
     }
 
     private ExpiredResultsRemover createExpiredResultsRemover(Iterator<Job> jobIterator) {

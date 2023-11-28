@@ -39,31 +39,34 @@ public class MultiSearchIT extends ESIntegTestCase {
     public void testSimpleMultiSearch() {
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("test").setId("1").setSource("field", "xxx").get();
-        client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
+        prepareIndex("test").setId("1").setSource("field", "xxx").get();
+        prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
         MultiSearchResponse response = client().prepareMultiSearch()
             .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
             .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
             .add(prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
             .get();
-
-        for (MultiSearchResponse.Item item : response) {
-            assertNoFailures(item.getResponse());
+        try {
+            for (MultiSearchResponse.Item item : response) {
+                assertNoFailures(item.getResponse());
+            }
+            assertThat(response.getResponses().length, equalTo(3));
+            assertHitCount(response.getResponses()[0].getResponse(), 1L);
+            assertHitCount(response.getResponses()[1].getResponse(), 1L);
+            assertHitCount(response.getResponses()[2].getResponse(), 2L);
+            assertFirstHit(response.getResponses()[0].getResponse(), hasId("1"));
+            assertFirstHit(response.getResponses()[1].getResponse(), hasId("2"));
+        } finally {
+            response.decRef();
         }
-        assertThat(response.getResponses().length, equalTo(3));
-        assertHitCount(response.getResponses()[0].getResponse(), 1L);
-        assertHitCount(response.getResponses()[1].getResponse(), 1L);
-        assertHitCount(response.getResponses()[2].getResponse(), 2L);
-        assertFirstHit(response.getResponses()[0].getResponse(), hasId("1"));
-        assertFirstHit(response.getResponses()[1].getResponse(), hasId("2"));
     }
 
     public void testSimpleMultiSearchMoreRequests() {
         createIndex("test");
         int numDocs = randomIntBetween(0, 16);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
         refresh();
 
@@ -77,10 +80,14 @@ public class MultiSearchIT extends ESIntegTestCase {
         }
 
         MultiSearchResponse response = client().multiSearch(request).actionGet();
-        assertThat(response.getResponses().length, equalTo(numSearchRequests));
-        for (MultiSearchResponse.Item item : response) {
-            assertNoFailures(item.getResponse());
-            assertHitCount(item.getResponse(), numDocs);
+        try {
+            assertThat(response.getResponses().length, equalTo(numSearchRequests));
+            for (MultiSearchResponse.Item item : response) {
+                assertNoFailures(item.getResponse());
+                assertHitCount(item.getResponse(), numDocs);
+            }
+        } finally {
+            response.decRef();
         }
     }
 
@@ -92,8 +99,8 @@ public class MultiSearchIT extends ESIntegTestCase {
         TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("test").setId("1").setSource("field", "xxx").get();
-        client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
+        prepareIndex("test").setId("1").setSource("field", "xxx").get();
+        prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
         MultiSearchResponse response = client().prepareMultiSearch()
             .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
@@ -105,13 +112,16 @@ public class MultiSearchIT extends ESIntegTestCase {
                 }
             }))
             .get();
-
-        assertThat(response.getResponses().length, equalTo(3));
-        assertHitCount(response.getResponses()[0].getResponse(), 1L);
-        assertHitCount(response.getResponses()[1].getResponse(), 1L);
-        assertTrue(response.getResponses()[2].isFailure());
-        assertTrue(
-            response.getResponses()[2].getFailure().getMessage().contains("the 'search.check_ccs_compatibility' setting is enabled")
-        );
+        try {
+            assertThat(response.getResponses().length, equalTo(3));
+            assertHitCount(response.getResponses()[0].getResponse(), 1L);
+            assertHitCount(response.getResponses()[1].getResponse(), 1L);
+            assertTrue(response.getResponses()[2].isFailure());
+            assertTrue(
+                response.getResponses()[2].getFailure().getMessage().contains("the 'search.check_ccs_compatibility' setting is enabled")
+            );
+        } finally {
+            response.decRef();
+        }
     }
 }

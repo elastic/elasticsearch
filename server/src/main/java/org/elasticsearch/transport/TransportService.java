@@ -1013,7 +1013,7 @@ public class TransportService extends AbstractLifecycleComponent
                 }
             } else {
                 boolean success = false;
-                request.incRef();
+                request.mustIncRef();
                 try {
                     executor.execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
                         @Override
@@ -1479,7 +1479,7 @@ public class TransportService extends AbstractLifecycleComponent
                     if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                         processResponse(handler, response);
                     } else {
-                        response.incRef();
+                        response.mustIncRef();
                         executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {
                             @Override
                             protected void doRun() {

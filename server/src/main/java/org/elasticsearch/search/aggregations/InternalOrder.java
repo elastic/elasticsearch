@@ -289,7 +289,7 @@ public abstract class InternalOrder extends BucketOrder {
         @Override
         public <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator) {
             Comparator<Bucket> comparator = comparator();
-            return (lhs, rhs) -> comparator.compare(lhs, rhs);
+            return comparator::compare;
         }
 
         @Override

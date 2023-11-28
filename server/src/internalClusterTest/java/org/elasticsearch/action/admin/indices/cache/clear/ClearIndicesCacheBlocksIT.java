@@ -37,8 +37,7 @@ public class ClearIndicesCacheBlocksIT extends ESIntegTestCase {
                     .setFieldDataCache(true)
                     .setQueryCache(true)
                     .setFieldDataCache(true)
-                    .execute()
-                    .actionGet();
+                    .get();
                 assertNoFailures(clearIndicesCacheResponse);
                 assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
             } finally {

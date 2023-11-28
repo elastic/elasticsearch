@@ -19,9 +19,12 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * Profile results from a single {@link Driver}.
+ */
 public class DriverProfile implements Writeable, ChunkedToXContentObject {
     /**
-     * Status of each  {@link Operator} in the driver.
+     * Status of each {@link Operator} in the driver when it finishes.
      */
     private final List<DriverStatus.OperatorStatus> operators;
 

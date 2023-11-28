@@ -5,7 +5,6 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'java'
 apply plugin: 'elasticsearch.java'
 
@@ -27,6 +26,5 @@ dependencies {
   runtimeOnly "com.github.docker-java:docker-java-transport:${versions.dockerJava}"
   runtimeOnly "com.github.docker-java:docker-java-core:${versions.dockerJava}"
   runtimeOnly "org.apache.commons:commons-compress:${versions.commonsCompress}"
-  runtimeOnly "org.rnorth.duct-tape:duct-tape:${versions.ductTape}"
   runtimeOnly "org.rnorth.duct-tape:duct-tape:${versions.ductTape}"
 }

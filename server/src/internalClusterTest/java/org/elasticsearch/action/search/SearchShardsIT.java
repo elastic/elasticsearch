@@ -70,7 +70,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 randomBoolean(),
                 randomBoolean() ? null : randomAlphaOfLength(10)
             );
-            var resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
+            var resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
             int skipped = 0;
             for (SearchShardsGroup g : resp.getGroups()) {
@@ -97,7 +97,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 randomBoolean(),
                 randomBoolean() ? null : randomAlphaOfLength(10)
             );
-            SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
+            SearchShardsResponse resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
             for (SearchShardsGroup g : resp.getGroups()) {
                 assertFalse(g.skipped());
@@ -137,7 +137,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 randomBoolean(),
                 randomBoolean() ? null : randomAlphaOfLength(10)
             );
-            var searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
+            var searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
 
             assertThat(searchShardsResponse.getGroups(), hasSize(searchResponse.getTotalShards()));
             long skippedShards = searchShardsResponse.getGroups().stream().filter(SearchShardsGroup::skipped).count();
@@ -182,7 +182,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 randomBoolean(),
                 null
             );
-            SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
+            SearchShardsResponse resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(totalShards));
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertFalse(group.skipped());

@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -181,11 +180,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
         for (InternalAggregation aggregation : aggregations) {
             InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
             for (InternalBucket bucket : filters.buckets) {
-                List<InternalBucket> sameRangeList = bucketsMap.get(bucket.key);
-                if (sameRangeList == null) {
-                    sameRangeList = new ArrayList<>(aggregations.size());
-                    bucketsMap.put(bucket.key, sameRangeList);
-                }
+                List<InternalBucket> sameRangeList = bucketsMap.computeIfAbsent(bucket.key, k -> new ArrayList<>(aggregations.size()));
                 sameRangeList.add(bucket);
             }
         }
@@ -198,11 +193,9 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
             }
         }
         reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
-        Collections.sort(reducedBuckets, Comparator.comparing(InternalBucket::getKey));
+        reducedBuckets.sort(Comparator.comparing(InternalBucket::getKey));
 
-        InternalAdjacencyMatrix reduced = new InternalAdjacencyMatrix(name, reducedBuckets, getMetadata());
-
-        return reduced;
+        return new InternalAdjacencyMatrix(name, reducedBuckets, getMetadata());
     }
 
     @Override

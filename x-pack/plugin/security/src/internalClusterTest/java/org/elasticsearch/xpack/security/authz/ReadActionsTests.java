@@ -11,10 +11,10 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -133,12 +133,12 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
     public void testExplicitNonAuthorizedIndex() {
         createIndicesWithRandomAliases("test1", "test2", "index1");
-        assertThrowsAuthorizationExceptionDefaultUsers(() -> trySearch("test*", "index1").get(), SearchAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(() -> trySearch("test*", "index1").get(), TransportSearchAction.TYPE.name());
     }
 
     public void testIndexNotFound() {
         createIndicesWithRandomAliases("test1", "test2", "index1");
-        assertThrowsAuthorizationExceptionDefaultUsers(() -> trySearch("missing").get(), SearchAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(() -> trySearch("missing").get(), TransportSearchAction.TYPE.name());
     }
 
     public void testIndexNotFoundIgnoreUnavailable() {
@@ -220,7 +220,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
                 assertTrue(multiSearchResponse.getResponses()[1].isFailure());
                 Exception exception = multiSearchResponse.getResponses()[1].getFailure();
                 assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
-                assertAuthorizationExceptionDefaultUsers(exception, SearchAction.NAME);
+                assertAuthorizationExceptionDefaultUsers(exception, TransportSearchAction.TYPE.name());
             } finally {
                 multiSearchResponse.decRef();
             }
@@ -260,7 +260,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
                 assertTrue(multiSearchResponse.getResponses()[1].isFailure());
                 Exception exception = multiSearchResponse.getResponses()[1].getFailure();
                 assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
-                assertAuthorizationExceptionDefaultUsers(exception, SearchAction.NAME);
+                assertAuthorizationExceptionDefaultUsers(exception, TransportSearchAction.TYPE.name());
             } finally {
                 multiSearchResponse.decRef();
             }

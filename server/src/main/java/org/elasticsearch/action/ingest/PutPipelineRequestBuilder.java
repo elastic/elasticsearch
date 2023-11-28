@@ -16,10 +16,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineRequest, AcknowledgedResponse> {
 
-    public PutPipelineRequestBuilder(ElasticsearchClient client, PutPipelineAction action) {
-        super(client, action, new PutPipelineRequest());
-    }
-
     public PutPipelineRequestBuilder(
         ElasticsearchClient client,
         PutPipelineAction action,

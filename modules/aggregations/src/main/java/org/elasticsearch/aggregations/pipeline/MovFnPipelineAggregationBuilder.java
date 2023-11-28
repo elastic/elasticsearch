@@ -69,7 +69,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, GAP_POLICY, ObjectParser.ValueType.STRING);
-    };
+    }
 
     public MovFnPipelineAggregationBuilder(String name, String bucketsPath, Script script, int window) {
         super(name, NAME, new String[] { bucketsPath });

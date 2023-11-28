@@ -175,8 +175,8 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getExplanation().getValue(), equalTo(1.0f));
         assertThat(response.getGetResult().isExists(), equalTo(true));
         assertThat(response.getGetResult().getId(), equalTo("1"));
-        assertThat(response.getGetResult().getSource().size(), equalTo(1));
-        assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
+        assertThat(response.getGetResult().sourceAsMap().size(), equalTo(1));
+        assertThat(((Map<String, Object>) response.getGetResult().sourceAsMap().get("obj1")).get("field1").toString(), equalTo("value1"));
 
         response = client().prepareExplain(indexOrAlias(), "1")
             .setQuery(QueryBuilders.matchAllQuery())
@@ -184,7 +184,7 @@ public class ExplainActionIT extends ESIntegTestCase {
             .get();
         assertNotNull(response);
         assertTrue(response.isMatch());
-        assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
+        assertThat(((Map<String, Object>) response.getGetResult().sourceAsMap().get("obj1")).get("field1").toString(), equalTo("value1"));
     }
 
     public void testExplainWithFilteredAlias() {
@@ -227,8 +227,8 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getGetResult(), notNullValue());
         assertThat(response.getGetResult().getIndex(), equalTo("test"));
         assertThat(response.getGetResult().getId(), equalTo("1"));
-        assertThat(response.getGetResult().getSource(), notNullValue());
-        assertThat(response.getGetResult().getSource().get("field1"), equalTo("value1"));
+        assertThat(response.getGetResult().sourceAsMap(), notNullValue());
+        assertThat(response.getGetResult().sourceAsMap().get("field1"), equalTo("value1"));
     }
 
     public void testExplainDateRangeInQueryString() {

@@ -652,14 +652,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSetIterator innerDocs = nested.innerDocs(context);
                     final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
-                    return localSortMode.select(
-                        distanceValues,
-                        Double.POSITIVE_INFINITY,
-                        rootDocs,
-                        innerDocs,
-                        context.reader().maxDoc(),
-                        maxChildren
-                    );
+                    return localSortMode.select(distanceValues, Double.POSITIVE_INFINITY, rootDocs, innerDocs, maxChildren);
                 }
             }
 

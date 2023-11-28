@@ -3,19 +3,11 @@
         "@timestamp": {
             "type": "date"
         },
-        "client": {
-            "properties": {
-                "ip": {
-                    "type": "ip"
-                }
-            }
+        "client_ip": {
+            "type": "ip"
         },
-        "event": {
-            "properties": {
-                "duration": {
-                    "type": "long"
-                }
-            }
+        "event_duration": {
+            "type": "long"
         },
         "message": {
             "type": "keyword"

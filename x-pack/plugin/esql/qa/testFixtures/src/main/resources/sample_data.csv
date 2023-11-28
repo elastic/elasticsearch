@@ -1,4 +1,4 @@
-@timestamp:date,client.ip:ip,event.duration:long,message:keyword
+@timestamp:date,client_ip:ip,event_duration:long,message:keyword
 2023-10-23T13:55:01.543Z,172.21.3.15,1756467,Connected to 10.1.0.1
 2023-10-23T13:53:55.832Z,172.21.3.15,5033755,Connection error
 2023-10-23T13:52:55.015Z,172.21.3.15,8268153,Connection error

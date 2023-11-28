@@ -1,6 +1,6 @@
 {
     "properties": {
-      "client.ip": {
+      "client_ip": {
         "type": "keyword"
       },
       "env": {

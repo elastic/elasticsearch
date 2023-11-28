@@ -659,7 +659,7 @@ FROM sample_data
 | LIMIT 0
 ;
 
-@timestamp:date | client.ip:ip | event.duration:long | message:keyword
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
 ;
 
 docsGettingStartedLimit
@@ -670,7 +670,7 @@ FROM sample_data
 | LIMIT 0
 ;
 
-@timestamp:date | client.ip:ip | event.duration:long | message:keyword
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
 ;
 
 docsGettingStartedSort
@@ -681,18 +681,18 @@ FROM sample_data
 | LIMIT 0
 ;
 
-@timestamp:date | client.ip:ip | event.duration:long | message:keyword
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
 ;
 
 docsGettingStartedWhere
 // tag::gs-where[]
 FROM sample_data
-| WHERE event.duration > 5000000
+| WHERE event_duration > 5000000
 // end::gs-where[]
 | LIMIT 0
 ;
 
-@timestamp:date | client.ip:ip | event.duration:long | message:keyword
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
 ;
 
 docsGettingStartedLike
@@ -703,7 +703,7 @@ FROM sample_data
 | LIMIT 0
 ;
 
-@timestamp:date | client.ip:ip | event.duration:long | message:keyword
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
 ;
 
 docsGettingStartedChaining
@@ -715,35 +715,35 @@ FROM sample_data
 | LIMIT 0
 ;
 
-@timestamp:date | client.ip:ip | event.duration:long | message:keyword
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
 ;
 
 docsGettingStartedEval
 // tag::gs-eval[]
 FROM sample_data
-| EVAL duration_ms = event.duration / 1000000.0
+| EVAL duration_ms = event_duration / 1000000.0
 // end::gs-eval[]
 | LIMIT 0
 ;
 
-@timestamp:date | client.ip:ip | event.duration:long | message:keyword |  duration_ms:double
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword |  duration_ms:double
 ;
 
 docsGettingStartedRound
 // tag::gs-round[]
 FROM sample_data
-| EVAL duration_ms = ROUND(event.duration / 1000000.0, 1)
+| EVAL duration_ms = ROUND(event_duration / 1000000.0, 1)
 // end::gs-round[]
 | LIMIT 0
 ;
 
-@timestamp:date | client.ip:ip | event.duration:long | message:keyword |  duration_ms:double
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword |  duration_ms:double
 ;
 
 docsGettingStartedStats
 // tag::gs-stats[]
 FROM sample_data
-| STATS median_duration = MEDIAN(event.duration)
+| STATS median_duration = MEDIAN(event_duration)
 // end::gs-stats[]
 ;
 
@@ -754,7 +754,7 @@ median_duration:double
 docsGettingStartedTwoStats
 // tag::gs-two-stats[]
 FROM sample_data
-| STATS median_duration = MEDIAN(event.duration), max_duration = MAX(event.duration)
+| STATS median_duration = MEDIAN(event_duration), max_duration = MAX(event_duration)
 // end::gs-two-stats[]
 ;
 
@@ -765,12 +765,12 @@ median_duration:double | max_duration:long
 docsGettingStartedStatsBy
 // tag::gs-stats-by[]
 FROM sample_data
-| STATS median_duration = MEDIAN(event.duration) BY client.ip
+| STATS median_duration = MEDIAN(event_duration) BY client_ip
 // end::gs-stats-by[]
 | LIMIT 0
 ;
 
-median_duration:double | client.ip:ip
+median_duration:double | client_ip:ip
 ;
 
 docsGettingStartedAutoBucket
@@ -788,7 +788,7 @@ FROM sample_data
 docsGettingStartedAutoBucketStatsBy
 // tag::gs-auto_bucket-stats-by[]
 FROM sample_data
-| KEEP @timestamp, event.duration
+| KEEP @timestamp, event_duration
 | EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
 | STATS COUNT(*) BY bucket
 // end::gs-auto_bucket-stats-by[]
@@ -803,9 +803,9 @@ COUNT(*):long | bucket:date
 docsGettingStartedAutoBucketStatsByMedian
 // tag::gs-auto_bucket-stats-by-median[]
 FROM sample_data
-| KEEP @timestamp, event.duration
+| KEEP @timestamp, event_duration
 | EVAL bucket = AUTO_BUCKET (@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
-| STATS median_duration = MEDIAN(event.duration) BY bucket
+| STATS median_duration = MEDIAN(event_duration) BY bucket
 // end::gs-auto_bucket-stats-by-median[]
 | SORT bucket
 ;
@@ -818,23 +818,23 @@ median_duration:double | bucket:date
 docsGettingStartedEnrich
 // tag::gs-enrich[]
 FROM sample_data
-| KEEP @timestamp, client.ip, event.duration
-| EVAL client.ip = TO_STRING(client.ip)
-| ENRICH clientip_policy ON client.ip WITH env
+| KEEP @timestamp, client_ip, event_duration
+| EVAL client_ip = TO_STRING(client_ip)
+| ENRICH clientip_policy ON client_ip WITH env
 // end::gs-enrich[]
 | LIMIT 0
 ;
 
-@timestamp:date | event.duration:long | client.ip:keyword | env:keyword
+@timestamp:date | event_duration:long | client_ip:keyword | env:keyword
 ;
 
 docsGettingStartedEnrichStatsBy
 // tag::gs-enrich-stats-by[]
 FROM sample_data
-| KEEP @timestamp, client.ip, event.duration
-| EVAL client.ip = TO_STRING(client.ip)
-| ENRICH clientip_policy ON client.ip WITH env
-| STATS median_duration = MEDIAN(event.duration) BY env
+| KEEP @timestamp, client_ip, event_duration
+| EVAL client_ip = TO_STRING(client_ip)
+| ENRICH clientip_policy ON client_ip WITH env
+| STATS median_duration = MEDIAN(event_duration) BY env
 // end::gs-enrich-stats-by[]
 | SORT env
 ;
@@ -848,25 +848,25 @@ median_duration:double | env:keyword
 docsGettingStartedDissect
 // tag::gs-dissect[]
 FROM sample_data
-| DISSECT message "Connected to %{server.ip}"
+| DISSECT message "Connected to %{server_ip}"
 // end::gs-dissect[]
 | LIMIT 0
 ;
 
-@timestamp:date | client.ip:ip | event.duration:long | message:keyword | server.ip:keyword
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword | server_ip:keyword
 ;
 
 docsGettingStartedDissectStatsBy
 // tag::gs-dissect-stats-by[]
 FROM sample_data
 | WHERE STARTS_WITH(message, "Connected to")
-| DISSECT message "Connected to %{server.ip}"
-| STATS COUNT(*) BY server.ip
+| DISSECT message "Connected to %{server_ip}"
+| STATS COUNT(*) BY server_ip
 // end::gs-dissect-stats-by[]
-| SORT server.ip
+| SORT server_ip
 ;
 
-COUNT(*):long  | server.ip:keyword
+COUNT(*):long  | server_ip:keyword
 1              |10.1.0.1       
 1              |10.1.0.2       
 1              |10.1.0.3      

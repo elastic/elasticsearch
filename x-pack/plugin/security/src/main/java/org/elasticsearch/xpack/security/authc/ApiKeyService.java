@@ -29,8 +29,8 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -1939,7 +1939,7 @@ public class ApiKeyService {
                 () -> executeAsyncWithOrigin(
                     client,
                     SECURITY_ORIGIN,
-                    SearchAction.INSTANCE,
+                    TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
                         final long total = searchResponse.getHits().getTotalHits().value;

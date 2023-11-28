@@ -77,7 +77,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         waitForRelocation(ClusterHealthStatus.GREEN);
         GetResponse getResponse = client().prepareGet("test", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getSourceAsBytes(), notNullValue());
+        assertThat(getResponse.getSourceAsBytesRef(), notNullValue());
         refresh();
         // check the numDocs
         assertDocumentCount("test", 3);

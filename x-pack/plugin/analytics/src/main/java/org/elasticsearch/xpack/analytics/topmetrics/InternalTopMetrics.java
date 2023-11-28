@@ -116,7 +116,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
             return this;
         }
         List<TopMetric> merged = new ArrayList<>(size);
-        PriorityQueue<ReduceState> queue = new PriorityQueue<ReduceState>(aggregations.size()) {
+        PriorityQueue<ReduceState> queue = new PriorityQueue<>(aggregations.size()) {
             @Override
             protected boolean lessThan(ReduceState lhs, ReduceState rhs) {
                 return sortOrder.reverseMul() * lhs.sortValue().compareTo(rhs.sortValue()) < 0;

@@ -42,10 +42,6 @@ public class TTestStatsBuilder implements Releasable {
         return new TTestStats(counts.get(bucket), sums.get(bucket), sumOfSqrs.get(bucket));
     }
 
-    public long build(long bucket) {
-        return counts.get(bucket);
-    }
-
     public long getSize() {
         return counts.size();
     }

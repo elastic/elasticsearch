@@ -233,7 +233,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
 
     @Override
     public Optional<Set<String>> getOutputFieldNames() {
-        return Optional.of(metricFields.stream().map(mf -> mf.getFieldName()).collect(Collectors.toSet()));
+        return Optional.of(metricFields.stream().map(MultiValuesSourceFieldConfig::getFieldName).collect(Collectors.toSet()));
     }
 
     @Override

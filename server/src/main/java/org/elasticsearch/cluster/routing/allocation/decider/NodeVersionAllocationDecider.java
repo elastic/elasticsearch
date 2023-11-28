@@ -65,21 +65,21 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         final RoutingAllocation allocation
     ) {
         final RoutingNode source = routingNodes.node(sourceNodeId);
-        if (target.node().getVersion().onOrAfter(source.node().getVersion())) {
+        if (target.node().getMaxIndexVersion().onOrAfter(source.node().getMaxIndexVersion())) {
             return allocation.decision(
                 Decision.YES,
                 NAME,
                 "can relocate primary shard from a node with version [%s] to a node with equal-or-newer version [%s]",
-                source.node().getVersion(),
-                target.node().getVersion()
+                source.node().getMaxIndexVersion(),
+                target.node().getMaxIndexVersion()
             );
         } else {
             return allocation.decision(
                 Decision.NO,
                 NAME,
                 "cannot relocate primary shard from a node with version [%s] to a node with older version [%s]",
-                source.node().getVersion(),
-                target.node().getVersion()
+                source.node().getMaxIndexVersion(),
+                target.node().getMaxIndexVersion()
             );
         }
     }
@@ -91,7 +91,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         final RoutingAllocation allocation
     ) {
         final RoutingNode source = routingNodes.node(sourceNodeId);
-        if (target.node().getVersion().onOrAfter(source.node().getVersion())) {
+        if (target.node().getMaxIndexVersion().onOrAfter(source.node().getMaxIndexVersion())) {
             /* we can allocate if we can recover from a node that is younger or on the same version
              * if the primary is already running on a newer version that won't work due to possible
              * differences in the lucene index format etc.*/
@@ -99,16 +99,16 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
                 Decision.YES,
                 NAME,
                 "can allocate replica shard to a node with version [%s] since this is equal-or-newer than the primary version [%s]",
-                target.node().getVersion(),
-                source.node().getVersion()
+                target.node().getMaxIndexVersion(),
+                source.node().getMaxIndexVersion()
             );
         } else {
             return allocation.decision(
                 Decision.NO,
                 NAME,
                 "cannot allocate replica shard to a node with version [%s] since this is older than the primary version [%s]",
-                target.node().getVersion(),
-                source.node().getVersion()
+                target.node().getMaxIndexVersion(),
+                source.node().getMaxIndexVersion()
             );
         }
     }

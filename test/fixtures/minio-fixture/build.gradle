@@ -7,6 +7,7 @@
  */
 apply plugin: 'java'
 apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.cache-test-fixtures'
 
 description = 'Fixture for MinIO Storage service'
 
@@ -22,9 +23,14 @@ dependencies {
   implementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   implementation "org.slf4j:slf4j-api:${versions.slf4j}"
   implementation "com.github.docker-java:docker-java-api:${versions.dockerJava}"
+
   runtimeOnly "com.github.docker-java:docker-java-transport-zerodep:${versions.dockerJava}"
   runtimeOnly "com.github.docker-java:docker-java-transport:${versions.dockerJava}"
   runtimeOnly "com.github.docker-java:docker-java-core:${versions.dockerJava}"
   runtimeOnly "org.apache.commons:commons-compress:${versions.commonsCompress}"
   runtimeOnly "org.rnorth.duct-tape:duct-tape:${versions.ductTape}"
+
+  // ensure we have proper logging during when used in tests
+  runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+  runtimeOnly "org.hamcrest:hamcrest:${versions.hamcrest}"
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -40,6 +41,11 @@ public class SerializationTestUtils {
 
     public static void assertSerialization(PhysicalPlan plan) {
         var deserPlan = serializeDeserialize(plan, PlanStreamOutput::writePhysicalPlanNode, PlanStreamInput::readPhysicalPlanNode);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(plan, unused -> deserPlan);
+    }
+
+    public static void assertSerialization(LogicalPlan plan) {
+        var deserPlan = serializeDeserialize(plan, PlanStreamOutput::writeLogicalPlanNode, PlanStreamInput::readLogicalPlanNode);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(plan, unused -> deserPlan);
     }
 

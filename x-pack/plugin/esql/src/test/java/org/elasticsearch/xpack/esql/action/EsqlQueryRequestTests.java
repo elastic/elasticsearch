@@ -194,7 +194,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             new NamedXContentRegistry(searchModule.getNamedXContents())
         );
         try (XContentParser parser = XContentType.JSON.xContent().createParser(config, json)) {
-            return EsqlQueryRequest.fromXContent(parser);
+            return EsqlQueryRequest.fromXContentSync(parser);
         }
     }
 

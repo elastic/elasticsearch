@@ -22,6 +22,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
@@ -101,8 +102,16 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         return run(esqlCommands, randomPragmas());
     }
 
+    protected EsqlQueryResponse runAsync(String esqlCommands) {
+        return runAsync(esqlCommands, randomPragmas());
+    }
+
     protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
         return run(esqlCommands, pragmas, null);
+    }
+
+    protected EsqlQueryResponse runAsync(String esqlCommands, QueryPragmas pragmas) {
+        return runAsync(esqlCommands, pragmas, null);
     }
 
     protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
@@ -115,9 +124,34 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         return run(request);
     }
 
+    protected EsqlQueryResponse runAsync(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query(esqlCommands);
+        request.pragmas(pragmas);
+
+        // TODO: clean all this up
+        request.async(true);
+        request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
+
+        if (filter != null) {
+            request.filter(filter);
+        }
+        return run(request);
+    }
+
     protected EsqlQueryResponse run(EsqlQueryRequest request) {
         try {
             return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+        } catch (ElasticsearchTimeoutException e) {
+            throw new AssertionError("timeout", e);
+        }
+    }
+
+    protected EsqlQueryResponse getAsyncResponse(String id) {
+        try {
+            GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(id)
+                .setWaitForCompletionTimeout(TimeValue.timeValueMinutes(1));
+            return client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest).actionGet(30, TimeUnit.SECONDS);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
         }

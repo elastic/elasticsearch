@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -24,31 +23,27 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
-public class RestEsqlQueryAction extends BaseRestHandler {
-    private static final Logger LOGGER = LogManager.getLogger(RestEsqlQueryAction.class);
+public class RestEsqlAsyncQueryAction extends BaseRestHandler {
+    private static final Logger LOGGER = LogManager.getLogger(RestEsqlAsyncQueryAction.class);
 
     @Override
     public String getName() {
-        return "esql_query";
+        return "esql_async_query";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_query"),
-            // TODO: remove before release
-            Route.builder(POST, "/_esql").deprecated("_esql endpoint has been deprecated in favour of _query", RestApiVersion.V_8).build()
-        );
+        return List.of(new Route(POST, "/_query/async"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         EsqlQueryRequest esqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            esqlRequest = EsqlQueryRequest.fromXContentSync(parser);
+            esqlRequest = EsqlQueryRequest.fromXContentAsync(parser);
         }
 
-        LOGGER.info("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.query());
+        LOGGER.info("Beginning execution of ESQL async query.\nQuery string: [{}]", esqlRequest.query());
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());

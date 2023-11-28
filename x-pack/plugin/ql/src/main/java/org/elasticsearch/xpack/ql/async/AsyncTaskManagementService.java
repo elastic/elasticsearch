@@ -215,6 +215,7 @@ public class AsyncTaskManagementService<
                 acquiredListener.onResponse(operation.initialResponse(searchTask));
             }
         }, waitForCompletionTimeout, threadPool.executor(ThreadPool.Names.SEARCH));
+
         // This will be performed at the end of normal execution
         return ActionListener.wrap(response -> {
             ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(null);
@@ -272,6 +273,7 @@ public class AsyncTaskManagementService<
                 ActionListener.wrap(
                     // We should only unregister after the result is saved
                     resp -> {
+                        // TODO: generalize the logging, not just eql
                         logger.trace(() -> "stored eql search results for [" + searchTask.getExecutionId().getEncoded() + "]");
                         taskManager.unregister(searchTask);
                         if (storedResponse.getException() != null) {
@@ -290,6 +292,7 @@ public class AsyncTaskManagementService<
                         if (cause instanceof DocumentMissingException == false
                             && cause instanceof VersionConflictEngineException == false) {
                             logger.error(
+                                // TODO: generalize the logging, not just eql
                                 () -> format("failed to store eql search results for [%s]", searchTask.getExecutionId().getEncoded()),
                                 exc
                             );

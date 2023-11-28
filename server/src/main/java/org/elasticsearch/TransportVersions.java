@@ -178,6 +178,8 @@ public class TransportVersions {
     public static final TransportVersion GRANT_API_KEY_CLIENT_AUTHENTICATION_ADDED = def(8_545_00_0);
     public static final TransportVersion PIT_WITH_INDEX_FILTER = def(8_546_00_0);
 
+    public static final TransportVersion ESQL_ASYNC_QUERY = def(8_999_00_0); // This will become 8.12.0
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

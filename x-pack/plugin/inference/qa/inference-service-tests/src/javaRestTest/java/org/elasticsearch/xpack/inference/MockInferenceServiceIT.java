@@ -72,7 +72,7 @@ public class MockInferenceServiceIT extends ESRestTestCase {
         String modelId = "test-mock";
         var putModel = putModel(modelId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         var getModels = getModels(modelId, TaskType.SPARSE_EMBEDDING);
-        var model = ((List<Map<String, Object>>)getModels.get("models")).get(0);
+        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
 
         for (var modelMap : List.of(putModel, model)) {
             assertEquals(modelId, modelMap.get("model_id"));
@@ -107,7 +107,7 @@ public class MockInferenceServiceIT extends ESRestTestCase {
         String modelId = "test-mock";
         var putModel = putModel(modelId, mockServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         var getModels = getModels(modelId, TaskType.SPARSE_EMBEDDING);
-        var model = ((List<Map<String, Object>>)getModels.get("models")).get(0);
+        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
 
         var serviceSettings = (Map<String, Object>) model.get("service_settings");
         assertNull(serviceSettings.get("api_key"));

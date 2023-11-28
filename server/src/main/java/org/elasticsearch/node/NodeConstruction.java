@@ -604,7 +604,8 @@ class NodeConstruction {
         ).collect(Collectors.toSet());
         final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
 
-        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
+        final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
+        ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager, rerouteServiceReference::get);
         clusterService.addStateApplier(scriptService);
 
         Supplier<DocumentParsingObserver> documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
@@ -631,7 +632,6 @@ class NodeConstruction {
         );
 
         final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
-        final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
         final ClusterInfoService clusterInfoService = serviceProvider.newClusterInfoService(
             pluginsService,
             settings,
@@ -686,7 +686,6 @@ class NodeConstruction {
 
         final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
         rerouteServiceReference.set(rerouteService);
-        clusterService.setRerouteService(rerouteService);
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
@@ -1100,12 +1099,18 @@ class NodeConstruction {
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
     }
 
-    private ClusterService createClusterService(SettingsModule settingsModule, ThreadPool threadPool, TaskManager taskManager) {
+    private ClusterService createClusterService(
+        SettingsModule settingsModule,
+        ThreadPool threadPool,
+        TaskManager taskManager,
+        Supplier<RerouteService> rerouteService
+    ) {
         ClusterService clusterService = new ClusterService(
             settingsModule.getSettings(),
             settingsModule.getClusterSettings(),
             threadPool,
-            taskManager
+            taskManager,
+            rerouteService
         );
         resourcesToClose.add(clusterService);
 

@@ -1931,7 +1931,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(SECURITY_ENABLED_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+            new ClusterSettings(SECURITY_ENABLED_SETTINGS, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL))
         );
         ApiKeyService apiKeyService = spy(
             new ApiKeyService(

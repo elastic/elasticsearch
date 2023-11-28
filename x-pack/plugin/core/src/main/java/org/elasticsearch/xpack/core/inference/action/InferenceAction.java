@@ -24,9 +24,9 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.inference.results.LegacyTextEmbeddingResults;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -210,7 +210,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         }
 
         @SuppressWarnings("deprecation")
-        static InferenceServiceResults transformToServiceResults(List<? extends InferenceResults> parsedResults) {
+        public static InferenceServiceResults transformToServiceResults(List<? extends InferenceResults> parsedResults) {
             if (parsedResults.isEmpty()) {
                 throw new ElasticsearchStatusException(
                     "Failed to transform results to response format, expected a non-empty list, please remove and re-add the service",

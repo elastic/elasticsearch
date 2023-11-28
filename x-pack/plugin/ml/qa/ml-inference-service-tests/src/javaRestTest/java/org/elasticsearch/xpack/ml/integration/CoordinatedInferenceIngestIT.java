@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 public class CoordinatedInferenceIngestIT extends ESRestTestCase {
@@ -85,6 +87,7 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         {
             var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinition(inferenceServiceModelId), docs);
             var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
+            System.out.println("IS DOCS " + simulatedDocs);
             assertThat(simulatedDocs, hasSize(2));
             assertEquals(inferenceServiceModelId, MapHelper.dig("doc._source.ml.model_id", simulatedDocs.get(0)));
             assertEquals("bar", MapHelper.dig("doc._source.ml.body", simulatedDocs.get(0)));
@@ -95,7 +98,7 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         {
             var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinition(pyTorchModelId), docs);
             var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
-            System.out.println("DOCS " + simulatedDocs);
+            System.out.println("PT DOCS " + simulatedDocs);
             assertThat(simulatedDocs, hasSize(2));
             assertEquals(pyTorchModelId, MapHelper.dig("doc._source.ml.model_id", simulatedDocs.get(0)));
             List<List<Double>> results = (List<List<Double>>) MapHelper.dig("doc._source.ml.body", simulatedDocs.get(0));
@@ -123,6 +126,56 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
             assertEquals(boostedTreeModelId, MapHelper.dig("doc._source.ml.regression.model_id", simulatedDocs.get(1)));
             assertNotNull(MapHelper.dig("doc._source.ml.regression.predicted_value", simulatedDocs.get(1)));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPipelineConfiguredWithFieldMap() throws IOException {
+        // Create an inference service model, dfa model and pytorch model
+        var inferenceServiceModelId = "is_model";
+        var boostedTreeModelId = "boosted_tree_model";
+        var pyTorchModelId = "pytorch_model";
+
+        putInferenceServiceModel(inferenceServiceModelId, TaskType.SPARSE_EMBEDDING);
+        putBoostedTreeRegressionModel(boostedTreeModelId);
+        putPyTorchModel(pyTorchModelId);
+        putPyTorchModelDefinition(pyTorchModelId);
+        putPyTorchModelVocabulary(List.of("these", "are", "my", "words"), pyTorchModelId);
+        startDeployment(pyTorchModelId);
+
+        String docs = """
+            [
+                {
+                  "_source": {
+                    "body": "these are"
+                  }
+                },
+                {
+                  "_source": {
+                    "body": "my words"
+                  }
+                }
+            ]
+            """;
+
+        {
+            var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinitionWithFieldMap(pyTorchModelId), docs);
+            var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
+            System.out.println("DOCS pt" + simulatedDocs);
+            assertThat(simulatedDocs, hasSize(2));
+//            assertEquals(boostedTreeModelId, MapHelper.dig("doc._source.ml.regression.model_id", simulatedDocs.get(0)));
+        }
+
+        {
+            var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinitionWithFieldMap(inferenceServiceModelId), docs);
+            var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
+            System.out.println("DOCS is" + simulatedDocs);
+            assertThat(simulatedDocs, hasSize(2));
+            // "[" + inferenceServiceModelId + "] is configured for the _inference API and does not accept documents as input"
+//            assertEquals(boostedTreeModelId, MapHelper.dig("doc._source.ml.regression.model_id", simulatedDocs.get(0)));
+        }
+
+
+
     }
 
     private Map<String, Object> putInferenceServiceModel(String modelId, TaskType taskType) throws IOException {

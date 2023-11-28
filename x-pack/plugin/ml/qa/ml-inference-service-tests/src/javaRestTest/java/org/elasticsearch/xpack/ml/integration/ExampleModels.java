@@ -245,6 +245,22 @@ public class ExampleModels {
             }""", modelId);
     }
 
+    public static String nlpModelPipelineDefinitionWithFieldMap(String modelId) {
+        return Strings.format("""
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s",
+                    "field_map": {
+                      "text_field": "body"
+                    }
+                  }
+                }
+              ]
+            }""", modelId);
+    }
+
     public static String boostedTreeRegressionModelPipelineDefinition(String modelId) {
         return Strings.format("""
             {

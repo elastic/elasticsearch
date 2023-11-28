@@ -6,8 +6,6 @@
  */
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.internal-java-rest-test'
-
 
 esplugin {
   name 'x-pack-inference'
@@ -24,10 +22,6 @@ dependencies {
   implementation project(path: ':libs:elasticsearch-logging')
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
-  compileOnly project(path: xpackModule('ml'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(testArtifact(project(xpackModule('ml'))))
   testImplementation project(':modules:reindex')
-  javaRestTestImplementation(testArtifact(project(xpackModule('ml'))))
-  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 }

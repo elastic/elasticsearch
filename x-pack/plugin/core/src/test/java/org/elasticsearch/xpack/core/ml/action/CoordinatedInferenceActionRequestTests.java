@@ -5,20 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.action;
+package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
-import org.elasticsearch.xpack.core.ml.action.InferModelActionRequestTests;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,14 +26,7 @@ public class CoordinatedInferenceActionRequestTests extends AbstractWireSerializ
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
-    }
-
-    public void testWrap() {
-        SearchPhaseExecutionException cause = new SearchPhaseExecutionException("foo", "bar", new ShardSearchFailure[] {});
-        ElasticsearchException wrapper = new ElasticsearchException("foo", cause);
-        assertEquals(wrapper, ExceptionsHelper.unwrapCause(wrapper));
     }
 
     @Override
@@ -55,7 +41,7 @@ public class CoordinatedInferenceActionRequestTests extends AbstractWireSerializ
                 var inferenceConfig = randomBoolean() ? null : InferModelActionRequestTests.randomInferenceConfigUpdate();
                 var previouslyLicensed = randomBoolean() ? null : randomBoolean();
                 var inferenceTimeout = randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), null, "timeout");
-                var highPriority = randomBoolean() ? null : randomBoolean();
+                var highPriority = randomBoolean();
 
                 var request = CoordinatedInferenceAction.Request.forTextInput(
                     randomAlphaOfLength(6),
@@ -71,7 +57,7 @@ public class CoordinatedInferenceActionRequestTests extends AbstractWireSerializ
                 var inferenceConfig = randomBoolean() ? null : InferModelActionRequestTests.randomInferenceConfigUpdate();
                 var previouslyLicensed = randomBoolean() ? null : randomBoolean();
                 var inferenceTimeout = randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), null, "timeout");
-                var highPriority = randomBoolean() ? null : randomBoolean();
+                var highPriority = randomBoolean();
 
                 var request = CoordinatedInferenceAction.Request.forMapInput(
                     randomAlphaOfLength(6),

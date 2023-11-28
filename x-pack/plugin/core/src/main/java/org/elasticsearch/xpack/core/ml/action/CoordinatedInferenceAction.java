@@ -26,7 +26,7 @@ import java.util.Objects;
 public class CoordinatedInferenceAction extends ActionType<InferModelAction.Response> {
 
     public static final CoordinatedInferenceAction INSTANCE = new CoordinatedInferenceAction();
-    public static final String NAME = "cluster:internal/xpack/coordinatedinference";
+    public static final String NAME = "cluster:internal/xpack/ml/coordinatedinference";
 
     public CoordinatedInferenceAction() {
         super(NAME, InferModelAction.Response::new);

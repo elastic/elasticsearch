@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -86,15 +85,11 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                 assertFalse(resp.values().hasNext());
             }
         }
-        var remoteQueries = List.of(
-            "from *:* | LIMIT " + between(1, 100),
-            "from *,*:* | LIMIT " + between(1, 100),
-            "from *:events* | LIMIT " + between(1, 100),
-            "from events,*:events* | LIMIT " + between(1, 100)
-        );
-        for (String q : remoteQueries) {
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> runQuery(q).close());
-            assertThat(error.getMessage(), containsString("ES|QL does not yet support querying remote indices"));
+        var remotePatterns = List.of("*:*", "*, *:*", "*:events*", "events, *:events*");
+        for (String pattern : remotePatterns) {
+            var query = "FROM " + pattern + " | LIMIT " + between(1, 100);
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> runQuery(query).close());
+            assertThat(error.getMessage(), equalTo("ES|QL does not yet support querying remote indices [" + pattern + "]"));
         }
         int limit = between(1, numDocs);
         var localQueries = List.of("from events* | LIMIT " + limit, "from * | LIMIT " + limit);

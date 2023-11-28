@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -345,7 +346,9 @@ public class ComputeService {
         var remoteIndices = transportService.getRemoteClusterService().groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, originalIndices);
         remoteIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         if (remoteIndices.isEmpty() == false) {
-            listener.onFailure(new IllegalArgumentException("ES|QL does not yet support querying remote indices"));
+            listener.onFailure(
+                new IllegalArgumentException("ES|QL does not yet support querying remote indices " + Arrays.toString(originalIndices))
+            );
             return;
         }
         // Ideally, the search_shards API should be called before the field-caps API; however, this can lead

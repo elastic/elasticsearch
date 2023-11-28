@@ -613,8 +613,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 if (locked != null) {
                     attemptNoCopy = ++this.attemptNo;
                     long begin = timeSupplier.getAsLong();
-                    timeInterval = begin - lastCheckTime;
-                    leader = timeInterval >= minimumInterval;
+                    leader = begin >= lastCheckTime + minimumInterval;
                     overLimitTriggered(leader);
                     if (leader) {
                         long initialCollectionCount = gcCountSupplier.getAsLong();
@@ -646,6 +645,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         this.lastCheckTime = now;
                         allocationDuration = now - begin;
                         this.attemptNo = 0;
+                    } else {
+                        timeInterval = begin - lastCheckTime;
                     }
                 }
             } catch (InterruptedException e) {

@@ -453,8 +453,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     public void testDynamicDeletionInterval() throws Exception {
         try {
-            // Set retention period to be 1 ms, and delete interval to be 100s
-            long deleteIntervalMs = 100_000;
+            // Set retention period to be 1 ms, and delete interval to be 1 hour
+            long deleteIntervalMs = 3600_000;
             Settings.Builder builder = Settings.builder();
             builder.put(ApiKeyService.DELETE_RETENTION_PERIOD.getKey(), TimeValue.timeValueMillis(1));
             builder.put(ApiKeyService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(deleteIntervalMs));
@@ -469,6 +469,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Client client = authorizedClient();
             client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyIds[0], false), listener);
             verifyInvalidateResponse(1, Collections.singletonList(responses.get(0)), listener.get());
+            awaitApiKeysRemoverCompletion();
 
             // Get API keys to make sure remover didn't remove any yet
             assertThat(getAllApiKeyInfo(client, false).length, equalTo(3));
@@ -477,6 +478,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             listener = new PlainActionFuture<>();
             client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyIds[1], false), listener);
             verifyInvalidateResponse(1, Collections.singletonList(responses.get(1)), listener.get());
+            awaitApiKeysRemoverCompletion();
 
             // Get API keys to make sure remover didn't remove any yet (shouldn't be removed because of the long DELETE_INTERVAL)
             assertThat(getAllApiKeyInfo(client, false).length, equalTo(3));
@@ -491,6 +493,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             listener = new PlainActionFuture<>();
             client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyIds[2], false), listener);
             verifyInvalidateResponse(1, Collections.singletonList(responses.get(2)), listener.get());
+            awaitApiKeysRemoverCompletion();
 
             // Make sure all keys except the last invalidated one are deleted
             assertThat(getAllApiKeyInfo(client, false).length, equalTo(1));

@@ -26,11 +26,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
@@ -111,23 +109,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected abstract Response shardOperation(Request request, ShardId shardId) throws IOException;
 
     protected void asyncShardOperation(Request request, ShardId shardId, ActionListener<Response> listener) throws IOException {
-        CheckedSupplier<Response, Exception> supplier = () -> shardOperation(request, shardId);
-        getExecutor(request, shardId).execute(ActionRunnable.wrap(listener, new CheckedConsumer<>() {
-            @Override
-            public void accept(ActionListener<Response> l) throws Exception {
-                var res = supplier.get();
-                try {
-                    l.onResponse(res);
-                } finally {
-                    res.decRef();
-                }
-            }
-
-            @Override
-            public String toString() {
-                return supplier.toString();
-            }
-        }));
+        getExecutor(request, shardId).execute(ActionRunnable.supplyAndDecRef(listener, () -> shardOperation(request, shardId)));
     }
 
     protected abstract Writeable.Reader<Response> getResponseReader();

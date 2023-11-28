@@ -139,9 +139,9 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 assertThat(getCurrentGeneration(searchEngine), equalTo(searchGenerationBeforeCorruption));
 
                 searchEngine.failEngine("test", randomCorruptionException());
+                // Pending notifications are not processed once engine is closed.
                 searchTaskQueue.runAllRunnableTasks();
-
-                assertThat(searchEngine.getPendingCommitNotifications(), equalTo(0L));
+                assertThat(searchEngine.getPendingCommitNotifications(), equalTo((long) notifications));
                 assertThat(getCurrentGeneration(searchEngine), equalTo(searchGenerationBeforeCorruption));
             }
         }

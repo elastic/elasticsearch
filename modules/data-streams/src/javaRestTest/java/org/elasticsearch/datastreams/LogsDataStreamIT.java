@@ -643,14 +643,14 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
         // verify that both fields are searchable when not querying specific fields
         List<Object> results = searchDocs(client, dataStreamName, """
-                {
-                  "query": {
-                    "simple_query_string": {
-                      "query": "Hello"
-                    }
-                  }
+            {
+              "query": {
+                "simple_query_string": {
+                  "query": "Hello"
                 }
-                """);
+              }
+            }
+            """);
         assertEquals(1, results.size());
 
         results = searchDocs(client, dataStreamName, """
@@ -694,14 +694,14 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             """);
 
         List<Object> results = searchDocs(client, dataStreamName, """
-                {
-                  "query": {
-                    "simple_query_string": {
-                      "query": "Hello"
-                    }
-                  }
+            {
+              "query": {
+                "simple_query_string": {
+                  "query": "Hello"
                 }
-                """);
+              }
+            }
+            """);
         assertEquals(1, results.size());
 
         results = searchDocs(client, dataStreamName, """

@@ -113,7 +113,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
         configureArtifactTransforms(project);
 
         // Create configuration for aggregating historical feature metadata
-        Configuration featureMetadataConfig = project.getConfigurations().create(FEATURES_METADATA_CONFIGURATION, c -> {
+        FileCollection featureMetadataConfig = project.getConfigurations().create(FEATURES_METADATA_CONFIGURATION, c -> {
             c.setCanBeConsumed(false);
             c.setCanBeResolved(true);
             c.attributes(
@@ -127,7 +127,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             });
         });
 
-        Configuration defaultDistroFeatureMetadataConfig = project.getConfigurations()
+        FileCollection defaultDistroFeatureMetadataConfig = project.getConfigurations()
             .create(DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION, c -> {
                 c.setCanBeConsumed(false);
                 c.setCanBeResolved(true);

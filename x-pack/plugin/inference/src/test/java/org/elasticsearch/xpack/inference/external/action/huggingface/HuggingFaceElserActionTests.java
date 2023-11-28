@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
@@ -34,17 +35,20 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests.buildExpectation;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -71,6 +75,7 @@ public class HuggingFaceElserActionTests extends ESTestCase {
         webServer.close();
     }
 
+    @SuppressWarnings("unchecked")
     public void testExecute_ReturnsSuccessfulResponse() throws IOException {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
@@ -88,12 +93,16 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
             var action = createAction(getUrl(webServer), sender);
 
-            PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-            action.execute("abc", listener);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(List.of("abc"), listener);
 
-            InferenceResults result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(Map.of(DEFAULT_RESULTS_FIELD, Map.of(".", 0.13315596f))));
+            assertThat(
+                result.asMap(),
+                is(buildExpectation(List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f), false))))
+            );
+
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
@@ -104,7 +113,9 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(1));
-            assertThat(requestMap.get("inputs"), is("abc"));
+            assertThat(requestMap.get("inputs"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("inputs");
+            assertThat(inputList, contains("abc"));
         }
     }
 
@@ -121,8 +132,8 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
         var action = createAction(getUrl(webServer), sender);
 
-        PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-        action.execute("abc", listener);
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -142,8 +153,8 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
         var action = createAction(getUrl(webServer), sender);
 
-        PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-        action.execute("abc", listener);
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -156,8 +167,8 @@ public class HuggingFaceElserActionTests extends ESTestCase {
 
         var action = createAction(getUrl(webServer), sender);
 
-        PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-        action.execute("abc", listener);
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        action.execute(List.of("abc"), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

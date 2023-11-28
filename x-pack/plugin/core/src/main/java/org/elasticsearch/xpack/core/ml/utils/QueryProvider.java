@@ -30,10 +30,9 @@ import java.util.Objects;
 public class QueryProvider implements Writeable, ToXContentObject, Rewriteable<QueryProvider> {
 
     private static final Logger logger = LogManager.getLogger(QueryProvider.class);
-
-    private Exception parsingException;
-    private QueryBuilder parsedQuery;
-    private Map<String, Object> query;
+    private final Exception parsingException;
+    private final QueryBuilder parsedQuery;
+    private final Map<String, Object> query;
 
     public static QueryProvider defaultQuery() {
         return new QueryProvider(

@@ -66,7 +66,7 @@ final class DfsQueryPhase extends SearchPhase {
 
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
-        context.addReleasable(queryResult);
+        context.addReleasable(queryResult::decRef);
     }
 
     @Override
@@ -95,7 +95,7 @@ final class DfsQueryPhase extends SearchPhase {
                 connection,
                 querySearchRequest,
                 context.getTask(),
-                new SearchActionListener<QuerySearchResult>(shardTarget, shardIndex) {
+                new SearchActionListener<>(shardTarget, shardIndex) {
 
                     @Override
                     protected void innerOnResponse(QuerySearchResult response) {

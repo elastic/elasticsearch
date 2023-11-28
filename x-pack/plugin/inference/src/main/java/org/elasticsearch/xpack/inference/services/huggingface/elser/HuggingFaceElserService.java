@@ -14,8 +14,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -41,9 +42,6 @@ public class HuggingFaceElserService implements InferenceService {
     private final SetOnce<HttpRequestSenderFactory> factory;
     private final SetOnce<ServiceComponents> serviceComponents;
     private final AtomicReference<Sender> sender = new AtomicReference<>();
-    // This is initialized once which assumes that the settings will not change. To change the service, it
-    // should be deleted and then added again
-    private final AtomicReference<HuggingFaceElserAction> action = new AtomicReference<>();
 
     public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
         this.factory = Objects.requireNonNull(factory);
@@ -90,7 +88,7 @@ public class HuggingFaceElserService implements InferenceService {
     }
 
     @Override
-    public void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener) {
+    public void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener) {
         if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
             listener.onFailure(
                 new ElasticsearchStatusException(
@@ -101,24 +99,23 @@ public class HuggingFaceElserService implements InferenceService {
             return;
         }
 
-        try {
-            init(model);
-        } catch (Exception e) {
-            listener.onFailure(new ElasticsearchException("Failed to initialize service", e));
+        if (model instanceof HuggingFaceElserModel == false) {
+            listener.onFailure(new ElasticsearchException("The internal model was invalid"));
             return;
         }
 
-        action.get().execute(input, listener);
+        init();
+
+        HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
+        HuggingFaceElserAction action = new HuggingFaceElserAction(sender.get(), huggingFaceElserModel, serviceComponents.get());
+
+        action.execute(input, listener);
     }
 
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
-        try {
-            init(model);
-            listener.onResponse(true);
-        } catch (Exception e) {
-            listener.onFailure(new ElasticsearchException("Failed to start service", e));
-        }
+        init();
+        listener.onResponse(true);
     }
 
     @Override
@@ -126,21 +123,9 @@ public class HuggingFaceElserService implements InferenceService {
         IOUtils.closeWhileHandlingException(sender.get());
     }
 
-    private void init(Model model) {
-        if (model instanceof HuggingFaceElserModel == false) {
-            throw new IllegalArgumentException("The internal model was invalid");
-        }
-
+    private void init() {
         sender.updateAndGet(current -> Objects.requireNonNullElseGet(current, () -> factory.get().createSender(name())));
         sender.get().start();
-
-        HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
-        action.updateAndGet(
-            current -> Objects.requireNonNullElseGet(
-                current,
-                () -> new HuggingFaceElserAction(sender.get(), huggingFaceElserModel, serviceComponents.get())
-            )
-        );
     }
 
     @Override

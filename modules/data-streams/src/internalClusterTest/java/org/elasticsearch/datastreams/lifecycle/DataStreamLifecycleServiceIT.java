@@ -622,35 +622,6 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         });
     }
 
-    private static List<String> getBackingIndices(String dataStreamName) {
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
-        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-            .actionGet();
-        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-        return getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
-    }
-
-    static void indexDocs(String dataStream, int numDocs) {
-        BulkRequest bulkRequest = new BulkRequest();
-        for (int i = 0; i < numDocs; i++) {
-            String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-            bulkRequest.add(
-                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                    .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
-            );
-        }
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
-        String backingIndexPrefix = DataStream.BACKING_INDEX_PREFIX + dataStream;
-        for (BulkItemResponse itemResponse : bulkResponse) {
-            assertThat(itemResponse.getFailureMessage(), nullValue());
-            assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
-            assertThat(itemResponse.getIndex(), startsWith(backingIndexPrefix));
-        }
-        indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
-    }
-
     public void testReenableDataStreamLifecycle() throws Exception {
         // start with a lifecycle that's not enabled
         DataStreamLifecycle lifecycle = new DataStreamLifecycle(null, null, false);
@@ -698,6 +669,35 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             String writeIndex = currentBackingIndices.get(1);
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
         });
+    }
+
+    private static List<String> getBackingIndices(String dataStreamName) {
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+            .actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+        return getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
+    }
+
+    static void indexDocs(String dataStream, int numDocs) {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+            bulkRequest.add(
+                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                    .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
+            );
+        }
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+        String backingIndexPrefix = DataStream.BACKING_INDEX_PREFIX + dataStream;
+        for (BulkItemResponse itemResponse : bulkResponse) {
+            assertThat(itemResponse.getFailureMessage(), nullValue());
+            assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
+            assertThat(itemResponse.getIndex(), startsWith(backingIndexPrefix));
+        }
+        indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
     }
 
     static void putComposableIndexTemplate(

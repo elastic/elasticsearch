@@ -93,19 +93,23 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
         TransportMultiSearchAction action = createTransportMultiSearchAction(controlledClock, expected);
 
-        action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<MultiSearchResponse>() {
+        action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse multiSearchResponse) {
-                if (controlledClock) {
-                    assertThat(
-                        TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS),
-                        equalTo(multiSearchResponse.getTook().getMillis())
-                    );
-                } else {
-                    assertThat(
-                        multiSearchResponse.getTook().getMillis(),
-                        greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
-                    );
+                try {
+                    if (controlledClock) {
+                        assertThat(
+                            TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS),
+                            equalTo(multiSearchResponse.getTook().getMillis())
+                        );
+                    } else {
+                        assertThat(
+                            multiSearchResponse.getTook().getMillis(),
+                            greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
+                        );
+                    }
+                } finally {
+                    multiSearchResponse.decRef();
                 }
             }
 

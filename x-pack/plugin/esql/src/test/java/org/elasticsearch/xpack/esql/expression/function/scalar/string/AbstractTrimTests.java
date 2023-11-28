@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
@@ -18,11 +18,11 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractTrimTests extends AbstractScalarFunctionTestCase {
+public abstract class AbstractTrimTests extends AbstractFunctionTestCase {
     static Iterable<Object[]> parameters(String name, boolean trimLeading, boolean trimTrailing) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         for (DataType type : strings()) {
-            suppliers.add(new TestCaseSupplier("no whitespace/" + type, () -> {
+            suppliers.add(new TestCaseSupplier("no whitespace/" + type, List.of(type), () -> {
                 String text = randomAlphaOfLength(8);
                 return testCase(name, type, text, text);
             }));
@@ -40,17 +40,17 @@ public abstract class AbstractTrimTests extends AbstractScalarFunctionTestCase {
                 Map.entry("information separator one", new char[] { '\u001F' }),
                 Map.entry("whitespace", new char[] { ' ', '\t', '\n', '\u000B', '\f', '\r', '\u001C', '\u001D', '\u001E', '\u001F' })
             )) {
-                suppliers.add(new TestCaseSupplier(type + "/leading " + whitespaces.getKey(), () -> {
+                suppliers.add(new TestCaseSupplier(type + "/leading " + whitespaces.getKey(), List.of(type), () -> {
                     String text = randomAlphaOfLength(8);
                     String withWhitespace = randomWhiteSpace(whitespaces.getValue()) + text;
                     return testCase(name, type, withWhitespace, trimLeading ? text : withWhitespace);
                 }));
-                suppliers.add(new TestCaseSupplier(type + "/trailing " + whitespaces.getKey(), () -> {
+                suppliers.add(new TestCaseSupplier(type + "/trailing " + whitespaces.getKey(), List.of(type), () -> {
                     String text = randomAlphaOfLength(8);
                     String withWhitespace = text + randomWhiteSpace(whitespaces.getValue());
                     return testCase(name, type, withWhitespace, trimTrailing ? text : withWhitespace);
                 }));
-                suppliers.add(new TestCaseSupplier(type + "/leading and trailing " + whitespaces.getKey(), () -> {
+                suppliers.add(new TestCaseSupplier(type + "/leading and trailing " + whitespaces.getKey(), List.of(type), () -> {
                     String text = randomAlphaOfLength(8);
                     String leadingWhitespace = randomWhiteSpace(whitespaces.getValue());
                     String trailingWhitespace = randomWhiteSpace(whitespaces.getValue());
@@ -61,13 +61,13 @@ public abstract class AbstractTrimTests extends AbstractScalarFunctionTestCase {
                         (trimLeading ? "" : leadingWhitespace) + text + (trimTrailing ? "" : trailingWhitespace)
                     );
                 }));
-                suppliers.add(new TestCaseSupplier(type + "/all " + whitespaces.getKey(), () -> {
+                suppliers.add(new TestCaseSupplier(type + "/all " + whitespaces.getKey(), List.of(type), () -> {
                     String text = randomWhiteSpace(whitespaces.getValue());
                     return testCase(name, type, text, "");
                 }));
             }
         }
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 
     private static TestCaseSupplier.TestCase testCase(String name, DataType type, String data, String expected) {
@@ -77,16 +77,6 @@ public abstract class AbstractTrimTests extends AbstractScalarFunctionTestCase {
             type,
             equalTo(new BytesRef(expected))
         );
-    }
-
-    @Override
-    protected final List<ArgumentSpec> argSpec() {
-        return List.of(required(strings()));
-    }
-
-    @Override
-    protected final DataType expectedType(List<DataType> argTypes) {
-        return argTypes.get(0);
     }
 
     private static String randomWhiteSpace(char[] whitespaces) {

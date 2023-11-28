@@ -1,0 +1,5 @@
+pr: 102244
+summary: Expose reconciliation metrics via APM
+area: Allocation
+type: enhancement
+issues: []

@@ -55,6 +55,10 @@ setup:
 
 ---
 "Test traces-apm-* data stream indexing":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/102360"
+
   - do:
       index:
         index: traces-apm-testing
@@ -154,6 +158,11 @@ setup:
                   values: [1.5, 2.5, 3.5]
   - set:
       items.0.create._index: index
+  - do:
+      # Wait for cluster state changes to be applied before
+      # querying field mappings.
+      cluster.health:
+        wait_for_events: languid
   - do:
       indices.get_field_mapping:
         index: metrics-apm.app.svc1-testing

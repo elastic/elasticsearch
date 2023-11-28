@@ -8,6 +8,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.util.json.Jackson;
 
 import org.apache.lucene.util.SetOnce;
@@ -49,6 +50,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
                 // ClientConfiguration clinit has some classloader problems
                 // TODO: fix that
                 Class.forName("com.amazonaws.ClientConfiguration");
+                // Pre-load region metadata to avoid looking them up dynamically without privileges enabled
+                RegionUtils.initialize();
             } catch (final ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
@@ -116,6 +119,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.PROTOCOL_SETTING,
             S3ClientSettings.PROXY_HOST_SETTING,
             S3ClientSettings.PROXY_PORT_SETTING,
+            S3ClientSettings.PROXY_SCHEME_SETTING,
             S3ClientSettings.PROXY_USERNAME_SETTING,
             S3ClientSettings.PROXY_PASSWORD_SETTING,
             S3ClientSettings.READ_TIMEOUT_SETTING,

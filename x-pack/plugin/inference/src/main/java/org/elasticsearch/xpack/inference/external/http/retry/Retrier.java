@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 
 public interface Retrier {
-    void send(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<InferenceResults> listener);
+    void send(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener);
 }

@@ -25,9 +25,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -35,6 +33,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -371,7 +371,10 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 null
                             ),
                             new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()),
-                            result
+                            result.delegateFailure((l, r) -> {
+                                r.incRef();
+                                l.onResponse(r);
+                            })
                         );
                         final SearchPhaseResult searchPhaseResult = result.get();
                         try {
@@ -384,7 +387,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                             );
                             PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
                             service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()), listener);
-                            listener.get().decRef();
+                            listener.get();
                             if (useScroll) {
                                 // have to free context since this test does not remove the index from IndicesService.
                                 service.freeReaderContext(searchPhaseResult.getContextId());
@@ -1041,7 +1044,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     // make sure that the wrapper is called when the query is actually executed
                     assertEquals(6, numWrapInvocations.get());
                 } finally {
-                    searchPhaseResult.decRef();
                     latch.countDown();
                 }
             }
@@ -1341,7 +1343,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         assertNotNull(result.queryResult().topDocs());
                         assertNotNull(result.queryResult().aggregations());
                     } finally {
-                        result.decRef();
                         latch.countDown();
                     }
                 }
@@ -1372,7 +1373,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         assertNotNull(result.queryResult().topDocs());
                         assertNotNull(result.queryResult().aggregations());
                     } finally {
-                        result.decRef();
                         latch.countDown();
                     }
                 }
@@ -1401,7 +1401,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         assertThat(result, instanceOf(QuerySearchResult.class));
                         assertTrue(result.queryResult().isNull());
                     } finally {
-                        result.decRef();
                         latch.countDown();
                     }
                 }
@@ -1542,7 +1541,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             @Override
             public void onResponse(SearchPhaseResult searchPhaseResult) {
                 service.freeReaderContext(searchPhaseResult.getContextId());
-                searchPhaseResult.decRef();
                 latch1.countDown();
             }
 
@@ -1684,7 +1682,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         client().clearScroll(clearScrollRequest);
     }
 
-    public void testWaitOnRefresh() {
+    public void testWaitOnRefresh() throws ExecutionException, InterruptedException {
         createIndex("index");
         final SearchService service = getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -1698,7 +1696,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, response.status());
 
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
-        PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
             searchRequest,
@@ -1712,13 +1709,12 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             null,
             null
         );
-        service.executeQueryPhase(request, task, future);
-        SearchPhaseResult searchPhaseResult = future.actionGet();
-        try {
-            assertEquals(1, searchPhaseResult.queryResult().getTotalHits().value);
-        } finally {
-            searchPhaseResult.decRef();
-        }
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        service.executeQueryPhase(request, task, future.delegateFailure((l, r) -> {
+            assertEquals(1, r.queryResult().getTotalHits().value);
+            l.onResponse(null);
+        }));
+        future.get();
     }
 
     public void testWaitOnRefreshFailsWithRefreshesDisabled() {
@@ -1837,7 +1833,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("test").get();
 
         String pitId = client().execute(
-            OpenPointInTimeAction.INSTANCE,
+            TransportOpenPointInTimeAction.TYPE,
             new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(10))
         ).actionGet().getPointInTimeId();
         final MockSearchService searchService = (MockSearchService) getInstanceFromNode(SearchService.class);
@@ -1852,7 +1848,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 numDocs
             );
         } finally {
-            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
         }
         assertThat(shardRequests, not(emptyList()));
         for (ShardSearchRequest shardRequest : shardRequests) {
@@ -1882,7 +1878,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             -1,
             null
         );
-        PlainActionFuture<QuerySearchResult> plainActionFuture = new PlainActionFuture<>();
         final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
         ReaderContext context = service.createAndPutReaderContext(
             request,
@@ -1891,13 +1886,14 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             reader,
             SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()
         );
+        PlainActionFuture<QuerySearchResult> plainActionFuture = new PlainActionFuture<>();
         service.executeQueryPhase(
             new QuerySearchRequest(null, context.id(), request, new AggregatedDfs(Map.of(), Map.of(), 10)),
             new SearchShardTask(42L, "", "", "", null, Collections.emptyMap()),
             plainActionFuture
         );
 
-        plainActionFuture.actionGet().decRef();
+        plainActionFuture.actionGet();
         assertThat(((TestRewriteCounterQueryBuilder) request.source().query()).asyncRewriteCount, equalTo(1));
         final ShardSearchContextId contextId = context.id();
         assertTrue(service.freeReaderContext(contextId));

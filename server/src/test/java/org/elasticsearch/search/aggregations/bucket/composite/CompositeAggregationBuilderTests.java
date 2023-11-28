@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<CompositeAggregationBuilder> {
@@ -107,5 +108,44 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             }
         }
         return new CompositeAggregationBuilder(randomAlphaOfLength(10), sources);
+    }
+
+    public void testSupportsParallelCollection() {
+        assertTrue(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(randomDateHistogramSourceBuilder()))
+                .supportsParallelCollection(null)
+        );
+        assertTrue(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(randomHistogramSourceBuilder()))
+                .supportsParallelCollection(null)
+        );
+        assertTrue(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(randomGeoTileGridValuesSourceBuilder()))
+                .supportsParallelCollection(null)
+        );
+        assertFalse(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
+                .supportsParallelCollection(field -> -1)
+        );
+        assertTrue(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
+                .supportsParallelCollection(field -> randomIntBetween(0, 50))
+        );
+        assertFalse(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
+                .supportsParallelCollection(field -> randomIntBetween(51, 100))
+        );
+        assertFalse(
+            new CompositeAggregationBuilder(
+                randomAlphaOfLength(10),
+                Collections.singletonList(new TermsValuesSourceBuilder("name").script(new Script("id")))
+            ).supportsParallelCollection(field -> randomIntBetween(-1, 100))
+        );
+        assertFalse(
+            new CompositeAggregationBuilder(
+                randomAlphaOfLength(10),
+                List.of(randomDateHistogramSourceBuilder(), new TermsValuesSourceBuilder("name"))
+            ).supportsParallelCollection(field -> randomIntBetween(51, 100))
+        );
     }
 }

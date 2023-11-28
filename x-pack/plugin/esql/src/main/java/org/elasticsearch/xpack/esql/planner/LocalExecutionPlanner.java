@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
@@ -366,7 +365,7 @@ public class LocalExecutionPlanner {
                     for (int i = 0, s = output.size(); i < s; i++) {
                         var out = output.get(i);
                         if (out.dataType() == DataTypes.BOOLEAN) {
-                            blocks.add(i, BooleanBlock.newConstantBlockWith(true, 1));
+                            blocks.add(i, BlockFactory.getNonBreakingInstance().newConstantBooleanBlockWith(true, 1));
                         }
                     }
                 }

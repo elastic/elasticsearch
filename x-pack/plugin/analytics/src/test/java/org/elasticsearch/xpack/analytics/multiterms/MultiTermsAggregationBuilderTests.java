@@ -146,20 +146,27 @@ public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializi
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            MultiValuesSourceFieldConfig.Builder sourceBuilder = new MultiValuesSourceFieldConfig.Builder();
-            sourceBuilder.setFieldName("field");
+            MultiValuesSourceFieldConfig.Builder sourceBuilder1 = new MultiValuesSourceFieldConfig.Builder();
+            sourceBuilder1.setFieldName("field1");
+            MultiValuesSourceFieldConfig.Builder sourceBuilder2 = new MultiValuesSourceFieldConfig.Builder();
+            sourceBuilder2.setFieldName("field2");
             MultiTermsAggregationBuilder terms = new MultiTermsAggregationBuilder("terms").terms(
-                List.of(sourceBuilder.build(), sourceBuilder.build())
+                List.of(sourceBuilder1.build(), sourceBuilder2.build())
             );
             terms.shardSize(10);
             builder.addAggregator(terms);
             assertFalse(builder.supportsParallelCollection(field -> -1));
-            assertTrue(builder.supportsParallelCollection(field -> randomIntBetween(0, 10)));
+            List<String> fields = new ArrayList<>();
+            assertTrue(builder.supportsParallelCollection(field -> {
+                fields.add(field);
+                return randomIntBetween(0, 10);
+            }));
+            assertEquals(List.of("field1", "field2"), fields);
             assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(11, 100)));
             terms.terms(
                 List.of(
-                    sourceBuilder.build(),
-                    sourceBuilder.build(),
+                    sourceBuilder1.build(),
+                    sourceBuilder2.build(),
                     new MultiValuesSourceFieldConfig.Builder().setScript(new Script("id")).build()
                 )
             );
@@ -167,10 +174,12 @@ public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializi
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            MultiValuesSourceFieldConfig.Builder sourceBuilder = new MultiValuesSourceFieldConfig.Builder();
-            sourceBuilder.setFieldName("field");
+            MultiValuesSourceFieldConfig.Builder sourceBuilder1 = new MultiValuesSourceFieldConfig.Builder();
+            sourceBuilder1.setFieldName("field1");
+            MultiValuesSourceFieldConfig.Builder sourceBuilder2 = new MultiValuesSourceFieldConfig.Builder();
+            sourceBuilder2.setFieldName("field2");
             MultiTermsAggregationBuilder terms = new MultiTermsAggregationBuilder("terms").terms(
-                List.of(sourceBuilder.build(), sourceBuilder.build())
+                List.of(sourceBuilder1.build(), sourceBuilder2.build())
             );
             terms.order(randomBoolean() ? BucketOrder.key(randomBoolean()) : BucketOrder.compound(BucketOrder.key(randomBoolean())));
             if (randomBoolean()) {
@@ -178,12 +187,19 @@ public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializi
             }
             builder.addAggregator(terms);
             assertFalse(builder.supportsParallelCollection(field -> -1));
-            assertTrue(builder.supportsParallelCollection(field -> randomIntBetween(0, 50)));
+            {
+                List<String> fields = new ArrayList<>();
+                assertTrue(builder.supportsParallelCollection(field -> {
+                    fields.add(field);
+                    return randomIntBetween(0, 50);
+                }));
+                assertEquals(List.of("field1", "field2"), fields);
+            }
             assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(51, 100)));
             terms.terms(
                 List.of(
-                    sourceBuilder.build(),
-                    sourceBuilder.build(),
+                    sourceBuilder1.build(),
+                    sourceBuilder2.build(),
                     new MultiValuesSourceFieldConfig.Builder().setScript(new Script("id")).build()
                 )
             );

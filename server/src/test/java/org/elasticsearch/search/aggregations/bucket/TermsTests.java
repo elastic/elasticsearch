@@ -181,7 +181,8 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").order(BucketOrder.key(randomBoolean()));
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.order(randomBoolean() ? BucketOrder.key(randomBoolean()) : BucketOrder.compound(BucketOrder.key(randomBoolean())));
             if (randomBoolean()) {
                 terms.shardSize(randomIntBetween(1, 100));
             }
@@ -190,7 +191,8 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").order(BucketOrder.key(randomBoolean()));
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.order(randomBoolean() ? BucketOrder.key(randomBoolean()) : BucketOrder.compound(BucketOrder.key(randomBoolean())));
             if (randomBoolean()) {
                 terms.shardSize(randomIntBetween(1, 100));
             }

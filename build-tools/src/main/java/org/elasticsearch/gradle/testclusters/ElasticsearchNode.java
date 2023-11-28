@@ -151,6 +151,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LazyPropertyMap<String, CharSequence> systemProperties = new LazyPropertyMap<>("System properties", this);
     private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
     private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
+    private final LazyPropertyList<CharSequence> cliJvmArgs = new LazyPropertyList<>("CLI JVM arguments", this);
     private final LazyPropertyMap<String, File> extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
     private final LazyPropertyList<FileCollection> extraJarConfigurations = new LazyPropertyList<>("Extra jar files", this);
     private final List<Map<String, String>> credentials = new ArrayList<>();
@@ -469,6 +470,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     public void jvmArgs(String... values) {
         jvmArgs.addAll(Arrays.asList(values));
+    }
+
+    public void cliJvmArgs(String... values) {
+        cliJvmArgs.addAll(Arrays.asList(values));
     }
 
     @Internal
@@ -932,6 +937,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Don't inherit anything from the environment for as that would lack reproducibility
         environment.clear();
         environment.putAll(getESEnvironment());
+        if (cliJvmArgs.isEmpty() == false) {
+            String cliJvmArgsString = String.join(" ", cliJvmArgs);
+            environment.put("CLI_JAVA_OPTS", cliJvmArgsString);
+        }
 
         // Direct the stderr to the ES log file. This should capture any jvm problems to start.
         // Stdout is discarded because ES duplicates the log file to stdout when run in the foreground.

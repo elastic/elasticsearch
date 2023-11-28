@@ -642,8 +642,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             """);
 
         // verify that both fields are searchable when not querying specific fields
-        assertBusy(() -> {
-            List<Object> results = searchDocs(client, dataStreamName, """
+        List<Object> results = searchDocs(client, dataStreamName, """
                 {
                   "query": {
                     "simple_query_string": {
@@ -652,10 +651,9 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                   }
                 }
                 """);
-            assertEquals(1, results.size());
-        });
+        assertEquals(1, results.size());
 
-        List<Object> results = searchDocs(client, dataStreamName, """
+        results = searchDocs(client, dataStreamName, """
             {
               "query": {
                 "simple_query_string": {
@@ -695,8 +693,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             }
             """);
 
-        assertBusy(() -> {
-            List<Object> results = searchDocs(client, dataStreamName, """
+        List<Object> results = searchDocs(client, dataStreamName, """
                 {
                   "query": {
                     "simple_query_string": {
@@ -705,10 +702,9 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                   }
                 }
                 """);
-            assertEquals(1, results.size());
-        });
+        assertEquals(1, results.size());
 
-        List<Object> results = searchDocs(client, dataStreamName, """
+        results = searchDocs(client, dataStreamName, """
             {
               "query": {
                 "simple_query_string": {

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.external.huggingface;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.AlwaysRetryingResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFa
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
-import java.util.List;
 
 public class HuggingFaceClient {
     private static final Logger logger = LogManager.getLogger(HuggingFaceClient.class);
@@ -39,7 +38,7 @@ public class HuggingFaceClient {
         );
     }
 
-    public void send(HuggingFaceElserRequest request, ActionListener<List<? extends InferenceResults>> listener) throws IOException {
+    public void send(HuggingFaceElserRequest request, ActionListener<InferenceServiceResults> listener) throws IOException {
         this.sender.send(request.createRequest(), ELSER_RESPONSE_HANDLER, listener);
     }
 

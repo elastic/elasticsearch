@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.OwningChannelActionListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
@@ -251,7 +251,7 @@ public class EnrichLookupService {
             final SourceOperator queryOperator = switch (matchType) {
                 case "match", "range" -> {
                     QueryList queryList = QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
-                    yield new EnrichQuerySourceOperator(queryList, searchExecutionContext.getIndexReader());
+                    yield new EnrichQuerySourceOperator(blockFactory, queryList, searchExecutionContext.getIndexReader());
                 }
                 default -> throw new EsqlIllegalArgumentException("illegal match type " + matchType);
             };
@@ -272,7 +272,14 @@ public class EnrichLookupService {
                 fields.add(new ValuesSourceReaderOperator.FieldInfo(extractField.name(), loaders));
             }
             intermediateOperators.add(
-                new ValuesSourceReaderOperator(blockFactory, fields, List.of(searchContext.searcher().getIndexReader()), 0)
+                new ValuesSourceReaderOperator(
+                    blockFactory,
+                    fields,
+                    List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.searcher().getIndexReader(), () -> {
+                        throw new UnsupportedOperationException("can't load _source as part of enrich");
+                    })),
+                    0
+                )
             );
 
             // drop docs block
@@ -282,7 +289,7 @@ public class EnrichLookupService {
             // merging field-values by position
             final int[] mergingChannels = IntStream.range(0, extractFields.size()).map(i -> i + 1).toArray();
             intermediateOperators.add(
-                new MergePositionsOperator(singleLeaf, inputPage.getPositionCount(), 0, mergingChannels, mergingTypes)
+                new MergePositionsOperator(singleLeaf, inputPage.getPositionCount(), 0, mergingChannels, mergingTypes, blockFactory)
             );
             AtomicReference<Page> result = new AtomicReference<>();
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);
@@ -343,7 +350,7 @@ public class EnrichLookupService {
         @Override
         public void messageReceived(LookupRequest request, TransportChannel channel, Task task) {
             request.incRef();
-            ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
+            ActionListener<LookupResponse> listener = ActionListener.runBefore(new OwningChannelActionListener<>(channel), request::decRef);
             doLookup(
                 request.sessionId,
                 (CancellableTask) task,

@@ -256,7 +256,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 TestBlock block = (TestBlock) loader.columnAtATimeReader(reader.leaves().get(0))
-                    .read(TestBlock.FACTORY, new BlockLoader.Docs() {
+                    .read(TestBlock.factory(reader.numDocs()), new BlockLoader.Docs() {
                         @Override
                         public int count() {
                             return 1;

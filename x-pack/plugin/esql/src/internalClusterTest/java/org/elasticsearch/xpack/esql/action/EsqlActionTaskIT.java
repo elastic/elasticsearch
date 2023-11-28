@@ -99,7 +99,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
             \\_AggregationOperator[mode = FINAL, aggs = sum of longs]
             \\_ProjectOperator[projection = [0]]
             \\_LimitOperator[limit = 500]
-            \\_OutputOperator[columns = sum(pause_me)]""";
+            \\_OutputOperator[columns = [sum(pause_me)]]""";
 
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("runtime");
@@ -121,7 +121,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
 
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < NUM_DOCS; i++) {
-            bulk.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
+            bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
         }
         bulk.get();
         /*

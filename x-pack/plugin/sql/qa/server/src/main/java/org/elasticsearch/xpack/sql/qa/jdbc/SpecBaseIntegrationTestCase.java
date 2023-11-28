@@ -60,7 +60,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     }
 
     protected void loadDataset(RestClient client) throws Exception {
-        DataLoader.loadDatasetIntoEs(client);
+        DataLoader.loadDatasetIntoEs(client, true);
     }
 
     @Override

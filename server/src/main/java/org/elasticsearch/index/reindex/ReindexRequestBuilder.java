@@ -11,8 +11,8 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
@@ -22,7 +22,7 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
         this(
             client,
             action,
-            new SearchRequestBuilder(client, SearchAction.INSTANCE),
+            new SearchRequestBuilder(client, TransportSearchAction.TYPE),
             new IndexRequestBuilder(client, IndexAction.INSTANCE)
         );
     }

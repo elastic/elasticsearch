@@ -709,6 +709,41 @@ _source:
         expect: [amazing, source]
 
 ---
+_source keep all:
+  - skip:
+      version: " - 8.11.99"
+      reason: "_source is available in 8.12+"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            dynamic: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index" : { "_index" : "test", "_id" : "id-1" } }
+          - { "wow": 1, "such": "_source", "you'd": "never", "expect": ["amazing", "source"] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test [METADATA _source] | LIMIT 1'
+  - match: { columns.0.name: _source }
+  - match: { columns.0.type: _source }
+  - length: { values: 1 }
+  - match:
+      values.0.0:
+        wow: 1
+        such: _source
+        "you'd": never
+        expect: [amazing, source]
+
+---
 _source disabled:
   - skip:
       version: " - 8.11.99"

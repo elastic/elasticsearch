@@ -21,7 +21,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -542,17 +542,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
 
         assertThat(role.cluster().privileges(), containsInAnyOrder(ClusterPrivilegeResolver.ALL));
-        assertThat(role.indices().check(SearchAction.NAME), Matchers.is(true));
+        assertThat(role.indices().check(TransportSearchAction.TYPE.name()), Matchers.is(true));
         assertThat(role.indices().check(IndexAction.NAME), Matchers.is(true));
 
         final Predicate<String> indexActionPredicate = Automatons.predicate(
             role.indices().allowedActionsMatcher("index-" + randomAlphaOfLengthBetween(1, 12))
         );
-        assertThat(indexActionPredicate.test(SearchAction.NAME), is(true));
+        assertThat(indexActionPredicate.test(TransportSearchAction.TYPE.name()), is(true));
         assertThat(indexActionPredicate.test(IndexAction.NAME), is(true));
 
         final Predicate<String> securityActionPredicate = Automatons.predicate(role.indices().allowedActionsMatcher(".security"));
-        assertThat(securityActionPredicate.test(SearchAction.NAME), is(true));
+        assertThat(securityActionPredicate.test(TransportSearchAction.TYPE.name()), is(true));
         assertThat(securityActionPredicate.test(IndexAction.NAME), is(false));
     }
 
@@ -2127,7 +2127,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             .build();
         final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
         assertThat(
-            role.authorize(SearchAction.NAME, Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache).isGranted(),
+            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache)
+                .isGranted(),
             is(false == emptyRemoteRole)
         );
         assertThat(
@@ -2135,7 +2136,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             is(false)
         );
         assertThat(
-            role.authorize(SearchAction.NAME, Sets.newHashSet("index2"), indexMetadata.getIndicesLookup(), emptyCache).isGranted(),
+            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index2"), indexMetadata.getIndicesLookup(), emptyCache)
+                .isGranted(),
             is(false)
         );
     }
@@ -2277,7 +2279,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Role role = future1.actionGet();
             assertThat(role.hasWorkflowsRestriction(), equalTo(true));
             assertThat(role, not(sameInstance(Role.EMPTY_RESTRICTED_BY_WORKFLOW)));
-            assertThat(role.checkIndicesAction(SearchAction.NAME), is(true));
+            assertThat(role.checkIndicesAction(TransportSearchAction.TYPE.name()), is(true));
         }
 
         // 2. an "empty-restricted" role if originating workflow does not match (or is null)
@@ -2389,7 +2391,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Role role = future1.actionGet();
             assertThat(role.hasWorkflowsRestriction(), equalTo(false));
             assertThat(role, not(sameInstance(Role.EMPTY_RESTRICTED_BY_WORKFLOW)));
-            assertThat(role.checkIndicesAction(SearchAction.NAME), is(true));
+            assertThat(role.checkIndicesAction(TransportSearchAction.TYPE.name()), is(true));
         }
     }
 
@@ -2586,7 +2588,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testXPackSecurityUserCanAccessAnyIndex() {
-        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, TransportSearchAction.TYPE.name(), IndexAction.NAME)) {
             IsResourceAuthorizedPredicate predicate = getXPackSecurityRole().indices().allowedIndicesMatcher(action);
 
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
@@ -2601,7 +2603,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testSecurityProfileUserHasAccessForOnlyProfileIndex() {
-        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, TransportSearchAction.TYPE.name(), IndexAction.NAME)) {
             IsResourceAuthorizedPredicate predicate = getSecurityProfileRole().indices().allowedIndicesMatcher(action);
 
             List.of(
@@ -2625,7 +2627,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testXPackUserCanAccessNonRestrictedIndices() {
-        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, TransportSearchAction.TYPE.name(), IndexAction.NAME)) {
             IsResourceAuthorizedPredicate predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
             if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
@@ -2639,7 +2641,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testXPackUserCannotAccessSecurityOrAsyncSearch() {
-        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, TransportSearchAction.TYPE.name(), IndexAction.NAME)) {
             IsResourceAuthorizedPredicate predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
             for (String index : TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES) {
                 assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
@@ -2652,7 +2654,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testAsyncSearchUserCannotAccessNonRestrictedIndices() {
-        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, TransportSearchAction.TYPE.name(), IndexAction.NAME)) {
             IsResourceAuthorizedPredicate predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
             if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
@@ -2666,7 +2668,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testAsyncSearchUserCanAccessOnlyAsyncSearchRestrictedIndices() {
-        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, TransportSearchAction.TYPE.name(), IndexAction.NAME)) {
             final IsResourceAuthorizedPredicate predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
             for (String index : TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES) {
                 assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));

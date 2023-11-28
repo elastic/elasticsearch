@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.OwningChannelActionListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -110,7 +110,7 @@ public class EnrichPolicyResolver {
             String policyName = request.policyName;
             EnrichPolicy policy = policies().get(policyName);
             ThreadContext threadContext = threadPool.getThreadContext();
-            ActionListener<ResolveResponse> listener = new ChannelActionListener<>(channel);
+            ActionListener<ResolveResponse> listener = new OwningChannelActionListener<>(channel);
             listener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
             try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                 indexResolver.resolveAsMergedMapping(

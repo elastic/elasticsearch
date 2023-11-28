@@ -2573,28 +2573,40 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    private static class MockMTAppender extends AbstractAppender {
+    private static class MockMergeThreadAppender extends AbstractAppender {
+
         private final List<String> messages = Collections.synchronizedList(new ArrayList<>());
+        private final AtomicBoolean luceneMergeSchedulerEnded = new AtomicBoolean();
 
         List<String> messages() {
             return List.copyOf(messages);
         }
 
-        MockMTAppender(final String name) throws IllegalAccessException {
+        public boolean mergeCompleted() {
+            return luceneMergeSchedulerEnded.get();
+        }
+
+        MockMergeThreadAppender(final String name) throws IllegalAccessException {
             super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false, Property.EMPTY_ARRAY);
         }
 
         @Override
         public void append(LogEvent event) {
             final String formattedMessage = event.getMessage().getFormattedMessage();
-            if (event.getLevel() == Level.TRACE && formattedMessage.startsWith("merge thread")) {
-                messages.add(formattedMessage);
+            if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][0]")) {
+                if (formattedMessage.startsWith("merge thread")) {
+                    messages.add(formattedMessage);
+                } else if (event.getLoggerName().endsWith(".MS")
+                    && formattedMessage.contains("MS: merge thread")
+                    && formattedMessage.endsWith("end")) {
+                        luceneMergeSchedulerEnded.set(true);
+                    }
             }
         }
     }
 
     public void testMergeThreadLogging() throws Exception {
-        final MockMTAppender mockAppender = new MockMTAppender("testMergeThreadLogging");
+        final MockMergeThreadAppender mockAppender = new MockMergeThreadAppender("testMergeThreadLogging");
         mockAppender.start();
 
         Logger rootLogger = LogManager.getRootLogger();
@@ -2613,26 +2625,29 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.index(indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null)));
                 engine.index(indexForDoc(testParsedDocument("4", null, testDocument(), B_1, null)));
                 engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-                engine.flushAndClose();
 
                 assertBusy(() -> {
                     assertThat(engine.getMergeStats().getTotal(), greaterThan(0L));
                     assertThat(engine.getMergeStats().getCurrent(), equalTo(0L));
                 });
-            }
 
-            assertBusy(() -> {
-                List<String> threadMsgs = mockAppender.messages().stream().filter(line -> line.startsWith("merge thread")).toList();
-                assertThat("messages:" + threadMsgs, threadMsgs.size(), greaterThanOrEqualTo(3));
-                assertThat(
-                    threadMsgs,
-                    containsInRelativeOrder(
-                        matchesRegex("^merge thread .* start$"),
-                        matchesRegex("^merge thread .* merge segment.*$"),
-                        matchesRegex("^merge thread .* end$")
-                    )
-                );
-            });
+                assertBusy(() -> {
+                    List<String> threadMsgs = mockAppender.messages().stream().filter(line -> line.startsWith("merge thread")).toList();
+                    assertThat("messages:" + threadMsgs, threadMsgs.size(), greaterThanOrEqualTo(3));
+                    assertThat(
+                        threadMsgs,
+                        containsInRelativeOrder(
+                            matchesRegex("^merge thread .* start$"),
+                            matchesRegex("^merge thread .* merge segment.*$"),
+                            matchesRegex("^merge thread .* end$")
+                        )
+                    );
+                    assertThat(mockAppender.mergeCompleted(), is(true));
+                });
+
+                Loggers.setLevel(rootLogger, savedLevel);
+                engine.close();
+            }
         } finally {
             Loggers.setLevel(rootLogger, savedLevel);
             Loggers.removeAppender(rootLogger, mockAppender);

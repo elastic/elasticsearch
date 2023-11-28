@@ -520,7 +520,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                     toId,
                     routingNodes.node(toId).node().getMaxIndexVersion()
                 );
-                assertTrue(routingNodes.node(toId).node().getMaxIndexVersion().onOrAfter(routingNodes.node(fromId).node().getMaxIndexVersion()));
+                assertTrue(
+                    routingNodes.node(toId).node().getMaxIndexVersion().onOrAfter(routingNodes.node(fromId).node().getMaxIndexVersion())
+                );
             } else {
                 ShardRouting primary = routingNodes.activePrimary(r.shardId());
                 assertThat(primary, notNullValue());
@@ -533,7 +535,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                     toId,
                     routingNodes.node(toId).node().getMaxIndexVersion()
                 );
-                assertTrue(routingNodes.node(toId).node().getMaxIndexVersion().onOrAfter(routingNodes.node(fromId).node().getMaxIndexVersion()));
+                assertTrue(
+                    routingNodes.node(toId).node().getMaxIndexVersion().onOrAfter(routingNodes.node(fromId).node().getMaxIndexVersion())
+                );
             }
         }
 
@@ -551,7 +555,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                     toId,
                     routingNodes.node(toId).node().getMaxIndexVersion()
                 );
-                assertTrue(routingNodes.node(toId).node().getMaxIndexVersion().onOrAfter(routingNodes.node(fromId).node().getMaxIndexVersion()));
+                assertTrue(
+                    routingNodes.node(toId).node().getMaxIndexVersion().onOrAfter(routingNodes.node(fromId).node().getMaxIndexVersion())
+                );
             }
         }
     }

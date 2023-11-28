@@ -135,7 +135,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         inferRequest.setHighPriority(true);
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
         // The model is hosted either on a ml node or in an inference service
-        inferRequest.setModelType(CoordinatedInferenceAction.Request.ModelType.FOR_NLP_MODEL);
+        inferRequest.setModelType(CoordinatedInferenceAction.Request.ModelType.NLP_MODEL);
 
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
         queryRewriteContext.registerAsyncAction((client, listener) -> {
@@ -151,10 +151,10 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                         return;
                     }
 
-                    if (inferenceResponse.getInferenceResults().get(0)instanceof TextExpansionResults textExpansionResults) {
+                    if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
                         textExpansionResultsSupplier.set(textExpansionResults);
                         listener.onResponse(null);
-                    } else if (inferenceResponse.getInferenceResults().get(0)instanceof WarningInferenceResults warning) {
+                    } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
                         listener.onFailure(new IllegalStateException(warning.getWarning()));
                     } else {
                         listener.onFailure(

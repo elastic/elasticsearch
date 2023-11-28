@@ -24,9 +24,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentStateUtils;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,35 +77,16 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
         }
     }
 
-
-
-    private boolean hasTrainedModelAssignment(String modelId, ClusterState state) {
-        String concreteModelId = Optional.ofNullable(ModelAliasMetadata.fromState(clusterService.state()).getModelId(request.getId()))
-            .orElse(request.getId());
-
-        responseBuilder.setId(concreteModelId);
-
-        TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(clusterService.state());
-        TrainedModelAssignment assignment = trainedModelAssignmentMetadata.getDeploymentAssignment(concreteModelId);
-        List<TrainedModelAssignment> assignments;
-        if (assignment == null) {
-            // look up by model
-            assignments = trainedModelAssignmentMetadata.getDeploymentsUsingModel(concreteModelId);
-        }
-    }
-
-
     private void forNlp(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
         logger.info("[CoordAction] forNlp [{}]", request.getModelId());
         var clusterState = clusterService.state();
-        var assignments = TrainedModelAssignmentStateUtils.modelAssignments(request.getModelId(), clusterState);
+        var assignments = TrainedModelAssignmentUtils.modelAssignments(request.getModelId(), clusterState);
         if (assignments == null || assignments.isEmpty()) {
             doInferenceServiceModel(request, listener);
         } else {
             doInClusterModel(request, listener);
         }
     }
-
 
     private void doInferenceServiceModel(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
         logger.info("[CoordAction] doInferenceServiceModel [{}]", request.getModelId());
@@ -150,23 +131,23 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
         return inferModelRequest;
     }
 
-//    private ActionListener<InferModelAction.Response> wrapModelNotFoundInBoostedTreeModelCheck(ActionListener<InferModelAction.Response> listener) {
-////        return ActionListener.wrap(
-////            listener::onResponse,
-////            e -> {
-////                executeAsyncWithOrigin(
-////                    client,
-////                    ML_ORIGIN,
-////                    GetTrainedModelsAction.INSTANCE,
-////                    new InferenceAction.Request(TaskType.ANY, request.getModelId(), request.getInputs(), request.getTaskSettings()),
-////                    ActionListener.wrap(r -> translateInferenceServiceResponse(r.getResults(), listener), listener::onFailure)
-////                );
-////            }
-////        );
-//    }
+    // private ActionListener<InferModelAction.Response> wrapModelNotFoundInBoostedTreeModelCheck(ActionListener<InferModelAction.Response>
+    // listener) {
+    //// return ActionListener.wrap(
+    //// listener::onResponse,
+    //// e -> {
+    //// executeAsyncWithOrigin(
+    //// client,
+    //// ML_ORIGIN,
+    //// GetTrainedModelsAction.INSTANCE,
+    //// new InferenceAction.Request(TaskType.ANY, request.getModelId(), request.getInputs(), request.getTaskSettings()),
+    //// ActionListener.wrap(r -> translateInferenceServiceResponse(r.getResults(), listener), listener::onFailure)
+    //// );
+    //// }
+    //// );
+    // }
 
-
-/*
+    /*
     private void handleInferenceServiceModelFailure(
         Exception error,
         CoordinatedInferenceAction.Request request,
@@ -220,7 +201,7 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
             listener
         );
     }
-*/
+    */
     static void translateInferenceServiceResponse(
         List<? extends InferenceResults> inferenceResults,
         ActionListener<InferModelAction.Response> listener

@@ -104,7 +104,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         inferRequest.setHighPriority(true);
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
         // The model is hosted either on a ml node or in an inference service
-        inferRequest.setModelType(CoordinatedInferenceAction.Request.ModelType.FOR_NLP_MODEL);
+        inferRequest.setModelType(CoordinatedInferenceAction.Request.ModelType.NLP_MODEL);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, CoordinatedInferenceAction.INSTANCE, inferRequest, ActionListener.wrap(response -> {
             if (response.getInferenceResults().isEmpty()) {
@@ -112,9 +112,9 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
                 return;
             }
 
-            if (response.getInferenceResults().get(0)instanceof TextEmbeddingResults textEmbeddingResults) {
+            if (response.getInferenceResults().get(0) instanceof TextEmbeddingResults textEmbeddingResults) {
                 listener.onResponse(textEmbeddingResults.getInferenceAsFloat());
-            } else if (response.getInferenceResults().get(0)instanceof WarningInferenceResults warning) {
+            } else if (response.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
                 listener.onFailure(new IllegalStateException(warning.getWarning()));
             } else {
                 throw new IllegalStateException(

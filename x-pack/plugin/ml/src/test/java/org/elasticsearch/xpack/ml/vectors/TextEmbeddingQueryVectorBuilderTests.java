@@ -42,7 +42,7 @@ public class TextEmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBui
         assertEquals(builder.getModelId(), inferRequest.getModelId());
         assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API, inferRequest.getInferenceTimeout());
         assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, inferRequest.getPrefixType());
-        assertEquals(CoordinatedInferenceAction.Request.ModelType.FOR_NLP_MODEL, inferRequest.getModelType());
+        assertEquals(CoordinatedInferenceAction.Request.ModelType.NLP_MODEL, inferRequest.getModelType());
     }
 
     public ActionResponse createResponse(float[] array, TextEmbeddingQueryVectorBuilder builder) {

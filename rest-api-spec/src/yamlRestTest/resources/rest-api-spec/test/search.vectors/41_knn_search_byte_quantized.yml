@@ -16,18 +16,14 @@ setup:
                 index: true
                 similarity: l2_norm
                 index_options:
-                  type: hnsw
-                  quantization_options:
-                    type: byte
+                  type: int8_hnsw
               another_vector:
                 type: dense_vector
                 dims: 5
                 index: true
                 similarity: l2_norm
                 index_options:
-                  type: hnsw
-                  quantization_options:
-                    type: byte
+                  type: int8_hnsw
 
   - do:
       index:
@@ -245,9 +241,7 @@ setup:
                 index: true
                 similarity: max_inner_product
                 index_options:
-                  type: hnsw
-                  quantization_options:
-                    type: byte
+                  type: int8_hnsw
 
   - do:
       index:
@@ -355,9 +349,7 @@ setup:
                 element_type: byte
                 index: true
                 index_options:
-                  type: hnsw
-                  quantization_options:
-                    type: byte
+                  type: int8_hnsw
 
   - do:
       catch: bad_request
@@ -371,6 +363,4 @@ setup:
                 dims: 5
                 index: false
                 index_options:
-                  type: hnsw
-                  quantization_options:
-                    type: byte
+                  type: int8_hnsw

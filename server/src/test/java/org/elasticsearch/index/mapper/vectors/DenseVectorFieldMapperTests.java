@@ -526,40 +526,18 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 fieldMapping(
                     b -> b.field("type", "dense_vector")
                         .field("dims", 3)
-                        .field("similarity", "l2_norm")
-                        .field("index", true)
-                        .startObject("index_options")
-                        .field("type", "hnsw")
-                        .startObject("quantization_options")
-                        .endObject()
-                        .endObject()
-                )
-            )
-        );
-        assertThat(e.getMessage(), containsString("[quantization_options] requires field [type] to be configured"));
-        e = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(
-                fieldMapping(
-                    b -> b.field("type", "dense_vector")
-                        .field("dims", 3)
                         .field("element_type", "byte")
                         .field("similarity", "l2_norm")
                         .field("index", true)
                         .startObject("index_options")
-                        .field("type", "hnsw")
-                        .startObject("quantization_options")
-                        .field("type", "byte")
-                        .endObject()
+                        .field("type", "int8_hnsw")
                         .endObject()
                 )
             )
         );
         assertThat(
             e.getMessage(),
-            containsString(
-                "Failed to parse mapping: [element_type] cannot be [byte] when using quantization type [byte] in [index_options]"
-            )
+            containsString("Failed to parse mapping: [element_type] cannot be [byte] when using index type [int8_hnsw]")
         );
     }
 
@@ -1043,15 +1021,12 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.field("index", true);
             b.field("similarity", "dot_product");
             b.startObject("index_options");
-            b.field("type", "hnsw");
+            b.field("type", "int8_hnsw");
             b.field("m", m);
             b.field("ef_construction", efConstruction);
-            b.startObject("quantization_options");
-            b.field("type", "byte");
             if (setConfidenceInterval) {
                 b.field("confidence_interval", confidenceInterval);
             }
-            b.endObject();
             b.endObject();
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);

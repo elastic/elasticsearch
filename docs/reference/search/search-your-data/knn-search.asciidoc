@@ -249,10 +249,9 @@ POST byte-image-index/_search
 If you want to provide `float` vectors, but want the memory savings of `byte` vectors, you can use the
 <<dense-vector-quantization, quantization>> feature. Quantization allows you to provide `float` vectors, but
 internally they are indexed as `byte` vectors. Additionally, the original `float` vectors are still retained
-in the index. This allows you to use the original `float` vectors for re-scoring, but the `byte` vectors for
-indexing.
+in the index.
 
-To use quantization, you must provide a `quantization_options` object in the `dense_vector` mapping.
+To use quantization, you can use the index type `int8_hnsw` object in the `dense_vector` mapping.
 
 [source,console]
 ----
@@ -266,10 +265,7 @@ PUT quantized-image-index
         "dims": 2,
         "index": true,
         "index_options": {
-          "type": "hnsw",
-          "quantization_options": {
-            "type": "byte"
-          }
+          "type": "int8_hnsw"
         }
       },
       "title": {
@@ -315,8 +311,9 @@ POST quantized-image-index/_search
 // TEST[s/"k": 10/"k": 3/]
 // TEST[s/"num_candidates": 100/"num_candidates": 3/]
 
-Since the original `float` vectors are still retained in the index, you can optionally use them for re-scoring. This will
-do the heavy query against the indexed vectors, and then you can get the absolute nearest neighbors by re-scoring.
+Since the original `float` vectors are still retained in the index, you can optionally use them for re-scoring. Meaning,
+you can search over all the vectors quickly using the `int8_hnsw` index and then rescore only the top `k` results. This
+provides the best of both worlds, fast search and accurate scoring.
 
 [source,console]
 ----

@@ -514,26 +514,26 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 assertThat(fromId, notNullValue());
                 assertThat(toId, notNullValue());
                 logger.trace(
-                    "From: {} with Version: {} to: {} with Version: {}",
+                    "From: {} with IndexVersion: {} to: {} with IndexVersion: {}",
                     fromId,
-                    routingNodes.node(fromId).node().getVersion(),
+                    routingNodes.node(fromId).node().getMaxIndexVersion(),
                     toId,
-                    routingNodes.node(toId).node().getVersion()
+                    routingNodes.node(toId).node().getMaxIndexVersion()
                 );
-                assertTrue(routingNodes.node(toId).node().getVersion().onOrAfter(routingNodes.node(fromId).node().getVersion()));
+                assertTrue(routingNodes.node(toId).node().getMaxIndexVersion().onOrAfter(routingNodes.node(fromId).node().getMaxIndexVersion()));
             } else {
                 ShardRouting primary = routingNodes.activePrimary(r.shardId());
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();
                 String toId = r.relocatingNodeId();
                 logger.trace(
-                    "From: {} with Version: {} to: {} with Version: {}",
+                    "From: {} with IndexVersion: {} to: {} with IndexVersion: {}",
                     fromId,
-                    routingNodes.node(fromId).node().getVersion(),
+                    routingNodes.node(fromId).node().getMaxIndexVersion(),
                     toId,
-                    routingNodes.node(toId).node().getVersion()
+                    routingNodes.node(toId).node().getMaxIndexVersion()
                 );
-                assertTrue(routingNodes.node(toId).node().getVersion().onOrAfter(routingNodes.node(fromId).node().getVersion()));
+                assertTrue(routingNodes.node(toId).node().getMaxIndexVersion().onOrAfter(routingNodes.node(fromId).node().getMaxIndexVersion()));
             }
         }
 
@@ -545,13 +545,13 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 String fromId = primary.currentNodeId();
                 String toId = r.currentNodeId();
                 logger.trace(
-                    "From: {} with Version: {} to: {} with Version: {}",
+                    "From: {} with IndexVersion: {} to: {} with IndexVersion: {}",
                     fromId,
-                    routingNodes.node(fromId).node().getVersion(),
+                    routingNodes.node(fromId).node().getMaxIndexVersion(),
                     toId,
-                    routingNodes.node(toId).node().getVersion()
+                    routingNodes.node(toId).node().getMaxIndexVersion()
                 );
-                assertTrue(routingNodes.node(toId).node().getVersion().onOrAfter(routingNodes.node(fromId).node().getVersion()));
+                assertTrue(routingNodes.node(toId).node().getMaxIndexVersion().onOrAfter(routingNodes.node(fromId).node().getMaxIndexVersion()));
             }
         }
     }

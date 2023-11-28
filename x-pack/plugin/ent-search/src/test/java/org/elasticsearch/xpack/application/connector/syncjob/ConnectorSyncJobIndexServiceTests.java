@@ -108,7 +108,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(deletedDocumentCount, equalTo(ZERO));
     }
 
-    public void testCreateConnectorSyncJobWithMissingJobType() throws Exception {
+    public void testCreateConnectorSyncJob_WithMissingJobType_ExpectDefaultJobTypeToBeSet() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
             connector.getConnectorId(),
             null,
@@ -124,7 +124,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(jobType, equalTo(ConnectorSyncJob.DEFAULT_JOB_TYPE));
     }
 
-    public void testCreateConnectorSyncJobWithMissingTriggerMethod() throws Exception {
+    public void testCreateConnectorSyncJob_WithMissingTriggerMethod_ExpectDefaultTriggerMethodToBeSet() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
             connector.getConnectorId(),
             ConnectorSyncJobType.FULL,
@@ -140,7 +140,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(triggerMethod, equalTo(ConnectorSyncJob.DEFAULT_TRIGGER_METHOD));
     }
 
-    public void testCreateConnectorSyncJobWithMissingConnectorId() throws Exception {
+    public void testCreateConnectorSyncJob_WithMissingConnectorId_ExpectException() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
             NON_EXISTING_CONNECTOR_ID,
             ConnectorSyncJobType.FULL,

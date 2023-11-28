@@ -28,8 +28,11 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeServiceLocator;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.function.Supplier;
 
 public class ClusterService extends AbstractLifecycleComponent {
     private final MasterService masterService;
@@ -54,13 +57,34 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private final String nodeName;
 
-    private RerouteService rerouteService;
+    private final Supplier<RerouteService> rerouteService;
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
+        this(settings, clusterSettings, threadPool, taskManager, () -> { throw new IllegalStateException("No RerouteService supplied"); });
+    }
+
+    public ClusterService(
+        NodeServiceLocator serviceLocator,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        TaskManager taskManager
+    ) {
+        this(settings, clusterSettings, threadPool, taskManager, serviceLocator.requestService(RerouteService.class));
+    }
+
+    public ClusterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        TaskManager taskManager,
+        Supplier<RerouteService> rerouteService
+    ) {
         this(
             settings,
             clusterSettings,
             new MasterService(settings, clusterSettings, threadPool, taskManager),
+            rerouteService,
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
         );
     }
@@ -69,11 +93,13 @@ public class ClusterService extends AbstractLifecycleComponent {
         Settings settings,
         ClusterSettings clusterSettings,
         MasterService masterService,
+        Supplier<RerouteService> rerouteService,
         ClusterApplierService clusterApplierService
     ) {
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.masterService = masterService;
+        this.rerouteService = rerouteService;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
@@ -90,14 +116,8 @@ public class ClusterService extends AbstractLifecycleComponent {
         clusterApplierService.setNodeConnectionsService(nodeConnectionsService);
     }
 
-    public void setRerouteService(RerouteService rerouteService) {
-        assert this.rerouteService == null : "RerouteService is already set";
-        this.rerouteService = rerouteService;
-    }
-
     public RerouteService getRerouteService() {
-        assert this.rerouteService != null : "RerouteService not set";
-        return rerouteService;
+        return rerouteService.get();
     }
 
     @Override

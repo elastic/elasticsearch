@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeServiceLocator;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -85,14 +86,27 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
     private final Object mutex;
 
     public InternalSnapshotsInfoService(
+        final NodeServiceLocator serviceLocator,
+        final Settings settings,
+        final ClusterService clusterService
+    ) {
+        this(
+            settings,
+            clusterService,
+            serviceLocator.requestService(RepositoriesService.class),
+            serviceLocator.requestService(RerouteService.class)
+        );
+    }
+
+    public InternalSnapshotsInfoService(
         final Settings settings,
         final ClusterService clusterService,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier,
-        final Supplier<RerouteService> rerouteServiceSupplier
+        final Supplier<RepositoriesService> repositoriesService,
+        final Supplier<RerouteService> rerouteService
     ) {
         this.threadPool = clusterService.getClusterApplierService().threadPool();
-        this.repositoriesService = repositoriesServiceSupplier;
-        this.rerouteService = rerouteServiceSupplier;
+        this.repositoriesService = repositoriesService;
+        this.rerouteService = rerouteService;
         this.knownSnapshotShards = ImmutableOpenMap.of();
         this.unknownSnapshotShards = new LinkedHashSet<>();
         this.failedSnapshotShards = new LinkedHashSet<>();

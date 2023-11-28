@@ -131,6 +131,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             settings,
             clusterSettings,
             new FakeThreadPoolMasterService(LOCAL_NODE_ID, threadPool, deterministicTaskQueue::scheduleNow),
+            () -> {
+                throw new IllegalStateException();
+            },
             new ClusterApplierService(LOCAL_NODE_ID, settings, clusterSettings, threadPool) {
                 @Override
                 protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {

@@ -271,7 +271,13 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         applierService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
         applierService.setInitialState(unassignedClusterState);
 
-        final var clusterService = new ClusterService(settings, clusterSettings, masterService, applierService);
+        final var clusterService = new ClusterService(
+            settings,
+            clusterSettings,
+            masterService,
+            () -> { throw new IllegalStateException(); },
+            applierService
+        );
         clusterService.start();
 
         final var clusterInfoService = new TestClusterInfoService(clusterService);

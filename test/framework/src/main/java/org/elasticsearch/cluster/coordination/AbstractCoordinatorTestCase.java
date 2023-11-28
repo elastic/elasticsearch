@@ -1115,7 +1115,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     this::onNode,
                     threadPool
                 );
-                clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
+                clusterService = new ClusterService(
+                    settings,
+                    clusterSettings,
+                    masterService,
+                    () -> { throw new IllegalStateException(); },
+                    clusterApplierService
+                );
                 featureService = new FeatureService(List.of());
                 masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
                 clusterService.setNodeConnectionsService(

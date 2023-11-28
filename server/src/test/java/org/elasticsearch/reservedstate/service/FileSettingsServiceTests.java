@@ -68,12 +68,14 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         threadpool = new TestThreadPool("file_settings_service_tests");
 
+        RerouteService reroute = mock(RerouteService.class);
         clusterService = spy(
             new ClusterService(
                 Settings.builder().put(NODE_NAME_SETTING.getKey(), "test").build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadpool,
-                new TaskManager(Settings.EMPTY, threadpool, Set.of())
+                new TaskManager(Settings.EMPTY, threadpool, Set.of()),
+                () -> reroute
             )
         );
 
@@ -83,7 +85,6 @@ public class FileSettingsServiceTests extends ESTestCase {
             .build();
         doAnswer((Answer<ClusterState>) invocation -> clusterState).when(clusterService).state();
 
-        clusterService.setRerouteService(mock(RerouteService.class));
         clusterService.setNodeConnectionsService(mock(NodeConnectionsService.class));
         clusterService.getClusterApplierService().setInitialState(clusterState);
         clusterService.getMasterService().setClusterStatePublisher((e, pl, al) -> {

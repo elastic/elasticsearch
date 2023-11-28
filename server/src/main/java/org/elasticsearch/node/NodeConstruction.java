@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
@@ -279,6 +278,7 @@ class NodeConstruction {
 
     private final List<Closeable> resourcesToClose;
     private final ModulesBuilder modules = new ModulesBuilder();
+    private final NodeServiceLocator serviceLocator = new NodeServiceLocator();
     /*
      * References for storing in a Node
      */
@@ -630,8 +630,6 @@ class NodeConstruction {
             nodeEnvironment
         );
 
-        final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
-        final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
         final ClusterInfoService clusterInfoService = serviceProvider.newClusterInfoService(
             pluginsService,
             settings,
@@ -640,10 +638,9 @@ class NodeConstruction {
             client
         );
         final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
+            serviceLocator,
             settings,
-            clusterService,
-            repositoriesServiceReference::get,
-            rerouteServiceReference::get
+            clusterService
         );
         final ClusterModule clusterModule = new ClusterModule(
             settings,
@@ -685,8 +682,7 @@ class NodeConstruction {
         }
 
         final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
-        rerouteServiceReference.set(rerouteService);
-        clusterService.setRerouteService(rerouteService);
+        serviceLocator.setService(RerouteService.class, rerouteService);
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
@@ -776,7 +772,7 @@ class NodeConstruction {
             nodeEnvironment,
             namedWriteableRegistry,
             clusterModule.getIndexNameExpressionResolver(),
-            repositoriesServiceReference::get,
+            serviceLocator.requestService(RepositoriesService.class),
             telemetryProvider,
             clusterModule.getAllocationService(),
             indicesService,
@@ -889,7 +885,7 @@ class NodeConstruction {
             telemetryProvider
         );
         RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
-        repositoriesServiceReference.set(repositoryService);
+        serviceLocator.setService(RepositoriesService.class, repositoryService);
         SnapshotsService snapshotsService = new SnapshotsService(
             settings,
             clusterService,
@@ -1096,12 +1092,14 @@ class NodeConstruction {
         }
 
         injector = modules.createInjector();
+        serviceLocator.setAccessible();
 
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
     }
 
     private ClusterService createClusterService(SettingsModule settingsModule, ThreadPool threadPool, TaskManager taskManager) {
         ClusterService clusterService = new ClusterService(
+            serviceLocator,
             settingsModule.getSettings(),
             settingsModule.getClusterSettings(),
             threadPool,

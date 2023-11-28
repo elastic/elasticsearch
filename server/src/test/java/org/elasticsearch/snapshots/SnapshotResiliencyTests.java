@@ -1613,6 +1613,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     settings,
                     clusterSettings,
                     masterService,
+                    () -> (reason, priority, listener) -> listener.onResponse(null),
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
@@ -1642,7 +1643,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         }
                     }
                 );
-                clusterService.setRerouteService((reason, priority, listener) -> listener.onResponse(null));
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
                 mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
                     @Override

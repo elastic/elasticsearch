@@ -13,7 +13,7 @@ fi
 echo --- Preparing
 
 # TODO move this to image
-export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=l
 sudo apt-get update -y
 sudo apt-get install -y libxml2-utils python3.10-venv
 

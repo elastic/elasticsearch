@@ -209,12 +209,14 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert hasReferences();
         out.writeArray(items);
         out.writeVLong(tookInMillis);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        assert hasReferences();
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             Iterators.single((b, p) -> b.field("took", tookInMillis).startArray(Fields.RESPONSES)),

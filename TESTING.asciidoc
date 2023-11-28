@@ -119,7 +119,8 @@ password: `elastic-password`.
 - In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
 - In order to use a custom data directory: `--data-dir=/tmp/foo`
 - In order to preserve data in between executions: `--preserve-data`
-- In order to remotely attach a debugger to the process: `--debug-jvm`
+- In order to remotely attach a debugger to the server process: `--debug-jvm`
+- In order to remotely attach a debugger to the CLI launcher process: `--debug-cli-jvm`
 - In order to set a different keystore password: `--keystore-password`
 - In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
 - In order to pass a JVM setting, e.g. to disable assertions: `-Dtests.jvm.argline="-da"`

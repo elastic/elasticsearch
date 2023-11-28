@@ -13,11 +13,13 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.ToLongFunction;
 
 public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<CompositeAggregationBuilder> {
     private DateHistogramValuesSourceBuilder randomDateHistogramSourceBuilder() {
@@ -119,10 +121,18 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(randomHistogramSourceBuilder()))
                 .supportsParallelCollection(null)
         );
-        assertTrue(
-            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(randomGeoTileGridValuesSourceBuilder()))
-                .supportsParallelCollection(null)
+        CompositeAggregationBuilder builder = new CompositeAggregationBuilder(
+            randomAlphaOfLength(10),
+            Collections.singletonList(randomGeoTileGridValuesSourceBuilder())
         );
+        assertTrue(builder.supportsParallelCollection(null));
+        builder.subAggregation(new TermsAggregationBuilder("name") {
+            @Override
+            public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+                return false;
+            }
+        });
+        assertFalse(builder.supportsParallelCollection(null));
         assertFalse(
             new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
                 .supportsParallelCollection(field -> -1)
@@ -147,5 +157,6 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
                 List.of(randomDateHistogramSourceBuilder(), new TermsValuesSourceBuilder("name"))
             ).supportsParallelCollection(field -> randomIntBetween(51, 100))
         );
+
     }
 }

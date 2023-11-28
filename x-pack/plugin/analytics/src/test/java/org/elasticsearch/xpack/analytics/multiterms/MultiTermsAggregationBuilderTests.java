@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -29,6 +30,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.test.InternalAggregationTestCase.randomNumericDocValueFormat;
 import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTermsTests.randomBucketOrder;
@@ -173,7 +175,24 @@ public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializi
             assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(-1, 100)));
         }
         {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            MultiValuesSourceFieldConfig.Builder sourceBuilder1 = new MultiValuesSourceFieldConfig.Builder();
+            sourceBuilder1.setFieldName("field1");
+            MultiValuesSourceFieldConfig.Builder sourceBuilder2 = new MultiValuesSourceFieldConfig.Builder();
+            sourceBuilder2.setFieldName("field2");
+            MultiTermsAggregationBuilder terms = new MultiTermsAggregationBuilder("terms").terms(
+                List.of(sourceBuilder1.build(), sourceBuilder2.build())
+            );
+            terms.shardSize(10);
+            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(0, 10)));
+            terms.subAggregation(new TermsAggregationBuilder("name") {
+                @Override
+                public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+                    return false;
+                }
+            });
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(0, 10)));
+        }
+        {
             MultiValuesSourceFieldConfig.Builder sourceBuilder1 = new MultiValuesSourceFieldConfig.Builder();
             sourceBuilder1.setFieldName("field1");
             MultiValuesSourceFieldConfig.Builder sourceBuilder2 = new MultiValuesSourceFieldConfig.Builder();
@@ -185,17 +204,16 @@ public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializi
             if (randomBoolean()) {
                 terms.shardSize(randomIntBetween(1, 100));
             }
-            builder.addAggregator(terms);
-            assertFalse(builder.supportsParallelCollection(field -> -1));
+            assertFalse(terms.supportsParallelCollection(field -> -1));
             {
                 List<String> fields = new ArrayList<>();
-                assertTrue(builder.supportsParallelCollection(field -> {
+                assertTrue(terms.supportsParallelCollection(field -> {
                     fields.add(field);
                     return randomIntBetween(0, 50);
                 }));
                 assertEquals(List.of("field1", "field2"), fields);
             }
-            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(51, 100)));
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(51, 100)));
             terms.terms(
                 List.of(
                     sourceBuilder1.build(),
@@ -203,7 +221,7 @@ public class MultiTermsAggregationBuilderTests extends AbstractXContentSerializi
                     new MultiValuesSourceFieldConfig.Builder().setScript(new Script("id")).build()
                 )
             );
-            assertFalse(builder.supportsParallelCollection(field -> randomIntBetween(-1, 100)));
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(-1, 100)));
         }
     }
 }

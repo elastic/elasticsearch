@@ -30,6 +30,7 @@ public record HuggingFaceServiceSettings(URI uri) implements ServiceSettings {
 
     static final String URL = "url";
 
+    // TODO handle duplication
     public static HuggingFaceServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 

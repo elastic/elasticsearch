@@ -836,13 +836,10 @@ FROM sample_data
 | ENRICH clientip_policy ON client_ip WITH env
 | STATS median_duration = MEDIAN(event_duration) BY env
 // end::gs-enrich-stats-by[]
-| SORT env
+| LIMIT 0
 ;
 
 median_duration:double | env:keyword
-1232382.0      |Development    
-3395111.0      |Production     
-3107561.0      |QA             
 ;
 
 docsGettingStartedDissect

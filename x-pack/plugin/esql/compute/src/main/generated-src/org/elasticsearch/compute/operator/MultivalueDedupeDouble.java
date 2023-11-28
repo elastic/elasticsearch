@@ -29,25 +29,24 @@ public class MultivalueDedupeDouble {
      * The choice of number has been experimentally derived.
      */
     private static final int ALWAYS_COPY_MISSING = 110;
-    private final Block.Ref ref;
     private final DoubleBlock block;
     private double[] work = new double[ArrayUtil.oversize(2, Double.BYTES)];
     private int w;
 
-    public MultivalueDedupeDouble(Block.Ref ref) {
-        this.ref = ref;
-        this.block = (DoubleBlock) ref.block();
+    public MultivalueDedupeDouble(DoubleBlock block) {
+        this.block = block;
     }
 
     /**
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public Block.Ref dedupeToBlockAdaptive(BlockFactory blockFactory) {
+    public DoubleBlock dedupeToBlockAdaptive(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
-            return ref;
+            block.incRef();
+            return block;
         }
-        try (ref; DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -82,7 +81,7 @@ public class MultivalueDedupeDouble {
                     }
                 }
             }
-            return Block.Ref.floating(builder.build());
+            return builder.build();
         }
     }
 
@@ -92,11 +91,12 @@ public class MultivalueDedupeDouble {
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public Block.Ref dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
+    public DoubleBlock dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
-            return ref;
+            block.incRef();
+            return block;
         }
-        try (ref; DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -109,7 +109,7 @@ public class MultivalueDedupeDouble {
                     }
                 }
             }
-            return Block.Ref.floating(builder.build());
+            return builder.build();
         }
     }
 
@@ -121,11 +121,12 @@ public class MultivalueDedupeDouble {
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public Block.Ref dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
+    public DoubleBlock dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
-            return ref;
+            block.incRef();
+            return block;
         }
-        try (ref; DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+        try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -138,7 +139,7 @@ public class MultivalueDedupeDouble {
                     }
                 }
             }
-            return Block.Ref.floating(builder.build());
+            return builder.build();
         }
     }
 
@@ -146,8 +147,8 @@ public class MultivalueDedupeDouble {
      * Dedupe values and build a {@link IntBlock} suitable for passing
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hash(LongHash hash) {
-        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount())) {
+    public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, LongHash hash) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);

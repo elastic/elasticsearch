@@ -13,6 +13,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -42,6 +43,8 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     final Set<ShardSearchContextId> releasedSearchContexts = new HashSet<>();
     final SearchRequest searchRequest = new SearchRequest();
     final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
+
+    private final List<Releasable> releasables = new ArrayList<>();
 
     public MockSearchPhaseContext(int numShards) {
         this.numShards = numShards;
@@ -137,12 +140,17 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public void addReleasable(Releasable releasable) {
-        // Noop
+        releasables.add(releasable);
     }
 
     @Override
     public void execute(Runnable command) {
-        command.run();
+        try {
+            command.run();
+        } finally {
+            Releasables.close(releasables);
+            releasables.clear();
+        }
     }
 
     @Override

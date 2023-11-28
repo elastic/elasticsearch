@@ -547,9 +547,6 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             return GeoEncodingUtils.decodeLatitude((int) (encoded & 0xffffffffL));
         }
 
-        private void reset(int index) {
-            super.reset(index, this.x(), this.y());
-        }
     }
 
     /** Allow test to use own objects for internal use in geometry simplifier, so we can track the sort-fields together with the points */

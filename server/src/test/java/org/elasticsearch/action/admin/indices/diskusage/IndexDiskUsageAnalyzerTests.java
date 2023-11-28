@@ -709,7 +709,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                         stats.addStoredField("_all_stored_fields", bytes);
                     case TVX, TVD -> stats.addTermVectors("_all_vectors_fields", bytes);
                     case NVD, NVM -> stats.addNorms("_all_norms_fields", bytes);
-                    case VEM, VEC, VEX -> stats.addKnnVectors(fieldLookup.getVectorsField(file), bytes);
+                    case VEM, VEMF, VEC, VEX, VEQ, VEMQ -> stats.addKnnVectors(fieldLookup.getVectorsField(file), bytes);
                 }
             }
         } finally {

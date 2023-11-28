@@ -99,7 +99,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
             \\_AggregationOperator[mode = FINAL, aggs = sum of longs]
             \\_ProjectOperator[projection = [0]]
             \\_LimitOperator[limit = 500]
-            \\_OutputOperator[columns = sum(pause_me)]""";
+            \\_OutputOperator[columns = [sum(pause_me)]]""";
 
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("runtime");
@@ -121,7 +121,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
 
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < NUM_DOCS; i++) {
-            bulk.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
+            bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
         }
         bulk.get();
         /*
@@ -177,7 +177,10 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
                     }
                     if (o.operator().equals("ValuesSourceReaderOperator[field = pause_me]")) {
                         ValuesSourceReaderOperator.Status oStatus = (ValuesSourceReaderOperator.Status) o.status();
-                        assertMap(oStatus.readersBuilt(), matchesMap().entry("ScriptLongs", greaterThanOrEqualTo(1)));
+                        assertMap(
+                            oStatus.readersBuilt(),
+                            matchesMap().entry("pause_me:column_at_a_time:ScriptLongs", greaterThanOrEqualTo(1))
+                        );
                         assertThat(oStatus.pagesProcessed(), greaterThanOrEqualTo(1));
                         valuesSourceReaders++;
                         continue;

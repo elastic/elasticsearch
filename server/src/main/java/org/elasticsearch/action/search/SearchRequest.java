@@ -542,13 +542,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
-     * Returns the default value of {@link #ccsMinimizeRoundtrips} of a search request
-     */
-    public static boolean defaultCcsMinimizeRoundtrips(SearchRequest request) {
-        return request.minCompatibleShardNode == null;
-    }
-
-    /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
     public String routing() {

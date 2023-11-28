@@ -8,19 +8,20 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.Script;
@@ -50,6 +51,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102257")
 public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
     @Override
@@ -69,7 +71,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         ).execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
         logger.info("Segments {}", Strings.toString(indicesAdmin().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
@@ -87,7 +89,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         ).execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
         logger.info("Segments {}", Strings.toString(indicesAdmin().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
@@ -132,7 +134,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             )
             .execute();
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
         ensureSearchWasCancelled(searchResponse);
     }
@@ -149,7 +151,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             .execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
         SearchResponse response = ensureSearchWasCancelled(searchResponse);
         if (response != null) {
@@ -189,7 +191,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             .execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchScrollAction.NAME);
+        cancelSearch(TransportSearchScrollAction.TYPE.name());
         disableBlocks(plugins);
 
         SearchResponse response = ensureSearchWasCancelled(scrollResponse);
@@ -213,7 +215,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             )
             .execute();
         awaitForBlock(plugins);
-        cancelSearch(MultiSearchAction.NAME);
+        cancelSearch(TransportMultiSearchAction.TYPE.name());
         disableBlocks(plugins);
         for (MultiSearchResponse.Item item : msearchResponse.actionGet()) {
             if (item.getFailure() != null) {
@@ -300,7 +302,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         for (String nodeName : internalCluster().getNodeNames()) {
             TransportService transportService = internalCluster().getInstance(TransportService.class, nodeName);
             for (Task task : transportService.getTaskManager().getCancellableTasks().values()) {
-                if (task.getAction().equals(SearchAction.NAME)) {
+                if (task.getAction().equals(TransportSearchAction.TYPE.name())) {
                     tasks.add((SearchTask) task);
                 }
             }

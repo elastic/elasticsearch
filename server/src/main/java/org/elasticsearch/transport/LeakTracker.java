@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
@@ -69,6 +70,20 @@ public final class LeakTracker {
                 logger.error("LEAK: resource was not cleaned up before it was garbage-collected.{}", records);
             }
         }
+    }
+
+    public static Releasable wrap(Releasable releasable) {
+        if (Assertions.ENABLED == false) {
+            return releasable;
+        }
+        var leak = INSTANCE.track(releasable);
+        return () -> {
+            try {
+                releasable.close();
+            } finally {
+                leak.close(releasable);
+            }
+        };
     }
 
     public static RefCounted wrap(RefCounted refCounted) {

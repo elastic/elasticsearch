@@ -57,7 +57,7 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -179,7 +179,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @Override
-    @TestLogging(reason = "Enable request logging to debug #88841", value = "com.amazonaws.request:DEBUG")
+    @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/88841", value = "com.amazonaws.request:DEBUG")
     public void testRequestStats() throws Exception {
         super.testRequestStats();
     }
@@ -225,6 +225,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
+    @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/101608", value = "com.amazonaws.request:DEBUG")
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
         final String repository = createRepository(randomRepositoryName());
@@ -281,8 +282,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     operation,
                     OperationPurpose.parse((String) metric.attributes().get("purpose"))
                 );
-                assertThat(statsCollectors, hasKey(statsKey));
-                assertThat(metric.getLong(), equalTo(statsCollectors.get(statsKey).counter.sum()));
+                assertThat(nodeName + "/" + statsKey + " exists", statsCollectors, hasKey(statsKey));
+                assertThat(
+                    nodeName + "/" + statsKey + " has correct sum",
+                    metric.getLong(),
+                    equalTo(statsCollectors.get(statsKey).counter.sum())
+                );
 
                 aggregatedMetrics.compute(operation.getKey(), (k, v) -> v == null ? metric.getLong() : v + metric.getLong());
             });

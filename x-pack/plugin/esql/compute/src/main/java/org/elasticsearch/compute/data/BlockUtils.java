@@ -151,7 +151,17 @@ public final class BlockUtils {
                     wrappers[j].append.accept(values.get(j));
                 }
             }
-            return Arrays.stream(wrappers).map(b -> b.builder.build()).toArray(Block[]::new);
+            final Block[] blocks = new Block[wrappers.length];
+            try {
+                for (int i = 0; i < blocks.length; i++) {
+                    blocks[i] = wrappers[i].builder.build();
+                }
+                return blocks;
+            } finally {
+                if (blocks[blocks.length - 1] == null) {
+                    Releasables.closeExpectNoException(blocks);
+                }
+            }
         } finally {
             Releasables.closeExpectNoException(wrappers);
         }

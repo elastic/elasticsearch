@@ -607,13 +607,14 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             boolean leader = false;
             int allocationIndex = 0;
             long allocationDuration = 0;
-            long begin = 0;
+            long timeInterval = 0;
             int attemptNoCopy = 0;
             try (ReleasableLock locked = lock.tryAcquire(lockTimeout)) {
                 if (locked != null) {
                     attemptNoCopy = ++this.attemptNo;
-                    begin = timeSupplier.getAsLong();
-                    leader = begin >= lastCheckTime + minimumInterval;
+                    long begin = timeSupplier.getAsLong();
+                    timeInterval = begin - lastCheckTime;
+                    leader = timeInterval >= minimumInterval;
                     overLimitTriggered(leader);
                     if (leader) {
                         long initialCollectionCount = gcCountSupplier.getAsLong();
@@ -664,12 +665,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         allocationDuration
                     );
                 } else if (attemptNoCopy < 10 || Long.bitCount(attemptNoCopy) == 1) {
-                    logger.info(
-                        "memory usage down after [{}], before [{}], after [{}]",
-                        begin - lastCheckTime,
-                        memoryUsed.baseUsage,
-                        current
-                    );
+                    logger.info("memory usage down after [{}], before [{}], after [{}]", timeInterval, memoryUsed.baseUsage, current);
                 }
                 return new MemoryUsage(
                     current,
@@ -687,12 +683,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         allocationDuration
                     );
                 } else if (attemptNoCopy < 10 || Long.bitCount(attemptNoCopy) == 1) {
-                    logger.info(
-                        "memory usage not down after [{}], before [{}], after [{}]",
-                        begin - lastCheckTime,
-                        memoryUsed.baseUsage,
-                        current
-                    );
+                    logger.info("memory usage not down after [{}], before [{}], after [{}]", timeInterval, memoryUsed.baseUsage, current);
                 }
                 // prefer original measurement when reporting if heap usage was not brought down.
                 return memoryUsed;

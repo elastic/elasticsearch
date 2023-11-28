@@ -527,7 +527,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, operationsBytes[1].length());
         translogReplicator.add(shardId, operationsBytes[1], 1, intermediateLocation);
         currentLocation += operationsBytes[1].length();
-        intermediateStartedLatch.await();
+        safeAwait(intermediateStartedLatch);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, intermediateLocation, future);
@@ -537,7 +537,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         currentLocation += operationsBytes[2].length();
         Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[3].length());
         translogReplicator.add(shardId, operationsBytes[3], 3, finalLocation);
-        finalSyncStartedLatch.await();
+        safeAwait(finalSyncStartedLatch);
 
         PlainActionFuture<Void> future2 = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future2);
@@ -704,7 +704,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
         doAnswer(invocation -> {
-            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            safeAwait(latch);
             invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
             return null;
         }).when(objectStoreService).uploadTranslogFile(any(), any(), any());

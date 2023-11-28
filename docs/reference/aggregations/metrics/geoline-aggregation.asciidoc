@@ -347,8 +347,8 @@ This query will result in:
   "aggregations": {
     "path": {
       "buckets": {
-        "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA": {
-          "key": "JImYqeT78g3dNlnfZk5blM4STgeFvROwwyPMhSTP4gNXB4HpdA",
+        "iZip5PvyDd02Wd9mTluUzhJOB4W9E7DDI8yFJM_iA1cHgel0": {
+          "key": "iZip5PvyDd02Wd9mTluUzhJOB4W9E7DDI8yFJM_iA1cHgel0",
           "doc_count": 2,
           "museum_tour": {
             "type": "Feature",
@@ -361,13 +361,13 @@ This query will result in:
             }
           }
         },
-        "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw": {
-          "key": "JImYqeT78g3dNlnfZk5blM73Ehzlh3t74AgA5ODr5J84bzmAhw",
-          "doc_count": 3,
+        "iZip5PvyDd02Wd9mTluUzk2-mBYFTrdzTUSWqIrfkMKJUg2A": {
+          "key": "iZip5PvyDd02Wd9mTluUzk2-mBYFTrdzTUSWqIrfkMKJUg2A",
+          "doc_count": 5,
           "museum_tour": {
             "type": "Feature",
             "geometry": {
-              "coordinates": [ [ 4.401384, 51.220292 ], [ 4.405819, 51.221758 ], [ 4.4052, 51.2229 ] ],
+              "coordinates": [ [ 4.889187, 52.373184 ], [ 4.885057, 52.370159 ], [ 4.901618, 52.369219 ], [ 4.91235, 52.374081 ], [ 4.914722, 52.371667 ] ],
               "type": "LineString"
             },
             "properties": {
@@ -375,13 +375,13 @@ This query will result in:
             }
           }
         },
-        "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA": {
-          "key": "JImYqeT78g3dNlnfZk5blM5NvpgWBU63c01ElqiK35DCiVINgA",
-          "doc_count": 5,
+        "iZip5PvyDd02Wd9mTluUzvcSHOWHe3vgCADk4OvknzhvOYCH": {
+          "key": "iZip5PvyDd02Wd9mTluUzvcSHOWHe3vgCADk4OvknzhvOYCH",
+          "doc_count": 3,
           "museum_tour": {
             "type": "Feature",
             "geometry": {
-              "coordinates": [ [ 4.889187, 52.373184 ], [ 4.885057, 52.370159 ], [ 4.901618, 52.369219 ], [ 4.91235, 52.374081 ], [ 4.914722, 52.371667 ] ],
+              "coordinates": [ [ 4.401384, 51.220292 ], [ 4.405819, 51.221758 ], [ 4.4052, 51.2229 ] ],
               "type": "LineString"
             },
             "properties": {

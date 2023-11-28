@@ -15,7 +15,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -73,7 +73,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
+            () -> prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
         );
         assertThat(
             e,
@@ -93,7 +93,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
+            () -> prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
         );
         assertThat(
             e,
@@ -118,15 +118,15 @@ public class FinalPipelineIT extends ESIntegTestCase {
             {"processors": [{"final": {"exists":"no_such_field"}}]}""");
         clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
-        DocWriteResponse indexResponse = client().prepareIndex("index")
-            .setId("1")
+        DocWriteResponse indexResponse = prepareIndex("index").setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        SearchResponse target = prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
-        assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        assertResponse(prepareSearch("target"), response -> {
+            assertEquals(1, response.getHits().getTotalHits().value);
+            assertFalse(response.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        });
     }
 
     public void testFinalPipelineOfNewDestinationIsInvoked() {
@@ -144,15 +144,15 @@ public class FinalPipelineIT extends ESIntegTestCase {
             {"processors": [{"final": {}}]}""");
         clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
-        DocWriteResponse indexResponse = client().prepareIndex("index")
-            .setId("1")
+        DocWriteResponse indexResponse = prepareIndex("index").setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        SearchResponse target = prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
-        assertEquals(true, target.getHits().getAt(0).getSourceAsMap().get("final"));
+        assertResponse(prepareSearch("target"), response -> {
+            assertEquals(1, response.getHits().getTotalHits().value);
+            assertEquals(true, response.getHits().getAt(0).getSourceAsMap().get("final"));
+        });
     }
 
     public void testDefaultPipelineOfNewDestinationIsNotInvoked() {
@@ -170,15 +170,15 @@ public class FinalPipelineIT extends ESIntegTestCase {
             {"processors": [{"final": {}}]}""");
         clusterAdmin().putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON)).actionGet();
 
-        DocWriteResponse indexResponse = client().prepareIndex("index")
-            .setId("1")
+        DocWriteResponse indexResponse = prepareIndex("index").setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        SearchResponse target = prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
-        assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        assertResponse(prepareSearch("target"), response -> {
+            assertEquals(1, response.getHits().getTotalHits().value);
+            assertFalse(response.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        });
     }
 
     public void testDefaultPipelineOfRerouteDestinationIsInvoked() {
@@ -196,15 +196,15 @@ public class FinalPipelineIT extends ESIntegTestCase {
             {"processors": [{"final": {}}]}""");
         clusterAdmin().putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON)).actionGet();
 
-        DocWriteResponse indexResponse = client().prepareIndex("index")
-            .setId("1")
+        DocWriteResponse indexResponse = prepareIndex("index").setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        SearchResponse target = prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
-        assertTrue(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        assertResponse(prepareSearch("target"), response -> {
+            assertEquals(1, response.getHits().getTotalHits().value);
+            assertTrue(response.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        });
     }
 
     public void testAvoidIndexingLoop() {
@@ -224,8 +224,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
-            () -> client().prepareIndex("index")
-                .setId("1")
+            () -> prepareIndex("index").setId("1")
                 .setSource(Map.of("dest", "index"))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get()
@@ -243,7 +242,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         // this asserts that the final_pipeline was used, without us having to actually create the pipeline etc.
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
+            () -> prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
         );
         assertThat(e, hasToString(containsString("pipeline with id [final_pipeline] does not exist")));
     }
@@ -257,7 +256,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("index", settings);
-        final IndexRequestBuilder index = client().prepareIndex("index").setId("1");
+        final IndexRequestBuilder index = prepareIndex("index").setId("1");
         index.setSource(Map.of("field", "value"));
         index.setPipeline("request_pipeline");
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -285,7 +284,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline")
             .build();
         createIndex("index", settings);
-        final IndexRequestBuilder index = client().prepareIndex("index").setId("1");
+        final IndexRequestBuilder index = prepareIndex("index").setId("1");
         index.setSource(Map.of("field", "value"));
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         final DocWriteResponse response = index.get();
@@ -332,7 +331,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .setOrder(finalPipelineOrder)
             .setSettings(finalPipelineSettings)
             .get();
-        final IndexRequestBuilder index = client().prepareIndex("index").setId("1");
+        final IndexRequestBuilder index = prepareIndex("index").setId("1");
         index.setSource(Map.of("field", "value"));
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         final DocWriteResponse response = index.get();
@@ -370,7 +369,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         // this asserts that the high_order_final_pipeline was selected, without us having to actually create the pipeline etc.
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
+            () -> prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
         );
         assertThat(e, hasToString(containsString("pipeline with id [high_order_final_pipeline] does not exist")));
     }

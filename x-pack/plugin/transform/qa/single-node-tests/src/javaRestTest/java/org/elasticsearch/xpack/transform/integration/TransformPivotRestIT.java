@@ -1123,8 +1123,24 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(11, totalStars, 0);
     }
 
-    @SuppressWarnings("unchecked")
     public void testPreviewTransform() throws Exception {
+        testPreviewTransform("");
+    }
+
+    public void testPreviewTransformWithQuery() throws Exception {
+        testPreviewTransform("""
+            ,
+            "query": {
+              "range": {
+                "timestamp": {
+                  "gte": 123456789
+                }
+              }
+            }""");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void testPreviewTransform(String queryJson) throws Exception {
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
         final Request createPreviewRequest = createRequestWithAuth(
             "POST",
@@ -1136,6 +1152,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             {
               "source": {
                 "index": "%s"
+                %s
               },
               "pivot": {
                 "group_by": {
@@ -1159,7 +1176,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""", REVIEWS_INDEX_NAME);
+            }""", REVIEWS_INDEX_NAME, queryJson);
 
         createPreviewRequest.setJsonEntity(config);
 

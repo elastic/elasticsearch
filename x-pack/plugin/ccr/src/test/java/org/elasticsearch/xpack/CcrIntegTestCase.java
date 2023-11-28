@@ -67,6 +67,7 @@ import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.test.CloseableTestClusterWrapper;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -476,7 +477,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected final RefreshResponse refresh(Client client, String... indices) {
-        RefreshResponse actionGet = client.admin().indices().prepareRefresh(indices).execute().actionGet();
+        RefreshResponse actionGet = client.admin().indices().prepareRefresh(indices).get();
         assertNoFailures(actionGet);
         return actionGet;
     }
@@ -905,7 +906,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(leaderCluster, followerCluster);
+            IOUtils.close(CloseableTestClusterWrapper.wrap(leaderCluster, followerCluster));
         }
     }
 }

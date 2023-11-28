@@ -122,14 +122,14 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         // is a mix of file chunks and translog ops
         int threeFourths = (int) (numDocs * 0.75);
         for (int i = 0; i < threeFourths; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         flush(indexName);
         requests.clear();
 
         for (int i = threeFourths; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
@@ -225,7 +225,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
@@ -326,7 +326,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);

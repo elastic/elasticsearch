@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
@@ -290,6 +289,7 @@ public class LocalExecutionPlanner {
         if (dataType == DataTypes.KEYWORD
             || dataType == DataTypes.TEXT
             || dataType == DataTypes.IP
+            || dataType == DataTypes.SOURCE
             || dataType == DataTypes.VERSION
             || dataType == DataTypes.UNSUPPORTED) {
             return ElementType.BYTES_REF;
@@ -335,8 +335,10 @@ public class LocalExecutionPlanner {
             var blocks = new Block[mappedPosition.length];
             for (int i = 0; i < blocks.length; i++) {
                 blocks[i] = p.getBlock(mappedPosition[i]);
+                blocks[i].incRef();
             }
-            return p.newPageAndRelease(blocks);
+            p.releaseBlocks();
+            return new Page(blocks);
         } : Function.identity();
 
         return transformer;
@@ -360,11 +362,10 @@ public class LocalExecutionPlanner {
                 // the outputs are going to be similar except for the bool "seen" flags which are added in below
                 List<Block> blocks = new ArrayList<>(asList(localExec.supplier().get()));
                 if (blocks.size() > 0) {
-                    Block boolBlock = BooleanBlock.newConstantBlockWith(true, 1);
                     for (int i = 0, s = output.size(); i < s; i++) {
                         var out = output.get(i);
                         if (out.dataType() == DataTypes.BOOLEAN) {
-                            blocks.add(i, boolBlock);
+                            blocks.add(i, BlockFactory.getNonBreakingInstance().newConstantBooleanBlockWith(true, 1));
                         }
                     }
                 }
@@ -584,16 +585,17 @@ public class LocalExecutionPlanner {
                 inputId = ne.id();
             }
             Layout.ChannelAndType input = source.layout.get(inputId);
-            Layout.ChannelSet channelSet = inputChannelToOutputIds.computeIfAbsent(
-                input.channel(),
-                ignore -> new Layout.ChannelSet(new HashSet<>(), input.type())
-            );
+            Layout.ChannelSet channelSet = inputChannelToOutputIds.get(input.channel());
+            if (channelSet == null) {
+                channelSet = new Layout.ChannelSet(new HashSet<>(), input.type());
+                channelSet.nameIds().add(ne.id());
+                layout.append(channelSet);
+            } else {
+                channelSet.nameIds().add(ne.id());
+            }
             if (channelSet.type() != input.type()) {
                 throw new IllegalArgumentException("type mismatch for aliases");
             }
-            channelSet.nameIds().add(ne.id());
-
-            layout.append(channelSet);
             projectionList.add(input.channel());
         }
 

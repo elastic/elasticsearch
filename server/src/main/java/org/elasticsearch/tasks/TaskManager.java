@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -67,7 +66,7 @@ public class TaskManager implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(TaskManager.class);
 
     /** Rest headers that are copied to the task */
-    private final String[] taskHeaders;
+    private final Set<String> taskHeaders;
     private final ThreadPool threadPool;
 
     private final Map<Long, Task> tasks = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -97,7 +96,7 @@ public class TaskManager implements ClusterStateApplier {
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
         this.threadPool = threadPool;
-        this.taskHeaders = taskHeaders.toArray(Strings.EMPTY_ARRAY);
+        this.taskHeaders = Set.copyOf(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.tracer = tracer;
     }
@@ -658,10 +657,6 @@ public class TaskManager implements ClusterStateApplier {
             ExceptionsHelper.reThrowIfNotNull(rootException);
         }
 
-        public boolean hasParent(TaskId parentTaskId) {
-            return task.getParentTaskId().equals(parentTaskId);
-        }
-
         public CancellableTask getTask() {
             return task;
         }
@@ -817,7 +812,7 @@ public class TaskManager implements ClusterStateApplier {
         getCancellationService().cancelTaskAndDescendants(task, reason, waitForCompletion, listener);
     }
 
-    public List<String> getTaskHeaders() {
-        return List.of(taskHeaders);
+    public Set<String> getTaskHeaders() {
+        return taskHeaders;
     }
 }

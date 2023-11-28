@@ -1,0 +1,6 @@
+pr: 102140
+summary: Collect data tiers usage stats more efficiently
+area: ILM+SLM
+type: bug
+issues:
+  - 100230

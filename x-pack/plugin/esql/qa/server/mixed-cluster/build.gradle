@@ -1,0 +1,53 @@
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
+  testImplementation project(xpackModule('esql:qa:server'))
+}
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster'
+  }
+  restTests {
+    includeXpack 'esql'
+  }
+}
+
+BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+
+  if (bwcVersion != VersionProperties.getElasticsearchVersion() && bwcVersion.onOrAfter(Version.fromString("8.11.0"))) {
+    /* This project runs the ESQL spec tests against a 4 node cluster where two of the nodes has a different minor.  */
+    def baseCluster = testClusters.register(baseName) {
+      versions = [bwcVersion.toString(), bwcVersion.toString(), project.version, project.version]
+      numberOfNodes = 4
+      testDistribution = 'DEFAULT'
+      setting 'xpack.license.self_generated.type', 'trial'
+      setting 'xpack.security.enabled', 'false'
+    }
+
+    tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
+      useCluster baseCluster
+      mustRunAfter("precommit")
+      nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.clustername', baseName)
+      systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+      systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
+      onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
+    }
+
+    tasks.register(bwcTaskName(bwcVersion)) {
+      dependsOn "${baseName}#mixedClusterTest"
+    }
+  }
+}
+

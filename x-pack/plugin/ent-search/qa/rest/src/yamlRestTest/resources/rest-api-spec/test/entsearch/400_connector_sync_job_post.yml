@@ -1,0 +1,62 @@
+setup:
+  - skip:
+      version: " - 8.11.99"
+      reason: Introduced in 8.12.0
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-test
+          name: my-connector
+          language: de
+          is_native: false
+          service_type: super-connector
+
+---
+'Create connector sync job':
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+  - set:  { id: id }
+  - match: { id: $id }
+
+---
+'Create connector sync job with missing job type':
+  - skip:
+      features: warnings
+  - do:
+      warnings:
+        - Missing field 'job_type'. Using default value 'full'.
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          trigger_method: on_demand
+  - set:  { id: id }
+  - match: { id: $id }
+
+---
+'Create connector sync job with missing trigger method':
+  - skip:
+      features: warnings
+  - do:
+      warnings:
+        - Missing field 'trigger_method'. Using default value 'on_demand'.
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+  - set:  { id: id }
+  - match: { id: $id }
+
+---
+'Create connector sync job with non-existing connector id':
+  - do:
+      connector_sync_job.post:
+        body:
+          id: non-existing-id
+          job_type: full
+          trigger_method: on_demand
+      catch: missing

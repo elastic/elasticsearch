@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -47,7 +48,9 @@ import java.util.Objects;
  *     <li>A boolean flag 'syncNow', which, when set, triggers an immediate synchronization operation.</li>
  * </ul>
  */
-public class Connector implements Writeable, ToXContentObject {
+public class Connector implements NamedWriteable, ToXContentObject {
+
+    public static final String NAME = Connector.class.getName().toUpperCase(Locale.ROOT);
 
     private final String connectorId;
     @Nullable
@@ -172,22 +175,22 @@ public class Connector implements Writeable, ToXContentObject {
         this.syncNow = in.readBoolean();
     }
 
-    private static final ParseField ID_FIELD = new ParseField("connector_id");
+    public static final ParseField ID_FIELD = new ParseField("connector_id");
     private static final ParseField API_KEY_ID_FIELD = new ParseField("api_key_id");
-    private static final ParseField CONFIGURATION_FIELD = new ParseField("configuration");
+    public static final ParseField CONFIGURATION_FIELD = new ParseField("configuration");
     private static final ParseField CUSTOM_SCHEDULING_FIELD = new ParseField("custom_scheduling");
     private static final ParseField DESCRIPTION_FIELD = new ParseField("description");
     private static final ParseField ERROR_FIELD = new ParseField("error");
     private static final ParseField FEATURES_FIELD = new ParseField("features");
-    private static final ParseField FILTERING_FIELD = new ParseField("filtering");
-    private static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
+    public static final ParseField FILTERING_FIELD = new ParseField("filtering");
+    public static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
     private static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
-    private static final ParseField LANGUAGE_FIELD = new ParseField("language");
+    public static final ParseField LANGUAGE_FIELD = new ParseField("language");
 
     private static final ParseField NAME_FIELD = new ParseField("name");
-    private static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
+    public static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
     private static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
-    private static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
+    public static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
     private static final ParseField STATUS_FIELD = new ParseField("status");
     private static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
     private static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
@@ -278,6 +281,30 @@ public class Connector implements Writeable, ToXContentObject {
         return connectorId;
     }
 
+    public List<ConnectorFiltering> getFiltering() {
+        return filtering;
+    }
+
+    public String getIndexName() {
+        return indexName;
+    }
+
+    public String getLanguage() {
+        return language;
+    }
+
+    public ConnectorIngestPipeline getPipeline() {
+        return pipeline;
+    }
+
+    public String getServiceType() {
+        return serviceType;
+    }
+
+    public Map<String, Object> getConfiguration() {
+        return configuration;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -327,6 +354,11 @@ public class Connector implements Writeable, ToXContentObject {
             syncCursor,
             syncNow
         );
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 
     public static class Builder {

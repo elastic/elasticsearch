@@ -148,6 +148,17 @@ public final class ConnectorTestUtils {
             .build();
     }
 
+    public static Connector getRandomSyncJobConnectorInfo() {
+        // TODO: pipeline, LinkedHashMap cast?
+        return new Connector.Builder().setConnectorId(randomAlphaOfLength(10))
+            .setFiltering(List.of(getRandomConnectorFiltering()))
+            .setIndexName(randomAlphaOfLength(10))
+            .setLanguage(randomAlphaOfLength(10))
+            .setServiceType(randomAlphaOfLength(10))
+            .setConfiguration(Collections.emptyMap())
+            .build();
+    }
+
     public static Connector getRandomConnector() {
         return new Connector.Builder().setConnectorId(randomAlphaOfLength(10))
             .setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
@@ -187,7 +198,7 @@ public final class ConnectorTestUtils {
         );
     }
 
-    private static ConnectorSyncStatus getRandomSyncStatus() {
+    public static ConnectorSyncStatus getRandomSyncStatus() {
         ConnectorSyncStatus[] values = ConnectorSyncStatus.values();
         return values[randomInt(values.length - 1)];
     }

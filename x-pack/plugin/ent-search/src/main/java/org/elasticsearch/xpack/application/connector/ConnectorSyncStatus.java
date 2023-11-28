@@ -30,6 +30,16 @@ public enum ConnectorSyncStatus {
     PENDING,
     SUSPENDED;
 
+    public static ConnectorSyncStatus fromString(String syncStatusString) {
+        for (ConnectorSyncStatus syncStatus : ConnectorSyncStatus.values()) {
+            if (syncStatus.toString().equalsIgnoreCase(syncStatusString)) {
+                return syncStatus;
+            }
+        }
+
+        return null;
+    }
+
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);

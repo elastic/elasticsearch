@@ -45,6 +45,9 @@ import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.RestPostConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.TransportPostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.RuleQueryBuilder;
@@ -105,6 +108,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     public static final String CONNECTOR_API_ENDPOINT = "_connector";
 
+    public static final String CONNECTOR_SYNC_JOB_API_ENDPOINT = CONNECTOR_API_ENDPOINT + "/_sync_job";
+
     private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 
     public static final String FEATURE_NAME = "ent_search";
@@ -157,6 +162,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         // Connectors
         if (ConnectorAPIFeature.isEnabled()) {
             actionHandlers.add(new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class));
+            actionHandlers.add(new ActionHandler<>(PostConnectorSyncJobAction.INSTANCE, TransportPostConnectorSyncJobAction.class));
         }
 
         return Collections.unmodifiableList(actionHandlers);
@@ -204,6 +210,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         // Connectors
         if (ConnectorAPIFeature.isEnabled()) {
             restHandlers.add(new RestPutConnectorAction());
+            restHandlers.add(new RestPostConnectorSyncJobAction());
         }
 
         return Collections.unmodifiableList(restHandlers);

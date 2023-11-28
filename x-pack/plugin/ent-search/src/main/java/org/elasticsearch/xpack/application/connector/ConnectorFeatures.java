@@ -27,6 +27,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * The {@link ConnectorFeatures} class represents feature flags for a connector.
+ */
 public class ConnectorFeatures implements Writeable, ToXContentObject {
 
     @Nullable
@@ -210,16 +213,25 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         }
     }
 
+    /**
+     * The {@link FeatureEnabled} class serves as a helper for serializing and deserializing
+     * feature representations within the Connector context. This class specifically addresses
+     * the handling of features represented in a nested JSON structure:
+     *
+     * <pre>
+     *     "my_feature": {"enabled": true}
+     * </pre>
+     */
     public static class FeatureEnabled implements ToXContentObject, Writeable {
 
-        private final Boolean enabled;
+        private final boolean enabled;
 
-        public FeatureEnabled(Boolean enabled) {
+        public FeatureEnabled(boolean enabled) {
             this.enabled = enabled;
         }
 
         public FeatureEnabled(StreamInput in) throws IOException {
-            this.enabled = in.readOptionalBoolean();
+            this.enabled = in.readBoolean();
         }
 
         private static final ParseField ENABLED_FIELD = new ParseField("enabled");
@@ -227,7 +239,7 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         private static final ConstructingObjectParser<FeatureEnabled, Void> PARSER = new ConstructingObjectParser<>(
             "connector_feature_enabled",
             true,
-            args -> new FeatureEnabled((Boolean) args[0])
+            args -> new FeatureEnabled((boolean) args[0])
         );
 
         static {
@@ -250,7 +262,7 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalBoolean(enabled);
+            out.writeBoolean(enabled);
         }
 
         @Override
@@ -258,7 +270,7 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             FeatureEnabled that = (FeatureEnabled) o;
-            return Objects.equals(enabled, that.enabled);
+            return enabled == that.enabled;
         }
 
         @Override
@@ -267,6 +279,10 @@ public class ConnectorFeatures implements Writeable, ToXContentObject {
         }
     }
 
+    /**
+     * The {@link SyncRulesFeatures} class represents the feature configuration for advanced and basic
+     * sync rules in a structured and serializable format.
+     */
     public static class SyncRulesFeatures implements ToXContentObject, Writeable {
 
         private final FeatureEnabled syncRulesAdvancedEnabled;

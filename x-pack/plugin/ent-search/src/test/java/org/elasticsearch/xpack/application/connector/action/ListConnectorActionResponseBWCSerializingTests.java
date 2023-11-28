@@ -7,4 +7,31 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-public class ListConnectorActionResponseBWCSerializingTests {}
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+
+import java.io.IOException;
+
+public class ListConnectorActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<ListConnectorAction.Response> {
+    @Override
+    protected Writeable.Reader<ListConnectorAction.Response> instanceReader() {
+        return ListConnectorAction.Response::new;
+    }
+
+    @Override
+    protected ListConnectorAction.Response createTestInstance() {
+        return new ListConnectorAction.Response(randomList(10, ConnectorTestUtils::getRandomConnector), randomLongBetween(0, 100));
+    }
+
+    @Override
+    protected ListConnectorAction.Response mutateInstance(ListConnectorAction.Response instance) throws IOException {
+        return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    @Override
+    protected ListConnectorAction.Response mutateInstanceForVersion(ListConnectorAction.Response instance, TransportVersion version) {
+        return instance;
+    }
+}

@@ -2,10 +2,11 @@
   "connector.list": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
-      "description": "Returns a connector document."
+      "description": "Lists all connectors."
     },
     "stability": "experimental",
-    "visibility": "public",
+    "visibility": "feature_flag",
+    "feature_flag": "es.connector_api_feature_flag_enabled",
     "headers": {
       "accept": [
         "application/json"

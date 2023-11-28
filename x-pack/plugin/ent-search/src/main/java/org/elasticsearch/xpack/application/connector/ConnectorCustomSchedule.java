@@ -99,7 +99,12 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         );
         PARSER.declareBoolean(constructorArg(), ENABLED_FIELD);
         PARSER.declareString(constructorArg(), INTERVAL_FIELD);
-        PARSER.declareStringOrNull(optionalConstructorArg(), LAST_SYNCED_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
+            ConnectorSyncInfo.LAST_SYNCED_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
         PARSER.declareString(constructorArg(), NAME_FIELD);
     }
 

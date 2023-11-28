@@ -7,32 +7,42 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-public class GetConnectorActionResponseBWCSerializingTests {
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
-    // private BytesReference connector;
-    //
-    // @Override
-    // protected Writeable.Reader<GetConnectorAction.Response> instanceReader() {
-    // return GetConnectorAction.Response::new;
-    // }
-    //
-    // @Override
-    // protected GetConnectorAction.Response createTestInstance() {
-    // this.connector = ConnectorTestUtils.getRandomConnector();
-    // }
-    //
-    // @Override
-    // protected GetConnectorAction.Response mutateInstance(GetConnectorAction.Response instance) throws IOException {
-    // return randomValueOtherThan(instance, this::createTestInstance);
-    // }
-    //
-    // @Override
-    // protected GetConnectorAction.Response doParseInstance(XContentParser parser) throws IOException {
-    // return null;
-    // }
-    //
-    // @Override
-    // protected GetConnectorAction.Response mutateInstanceForVersion(GetConnectorAction.Response instance, TransportVersion version) {
-    // return null;
-    // }
+import java.io.IOException;
+
+public class GetConnectorActionResponseBWCSerializingTests extends AbstractBWCSerializationTestCase<GetConnectorAction.Response> {
+
+    private Connector connector;
+
+    @Override
+    protected Writeable.Reader<GetConnectorAction.Response> instanceReader() {
+        return GetConnectorAction.Response::new;
+    }
+
+    @Override
+    protected GetConnectorAction.Response createTestInstance() {
+        this.connector = ConnectorTestUtils.getRandomConnector();
+        return new GetConnectorAction.Response(this.connector);
+    }
+
+    @Override
+    protected GetConnectorAction.Response mutateInstance(GetConnectorAction.Response instance) throws IOException {
+        return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    @Override
+    protected GetConnectorAction.Response doParseInstance(XContentParser parser) throws IOException {
+        return GetConnectorAction.Response.fromXContent(parser);
+    }
+
+    @Override
+    protected GetConnectorAction.Response mutateInstanceForVersion(GetConnectorAction.Response instance, TransportVersion version) {
+        return instance;
+    }
 }

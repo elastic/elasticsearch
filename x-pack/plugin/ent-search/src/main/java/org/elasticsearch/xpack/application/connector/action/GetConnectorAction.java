@@ -131,6 +131,10 @@ public class GetConnectorAction extends ActionType<GetConnectorAction.Response> 
             return connector.toXContent(builder, params);
         }
 
+        public static GetConnectorAction.Response fromXContent(XContentParser parser) throws IOException {
+            return new GetConnectorAction.Response(Connector.fromXContent(parser));
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

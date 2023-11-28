@@ -15,21 +15,21 @@ setup:
           service_type: super-connector
   - do:
       connector.put:
-        connector_id: connector-b
-        body:
-          index_name: search-2-test
-          name: my-connector
-          language: en
-          is_native: true
-          service_type: super-connector
-  - do:
-      connector.put:
         connector_id: connector-c
         body:
           index_name: search-3-test
           name: my-connector
           language: nl
           is_native: false
+          service_type: super-connector
+  - do:
+      connector.put:
+        connector_id: connector-b
+        body:
+          index_name: search-2-test
+          name: my-connector
+          language: en
+          is_native: true
           service_type: super-connector
 
 ---

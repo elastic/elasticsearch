@@ -28,13 +28,24 @@ import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
+import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.LimitOperator;
+import org.elasticsearch.compute.operator.MvExpandOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -46,6 +57,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -65,27 +77,29 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Block.getNamedWriteables());
+        return new NamedWriteableRegistry(
+            Stream.concat(Stream.of(AbstractPageMappingOperator.Status.ENTRY), Block.getNamedWriteables().stream()).toList()
+        );
     }
 
     @Override
     protected EsqlQueryResponse createXContextTestInstance(XContentType xContentType) {
         // columnar param can't be different from the default value (false) since the EsqlQueryResponse will be serialized (by some random
         // XContentType, not to a StreamOutput) and parsed back, which doesn't preserve columnar field's value.
-        return randomResponse(false);
+        return randomResponse(false, null);
     }
 
     @Override
     protected EsqlQueryResponse createTestInstance() {
-        return randomResponse(randomBoolean());
+        return randomResponse(randomBoolean(), randomProfile());
     }
 
-    EsqlQueryResponse randomResponse(boolean columnar) {
+    EsqlQueryResponse randomResponse(boolean columnar, EsqlQueryResponse.Profile profile) {
         int noCols = randomIntBetween(1, 10);
         List<ColumnInfo> columns = randomList(noCols, noCols, this::randomColumnInfo);
         int noPages = randomIntBetween(1, 20);
         List<Page> values = randomList(noPages, noPages, () -> randomPage(columns));
-        return new EsqlQueryResponse(columns, values, columnar);
+        return new EsqlQueryResponse(columns, values, profile, columnar);
     }
 
     private ColumnInfo randomColumnInfo() {
@@ -95,6 +109,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         );
         type = EsqlDataTypes.widenSmallNumericTypes(type);
         return new ColumnInfo(randomAlphaOfLength(10), type.esType());
+    }
+
+    private EsqlQueryResponse.Profile randomProfile() {
+        if (randomBoolean()) {
+            return null;
+        }
+        return new EsqlQueryResponseProfileTests().createTestInstance();
     }
 
     private Page randomPage(List<ColumnInfo> columns) {
@@ -144,23 +165,34 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 allNull = false;
             }
         }
-        return switch (allNull ? between(0, 1) : between(0, 2)) {
+        return switch (allNull ? between(0, 2) : between(0, 3)) {
             case 0 -> {
                 int mutCol = between(0, instance.columns().size() - 1);
                 List<ColumnInfo> cols = new ArrayList<>(instance.columns());
                 // keep the type the same so the values are still valid but change the name
                 cols.set(mutCol, new ColumnInfo(cols.get(mutCol).name() + "mut", cols.get(mutCol).type()));
-                yield new EsqlQueryResponse(cols, deepCopyOfPages(instance), instance.columnar());
+                yield new EsqlQueryResponse(cols, deepCopyOfPages(instance), instance.profile(), instance.columnar());
             }
-            case 1 -> new EsqlQueryResponse(instance.columns(), deepCopyOfPages(instance), false == instance.columnar());
-            case 2 -> {
+            case 1 -> new EsqlQueryResponse(
+                instance.columns(),
+                deepCopyOfPages(instance),
+                instance.profile(),
+                false == instance.columnar()
+            );
+            case 2 -> new EsqlQueryResponse(
+                instance.columns(),
+                deepCopyOfPages(instance),
+                randomValueOtherThan(instance.profile(), this::randomProfile),
+                instance.columnar()
+            );
+            case 3 -> {
                 int noPages = instance.pages().size();
                 List<Page> differentPages = List.of();
                 do {
                     differentPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
                     differentPages = randomList(noPages, noPages, () -> randomPage(instance.columns()));
                 } while (differentPages.equals(instance.pages()));
-                yield new EsqlQueryResponse(instance.columns(), differentPages, instance.columnar());
+                yield new EsqlQueryResponse(instance.columns(), differentPages, instance.profile(), instance.columnar());
             }
             default -> throw new IllegalArgumentException();
         };
@@ -190,7 +222,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     public void testChunkResponseSizeColumnar() {
-        try (EsqlQueryResponse resp = randomResponse(true)) {
+        try (EsqlQueryResponse resp = randomResponse(true, null)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
             assertChunkCount(resp, r -> 5 + bodySize);
@@ -198,7 +230,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     public void testChunkResponseSizeRows() {
-        try (EsqlQueryResponse resp = randomResponse(false)) {
+        try (EsqlQueryResponse resp = randomResponse(false, null)) {
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount()).sum();
             assertChunkCount(resp, r -> 5 + bodySize);
         }
@@ -222,8 +254,26 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         return new EsqlQueryResponse(
             List.of(new ColumnInfo("foo", "integer")),
             List.of(new Page(new IntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+            null,
             columnar
         );
+    }
+
+    public void testProfileXContent() {
+        try (
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                List.of(new ColumnInfo("foo", "integer")),
+                List.of(new Page(new IntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
+                new EsqlQueryResponse.Profile(
+                    List.of(new DriverProfile(List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10)))))
+                ),
+                false
+            );
+        ) {
+            assertThat(Strings.toString(response), equalTo("""
+                {"columns":[{"name":"foo","type":"integer"}],"values":[[40],[80]],"profile":{"drivers":[""" + """
+                {"operators":[{"operator":"asdf","status":{"pages_processed":10}}]}]}}"""));
+        }
     }
 
     @Override

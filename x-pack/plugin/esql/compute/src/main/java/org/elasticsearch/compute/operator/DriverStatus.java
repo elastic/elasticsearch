@@ -191,7 +191,7 @@ public class DriverStatus implements Task.Status {
         @Nullable
         private final Operator.Status status;
 
-        OperatorStatus(String operator, Operator.Status status) {
+        public OperatorStatus(String operator, Operator.Status status) {
             this.operator = operator;
             this.status = status;
         }

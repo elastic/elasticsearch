@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Profile results from a single {@link Driver}.
@@ -41,6 +42,10 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
         out.writeCollection(operators);
     }
 
+    List<DriverStatus.OperatorStatus> operators() {
+        return operators;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
@@ -48,5 +53,22 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
             ChunkedToXContentHelper.array("operators", operators.iterator()),
             ChunkedToXContentHelper.endObject()
         );
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        DriverProfile that = (DriverProfile) o;
+        return Objects.equals(operators, that.operators);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(operators);
     }
 }

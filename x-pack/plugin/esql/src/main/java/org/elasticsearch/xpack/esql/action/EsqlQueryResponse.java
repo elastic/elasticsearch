@@ -75,7 +75,6 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         );
         parser.declareObjectArray(constructorArg(), (p, c) -> ColumnInfo.fromXContent(p), new ParseField("columns"));
         parser.declareField(constructorArg(), (p, c) -> p.list(), new ParseField("values"), ObjectParser.ValueType.OBJECT_ARRAY);
-        // TODO parse profile
         PARSER = parser.build();
     }
 
@@ -110,7 +109,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         this.columns = in.readCollectionAsList(ColumnInfo::new);
         this.pages = in.readCollectionAsList(Page::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
-            this.profile = new Profile(in);
+            this.profile = in.readOptionalWriteable(Profile::new);
         } else {
             this.profile = null;
         }
@@ -122,7 +121,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         out.writeCollection(columns);
         out.writeCollection(pages);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
-            profile.writeTo(out);
+            out.writeOptionalWriteable(profile);
         }
         out.writeBoolean(columnar);
     }
@@ -226,7 +225,8 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         EsqlQueryResponse that = (EsqlQueryResponse) o;
         return Objects.equals(columns, that.columns)
             && columnar == that.columnar
-            && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals));
+            && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
+            && Objects.equals(profile, that.profile);
     }
 
     @Override
@@ -395,6 +395,10 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                 ChunkedToXContentHelper.array("drivers", drivers.iterator(), params),
                 ChunkedToXContentHelper.endObject()
             );
+        }
+
+        List<DriverProfile> drivers() {
+            return drivers;
         }
     }
 }

@@ -32,6 +32,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
         Integer sampleSize = randomIntBetween(1, Integer.MAX_VALUE);
         Double requestedDuration = randomBoolean() ? randomDoubleBetween(0.001d, Double.MAX_VALUE, true) : null;
         Double awsCostFactor = randomBoolean() ? randomDoubleBetween(0.1d, 5.0d, true) : null;
+        Double perCoreWattARM64 = randomBoolean() ? randomDoubleBetween(0.01d, 20.0d, true) : null;
         QueryBuilder query = randomBoolean() ? new BoolQueryBuilder() : null;
 
         GetStackTracesRequest request = new GetStackTracesRequest(
@@ -44,7 +45,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             null,
-            null,
+            perCoreWattARM64,
             null
         );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -52,6 +53,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
                 GetStackTracesRequest deserialized = new GetStackTracesRequest(in);
                 assertEquals(sampleSize, deserialized.getSampleSize());
+                assertEquals(awsCostFactor, deserialized.getAwsCostFactor());
                 assertEquals(query, deserialized.getQuery());
             }
         }

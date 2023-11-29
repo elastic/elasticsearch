@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
@@ -23,6 +24,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentType;
@@ -189,10 +191,11 @@ public class ElasticsearchMappings {
                                 listener.onResponse(true);
                             } else {
                                 listener.onFailure(
-                                    new ElasticsearchException(
+                                    new ElasticsearchStatusException(
                                         "Attempt to put missing mapping in indices "
                                             + Arrays.toString(indicesThatRequireAnUpdate)
-                                            + " was not acknowledged"
+                                            + " was not acknowledged",
+                                        RestStatus.TOO_MANY_REQUESTS
                                     )
                                 );
                             }

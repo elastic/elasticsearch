@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -74,7 +73,8 @@ public class LearnToRankServiceTests extends ESTestCase {
                         QueryProviderTests.createRandomValidQueryProvider("field_2", "bar"),
                         DEFAULT_SCORES.get("feature_2")
                     )
-                )
+                ),
+                Map.of()
             )
         )
         .build();
@@ -104,7 +104,8 @@ public class LearnToRankServiceTests extends ESTestCase {
                         QueryProviderTests.createRandomValidQueryProvider("field_2", "{{bar_param}}"),
                         DEFAULT_SCORES.get("feature_2")
                     )
-                )
+                ),
+                Map.of()
             )
         )
         .build();
@@ -118,7 +119,7 @@ public class LearnToRankServiceTests extends ESTestCase {
             xContentRegistry()
         );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
-        learnToRankService.loadLearnToRankConfig(GOOD_MODEL, Collections.emptyMap(), listener);
+        learnToRankService.loadLearnToRankConfig(GOOD_MODEL, Map.of(), listener);
 
         verify(listener).onResponse(eq((LearnToRankConfig) GOOD_MODEL_CONFIG.getInferenceConfig()));
     }
@@ -132,7 +133,7 @@ public class LearnToRankServiceTests extends ESTestCase {
             xContentRegistry()
         );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
-        learnToRankService.loadLearnToRankConfig("non-existing-model", Collections.emptyMap(), listener);
+        learnToRankService.loadLearnToRankConfig("non-existing-model", Map.of(), listener);
 
         verify(listener).onFailure(isA(ResourceNotFoundException.class));
     }
@@ -146,7 +147,7 @@ public class LearnToRankServiceTests extends ESTestCase {
             xContentRegistry()
         );
         ActionListener<LearnToRankConfig> listener = mock(ActionListener.class);
-        learnToRankService.loadLearnToRankConfig(BAD_MODEL, Collections.emptyMap(), listener);
+        learnToRankService.loadLearnToRankConfig(BAD_MODEL, Map.of(), listener);
 
         verify(listener).onFailure(isA(ElasticsearchStatusException.class));
     }
@@ -213,7 +214,7 @@ public class LearnToRankServiceTests extends ESTestCase {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+        namedXContent.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
 

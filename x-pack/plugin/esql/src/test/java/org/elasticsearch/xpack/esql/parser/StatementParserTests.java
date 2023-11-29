@@ -577,12 +577,12 @@ public class StatementParserTests extends ESTestCase {
     public void testMetadataFieldOnOtherSources() {
         expectError(
             "row a = 1 [metadata _index]",
-            "1:11: mismatched input '[' expecting {<EOF>, PIPE, 'and', COMMA, 'or', '+', '-', '*', '/', '%'}"
+            "1:11: mismatched input '[' expecting {<EOF>, '|', 'and', ',', 'or', '+', '-', '*', '/', '%'}"
         );
-        expectError("show functions [metadata _index]", "line 1:16: mismatched input '[' expecting {<EOF>, PIPE}");
+        expectError("show functions [metadata _index]", "line 1:16: token recognition error at: '['");
         expectError(
             "explain [from foo] [metadata _index]",
-            "line 1:20: mismatched input '[' expecting {PIPE, COMMA, OPENING_BRACKET, ']'}"
+            "line 1:20: mismatched input '[' expecting {'|', ',', OPENING_BRACKET, ']'}"
         );
     }
 

@@ -139,9 +139,9 @@ emp_no:integer | birth_date:date               | x:date
 ;
 
 evalDateTruncGrouping
-from employees | eval y = date_trunc(1 year, hire_date) | stats count(emp_no) by y | sort y | keep y, count(emp_no) | limit 5;
+from employees | eval y = date_trunc(1 year, hire_date) | stats c = count(emp_no) by y | sort y | keep y, c | limit 5;
 
-y:date                        | count(emp_no):long
+y:date                        | c:long
 1985-01-01T00:00:00.000Z      | 11       
 1986-01-01T00:00:00.000Z      | 11                  
 1987-01-01T00:00:00.000Z      | 15                 

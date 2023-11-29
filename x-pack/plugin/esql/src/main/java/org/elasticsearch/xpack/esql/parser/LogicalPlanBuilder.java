@@ -12,7 +12,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
-import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierPatternContext;
+import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.QualifiedNamePatternContext;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -149,9 +149,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
-        String identifier = visitSourceIdentifier(ctx.sourceIdentifier());
+        UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
         Source src = source(ctx);
-        return child -> new MvExpand(src, child, new UnresolvedAttribute(src, identifier), new UnresolvedAttribute(src, identifier));
+        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.name()));
 
     }
 
@@ -254,16 +254,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitDropCommand(EsqlBaseParser.DropCommandContext ctx) {
-        var identifiers = ctx.identifierPattern();
+        var identifiers = ctx.qualifiedNamePattern();
         List<NamedExpression> removals = new ArrayList<>(identifiers.size());
 
-        for (IdentifierPatternContext patternContext : identifiers) {
-            NamedExpression identifier = visitIdentifierPattern(patternContext);
-            if (identifier instanceof UnresolvedStar) {
-                var src = identifier.source();
+        for (QualifiedNamePatternContext patternContext : identifiers) {
+            NamedExpression ne = visitQualifiedNamePattern(patternContext);
+            if (ne instanceof UnresolvedStar) {
+                var src = ne.source();
                 throw new ParsingException(src, "Removing all fields is not allowed [{}]", src.text());
             }
-            removals.add(identifier);
+            removals.add(ne);
         }
 
         return child -> new Drop(source(ctx), child, removals);
@@ -280,11 +280,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (ctx.PROJECT() != null) {
             addWarning("PROJECT command is no longer supported, please use KEEP instead");
         }
-        var identifiers = ctx.identifierPattern();
+        var identifiers = ctx.qualifiedNamePattern();
         List<NamedExpression> projections = new ArrayList<>(identifiers.size());
         boolean hasSeenStar = false;
-        for (IdentifierPatternContext idCtx : identifiers) {
-            NamedExpression ne = visitIdentifierPattern(idCtx);
+        for (QualifiedNamePatternContext patternContext : identifiers) {
+            NamedExpression ne = visitQualifiedNamePattern(patternContext);
             if (ne instanceof UnresolvedStar) {
                 if (hasSeenStar) {
                     var src = ne.source();
@@ -311,10 +311,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
         return p -> {
-            final NamedExpression policyName = visitIdentifierPattern(ctx.policyName);
+            final NamedExpression policyName = visitQualifiedNamePattern(ctx.policyName);
             var source = source(ctx);
             NamedExpression matchField = ctx.ON() != null
-                ? visitIdentifierPattern(ctx.matchField)
+                ? visitQualifiedNamePattern(ctx.matchField)
                 : new EmptyAttribute(source);
             if (matchField.name().contains("*")) {
                 throw new ParsingException(

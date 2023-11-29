@@ -10,7 +10,7 @@ GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
-MV_EXPAND : 'mv_expand'       -> pushMode(PROJECT_MODE);
+MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 PROJECT : 'project'           -> pushMode(PROJECT_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
@@ -35,7 +35,7 @@ WS
 // Explain
 //
 mode EXPLAIN_MODE;
-EXPLAIN_OPENING_BRACKET : '[' -> type(OPENING_BRACKET), pushMode(DEFAULT_MODE);
+EXPLAIN_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(DEFAULT_MODE);
 EXPLAIN_PIPE : PIPE -> type(PIPE), popMode;
 EXPLAIN_WS : WS -> channel(HIDDEN);
 EXPLAIN_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
@@ -177,8 +177,8 @@ EXPR_WS
 //
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
-FROM_OPENING_BRACKET : '[' -> type(OPENING_BRACKET), pushMode(FROM_MODE), pushMode(FROM_MODE);
-FROM_CLOSING_BRACKET : ']' -> popMode, popMode, type(CLOSING_BRACKET);
+FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(FROM_MODE), pushMode(FROM_MODE);
+FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode, popMode;
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 
@@ -255,8 +255,9 @@ RENAME_QUOTED_IDENTIFIER
     : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
     ;
 
+// use the unquoted pattern to let the parser invalidate fields with *
 RENAME_UNQUOTED_IDENTIFIER
-    : UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER)
+    : PROJECT_UNQUOTED_IDENTIFIER -> type(PROJECT_UNQUOTED_IDENTIFIER)
     ;
 
 RENAME_LINE_COMMENT
@@ -285,6 +286,7 @@ ENRICH_QUOTED_IDENTIFIER
     : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
     ;
 
+// use the unquoted pattern to let the parser invalidate fields with *
 ENRICH_UNQUOTED_IDENTIFIER
     : PROJECT_UNQUOTED_IDENTIFIER -> type(PROJECT_UNQUOTED_IDENTIFIER)
     ;
@@ -301,10 +303,36 @@ ENRICH_WS
     : WS -> channel(HIDDEN)
     ;
 
+mode MVEXPAND_MODE;
+MVEXPAND_PIPE : PIPE -> type(PIPE), popMode;
+MVEXPAND_DOT: DOT -> type(DOT);
+
+MVEXPAND_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+    ;
+
+MVEXPAND_UNQUOTED_IDENTIFIER
+    : UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER)
+    ;
+
+
+MVEXPAND_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+MVEXPAND_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+MVEXPAND_WS
+    : WS -> channel(HIDDEN)
+    ;
+
 //
 // SHOW INFO
 //
 mode SHOW_MODE;
+SHOW_PIPE : PIPE -> type(PIPE), popMode;
 
 INFO : 'info';
 FUNCTIONS : 'functions';

@@ -131,6 +131,10 @@ qualifiedName
     : identifier (DOT identifier)*
     ;
 
+qualifiedNamePattern
+    : identifierPattern (DOT identifierPattern)*
+    ;
+
 identifier
     : UNQUOTED_IDENTIFIER
     | QUOTED_IDENTIFIER
@@ -167,12 +171,12 @@ orderExpression
     ;
 
 keepCommand
-    :  KEEP identifierPattern (COMMA identifierPattern)*
-    |  PROJECT identifierPattern (COMMA identifierPattern)*
+    :  KEEP qualifiedNamePattern (COMMA qualifiedNamePattern)*
+    |  PROJECT qualifiedNamePattern (COMMA qualifiedNamePattern)*
     ;
 
 dropCommand
-    : DROP identifierPattern (COMMA identifierPattern)*
+    : DROP qualifiedNamePattern (COMMA qualifiedNamePattern)*
     ;
 
 renameCommand
@@ -180,7 +184,7 @@ renameCommand
     ;
 
 renameClause:
-    oldName=identifier AS newName=identifier
+    oldName=qualifiedNamePattern AS newName=qualifiedNamePattern
     ;
 
 dissectCommand
@@ -192,7 +196,7 @@ grokCommand
     ;
 
 mvExpandCommand
-    : MV_EXPAND identifierPattern
+    : MV_EXPAND qualifiedName
     ;
 
 commandOptions
@@ -242,9 +246,9 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=identifierPattern (ON matchField=identifierPattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=qualifiedNamePattern (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause
-    : (newName=identifierPattern ASSIGN)? enrichField=identifierPattern
+    : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
     ;

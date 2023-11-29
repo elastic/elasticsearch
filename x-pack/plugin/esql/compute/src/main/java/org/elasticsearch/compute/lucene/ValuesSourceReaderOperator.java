@@ -52,6 +52,18 @@ import java.util.stream.Collectors;
  */
 public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     /**
+     * Minimum number of documents for which it is more efficient to use a
+     * sequential stored field reader when reading stored fields.
+     * <p>
+     *     The sequential stored field reader decompresses a whole block of docs
+     *     at a time so for very short lists it won't be faster to use it. We use
+     *     {@code 10} documents as the boundary for "very short" because it's what
+     *     search does, not because we've done extensive testing on the number.
+     * </p>
+     */
+    static final int SEQUENTIAL_BOUNDARY = 10;
+
+    /**
      * Creates a factory for {@link ValuesSourceReaderOperator}.
      * @param fields fields to load
      * @param shardContexts per-shard loading information
@@ -169,12 +181,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
             LeafReaderContext ctx = ctx(shard, segment);
             StoredFieldLoader storedFieldLoader;
-            if (isSequential(docVector.docs())) {
+            if (useSequentialStoredFieldsReader(docVector.docs())) {
                 storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
                 trackStoredFields(storedFieldsSpec, true);
+                System.err.println("sequential");
             } else {
                 storedFieldLoader = StoredFieldLoader.fromSpec(storedFieldsSpec);
                 trackStoredFields(storedFieldsSpec, false);
+                System.err.println("non-sequential");
             }
             BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 // TODO enable the optimization by passing non-null to docs if correct
@@ -250,10 +264,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     /**
      * Is it more efficient to use a sequential stored field reader
-     * when reading stored fields for the documents contained in {@code docIds}.
+     * when reading stored fields for the documents contained in {@code docIds}?
      */
-    private boolean isSequential(IntVector docIds) {
-        return docIds.getInt(docIds.getPositionCount() - 1) - docIds.getInt(0) == docIds.getPositionCount() - 1;
+    private boolean useSequentialStoredFieldsReader(IntVector docIds) {
+        return docIds.getPositionCount() >= SEQUENTIAL_BOUNDARY
+            && docIds.getInt(docIds.getPositionCount() - 1) - docIds.getInt(0) == docIds.getPositionCount() - 1;
     }
 
     private void trackStoredFields(StoredFieldsSpec spec, boolean sequential) {

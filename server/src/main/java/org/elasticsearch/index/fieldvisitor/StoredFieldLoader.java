@@ -14,7 +14,6 @@ import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -94,7 +93,6 @@ public abstract class StoredFieldLoader {
             }
         };
     }
-
 
     /**
      * Creates a StoredFieldLoader tuned for sequential reads of _source

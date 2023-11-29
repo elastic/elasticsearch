@@ -113,16 +113,16 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
     private final Instant createdAt;
 
-    private final Long deletedDocumentCount;
+    private final long deletedDocumentCount;
 
     @Nullable
     private final String error;
 
     private final String id;
 
-    private final Long indexedDocumentCount;
+    private final long indexedDocumentCount;
 
-    private final Long indexedDocumentVolume;
+    private final long indexedDocumentVolume;
 
     private final ConnectorSyncJobType jobType;
 
@@ -137,7 +137,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
     private final ConnectorSyncStatus status;
 
     @Nullable
-    private final Long totalDocumentCount;
+    private final long totalDocumentCount;
 
     private final ConnectorSyncJobTriggerMethod triggerMethod;
 
@@ -171,17 +171,17 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
         Instant completedAt,
         Connector connector,
         Instant createdAt,
-        Long deletedDocumentCount,
+        long deletedDocumentCount,
         String error,
         String id,
-        Long indexedDocumentCount,
-        Long indexedDocumentVolume,
+        long indexedDocumentCount,
+        long indexedDocumentVolume,
         ConnectorSyncJobType jobType,
         Instant lastSeen,
         Map<String, Object> metadata,
         Instant startedAt,
         ConnectorSyncStatus status,
-        Long totalDocumentCount,
+        long totalDocumentCount,
         ConnectorSyncJobTriggerMethod triggerMethod,
         String workerHostname
     ) {
@@ -356,15 +356,15 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
         private Instant createdAt;
 
-        private Long deletedDocumentCount;
+        private long deletedDocumentCount;
 
         private String error;
 
         private String id;
 
-        private Long indexedDocumentCount;
+        private long indexedDocumentCount;
 
-        private Long indexedDocumentVolume;
+        private long indexedDocumentVolume;
 
         private ConnectorSyncJobType jobType;
 
@@ -376,7 +376,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
         private ConnectorSyncStatus status;
 
-        private Long totalDocumentCount;
+        private long totalDocumentCount;
 
         private ConnectorSyncJobTriggerMethod triggerMethod;
 
@@ -407,7 +407,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setDeletedDocumentCount(Long deletedDocumentCount) {
+        public Builder setDeletedDocumentCount(long deletedDocumentCount) {
             this.deletedDocumentCount = deletedDocumentCount;
             return this;
         }
@@ -422,12 +422,12 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setIndexedDocumentCount(Long indexedDocumentCount) {
+        public Builder setIndexedDocumentCount(long indexedDocumentCount) {
             this.indexedDocumentCount = indexedDocumentCount;
             return this;
         }
 
-        public Builder setIndexedDocumentVolume(Long indexedDocumentVolume) {
+        public Builder setIndexedDocumentVolume(long indexedDocumentVolume) {
             this.indexedDocumentVolume = indexedDocumentVolume;
             return this;
         }
@@ -457,7 +457,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setTotalDocumentCount(Long totalDocumentCount) {
+        public Builder setTotalDocumentCount(long totalDocumentCount) {
             this.totalDocumentCount = totalDocumentCount;
             return this;
         }

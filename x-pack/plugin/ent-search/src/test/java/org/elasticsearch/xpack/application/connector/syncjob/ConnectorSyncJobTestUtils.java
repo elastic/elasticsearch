@@ -50,7 +50,7 @@ public class ConnectorSyncJobTestUtils {
             )
             .setStartedAt(randomFrom(new Instant[] { null, randomInstantBetween(lowerBoundInstant, upperBoundInstant) }))
             .setStatus(ConnectorTestUtils.getRandomSyncStatus())
-            .setTotalDocumentCount(randomFrom(new Long[] { null, randomLong() }))
+            .setTotalDocumentCount(randomLong())
             .setTriggerMethod(getRandomConnectorSyncJobTriggerMethod())
             .setWorkerHostname(randomAlphaOfLength(10))
             .build();

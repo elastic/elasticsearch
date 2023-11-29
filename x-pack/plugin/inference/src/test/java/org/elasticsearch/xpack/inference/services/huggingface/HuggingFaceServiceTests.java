@@ -320,6 +320,30 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
+    public void testParsePersistedConfig_ThrowsWhenAnExtraKeyExistsInTaskSettings() throws IOException {
+        try (
+            var service = new HuggingFaceService(
+                new SetOnce<>(mock(HttpRequestSenderFactory.class)),
+                new SetOnce<>(createWithEmptySettings(threadPool))
+            )
+        ) {
+            var taskSettingsMap = new HashMap<String, Object>();
+            taskSettingsMap.put("extra_key", "value");
+
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), taskSettingsMap, getSecretSettingsMap("secret"));
+
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config(), persistedConfig.secrets())
+            );
+
+            assertThat(
+                thrownException.getMessage(),
+                is("Model configuration contains settings [{extra_key=value}] unknown to the [hugging_face] service")
+            );
+        }
+    }
+
     public void testInfer_SendsEmbeddingsRequest() throws IOException {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
@@ -412,9 +436,17 @@ public class HuggingFaceServiceTests extends ESTestCase {
         Map<String, Object> serviceSettings,
         Map<String, Object> secretSettings
     ) {
+        return getPersistedConfigMap(serviceSettings, Map.of(), secretSettings);
+    }
+
+    private HuggingFaceServiceTests.PeristedConfig getPersistedConfigMap(
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        Map<String, Object> secretSettings
+    ) {
 
         return new HuggingFaceServiceTests.PeristedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings)),
+            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
             new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
         );
     }

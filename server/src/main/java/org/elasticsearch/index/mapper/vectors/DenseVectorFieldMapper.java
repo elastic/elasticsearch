@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
@@ -68,6 +69,7 @@ import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -171,6 +173,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed"
                         );
                     }
+                }
+            });
+            this.indexOptions.addValidator(v -> {
+                if (v instanceof Int8HnswIndexOptions && elementType.getValue() == ElementType.BYTE) {
+                    throw new IllegalArgumentException(
+                        "[element_type] cannot be [byte] when using index type [" + VectorIndexType.INT8_HNSW.name + "]"
+                    );
                 }
             });
         }
@@ -702,31 +711,134 @@ public class DenseVectorFieldMapper extends FieldMapper {
         IndexOptions(String type) {
             this.type = type;
         }
+
+        abstract KnnVectorsFormat getVectorsFormat();
+    }
+
+    private enum VectorIndexType {
+        HNSW("hnsw") {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
+                Object mNode = indexOptionsMap.remove("m");
+                Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+                if (mNode == null) {
+                    mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+                }
+                if (efConstructionNode == null) {
+                    efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+                }
+                int m = XContentMapValues.nodeIntegerValue(mNode);
+                int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new HnswIndexOptions(m, efConstruction);
+            }
+        },
+        INT8_HNSW("int8_hnsw") {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
+                Object mNode = indexOptionsMap.remove("m");
+                Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+                Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
+                if (mNode == null) {
+                    mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+                }
+                if (efConstructionNode == null) {
+                    efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+                }
+                int m = XContentMapValues.nodeIntegerValue(mNode);
+                int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+                Float confidenceInterval = null;
+                if (confidenceIntervalNode != null) {
+                    confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
+                }
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
+                return new Int8HnswIndexOptions(m, efConstruction, confidenceInterval);
+            }
+        };
+
+        static Optional<VectorIndexType> fromString(String type) {
+            return Stream.of(VectorIndexType.values()).filter(vectorIndexType -> vectorIndexType.name.equals(type)).findFirst();
+        }
+
+        private final String name;
+
+        VectorIndexType(String name) {
+            this.name = name;
+        }
+
+        abstract IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap);
+    }
+
+    private static class Int8HnswIndexOptions extends IndexOptions {
+        private final int m;
+        private final int efConstruction;
+        private final Float confidenceInterval;
+
+        private Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
+            super("int8_hnsw");
+            this.m = m;
+            this.efConstruction = efConstruction;
+            this.confidenceInterval = confidenceInterval;
+        }
+
+        @Override
+        public KnnVectorsFormat getVectorsFormat() {
+            return new Lucene99HnswScalarQuantizedVectorsFormat(m, efConstruction, 1, confidenceInterval, null);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            builder.field("m", m);
+            builder.field("ef_construction", efConstruction);
+            if (confidenceInterval != null) {
+                builder.field("confidence_interval", confidenceInterval);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Int8HnswIndexOptions that = (Int8HnswIndexOptions) o;
+            return m == that.m && efConstruction == that.efConstruction && Objects.equals(confidenceInterval, that.confidenceInterval);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(m, efConstruction, confidenceInterval);
+        }
+
+        @Override
+        public String toString() {
+            return "{type="
+                + type
+                + ", m="
+                + m
+                + ", ef_construction="
+                + efConstruction
+                + ", confidence_interval="
+                + confidenceInterval
+                + "}";
+        }
     }
 
     private static class HnswIndexOptions extends IndexOptions {
         private final int m;
         private final int efConstruction;
 
-        static IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
-            Object mNode = indexOptionsMap.remove("m");
-            Object efConstructionNode = indexOptionsMap.remove("ef_construction");
-            if (mNode == null) {
-                throw new MapperParsingException("[index_options] of type [hnsw] requires field [m] to be configured");
-            }
-            if (efConstructionNode == null) {
-                throw new MapperParsingException("[index_options] of type [hnsw] requires field [ef_construction] to be configured");
-            }
-            int m = XContentMapValues.nodeIntegerValue(mNode);
-            int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
-            MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-            return new HnswIndexOptions(m, efConstruction);
-        }
-
         private HnswIndexOptions(int m, int efConstruction) {
             super("hnsw");
             this.m = m;
             this.efConstruction = efConstruction;
+        }
+
+        @Override
+        public KnnVectorsFormat getVectorsFormat() {
+            return new Lucene99HnswVectorsFormat(m, efConstruction, 1, null);
         }
 
         @Override
@@ -754,7 +866,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public String toString() {
-            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + " }";
+            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + "}";
         }
     }
 
@@ -1071,11 +1183,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new MapperParsingException("[index_options] requires field [type] to be configured");
         }
         String type = XContentMapValues.nodeStringValue(typeNode);
-        if (type.equals("hnsw")) {
-            return HnswIndexOptions.parseIndexOptions(fieldName, indexOptionsMap);
-        } else {
-            throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
-        }
+        return VectorIndexType.fromString(type)
+            .orElseThrow(() -> new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]"))
+            .parseIndexOptions(fieldName, indexOptionsMap);
     }
 
     /**
@@ -1083,12 +1193,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * {@code null} if the default format should be used.
      */
     public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat) {
-        KnnVectorsFormat format;
+        final KnnVectorsFormat format;
         if (indexOptions == null) {
             format = defaultFormat;
         } else {
-            HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            format = new Lucene99HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+            format = indexOptions.getVectorsFormat();
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

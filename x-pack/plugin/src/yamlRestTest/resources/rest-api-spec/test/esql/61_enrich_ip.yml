@@ -81,7 +81,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM events | eval ip_str = to_string(ip) | ENRICH networks-policy ON ip_str | sort @timestamp | KEEP ip, name, department, message'
+          query: 'FROM events | eval ip_str = to_string(ip) | ENRICH `networks-policy` ON ip_str | sort @timestamp | KEEP ip, name, department, message'
 
   - match: { columns.0.name: "ip" }
   - match: { columns.0.type: "ip" }

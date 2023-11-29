@@ -26,22 +26,19 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 public class NodeMetrics {
     private final NodeService nodeService;
     private final NodeStatsCache stats;
-    // private LongUpDownCounter indicesTranslogUncommittedOperations;
-    // private LongUpDownCounter indicesTranslogUncommittedSize;
-    // private LongUpDownCounter httpCurrentOpen;
 
     /**
      * Constructs a new NodeMetrics instance.
      *
      * @param meterRegistry The MeterRegistry used to register metrics.
-     * @param nodeService   The NodeService for interacting with the Elasticsearch node.
+     * @param nodeService   The NodeService for interacting with the Elasticsearch node and extracting statistics.
      */
     public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService) {
         this.nodeService = nodeService;
-        // Agent should poll stats every 4 minutes and being this cache lazy we need a number high enough so that the cache does not
-        // update during the same poll period and that expires before the new poll period, therefore we choose 1 minute.
-        TimeValue cacheRefreshInterval = TimeValue.timeValueMinutes(1);
-        this.stats = new NodeStatsCache(cacheRefreshInterval, getNodeStats());
+        // Agent should poll stats every 4 minutes and being this cache lazy we need a
+        // number high enough so that the cache does not update during the same poll
+        // period and that expires before a new poll period, therefore we choose 1 minute.
+        this.stats = new NodeStatsCache(TimeValue.timeValueMinutes(1), getNodeStats());
         registerAsyncMetrics(meterRegistry);
     }
 
@@ -84,42 +81,42 @@ public class NodeMetrics {
      * @param registry The MeterRegistry used to register and collect metrics.
      */
     private void registerAsyncMetrics(MeterRegistry registry) {
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.indices.get.total",
             "Total number of get operations",
             "operation",
             () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getGet().getCount())
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.indices.get.time",
             "Time in milliseconds spent performing get operations.",
             "milliseconds",
             () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getGet().getTimeInMillis())
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.indices.search.fetch.total",
             "Total number of fetch operations.",
             "operation",
             () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getSearch().getTotal().getFetchCount())
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.indices.search.fetch.time",
             "Time in milliseconds spent performing fetch operations.",
             "milliseconds",
             () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getSearch().getTotal().getFetchTimeInMillis())
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.indices.merge.total",
             "Total number of merge operations.",
             "operation",
             () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getMerge().getTotal())
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.indices.merge.time",
             "Time in milliseconds spent performing merge operations.",
             "milliseconds",
@@ -133,7 +130,7 @@ public class NodeMetrics {
             () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().estimatedNumberOfOperations())
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.indices.translog.size",
             "Size, in bytes, of the transaction log.",
             "bytes",
@@ -154,7 +151,7 @@ public class NodeMetrics {
             () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedSizeInBytes())
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.indices.translog.earliest_last_modified_age",
             "Earliest last modified age for the transaction log.",
             "time",
@@ -168,42 +165,42 @@ public class NodeMetrics {
             () -> new LongWithAttributes(stats.getOrRefresh().getHttp().getServerOpen())
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.transport.rx_size",
             "Size, in bytes, of RX packets received by the node during internal cluster communication.",
             "bytes",
             () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getRxSize().getBytes())
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.transport.tx_size",
             "Size, in bytes, of TX packets sent by the node during internal cluster communication.",
             "bytes",
             () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getTxSize().getBytes())
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.jvm.mem.pools.young.used",
             "Memory, in bytes, used by the young generation heap.",
             "bytes",
             () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.YOUNG))
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.jvm.mem.pools.survivor.used",
             "Memory, in bytes, used by the survivor space.",
             "bytes",
             () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.SURVIVOR))
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.jvm.mem.pools.old.used",
             "Memory, in bytes, used by the old generation heap.",
             "bytes",
             () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.OLD))
         );
 
-        registry.registerLongGauge(
+        registry.registerLongAsyncCounter(
             "es.node.stats.fs.io_stats.total.io_time",
             "The total time in millis spent performing I/O operations across all devices used by Elasticsearch.",
             "milliseconds",
@@ -228,6 +225,12 @@ public class NodeMetrics {
         return bytesUsed;
     }
 
+    /**
+     * A very simple NodeStats cache that allows non-blocking refresh calls
+     * lazily triggered by expiry time. When getOrRefresh() is called either
+     * the cached NodeStats is returned if refreshInterval didn't expire or
+     * refresh() is called, cache is updated and the new instance returned.
+     */
     private class NodeStatsCache extends SingleObjectCache<NodeStats> {
         NodeStatsCache(TimeValue interval, NodeStats initValue) {
             super(interval, initValue);

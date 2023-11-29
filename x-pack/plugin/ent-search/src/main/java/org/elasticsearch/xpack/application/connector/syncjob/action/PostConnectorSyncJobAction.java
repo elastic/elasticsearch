@@ -48,7 +48,7 @@ public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobA
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
-        public static final String EMPTY_CONNECTOR_ID_ERROR_MESSAGE = "'id' of the connector cannot be null or empty";
+        public static final String EMPTY_CONNECTOR_ID_ERROR_MESSAGE = "[id] of the connector cannot be null or empty";
         private final String id;
         private final ConnectorSyncJobType jobType;
         private final ConnectorSyncJobTriggerMethod triggerMethod;

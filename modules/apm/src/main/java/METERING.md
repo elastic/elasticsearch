@@ -118,4 +118,10 @@ We currently provide a base `TestTelemetryPlugin` which should help you write an
 See an example `S3BlobStoreRepositoryTests`
 
 
+# creating dashboards in kibana
+..
 
+# Links and further reading
+https://opentelemetry.io/docs/specs/otel/metrics/supplementary-guidelines/
+
+https://www.elastic.co/guide/en/apm/guide/current/data-model-metrics.html

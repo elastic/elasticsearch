@@ -27,6 +27,10 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.health.node.selection.HealthNode;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongGaugeMetric;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.Closeable;
 import java.time.Clock;
@@ -37,6 +41,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
+import static org.elasticsearch.health.HealthStatus.RED;
 
 /**
  * This class periodically logs the results of the Health API to the standard Elasticsearch server log file.
@@ -84,6 +89,8 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
 
     private static final Logger logger = LogManager.getLogger(HealthPeriodicLogger.class);
 
+    private final Map<String, LongGaugeMetric> metrics = new HashMap<>();
+
     /**
      * Creates a new HealthPeriodicLogger.
      * This creates a scheduled job using the SchedulerEngine framework and runs it on the current health node.
@@ -92,19 +99,20 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
      * @param clusterService the cluster service, used to know when the health node changes.
      * @param client the client used to call the Health Service.
      * @param healthService the Health Service, where the actual Health API logic lives.
+     * @param telemetryProvider used to get the meter registry for metrics
      */
     public static HealthPeriodicLogger create(
-        Settings settings,
-        ClusterService clusterService,
-        Client client,
-        HealthService healthService
+        Settings settings, ClusterService clusterService, Client client, HealthService healthService, TelemetryProvider telemetryProvider
     ) {
-        HealthPeriodicLogger logger = new HealthPeriodicLogger(settings, clusterService, client, healthService);
+        HealthPeriodicLogger logger =
+            new HealthPeriodicLogger(settings, clusterService, client, healthService, telemetryProvider.getMeterRegistry());
         logger.registerListeners();
         return logger;
     }
 
-    private HealthPeriodicLogger(Settings settings, ClusterService clusterService, Client client, HealthService healthService) {
+    private HealthPeriodicLogger(
+        Settings settings, ClusterService clusterService, Client client, HealthService healthService, MeterRegistry meterRegistry
+    ) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.client = client;
@@ -112,6 +120,30 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         this.clock = Clock.systemUTC();
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.enabled = ENABLED_SETTING.get(settings);
+
+        // create APM metric reporters
+        createMetrics(meterRegistry);
+    }
+
+    private void createMetrics(MeterRegistry meterRegistry) {
+        String[] indicators = {
+            "blob_store",
+            "disk",
+            "ilm",
+            "master_is_stable",
+            "overall",
+            "repository_integrity",
+            "shards_availability",
+            "shards_capacity",
+            "slm" };
+        for (String indicator : indicators) {
+            metrics.put(indicator, LongGaugeMetric.create(
+                meterRegistry,
+                String.format(Locale.ROOT, "es.health.status.%s.red", indicator),
+                String.format(Locale.ROOT, "%s: Red", indicator),
+                "{cluster}"
+            ));
+        }
     }
 
     private void registerListeners() {
@@ -243,6 +275,10 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
                     ESLogMessage msg = new ESLogMessage().withFields(resultsMap);
                     logger.info(msg);
                 }
+
+                // handle metrics
+                handleMetrics(healthIndicatorResults);
+
             } catch (Exception e) {
                 logger.warn("Health Periodic Logger error:{}", e.toString());
             }
@@ -253,6 +289,20 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
             logger.warn("Health Periodic Logger error:{}", e.toString());
         }
     };
+
+    /**
+     * Handle the output of any metrics
+     */
+    // default visibility for testing purposes
+    final void handleMetrics(List<HealthIndicatorResult> healthIndicatorResults) {
+        if (healthIndicatorResults != null) {
+            for (HealthIndicatorResult result : healthIndicatorResults) {
+                if (metrics.containsKey(result.name())) {
+                    metrics.get(result.name()).set(result.status() == RED ? 1 : 0);
+                }
+            }
+        }
+    }
 
     /**
      * Create the SchedulerEngine.Job if this node is the health node

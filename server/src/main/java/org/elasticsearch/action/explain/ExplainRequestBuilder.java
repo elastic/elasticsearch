@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.explain;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
@@ -20,11 +21,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
  */
 public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
 
-    ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action) {
-        super(client, action, new ExplainRequest());
-    }
-
-    public ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action, String index, String id) {
+    public ExplainRequestBuilder(ElasticsearchClient client, ActionType<ExplainResponse> action, String index, String id) {
         super(client, action, new ExplainRequest().index(index).id(id));
     }
 

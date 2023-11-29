@@ -147,8 +147,8 @@ public class MultivalueDedupeDouble {
      * Dedupe values and build a {@link IntBlock} suitable for passing
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hash(LongHash hash) {
-        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount())) {
+    public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, LongHash hash) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);

@@ -530,7 +530,7 @@ public class SystemIndices {
             );
         } else {
             return new IllegalArgumentException(
-                "Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) + " use and access is reserved for system operations"
+                "Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) + " may not be accessed by product [" + product + "]"
             );
         }
     }

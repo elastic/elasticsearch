@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -45,6 +44,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -674,10 +674,11 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     private static void verify(ActionRequestBuilder<?, ?> requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
             if (requestBuilder instanceof MultiSearchRequestBuilder multiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
-                assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
+                assertResponse(multiSearchRequestBuilder, multiSearchResponse -> {
+                    assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                    assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
+                    assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
+                });
             } else {
                 try {
                     requestBuilder.get();
@@ -688,9 +689,10 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
             if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
                 assertHitCount(searchRequestBuilder, expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder multiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
-                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
-                assertThat(multiSearchResponse.getResponses()[0].getResponse(), notNullValue());
+                assertResponse(multiSearchRequestBuilder, response -> {
+                    assertThat(response.getResponses().length, equalTo(1));
+                    assertThat(response.getResponses()[0].getResponse(), notNullValue());
+                });
             } else {
                 requestBuilder.get();
             }

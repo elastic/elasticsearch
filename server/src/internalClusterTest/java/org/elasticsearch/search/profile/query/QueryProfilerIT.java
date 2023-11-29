@@ -10,7 +10,7 @@ package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -123,47 +123,52 @@ public class QueryProfilerIT extends ESIntegTestCase {
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setRequestCache(false);
 
-        MultiSearchResponse.Item[] responses = client().prepareMultiSearch().add(vanilla).add(profile).get().getResponses();
+        assertResponse(client().prepareMultiSearch().add(vanilla).add(profile), response -> {
+            Item[] responses = response.getResponses();
 
-        SearchResponse vanillaResponse = responses[0].getResponse();
-        SearchResponse profileResponse = responses[1].getResponse();
+            SearchResponse vanillaResponse = responses[0].getResponse();
+            SearchResponse profileResponse = responses[1].getResponse();
 
-        assertThat(vanillaResponse.getFailedShards(), equalTo(0));
-        assertThat(profileResponse.getFailedShards(), equalTo(0));
-        assertThat(vanillaResponse.getSuccessfulShards(), equalTo(profileResponse.getSuccessfulShards()));
+            assertThat(vanillaResponse.getFailedShards(), equalTo(0));
+            assertThat(profileResponse.getFailedShards(), equalTo(0));
+            assertThat(vanillaResponse.getSuccessfulShards(), equalTo(profileResponse.getSuccessfulShards()));
 
-        float vanillaMaxScore = vanillaResponse.getHits().getMaxScore();
-        float profileMaxScore = profileResponse.getHits().getMaxScore();
-        if (Float.isNaN(vanillaMaxScore)) {
-            assertTrue("Vanilla maxScore is NaN but Profile is not [" + profileMaxScore + "]", Float.isNaN(profileMaxScore));
-        } else {
-            assertEquals(
-                "Profile maxScore of [" + profileMaxScore + "] is not close to Vanilla maxScore [" + vanillaMaxScore + "]",
-                vanillaMaxScore,
-                profileMaxScore,
-                0.001
-            );
-        }
-
-        if (vanillaResponse.getHits().getTotalHits().value != profileResponse.getHits().getTotalHits().value) {
-            Set<SearchHit> vanillaSet = new HashSet<>(Arrays.asList(vanillaResponse.getHits().getHits()));
-            Set<SearchHit> profileSet = new HashSet<>(Arrays.asList(profileResponse.getHits().getHits()));
-            if (vanillaResponse.getHits().getTotalHits().value > profileResponse.getHits().getTotalHits().value) {
-                vanillaSet.removeAll(profileSet);
-                fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: " + vanillaSet.toString());
+            float vanillaMaxScore = vanillaResponse.getHits().getMaxScore();
+            float profileMaxScore = profileResponse.getHits().getMaxScore();
+            if (Float.isNaN(vanillaMaxScore)) {
+                assertTrue("Vanilla maxScore is NaN but Profile is not [" + profileMaxScore + "]", Float.isNaN(profileMaxScore));
             } else {
-                profileSet.removeAll(vanillaSet);
-                fail("Profile hits were larger than vanilla hits.  Non-overlapping elements were: " + profileSet.toString());
+                assertEquals(
+                    "Profile maxScore of [" + profileMaxScore + "] is not close to Vanilla maxScore [" + vanillaMaxScore + "]",
+                    vanillaMaxScore,
+                    profileMaxScore,
+                    0.001
+                );
             }
-        }
 
-        SearchHit[] vanillaHits = vanillaResponse.getHits().getHits();
-        SearchHit[] profileHits = profileResponse.getHits().getHits();
+            if (vanillaResponse.getHits().getTotalHits().value != profileResponse.getHits().getTotalHits().value) {
+                Set<SearchHit> vanillaSet = new HashSet<>(Arrays.asList(vanillaResponse.getHits().getHits()));
+                Set<SearchHit> profileSet = new HashSet<>(Arrays.asList(profileResponse.getHits().getHits()));
+                if (vanillaResponse.getHits().getTotalHits().value > profileResponse.getHits().getTotalHits().value) {
+                    vanillaSet.removeAll(profileSet);
+                    fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: " + vanillaSet.toString());
+                } else {
+                    profileSet.removeAll(vanillaSet);
+                    fail("Profile hits were larger than vanilla hits.  Non-overlapping elements were: " + profileSet.toString());
+                }
+            }
 
-        for (int j = 0; j < vanillaHits.length; j++) {
-            assertThat("Profile hit #" + j + " has a different ID from Vanilla", vanillaHits[j].getId(), equalTo(profileHits[j].getId()));
-        }
+            SearchHit[] vanillaHits = vanillaResponse.getHits().getHits();
+            SearchHit[] profileHits = profileResponse.getHits().getHits();
 
+            for (int j = 0; j < vanillaHits.length; j++) {
+                assertThat(
+                    "Profile hit #" + j + " has a different ID from Vanilla",
+                    vanillaHits[j].getId(),
+                    equalTo(profileHits[j].getId())
+                );
+            }
+        });
     }
 
     /**

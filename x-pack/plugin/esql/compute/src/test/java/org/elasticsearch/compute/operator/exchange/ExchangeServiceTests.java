@@ -412,10 +412,6 @@ public class ExchangeServiceTests extends ESTestCase {
                         }
                         ExchangeResponse newResp = new ExchangeResponse(page, origResp.finished());
                         origResp.decRef();
-                        while (origResp.hasReferences()) {
-                            newResp.incRef();
-                            origResp.decRef();
-                        }
                         super.sendResponse(newResp);
                     }
                 };

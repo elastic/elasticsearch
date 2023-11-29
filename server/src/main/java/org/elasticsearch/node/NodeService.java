@@ -118,7 +118,8 @@ public class NodeService implements Closeable {
         boolean indices
     ) {
         return new NodeInfo(
-            Version.CURRENT,
+            // TODO: revert to Build.current().version() when Kibana is updated
+            Version.CURRENT.toString(),
             TransportVersion.current(),
             IndexVersion.current(),
             findComponentVersions(),

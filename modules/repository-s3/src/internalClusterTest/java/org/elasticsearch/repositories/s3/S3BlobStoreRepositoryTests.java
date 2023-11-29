@@ -78,6 +78,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.repositories.RepositoriesModule.METRIC_REQUESTS_COUNT;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
@@ -394,7 +395,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
                             .writeBlobAtomic(
-                                OperationPurpose.SNAPSHOT,
+                                randomPurpose(),
                                 BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(),
                                 serialized,
                                 true

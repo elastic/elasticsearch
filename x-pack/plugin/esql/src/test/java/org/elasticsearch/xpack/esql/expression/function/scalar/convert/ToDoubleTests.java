@@ -101,7 +101,7 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
-                        tds.name(),
+                        tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
                         DataTypes.KEYWORD
                     )

@@ -26,6 +26,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.ONE_AS_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
@@ -38,6 +39,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         Map.entry(DATETIME, ToUnsignedLongFromLongEvaluator.Factory::new),
         Map.entry(BOOLEAN, ToUnsignedLongFromBooleanEvaluator.Factory::new),
         Map.entry(KEYWORD, ToUnsignedLongFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToUnsignedLongFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToUnsignedLongFromDoubleEvaluator.Factory::new),
         Map.entry(LONG, ToUnsignedLongFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToUnsignedLongFromIntEvaluator.Factory::new)
@@ -72,7 +74,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         return bool ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
     }
 
-    @ConvertEvaluator(extraName = "FromString", warnExceptions = { NumberFormatException.class })
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { InvalidArgumentException.class, NumberFormatException.class })
     static long fromKeyword(BytesRef in) {
         String asString = in.utf8ToString();
         return asLongUnsigned(safeToUnsignedLong(asString));
@@ -83,12 +85,12 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         return asLongUnsigned(safeToUnsignedLong(dbl));
     }
 
-    @ConvertEvaluator(extraName = "FromLong")
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { InvalidArgumentException.class })
     static long fromLong(long lng) {
         return asLongUnsigned(safeToUnsignedLong(lng));
     }
 
-    @ConvertEvaluator(extraName = "FromInt")
+    @ConvertEvaluator(extraName = "FromInt", warnExceptions = { InvalidArgumentException.class })
     static long fromInt(int i) {
         return fromLong(i);
     }

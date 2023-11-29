@@ -216,7 +216,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         IntFunction<Object> expectedValue,
         int lowerBound,
         int upperBound,
-        List<String> warnings
+        Function<Number, List<String>> expectedWarnings
     ) {
         unaryNumeric(
             suppliers,
@@ -224,7 +224,27 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             intCases(lowerBound, upperBound),
             expectedType,
             n -> expectedValue.apply(n.intValue()),
-            warnings
+            n -> expectedWarnings.apply(n.intValue())
+        );
+    }
+
+    public static void forUnaryInt(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        IntFunction<Object> expectedValue,
+        int lowerBound,
+        int upperBound,
+        List<String> warnings
+    ) {
+        forUnaryInt(
+            suppliers,
+            expectedEvaluatorToString,
+            expectedType,
+            expectedValue,
+            lowerBound,
+            upperBound,
+            unused -> warnings
         );
     }
 
@@ -524,7 +544,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    private static List<TypedDataSupplier> longCases(long min, long max) {
+    public static List<TypedDataSupplier> longCases(long min, long max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         if (0L <= max && 0L >= min) {
             cases.add(new TypedDataSupplier("<0 long>", () -> 0L, DataTypes.LONG));
@@ -549,7 +569,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    private static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max) {
+    public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         // Zero

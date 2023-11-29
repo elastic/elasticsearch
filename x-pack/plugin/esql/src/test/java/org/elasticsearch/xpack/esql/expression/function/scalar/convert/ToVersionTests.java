@@ -53,7 +53,7 @@ public class ToVersionTests extends AbstractFunctionTestCase {
         for (DataType inputType : AbstractConvertFunction.STRING_TYPES) {
             TestCaseSupplier.unary(
                 suppliers,
-                stringEvaluator,
+                read,
                 TestCaseSupplier.versionCases(inputType.typeName() + " "),
                 DataTypes.VERSION,
                 bytesRef -> new Version((BytesRef) bytesRef).toBytesRef(),

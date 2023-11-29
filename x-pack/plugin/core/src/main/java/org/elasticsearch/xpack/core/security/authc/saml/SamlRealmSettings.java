@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizatio
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -101,11 +102,11 @@ public class SamlRealmSettings {
         key -> Setting.boolSetting(key, true, Setting.Property.NodeScope)
     );
 
-    public static final AttributeSetting PRINCIPAL_ATTRIBUTE = new AttributeSetting("principal");
-    public static final AttributeSetting GROUPS_ATTRIBUTE = new AttributeSetting("groups");
-    public static final AttributeSetting DN_ATTRIBUTE = new AttributeSetting("dn");
-    public static final AttributeSetting NAME_ATTRIBUTE = new AttributeSetting("name");
-    public static final AttributeSetting MAIL_ATTRIBUTE = new AttributeSetting("mail");
+    public static final PatternAttributeSetting PRINCIPAL_ATTRIBUTE = new PatternAttributeSetting("principal");
+    public static final PatternDelimiterAttributeSetting GROUPS_ATTRIBUTE = new PatternDelimiterAttributeSetting("groups");
+    public static final PatternAttributeSetting DN_ATTRIBUTE = new PatternAttributeSetting("dn");
+    public static final PatternAttributeSetting NAME_ATTRIBUTE = new PatternAttributeSetting("name");
+    public static final PatternAttributeSetting MAIL_ATTRIBUTE = new PatternAttributeSetting("mail");
 
     public static final String ENCRYPTION_SETTING_KEY = "encryption.";
     public static final Setting.AffixSetting<String> ENCRYPTION_KEY_ALIAS = RealmSettings.simpleString(
@@ -193,14 +194,14 @@ public class SamlRealmSettings {
      * local-port of the user's email address (i.e. the name before the '@').
      * This class encapsulates those 2 settings.
      */
-    public static final class AttributeSetting {
+    public static final class PatternAttributeSetting {
         public static final String ATTRIBUTES_PREFIX = "attributes.";
         public static final String ATTRIBUTE_PATTERNS_PREFIX = "attribute_patterns.";
 
         private final Setting.AffixSetting<String> attribute;
         private final Setting.AffixSetting<String> pattern;
 
-        public AttributeSetting(String name) {
+        public PatternAttributeSetting(String name) {
             attribute = RealmSettings.simpleString(TYPE, ATTRIBUTES_PREFIX + name, Setting.Property.NodeScope);
             pattern = RealmSettings.simpleString(TYPE, ATTRIBUTE_PATTERNS_PREFIX + name, Setting.Property.NodeScope);
         }
@@ -219,6 +220,31 @@ public class SamlRealmSettings {
 
         public Setting.AffixSetting<String> getPattern() {
             return pattern;
+        }
+    }
+
+    public static final class PatternDelimiterAttributeSetting {
+        public static final String ATTRIBUTE_DELIMITER_PREFIX = "attribute_delimiter.";
+        private final Setting.AffixSetting<String> delimiter;
+        private final PatternAttributeSetting patternAttributeSetting;
+
+        public PatternAttributeSetting getAttributePatternSetting() {
+            return patternAttributeSetting;
+        }
+
+        public PatternDelimiterAttributeSetting(String name) {
+            this.patternAttributeSetting = new PatternAttributeSetting(name);
+            this.delimiter = RealmSettings.simpleString(TYPE, ATTRIBUTE_DELIMITER_PREFIX + name, Setting.Property.NodeScope);
+        }
+
+        public Setting.AffixSetting<String> getDelimiter() {
+            return this.delimiter;
+        }
+
+        public Collection<Setting.AffixSetting<?>> settings() {
+            List<Setting.AffixSetting<?>> settings = new ArrayList<>(patternAttributeSetting.settings());
+            settings.add(getDelimiter());
+            return settings;
         }
     }
 }

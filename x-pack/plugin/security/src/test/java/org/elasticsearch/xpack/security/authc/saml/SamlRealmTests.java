@@ -358,7 +358,8 @@ public class SamlRealmTests extends SamlTestCase {
             principalIsEmailAddress,
             populateUserMetadata,
             false,
-            authenticatingRealm
+            authenticatingRealm,
+            List.of("STRIKE Team: Delta$shield")
         );
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
@@ -377,7 +378,7 @@ public class SamlRealmTests extends SamlTestCase {
         }
 
         assertThat(userData.get().getUsername(), equalTo(useNameId ? "clint.barton" : "cbarton"));
-        assertThat(userData.get().getGroups(), containsInAnyOrder("avengers", "shield"));
+        assertThat(userData.get().getGroups(), containsInAnyOrder("STRIKE Team: Delta", "shield"));
     }
 
     public void testAuthenticateWithAuthorizingRealm() throws Exception {
@@ -432,6 +433,26 @@ public class SamlRealmTests extends SamlTestCase {
         boolean useAuthorizingRealm,
         String authenticatingRealm
     ) throws Exception {
+        return performAuthentication(
+            roleMapper,
+            useNameId,
+            principalIsEmailAddress,
+            populateUserMetadata,
+            useAuthorizingRealm,
+            authenticatingRealm,
+            Arrays.asList("avengers", "shield")
+        );
+    }
+
+    private AuthenticationResult<User> performAuthentication(
+        UserRoleMapper roleMapper,
+        boolean useNameId,
+        boolean principalIsEmailAddress,
+        Boolean populateUserMetadata,
+        boolean useAuthorizingRealm,
+        String authenticatingRealm,
+        List<String> groups
+    ) throws Exception {
         final EntityDescriptor idp = mockIdp();
         final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
@@ -453,7 +474,8 @@ public class SamlRealmTests extends SamlTestCase {
 
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), useNameId ? "nameid" : "uid")
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.GROUPS_ATTRIBUTE.getAttribute()), "groups")
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.GROUPS_ATTRIBUTE.getAttributePatternSetting().getAttribute()), "groups")
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.GROUPS_ATTRIBUTE.getDelimiter()), "$")
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.MAIL_ATTRIBUTE.getAttribute()), "mail");
         if (principalIsEmailAddress) {
             final boolean anchoredMatch = randomBoolean();
@@ -497,7 +519,7 @@ public class SamlRealmTests extends SamlTestCase {
             randomAlphaOfLength(16),
             Arrays.asList(
                 new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.1", "uid", Collections.singletonList(uidValue)),
-                new SamlAttributes.SamlAttribute("urn:oid:1.3.6.1.4.1.5923.1.5.1.1", "groups", Arrays.asList("avengers", "shield")),
+                new SamlAttributes.SamlAttribute("urn:oid:1.3.6.1.4.1.5923.1.5.1.1", "groups", groups),
                 new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", Arrays.asList("cbarton@shield.gov"))
             )
         );
@@ -534,6 +556,59 @@ public class SamlRealmTests extends SamlTestCase {
         }
     }
 
+    public void testAttributeSelectionWithSplit() {
+        String delimiter = ",";
+
+        final Settings settings = Settings.builder()
+            .put(REALM_SETTINGS_PREFIX + ".attributes.groups", "departments")
+            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiter.groups", delimiter)
+            .build();
+
+        final RealmConfig config = buildConfig(settings);
+
+        final SamlRealmSettings.PatternDelimiterAttributeSetting groupSetting = new SamlRealmSettings.PatternDelimiterAttributeSetting(
+            "groups"
+        );
+        final SamlRealm.AttributeParser parser = SamlRealm.AttributeParser.forSetting(logger, groupSetting, config, false);
+
+        final SamlAttributes attributes = new SamlAttributes(
+            new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
+            randomAlphaOfLength(16),
+            Collections.singletonList(
+                new SamlAttributes.SamlAttribute(
+                    "departments",
+                    "departments",
+                    Collections.singletonList(String.join(delimiter, "engineering", "elasticsearch-admins", "employees"))
+                )
+            )
+        );
+
+        final List<String> strings = parser.getAttribute(attributes);
+        assertThat("For attributes: " + strings, strings, contains("engineering", "elasticsearch-admins", "employees"));
+    }
+
+    public void testAttributeSelectionWithDelimiterAndPatternThrowsSettingsException() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(REALM_SETTINGS_PREFIX + ".attributes.groups", "departments")
+            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiter.groups", ",")
+            .put(REALM_SETTINGS_PREFIX + ".attribute_patterns.groups", "^(.+)@\\w+.example.com$")
+            .build();
+
+        final RealmConfig config = buildConfig(settings);
+
+        final SamlRealmSettings.PatternDelimiterAttributeSetting groupSetting = new SamlRealmSettings.PatternDelimiterAttributeSetting(
+            "groups"
+        );
+
+        final SettingsException settingsException = expectThrows(
+            SettingsException.class,
+            () -> SamlRealm.AttributeParser.forSetting(logger, groupSetting, config, false)
+        );
+
+        assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_delimiter.groups"));
+        assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_patterns.groups"));
+    }
+
     public void testAttributeSelectionWithRegex() throws Exception {
         final boolean useFriendlyName = randomBoolean();
         final Settings settings = Settings.builder()
@@ -543,7 +618,7 @@ public class SamlRealmTests extends SamlTestCase {
 
         final RealmConfig config = buildConfig(settings);
 
-        final SamlRealmSettings.AttributeSetting principalSetting = new SamlRealmSettings.AttributeSetting("principal");
+        final SamlRealmSettings.PatternAttributeSetting principalSetting = new SamlRealmSettings.PatternAttributeSetting("principal");
         final SamlRealm.AttributeParser parser = SamlRealm.AttributeParser.forSetting(logger, principalSetting, config, false);
 
         final SamlAttributes attributes = new SamlAttributes(

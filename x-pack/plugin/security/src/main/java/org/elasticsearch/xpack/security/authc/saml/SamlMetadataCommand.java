@@ -418,7 +418,8 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
         for (String a : attributeSpec.values(options)) {
             attributes.put(a, null);
         }
-        final String prefix = RealmSettings.realmSettingPrefix(realm.identifier()) + SamlRealmSettings.AttributeSetting.ATTRIBUTES_PREFIX;
+        final String prefix = RealmSettings.realmSettingPrefix(realm.identifier())
+            + SamlRealmSettings.PatternAttributeSetting.ATTRIBUTES_PREFIX;
         final Settings attributeSettings = realm.settings().getByPrefix(prefix);
         for (String key : sorted(attributeSettings.keySet())) {
             final String attr = attributeSettings.get(key);

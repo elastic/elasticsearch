@@ -1006,7 +1006,45 @@ public final class SamlRealm extends Realm implements Releasable {
 
         static AttributeParser forSetting(
             Logger logger,
-            SamlRealmSettings.AttributeSetting setting,
+            SamlRealmSettings.PatternDelimiterAttributeSetting setting,
+            RealmConfig realmConfig,
+            boolean required
+        ) {
+            SamlRealmSettings.PatternAttributeSetting patternAttributeSetting = setting.getAttributePatternSetting();
+            if (realmConfig.hasSetting(patternAttributeSetting.getAttribute()) && realmConfig.hasSetting(setting.getDelimiter())) {
+                if (realmConfig.hasSetting(patternAttributeSetting.getPattern())) {
+                    throw new SettingsException(
+                        "Setting ["
+                            + RealmSettings.getFullSettingKey(realmConfig, patternAttributeSetting.getPattern())
+                            + "] can not be set when ["
+                            + RealmSettings.getFullSettingKey(realmConfig, setting.getDelimiter())
+                            + "] is set"
+                    );
+                }
+
+                String attributeName = realmConfig.getSetting(patternAttributeSetting.getAttribute());
+                String delimiter = realmConfig.getSetting(setting.getDelimiter());
+                return new AttributeParser(
+                    "SAML Attribute ["
+                        + attributeName
+                        + "] with delimiter ["
+                        + delimiter
+                        + "] for ["
+                        + patternAttributeSetting.name(realmConfig)
+                        + "]",
+                    attributes -> attributes.getAttributeValues(attributeName)
+                        .stream()
+                        .map(s -> s.split(Pattern.quote(delimiter)))
+                        .flatMap(Arrays::stream)
+                        .collect(Collectors.toList())
+                );
+            }
+            return AttributeParser.forSetting(logger, patternAttributeSetting, realmConfig, required);
+        }
+
+        static AttributeParser forSetting(
+            Logger logger,
+            SamlRealmSettings.PatternAttributeSetting setting,
             RealmConfig realmConfig,
             boolean required
         ) {

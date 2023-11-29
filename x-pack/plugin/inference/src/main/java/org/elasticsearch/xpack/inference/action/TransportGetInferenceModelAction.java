@@ -20,9 +20,11 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
+import java.util.List;
+
 public class TransportGetInferenceModelAction extends HandledTransportAction<
     GetInferenceModelAction.Request,
-    PutInferenceModelAction.Response> {
+    GetInferenceModelAction.Response> {
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
@@ -49,7 +51,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
     protected void doExecute(
         Task task,
         GetInferenceModelAction.Request request,
-        ActionListener<PutInferenceModelAction.Response> listener
+        ActionListener<GetInferenceModelAction.Response> listener
     ) {
         modelRegistry.getUnparsedModelMap(request.getModelId(), ActionListener.wrap(modelConfigMap -> {
             var unparsedModel = UnparsedModel.unparsedModelFromMap(modelConfigMap.config(), modelConfigMap.secrets());
@@ -67,7 +69,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
             }
             var model = service.get()
                 .parsePersistedConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings(), unparsedModel.secrets());
-            listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
+            listener.onResponse(new GetInferenceModelAction.Response(List.of(model.getConfigurations())));
         }, listener::onFailure));
     }
 }

@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
-    private static final Integer ZERO = 0;
     private static final String NON_EXISTING_CONNECTOR_ID = "non-existing-connector-id";
     private static final int TIMEOUT_SECONDS = 10;
 
@@ -102,10 +101,10 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(triggerMethod, equalTo(requestTriggerMethod));
         assertThat(initialStatus, equalTo(ConnectorSyncJob.DEFAULT_INITIAL_STATUS));
         assertThat(createdNow, equalTo(lastSeen));
-        assertThat(totalDocumentCount, equalTo(ZERO));
-        assertThat(indexedDocumentCount, equalTo(ZERO));
-        assertThat(indexedDocumentVolume, equalTo(ZERO));
-        assertThat(deletedDocumentCount, equalTo(ZERO));
+        assertThat(totalDocumentCount, equalTo(0));
+        assertThat(indexedDocumentCount, equalTo(0));
+        assertThat(indexedDocumentVolume, equalTo(0));
+        assertThat(deletedDocumentCount, equalTo(0));
     }
 
     public void testCreateConnectorSyncJob_WithMissingJobType_ExpectDefaultJobTypeToBeSet() throws Exception {

@@ -35,6 +35,9 @@ public class TestMeterUsages {
         this.longHistogram = meterRegistry.registerLongHistogram("testLongHistogram", "test", "unit");
         meterRegistry.registerDoubleGauge("testDoubleGauge", "test", "unit", doubleWithAttributes::get);
         meterRegistry.registerLongGauge("testLongGauge", "test", "unit", longWithAttributes::get);
+
+        meterRegistry.registerLongAsyncCounter("testAsyncLongCounter", "test", "unit", longWithAttributes::get);
+        meterRegistry.registerDoubleAsyncCounter("testAsyncDoubleCounter", "test", "unit", doubleWithAttributes::get);
     }
 
     public void testUponRequest() {
@@ -44,6 +47,8 @@ public class TestMeterUsages {
         doubleHistogram.record(2.0);
         longHistogram.record(1);
         longHistogram.record(2);
+
+        // triggers gauges and async counters
         doubleWithAttributes.set(new DoubleWithAttributes(1.0, Map.of()));
         longWithAttributes.set(new LongWithAttributes(1, Map.of()));
     }

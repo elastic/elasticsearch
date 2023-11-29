@@ -10,17 +10,13 @@ package org.elasticsearch.monitor.metrics;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.NodeService;
-import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongUpDownCounter;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * NodeMetrics monitors various statistics of an Elasticsearch node and exposes them through as metrics
@@ -28,44 +24,25 @@ import java.util.concurrent.TimeUnit;
  * and more. The metrics are periodically updated based on a schedule.
  */
 public class NodeMetrics {
-    private final Logger logger = LogManager.getLogger(NodeMetrics.class);
     private final NodeService nodeService;
-    private NodeStats stats;
-    private LongCounter indicesGetTotal;
-    private LongCounter indicesGetTimeInMillis;
-    private LongCounter indicesSearchFetchTotal;
-    private LongCounter indicesSearchFetchTimeInMillis;
-    private LongCounter indicesMergeTotal;
-    private LongCounter indicesMergeTimeInMillis;
-    private LongCounter indicesTranslogOperations;
-    private LongCounter indicesTranslogSize;
-    private LongCounter transportRxSize;
-    private LongCounter transportTxSize;
-    private LongCounter memPoolsYoungUsed;
-    private LongCounter memPoolsSurvivorUsed;
-    private LongCounter memPoolsOldUsed;
-    private LongUpDownCounter indicesTranslogUncommittedOperations;
-    private LongUpDownCounter indicesTranslogUncommittedSize;
-    private LongCounter indicesTranslogEarliestLastModifiedAge;
-    private LongUpDownCounter httpCurrentOpen;
-    private LongCounter fsIOTotalTime;
+    private final NodeStatsCache stats;
+    // private LongUpDownCounter indicesTranslogUncommittedOperations;
+    // private LongUpDownCounter indicesTranslogUncommittedSize;
+    // private LongUpDownCounter httpCurrentOpen;
 
     /**
      * Constructs a new NodeMetrics instance.
      *
      * @param meterRegistry The MeterRegistry used to register metrics.
      * @param nodeService   The NodeService for interacting with the Elasticsearch node.
-     * @param executor      The ScheduledExecutorService to schedule NodeStats updates.
      */
-    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService, ScheduledExecutorService executor) {
+    public NodeMetrics(MeterRegistry meterRegistry, NodeService nodeService) {
         this.nodeService = nodeService;
-        this.stats = getNodeStats();
-        registerMetricsAndSetInitialState(meterRegistry, stats);
-        executor.scheduleAtFixedRate(() -> {
-            NodeStats updatedStats = getNodeStats();
-            updateCounters(updatedStats, stats);
-            stats = updatedStats;
-        }, 0, 60, TimeUnit.SECONDS);
+        // Agent should poll stats every 4 minutes and being this cache lazy we need a number high enough so that the cache does not
+        // update during the same poll period and that expires before the new poll period, therefore we choose 1 minute.
+        TimeValue cacheRefreshInterval = TimeValue.timeValueMinutes(1);
+        this.stats = new NodeStatsCache(cacheRefreshInterval, getNodeStats());
+        registerAsyncMetrics(meterRegistry);
     }
 
     /**
@@ -102,227 +79,135 @@ public class NodeMetrics {
     }
 
     /**
-     * Registers metrics in the provided MeterRegistry and sets initial state based on the given NodeStats.
+     * Registers async metrics in the provided MeterRegistry.
      *
      * @param registry The MeterRegistry used to register and collect metrics.
-     * @param stats    The initial NodeStats to set the initial state of the metrics.
      */
-    private void registerMetricsAndSetInitialState(MeterRegistry registry, NodeStats stats) {
-        indicesGetTotal = registry.registerLongCounter("es.node.stats.indices.get.total", "Total number of get operations", "operation");
-        indicesGetTotal.incrementBy(stats.getIndices().getGet().getCount());
+    private void registerAsyncMetrics(MeterRegistry registry) {
+        registry.registerLongGauge(
+            "es.node.stats.indices.get.total",
+            "Total number of get operations",
+            "operation",
+            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getGet().getCount())
+        );
 
-        indicesGetTimeInMillis = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.indices.get.time",
             "Time in milliseconds spent performing get operations.",
-            "milliseconds"
+            "milliseconds",
+            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getGet().getTimeInMillis())
         );
-        indicesGetTimeInMillis.incrementBy(stats.getIndices().getGet().getTimeInMillis());
 
-        indicesSearchFetchTotal = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.indices.search.fetch.total",
             "Total number of fetch operations.",
-            "operation"
+            "operation",
+            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getSearch().getTotal().getFetchCount())
         );
-        indicesSearchFetchTotal.incrementBy(stats.getIndices().getSearch().getTotal().getFetchCount());
 
-        indicesSearchFetchTimeInMillis = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.indices.search.fetch.time",
             "Time in milliseconds spent performing fetch operations.",
-            "milliseconds"
+            "milliseconds",
+            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getSearch().getTotal().getFetchTimeInMillis())
         );
-        indicesSearchFetchTimeInMillis.incrementBy(stats.getIndices().getSearch().getTotal().getFetchTimeInMillis());
 
-        indicesMergeTotal = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.indices.merge.total",
             "Total number of merge operations.",
-            "operation"
+            "operation",
+            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getMerge().getTotal())
         );
-        indicesMergeTotal.incrementBy(stats.getIndices().getMerge().getTotal());
 
-        indicesMergeTimeInMillis = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.indices.merge.time",
             "Time in milliseconds spent performing merge operations.",
-            "milliseconds"
+            "milliseconds",
+            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getMerge().getTotalTimeInMillis())
         );
-        indicesMergeTimeInMillis.incrementBy(stats.getIndices().getMerge().getTotalTimeInMillis());
 
-        indicesTranslogOperations = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.indices.translog.operations",
             "Number of transaction log operations.",
-            "operation"
+            "operation",
+            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().estimatedNumberOfOperations())
         );
-        indicesTranslogOperations.incrementBy(stats.getIndices().getTranslog().estimatedNumberOfOperations());
 
-        indicesTranslogSize = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.indices.translog.size",
             "Size, in bytes, of the transaction log.",
-            "bytes"
+            "bytes",
+            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getTranslogSizeInBytes())
         );
-        indicesTranslogSize.incrementBy(stats.getIndices().getTranslog().getTranslogSizeInBytes());
 
-        indicesTranslogUncommittedOperations = registry.registerLongUpDownCounter(
+        registry.registerLongGauge(
             "es.node.stats.indices.translog.uncommitted_operations",
             "Number of uncommitted transaction log operations.",
-            "operations"
+            "operations",
+            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedOperations())
         );
-        indicesTranslogUncommittedOperations.add(stats.getIndices().getTranslog().getUncommittedOperations());
 
-        indicesTranslogUncommittedSize = registry.registerLongUpDownCounter(
+        registry.registerLongGauge(
             "es.node.stats.indices.translog.uncommitted_size",
             "Size, in bytes, of uncommitted transaction log operations.",
-            "bytes"
+            "bytes",
+            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getUncommittedSizeInBytes())
         );
-        indicesTranslogUncommittedSize.add(stats.getIndices().getTranslog().getUncommittedSizeInBytes());
 
-        indicesTranslogEarliestLastModifiedAge = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.indices.translog.earliest_last_modified_age",
             "Earliest last modified age for the transaction log.",
-            "time"
+            "time",
+            () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getEarliestLastModifiedAge())
         );
-        indicesTranslogEarliestLastModifiedAge.incrementBy(stats.getIndices().getTranslog().getEarliestLastModifiedAge());
 
-        httpCurrentOpen = registry.registerLongUpDownCounter(
+        registry.registerLongGauge(
             "es.node.stats.http.current_open",
             "Current number of open HTTP connections for the node.",
-            "connections"
+            "connections",
+            () -> new LongWithAttributes(stats.getOrRefresh().getHttp().getServerOpen())
         );
-        httpCurrentOpen.add(stats.getHttp().getServerOpen());
 
-        transportRxSize = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.transport.rx_size",
             "Size, in bytes, of RX packets received by the node during internal cluster communication.",
-            "bytes"
+            "bytes",
+            () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getRxSize().getBytes())
         );
-        transportRxSize.incrementBy(stats.getTransport().getRxSize().getBytes());
 
-        transportTxSize = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.transport.tx_size",
             "Size, in bytes, of TX packets sent by the node during internal cluster communication.",
-            "bytes"
+            "bytes",
+            () -> new LongWithAttributes(stats.getOrRefresh().getTransport().getTxSize().getBytes())
         );
-        transportTxSize.incrementBy(stats.getTransport().getTxSize().getBytes());
 
-        memPoolsYoungUsed = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.jvm.mem.pools.young.used",
             "Memory, in bytes, used by the young generation heap.",
-            "bytes"
+            "bytes",
+            () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.YOUNG))
         );
-        memPoolsYoungUsed.incrementBy(bytesUsedByGCGen(stats.getJvm().getMem(), GcNames.YOUNG));
 
-        memPoolsSurvivorUsed = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.jvm.mem.pools.survivor.used",
             "Memory, in bytes, used by the survivor space.",
-            "bytes"
+            "bytes",
+            () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.SURVIVOR))
         );
-        memPoolsSurvivorUsed.incrementBy(bytesUsedByGCGen(stats.getJvm().getMem(), GcNames.SURVIVOR));
 
-        memPoolsOldUsed = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.jvm.mem.pools.old.used",
             "Memory, in bytes, used by the old generation heap.",
-            "bytes"
+            "bytes",
+            () -> new LongWithAttributes(bytesUsedByGCGen(stats.getOrRefresh().getJvm().getMem(), GcNames.OLD))
         );
-        memPoolsOldUsed.incrementBy(bytesUsedByGCGen(stats.getJvm().getMem(), GcNames.OLD));
 
-        fsIOTotalTime = registry.registerLongCounter(
+        registry.registerLongGauge(
             "es.node.stats.fs.io_stats.total.io_time",
             "The total time in millis spent performing I/O operations across all devices used by Elasticsearch.",
-            "milliseconds"
-        );
-        fsIOTotalTime.incrementBy(stats.getFs().getIoStats().getTotalIOTimeMillis());
-    }
-
-    /**
-     * Updates the metrics counters based on the changes in NodeStats between the new and old statistics.
-     *
-     * @param newStats The updated NodeStats representing the current state.
-     * @param oldStats The previous NodeStats representing the old state.
-     */
-    private void updateCounters(NodeStats newStats, NodeStats oldStats) {
-        incrementIfDeltaGreaterThanZero(
-            indicesGetTotal,
-            newStats.getIndices().getGet().getCount(),
-            oldStats.getIndices().getGet().getCount()
-        );
-        incrementIfDeltaGreaterThanZero(
-            indicesGetTimeInMillis,
-            newStats.getIndices().getGet().getTimeInMillis(),
-            oldStats.getIndices().getGet().getTimeInMillis()
-        );
-        incrementIfDeltaGreaterThanZero(
-            indicesSearchFetchTotal,
-            newStats.getIndices().getSearch().getTotal().getFetchCount(),
-            oldStats.getIndices().getSearch().getTotal().getFetchCount()
-        );
-        incrementIfDeltaGreaterThanZero(
-            indicesSearchFetchTimeInMillis,
-            newStats.getIndices().getSearch().getTotal().getFetchTimeInMillis(),
-            oldStats.getIndices().getSearch().getTotal().getFetchTimeInMillis()
-        );
-        incrementIfDeltaGreaterThanZero(
-            indicesMergeTotal,
-            newStats.getIndices().getMerge().getTotal(),
-            oldStats.getIndices().getMerge().getTotal()
-        );
-        incrementIfDeltaGreaterThanZero(
-            indicesMergeTimeInMillis,
-            newStats.getIndices().getMerge().getTotalTimeInMillis(),
-            oldStats.getIndices().getMerge().getTotalTimeInMillis()
-        );
-        incrementIfDeltaGreaterThanZero(
-            indicesTranslogOperations,
-            newStats.getIndices().getTranslog().estimatedNumberOfOperations(),
-            oldStats.getIndices().getTranslog().estimatedNumberOfOperations()
-        );
-        incrementIfDeltaGreaterThanZero(
-            indicesTranslogSize,
-            newStats.getIndices().getTranslog().getTranslogSizeInBytes(),
-            oldStats.getIndices().getTranslog().getTranslogSizeInBytes()
-        );
-        incrementIfDeltaGreaterThanZero(
-            transportRxSize,
-            newStats.getTransport().getRxSize().getBytes(),
-            oldStats.getTransport().getRxSize().getBytes()
-        );
-        incrementIfDeltaGreaterThanZero(
-            transportTxSize,
-            newStats.getTransport().getTxSize().getBytes(),
-            oldStats.getTransport().getTxSize().getBytes()
-        );
-        incrementIfDeltaGreaterThanZero(
-            memPoolsYoungUsed,
-            bytesUsedByGCGen(newStats.getJvm().getMem(), GcNames.YOUNG),
-            bytesUsedByGCGen(oldStats.getJvm().getMem(), GcNames.YOUNG)
-        );
-        incrementIfDeltaGreaterThanZero(
-            memPoolsSurvivorUsed,
-            bytesUsedByGCGen(newStats.getJvm().getMem(), GcNames.SURVIVOR),
-            bytesUsedByGCGen(oldStats.getJvm().getMem(), GcNames.SURVIVOR)
-        );
-        incrementIfDeltaGreaterThanZero(
-            memPoolsOldUsed,
-            bytesUsedByGCGen(newStats.getJvm().getMem(), GcNames.OLD),
-            bytesUsedByGCGen(oldStats.getJvm().getMem(), GcNames.OLD)
-        );
-        incrementIfDeltaGreaterThanZero(
-            indicesTranslogEarliestLastModifiedAge,
-            newStats.getIndices().getTranslog().getEarliestLastModifiedAge(),
-            oldStats.getIndices().getTranslog().getEarliestLastModifiedAge()
-        );
-        updateUpAndDownCounter(
-            indicesTranslogUncommittedOperations,
-            newStats.getIndices().getTranslog().getUncommittedOperations(),
-            oldStats.getIndices().getTranslog().getUncommittedOperations()
-        );
-        updateUpAndDownCounter(
-            indicesTranslogUncommittedSize,
-            newStats.getIndices().getTranslog().getUncommittedSizeInBytes(),
-            oldStats.getIndices().getTranslog().getUncommittedSizeInBytes()
-        );
-        updateUpAndDownCounter(httpCurrentOpen, newStats.getHttp().getServerOpen(), oldStats.getHttp().getServerOpen());
-        incrementIfDeltaGreaterThanZero(
-            fsIOTotalTime,
-            newStats.getFs().getIoStats().getTotalIOTimeMillis(),
-            oldStats.getFs().getIoStats().getTotalIOTimeMillis()
+            "milliseconds",
+            () -> new LongWithAttributes(stats.getOrRefresh().getFs().getIoStats().getTotalIOTimeMillis())
         );
     }
 
@@ -343,31 +228,14 @@ public class NodeMetrics {
         return bytesUsed;
     }
 
-    /**
-     * Increments the given LongCounter if the delta (newValue - oldValue) is greater than zero.
-     * Logs an error if the delta is negative, indicating unexpected behavior.
-     *
-     * @param counter   The LongCounter to be incremented.
-     * @param newValue  The new value for the counter.
-     * @param oldValue  The old value of the counter.
-     */
-    private void incrementIfDeltaGreaterThanZero(LongCounter counter, long newValue, long oldValue) {
-        long delta = newValue - oldValue;
-        if (delta > 0) {
-            counter.incrementBy(delta);
-        } else if (delta < 0) {
-            logger.error("Counter should never be incremented by a negative number");
+    private class NodeStatsCache extends SingleObjectCache<NodeStats> {
+        NodeStatsCache(TimeValue interval, NodeStats initValue) {
+            super(interval, initValue);
         }
-    }
 
-    /**
-     * Updates the given LongUpDownCounter based on the difference between the new and old values.
-     *
-     * @param counter   The LongUpDownCounter to be updated.
-     * @param newValue  The new value for the counter.
-     * @param oldValue  The old value of the counter.
-     */
-    private void updateUpAndDownCounter(LongUpDownCounter counter, long newValue, long oldValue) {
-        counter.add(newValue - oldValue);
+        @Override
+        protected NodeStats refresh() {
+            return getNodeStats();
+        }
     }
 }

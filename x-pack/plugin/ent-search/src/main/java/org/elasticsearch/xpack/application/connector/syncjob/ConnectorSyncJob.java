@@ -50,49 +50,48 @@ import java.util.Objects;
  */
 public class ConnectorSyncJob implements Writeable, ToXContentObject {
 
-    public static final ParseField CANCELATION_REQUESTED_AT_FIELD = new ParseField("cancelation_requested_at");
+    static final ParseField CANCELATION_REQUESTED_AT_FIELD = new ParseField("cancelation_requested_at");
 
-    public static final ParseField CANCELED_AT_FIELD = new ParseField("canceled_at");
+    static final ParseField CANCELED_AT_FIELD = new ParseField("canceled_at");
 
-    public static final ParseField COMPLETED_AT_FIELD = new ParseField("completed_at");
+    static final ParseField COMPLETED_AT_FIELD = new ParseField("completed_at");
 
-    public static final ParseField CONNECTOR_FIELD = new ParseField("connector");
+    static final ParseField CONNECTOR_FIELD = new ParseField("connector");
 
-    public static final ParseField CREATED_AT_FIELD = new ParseField("created_at");
+    static final ParseField CREATED_AT_FIELD = new ParseField("created_at");
 
-    public static final ParseField DELETED_DOCUMENT_COUNT = new ParseField("deleted_document_count");
+    static final ParseField DELETED_DOCUMENT_COUNT = new ParseField("deleted_document_count");
 
-    public static final ParseField ERROR_FIELD = new ParseField("error");
+    static final ParseField ERROR_FIELD = new ParseField("error");
 
     public static final ParseField ID_FIELD = new ParseField("id");
 
-    public static final ParseField INDEXED_DOCUMENT_COUNT_FIELD = new ParseField("indexed_document_count");
+    static final ParseField INDEXED_DOCUMENT_COUNT_FIELD = new ParseField("indexed_document_count");
 
-    public static final ParseField INDEXED_DOCUMENT_VOLUME_FIELD = new ParseField("indexed_document_volume");
+    static final ParseField INDEXED_DOCUMENT_VOLUME_FIELD = new ParseField("indexed_document_volume");
 
     public static final ParseField JOB_TYPE_FIELD = new ParseField("job_type");
 
-    public static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
+    static final ParseField LAST_SEEN_FIELD = new ParseField("last_seen");
 
-    public static final ParseField METADATA_FIELD = new ParseField("metadata");
+    static final ParseField METADATA_FIELD = new ParseField("metadata");
 
-    public static final ParseField STARTED_AT_FIELD = new ParseField("started_at");
+    static final ParseField STARTED_AT_FIELD = new ParseField("started_at");
 
-    public static final ParseField STATUS_FIELD = new ParseField("status");
+    static final ParseField STATUS_FIELD = new ParseField("status");
 
-    public static final ParseField TOTAL_DOCUMENT_COUNT_FIELD = new ParseField("total_document_count");
+    static final ParseField TOTAL_DOCUMENT_COUNT_FIELD = new ParseField("total_document_count");
 
     public static final ParseField TRIGGER_METHOD_FIELD = new ParseField("trigger_method");
 
-    public static final ParseField WORKER_HOSTNAME_FIELD = new ParseField("worker_hostname");
+    static final ParseField WORKER_HOSTNAME_FIELD = new ParseField("worker_hostname");
 
-    public static final ConnectorSyncStatus DEFAULT_INITIAL_STATUS = ConnectorSyncStatus.PENDING;
+    static final ConnectorSyncStatus DEFAULT_INITIAL_STATUS = ConnectorSyncStatus.PENDING;
 
-    public static final ConnectorSyncJobType DEFAULT_JOB_TYPE = ConnectorSyncJobType.FULL;
+    static final ConnectorSyncJobType DEFAULT_JOB_TYPE = ConnectorSyncJobType.FULL;
 
-    public static final ConnectorSyncJobTriggerMethod DEFAULT_TRIGGER_METHOD = ConnectorSyncJobTriggerMethod.ON_DEMAND;
+    static final ConnectorSyncJobTriggerMethod DEFAULT_TRIGGER_METHOD = ConnectorSyncJobTriggerMethod.ON_DEMAND;
 
-    @Nullable
     private final Instant cancelationRequestedAt;
 
     @Nullable

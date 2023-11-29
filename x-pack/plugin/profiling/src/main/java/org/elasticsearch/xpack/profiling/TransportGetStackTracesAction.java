@@ -152,7 +152,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         responseBuilder.setAwsCostFactor(request.getAwsCostFactor());
         responseBuilder.setCustomCO2PerKWH(request.getCustomCO2PerKWH());
         responseBuilder.setCustomDatacenterPUE(request.getCustomDatacenterPUE());
-        responseBuilder.setCustomPerCoreWatt(request.getCustomPerCoreWatt());
+        responseBuilder.setCustomPerCoreWattX86(request.getCustomPerCoreWattX86());
         responseBuilder.setCustomPerCoreWattARM64(request.getCustomPerCoreWattARM64());
         responseBuilder.setCustomCostPerCoreHour(request.getCustomCostPerCoreHour());
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
@@ -529,7 +529,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 responseBuilder.getRequestedDuration(),
                 responseBuilder.customCO2PerKWH,
                 responseBuilder.customDatacenterPUE,
-                responseBuilder.customPerCoreWatt,
+                responseBuilder.customPerCoreWattX86,
                 responseBuilder.customPerCoreWattARM64
             );
             CostCalculator costCalculator = new CostCalculator(
@@ -747,7 +747,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private Double awsCostFactor;
         private Double customCO2PerKWH;
         private Double customDatacenterPUE;
-        private Double customPerCoreWatt;
+        private Double customPerCoreWattX86;
         private Double customPerCoreWattARM64;
         private Double customCostPerCoreHour;
 
@@ -827,8 +827,8 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             this.customDatacenterPUE = customDatacenterPUE;
         }
 
-        public void setCustomPerCoreWatt(Double customPerCoreWatt) {
-            this.customPerCoreWatt = customPerCoreWatt;
+        public void setCustomPerCoreWattX86(Double customPerCoreWattX86) {
+            this.customPerCoreWattX86 = customPerCoreWattX86;
         }
 
         public void setCustomPerCoreWattARM64(Double customPerCoreWattARM64) {

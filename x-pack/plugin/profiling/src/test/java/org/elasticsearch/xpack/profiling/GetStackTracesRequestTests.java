@@ -44,6 +44,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -149,6 +150,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         List<String> validationErrors = request.validate().validationErrors();
@@ -167,6 +169,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         List<String> validationErrors = request.validate().validationErrors();
@@ -182,6 +185,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             randomAlphaOfLength(5),
             randomFrom("", null),
+            null,
             null,
             null,
             null,
@@ -204,6 +208,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         String[] indices = request.indices();
@@ -213,7 +218,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
 
     public void testConsidersDefaultIndicesInRelatedIndices() {
         String customIndex = randomAlphaOfLength(5);
-        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, 1.0d, null, null, null, null, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, 1.0d, null, null, null, null, null, null, null, null);
         String[] indices = request.indices();
         assertEquals(15, indices.length);
     }

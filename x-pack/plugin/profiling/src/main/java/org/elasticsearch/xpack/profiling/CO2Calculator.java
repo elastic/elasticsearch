@@ -16,7 +16,7 @@ final class CO2Calculator {
     private static final double DEFAULT_SAMPLING_FREQUENCY = 20.0d;
     private static final double DEFAULT_CO2_TONS_PER_KWH = 0.000379069d; // unit: metric tons / kWh
     private static final double DEFAULT_KILOWATTS_PER_CORE_X86_64 = 7.0d / 1000.0d; // unit: watt / core
-    private static final double DEFAULT_KILOWATTS_PER_CORE_AARCH64 = 2.8d / 1000.0d; // unit: watt / core
+    private static final double DEFAULT_KILOWATTS_PER_CORE_ARM64 = 2.8d / 1000.0d; // unit: watt / core
     private static final double DEFAULT_KILOWATTS_PER_CORE = DEFAULT_KILOWATTS_PER_CORE_X86_64; // unit: watt / core
     private static final double DEFAULT_DATACENTER_PUE = 1.7d;
     private static final Provider DEFAULT_PROVIDER = new Provider(DEFAULT_DATACENTER_PUE, Collections.emptyMap());
@@ -26,6 +26,7 @@ final class CO2Calculator {
     private final double customCO2PerKWH;
     private final double customDatacenterPUE;
     private final double customKilowattsPerCore;
+    private final double customKilowattsPerCoreARM64;
 
     CO2Calculator(
         InstanceTypeService instanceTypeService,
@@ -33,7 +34,8 @@ final class CO2Calculator {
         double samplingDurationInSeconds,
         Double customCO2PerKWH,
         Double customDatacenterPUE,
-        Double customPerCoreWatt
+        Double customPerCoreWatt,
+        Double customPerCoreWattARM64
     ) {
         this.instanceTypeService = instanceTypeService;
         this.hostMetadata = hostMetadata;
@@ -41,6 +43,9 @@ final class CO2Calculator {
         this.customCO2PerKWH = customCO2PerKWH == null ? DEFAULT_CO2_TONS_PER_KWH : customCO2PerKWH;
         this.customDatacenterPUE = customDatacenterPUE == null ? DEFAULT_DATACENTER_PUE : customDatacenterPUE;
         this.customKilowattsPerCore = customPerCoreWatt == null ? DEFAULT_KILOWATTS_PER_CORE : customPerCoreWatt / 1000.0d;
+        this.customKilowattsPerCoreARM64 = customPerCoreWattARM64 == null
+            ? DEFAULT_KILOWATTS_PER_CORE_ARM64
+            : customPerCoreWattARM64 / 1000.0d;
     }
 
     public double getAnnualCO2Tons(String hostID, long samples) {
@@ -62,7 +67,7 @@ final class CO2Calculator {
     private double getKiloWattsPerCore(HostMetadata host) {
         if ("aarch64".equals(host.profilingHostMachine)) {
             // Assume that AARCH64 (aka ARM64) machines are more energy efficient than x86_64 machines.
-            return DEFAULT_KILOWATTS_PER_CORE_AARCH64;
+            return customKilowattsPerCoreARM64;
         }
         return customKilowattsPerCore;
     }

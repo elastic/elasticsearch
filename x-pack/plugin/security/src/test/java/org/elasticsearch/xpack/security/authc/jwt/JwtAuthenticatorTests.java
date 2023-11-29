@@ -259,6 +259,50 @@ public abstract class JwtAuthenticatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Invalid patterns for allowed claim values for [sub]."));
     }
 
+    public void testEmptyAllowedSubjectIsInvalid() {
+        allowedSubject = null;
+        allowedSubjectPattern = null;
+        RealmConfig someJWTRealmConfig = buildJWTRealmConfig();
+        final Settings.Builder builder = Settings.builder();
+        builder.put(someJWTRealmConfig.settings());
+        boolean emptySubjects = randomBoolean();
+        if (emptySubjects) {
+            builder.putList(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS), List.of(""));
+        } else {
+            builder.putList(RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS), List.of(""));
+        }
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new JwtAuthenticator(
+                new RealmConfig(
+                    someJWTRealmConfig.identifier(),
+                    builder.build(),
+                    someJWTRealmConfig.env(),
+                    someJWTRealmConfig.threadContext()
+                ),
+                mock(SSLService.class),
+                () -> {}
+            )
+        );
+        if (emptySubjects) {
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "Invalid empty value for [" + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECTS) + "]."
+                )
+            );
+        } else {
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "Invalid empty value for ["
+                        + RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.ALLOWED_SUBJECT_PATTERNS)
+                        + "]."
+                )
+            );
+        }
+    }
+
     public void testNoAllowedSubjectInvalidSettings() {
         allowedSubject = null;
         allowedSubjectPattern = null;

@@ -457,7 +457,11 @@ public class ComputeService {
         DataNodeResponse(StreamInput in) throws IOException {
             super(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
-                profiles = in.readCollectionAsImmutableList(DriverProfile::new);
+                if (in.readBoolean()) {
+                    profiles = in.readCollectionAsImmutableList(DriverProfile::new);
+                } else {
+                    profiles = null;
+                }
             } else {
                 profiles = null;
             }
@@ -466,7 +470,12 @@ public class ComputeService {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE)) {
-                out.writeCollection(profiles, (o, p) -> p.writeTo(o));
+                if (profiles == null) {
+                    out.writeBoolean(false);
+                } else {
+                    out.writeBoolean(true);
+                    out.writeOptionalCollection(profiles);
+                }
             }
         }
     }

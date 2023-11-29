@@ -83,6 +83,10 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
             incRef();
             return this;
         }
+        if (nullsMask == null) {
+            incRef();
+            return new DoubleArrayBlock.Expanded();
+        }
         // TODO use reference counting to share the values
         try (var builder = blockFactory.newDoubleBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {

@@ -86,6 +86,10 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
             incRef();
             return this;
         }
+        if (nullsMask == null) {
+            incRef();
+            return new BytesRefArrayBlock.Expanded();
+        }
         // TODO use reference counting to share the values
         final BytesRef scratch = new BytesRef();
         try (var builder = blockFactory.newBytesRefBlockBuilder(firstValueIndexes[getPositionCount()])) {

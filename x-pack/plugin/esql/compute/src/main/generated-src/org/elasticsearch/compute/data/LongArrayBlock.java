@@ -83,6 +83,10 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
             incRef();
             return this;
         }
+        if (nullsMask == null) {
+            incRef();
+            return new LongArrayBlock.Expanded();
+        }
         // TODO use reference counting to share the values
         try (var builder = blockFactory.newLongBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {

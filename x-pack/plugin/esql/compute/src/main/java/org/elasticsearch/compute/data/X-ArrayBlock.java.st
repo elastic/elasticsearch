@@ -104,6 +104,10 @@ $endif$
             incRef();
             return this;
         }
+        if (nullsMask == null) {
+            incRef();
+            return new $Type$ArrayBlock.Expanded();
+        }
         // TODO use reference counting to share the values
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();

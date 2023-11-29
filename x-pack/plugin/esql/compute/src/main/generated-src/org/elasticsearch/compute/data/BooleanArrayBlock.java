@@ -83,6 +83,10 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
             incRef();
             return this;
         }
+        if (nullsMask == null) {
+            incRef();
+            return new BooleanArrayBlock.Expanded();
+        }
         // TODO use reference counting to share the values
         try (var builder = blockFactory.newBooleanBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {

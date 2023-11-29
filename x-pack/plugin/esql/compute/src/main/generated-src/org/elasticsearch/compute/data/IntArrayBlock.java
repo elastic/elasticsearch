@@ -83,6 +83,10 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
             incRef();
             return this;
         }
+        if (nullsMask == null) {
+            incRef();
+            return new IntArrayBlock.Expanded();
+        }
         // TODO use reference counting to share the values
         try (var builder = blockFactory.newIntBlockBuilder(firstValueIndexes[getPositionCount()])) {
             for (int pos = 0; pos < getPositionCount(); pos++) {

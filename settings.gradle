@@ -103,6 +103,7 @@ List projects = [
   'test:fixtures:geoip-fixture',
   'test:fixtures:url-fixture',
   'test:fixtures:nginx-fixture',
+  ':test:fixtures:test-container-utils',
   'test:logger-usage',
   'test:test-clusters',
   'test:x-content',

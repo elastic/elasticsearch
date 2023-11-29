@@ -14,8 +14,8 @@ import org.elasticsearch.gradle.util.GradleUtils
 import java.nio.file.Path
 import java.time.temporal.ChronoUnit
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+//apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.dra-artifacts'
 
@@ -72,7 +72,7 @@ if (useDra == false) {
   }
 }
 
-testFixtures.useFixture()
+//testFixtures.useFixture()
 
 configurations {
   aarch64DockerSource {
@@ -112,6 +112,23 @@ dependencies {
   filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+
+  yamlRestTestImplementation "junit:junit:${versions.junit}"
+  yamlRestTestImplementation project(":client:rest")
+  yamlRestTestImplementation project(":test:yaml-rest-runner")
+  yamlRestTestImplementation project(":server")
+  yamlRestTestImplementation project(':test:framework')
+  yamlRestTestImplementation project(":test:fixtures:test-container-utils")
+  yamlRestTestImplementation "org.testcontainers:testcontainers:${versions.testcontainer}"
+  yamlRestTestImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  yamlRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  yamlRestTestImplementation "com.github.docker-java:docker-java-api:${versions.dockerJava}"
+  yamlRestTestRuntimeOnly "com.github.docker-java:docker-java-transport-zerodep:${versions.dockerJava}"
+  yamlRestTestRuntimeOnly "com.github.docker-java:docker-java-transport:${versions.dockerJava}"
+  yamlRestTestRuntimeOnly "com.github.docker-java:docker-java-core:${versions.dockerJava}"
+  yamlRestTestRuntimeOnly "org.apache.commons:commons-compress:${versions.commonsCompress}"
+  yamlRestTestRuntimeOnly "org.rnorth.duct-tape:duct-tape:${versions.ductTape}"
+  yamlRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -224,21 +241,21 @@ elasticsearch_distributions {
   }
 }
 
-tasks.named("preProcessFixture").configure {
-  dependsOn elasticsearch_distributions.matching { it.architecture == Architecture.current() }
-  dependsOn "copyNodeKeyMaterial"
-  doLast {
-    // tests expect to have an empty repo
-    project.delete(
-      "${testFixturesDir}/repo",
-    )
-    createAndSetWritable(
-      "${testFixturesDir}/repo",
-      "${testFixturesDir}/logs/default-1",
-      "${testFixturesDir}/logs/default-2",
-    )
-  }
-}
+//tasks.named("preProcessFixture").configure {
+//  dependsOn elasticsearch_distributions.matching { it.architecture == Architecture.current() }
+//  dependsOn "copyNodeKeyMaterial"
+//  doLast {
+//    // tests expect to have an empty repo
+//    project.delete(
+//      "${testFixturesDir}/repo",
+//    )
+//    createAndSetWritable(
+//      "${testFixturesDir}/repo",
+//      "${testFixturesDir}/logs/default-1",
+//      "${testFixturesDir}/logs/default-2",
+//    )
+//  }
+//}
 
 tasks.named("processYamlRestTestResources").configure {
   from project(':x-pack:plugin:core')
@@ -261,13 +278,13 @@ tasks.named("check").configure {
 // We build the images used in compose locally, but the pull command insists on using a repository
 // thus we must disable it to prevent it from doing so.
 // Everything will still be pulled since we will build the local images on a pull
-tasks.named("composePull").configure {
-  enabled = false
-}
+//tasks.named("composePull").configure {
+//  enabled = false
+//}
 
-tasks.named("composeUp").configure {
-  dependsOn tasks.named("preProcessFixture")
-}
+//tasks.named("composeUp").configure {
+//  dependsOn tasks.named("preProcessFixture")
+//}
 
 void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
   String configDirectory = base == DockerBase.IRON_BANK ? 'scripts' : 'config'

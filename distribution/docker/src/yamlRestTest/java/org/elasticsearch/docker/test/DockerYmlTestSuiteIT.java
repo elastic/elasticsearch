@@ -9,6 +9,8 @@ package org.elasticsearch.docker.test;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
@@ -18,19 +20,31 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.test.testcontainer.TestContainersThreadFilter;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.testcontainers.containers.DockerComposeContainer;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "x_pack_rest_user";
     private static final String PASS = "x-pack-test-password";
+
+    @SuppressWarnings("rawtypes")
+    @ClassRule
+    public static DockerComposeContainer environment =
+        new DockerComposeContainer(new File("/Users/rene/dev/elastic/elasticsearch/distribution/docker/docker-compose.yml"))
+            .withExposedService("docker-elasticsearch-default-1-1", 9200)
+            .withExposedService("docker-elasticsearch-default-2-1", 9200).withLocalCompose(true);
 
     public DockerYmlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

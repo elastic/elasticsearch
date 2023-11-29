@@ -5,19 +5,14 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'java'
 apply plugin: 'elasticsearch.java'
-
-description = 'Fixture for MinIO Storage service'
 
 configurations.all {
   transitive = false
 }
 
 dependencies {
-  api project(':test:framework')
-  api project(':test:fixtures:test-container-utils')
+  testImplementation project(':test:framework')
   api "junit:junit:${versions.junit}"
   api "org.testcontainers:testcontainers:${versions.testcontainer}"
   implementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"

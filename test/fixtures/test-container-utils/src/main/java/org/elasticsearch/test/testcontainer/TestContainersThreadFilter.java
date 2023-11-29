@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.test.fixtures.testcontainers;
+package org.elasticsearch.test.testcontainer;
 
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 

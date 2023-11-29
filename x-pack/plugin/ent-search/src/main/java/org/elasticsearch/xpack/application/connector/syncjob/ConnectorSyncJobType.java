@@ -21,7 +21,7 @@ public enum ConnectorSyncJobType {
             }
         }
 
-        return null;
+        throw new IllegalArgumentException("Unknown sync job type '" + syncJobTypeString + "'.");
     }
 
     @Override

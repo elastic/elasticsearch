@@ -137,7 +137,7 @@ public class Processors implements Writeable, Comparable<Processors>, ToXContent
     }
 
     private static boolean validNumberOfProcessors(double processors) {
-        return Double.isFinite(processors) && processors > 0.0;
+        return Double.isFinite(processors) && processors >= 0.0;
     }
 
     public boolean hasDecimals() {

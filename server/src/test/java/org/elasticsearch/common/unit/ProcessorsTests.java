@@ -74,6 +74,7 @@ public class ProcessorsTests extends ESTestCase {
     }
 
     public void testValidation() {
+        Processors.of(0.0);  // Should not throw an exception.
         expectThrows(IllegalArgumentException.class, () -> Processors.of(-1.0));
         expectThrows(IllegalArgumentException.class, () -> Processors.of(Double.POSITIVE_INFINITY));
         expectThrows(IllegalArgumentException.class, () -> Processors.of(Double.NEGATIVE_INFINITY));

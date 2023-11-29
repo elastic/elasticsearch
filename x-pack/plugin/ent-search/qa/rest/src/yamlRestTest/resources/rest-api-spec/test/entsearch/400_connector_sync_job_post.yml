@@ -52,3 +52,23 @@ setup:
           job_type: full
           trigger_method: on_demand
       catch: missing
+
+---
+'Create connector sync job with invalid job type':
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: invalid_job_type
+          trigger_method: on_demand
+      catch: bad_request
+
+---
+'Create connector sync job with invalid trigger method':
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: invalid_trigger_method
+      catch: bad_request

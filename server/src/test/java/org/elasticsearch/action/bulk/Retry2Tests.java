@@ -79,19 +79,19 @@ public class Retry2Tests extends ESTestCase {
     }
 
     public void testRetryBacksOff() throws Exception {
-        BulkRequest bulkRequest = createBulkRequest();
-        Retry2 retry2 = new Retry2(CALLS_TO_FAIL);
-        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-        retry2.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, future);
-        BulkResponse response = future.actionGet();
+        try (BulkRequest bulkRequest = createBulkRequest()) {
+            Retry2 retry2 = new Retry2(CALLS_TO_FAIL);
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            retry2.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, future);
+            BulkResponse response = future.actionGet();
 
-        assertFalse(response.hasFailures());
-        assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
+            assertFalse(response.hasFailures());
+            assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
+        }
     }
 
     public void testRetryFailsAfterRetry() throws Exception {
-        BulkRequest bulkRequest = createBulkRequest();
-        try {
+        try (BulkRequest bulkRequest = createBulkRequest()) {
             Retry2 retry2 = new Retry2(CALLS_TO_FAIL - 1);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             retry2.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, future);
@@ -112,38 +112,40 @@ public class Retry2Tests extends ESTestCase {
 
     public void testRetryWithListener() throws Exception {
         AssertingListener listener = new AssertingListener();
-        BulkRequest bulkRequest = createBulkRequest();
-        Retry2 retry = new Retry2(CALLS_TO_FAIL);
-        retry.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, listener);
+        try (BulkRequest bulkRequest = createBulkRequest()) {
+            Retry2 retry = new Retry2(CALLS_TO_FAIL);
+            retry.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, listener);
 
-        listener.awaitCallbacksCalled();
-        listener.assertOnResponseCalled();
-        listener.assertResponseWithoutFailures();
-        listener.assertResponseWithNumberOfItems(bulkRequest.numberOfActions());
-        listener.assertOnFailureNeverCalled();
+            listener.awaitCallbacksCalled();
+            listener.assertOnResponseCalled();
+            listener.assertResponseWithoutFailures();
+            listener.assertResponseWithNumberOfItems(bulkRequest.numberOfActions());
+            listener.assertOnFailureNeverCalled();
+        }
     }
 
     public void testRetryWithListenerFailsAfterBacksOff() throws Exception {
         AssertingListener listener = new AssertingListener();
-        BulkRequest bulkRequest = createBulkRequest();
-        Retry2 retry = new Retry2(CALLS_TO_FAIL - 1);
-        retry.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, listener);
+        try (BulkRequest bulkRequest = createBulkRequest()) {
+            Retry2 retry = new Retry2(CALLS_TO_FAIL - 1);
+            retry.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, listener);
 
-        listener.awaitCallbacksCalled();
+            listener.awaitCallbacksCalled();
 
-        if (listener.lastFailure == null) {
-            /*
-             * If the last failure was an item failure we'll end up here.
-             */
-            listener.assertOnResponseCalled();
-            listener.assertResponseWithFailures();
-            listener.assertResponseWithNumberOfItems(bulkRequest.numberOfActions());
-        } else {
-            /*
-             * If the last failure was a rejection we'll end up here.
-             */
-            assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
-            assertThat(listener.lastFailure.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
+            if (listener.lastFailure == null) {
+                /*
+                 * If the last failure was an item failure we'll end up here.
+                 */
+                listener.assertOnResponseCalled();
+                listener.assertResponseWithFailures();
+                listener.assertResponseWithNumberOfItems(bulkRequest.numberOfActions());
+            } else {
+                /*
+                 * If the last failure was a rejection we'll end up here.
+                 */
+                assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
+                assertThat(listener.lastFailure.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
+            }
         }
     }
 
@@ -155,11 +157,12 @@ public class Retry2Tests extends ESTestCase {
             Retry2 retry = new Retry2(CALLS_TO_FAIL);
             retry.awaitClose(200, TimeUnit.MILLISECONDS);
             AssertingListener listener = new AssertingListener();
-            BulkRequest bulkRequest = createBulkRequest();
-            retry.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, listener);
-            listener.awaitCallbacksCalled();
-            assertNotNull(listener.lastFailure);
-            assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
+            try (BulkRequest bulkRequest = createBulkRequest()) {
+                retry.consumeRequestWithRetries(bulkClient::bulk, bulkRequest, listener);
+                listener.awaitCallbacksCalled();
+                assertNotNull(listener.lastFailure);
+                assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
+            }
         }
         /*
          * awaitClose() returns without exception if all requests complete quickly, whether they were successes or failures
@@ -167,19 +170,20 @@ public class Retry2Tests extends ESTestCase {
         {
             Retry2 retry = new Retry2(CALLS_TO_FAIL);
             List<AssertingListener> listeners = new ArrayList<>();
-            BulkRequest bulkRequest = createBulkRequest();
-            for (int i = 0; i < randomIntBetween(1, 100); i++) {
-                AssertingListener listener = new AssertingListener();
-                listeners.add(listener);
-                retry.consumeRequestWithRetries((bulkRequest1, listener1) -> {
-                    if (randomBoolean()) {
-                        listener1.onResponse(new BulkResponse(new BulkItemResponse[0], 5));
-                    } else {
-                        listener1.onFailure(new RuntimeException("Some failure"));
-                    }
-                }, bulkRequest, listener);
+            try (BulkRequest bulkRequest = createBulkRequest()) {
+                for (int i = 0; i < randomIntBetween(1, 100); i++) {
+                    AssertingListener listener = new AssertingListener();
+                    listeners.add(listener);
+                    retry.consumeRequestWithRetries((bulkRequest1, listener1) -> {
+                        if (randomBoolean()) {
+                            listener1.onResponse(new BulkResponse(new BulkItemResponse[0], 5));
+                        } else {
+                            listener1.onFailure(new RuntimeException("Some failure"));
+                        }
+                    }, bulkRequest, listener);
+                }
+                retry.awaitClose(1, TimeUnit.SECONDS);
             }
-            retry.awaitClose(1, TimeUnit.SECONDS);
         }
         /*
          * Most requests are complete but one request is hung so awaitClose ought to wait the full timeout period
@@ -187,34 +191,35 @@ public class Retry2Tests extends ESTestCase {
         {
             Retry2 retry = new Retry2(CALLS_TO_FAIL);
             List<AssertingListener> listeners = new ArrayList<>();
-            BulkRequest bulkRequest = createBulkRequest();
-            for (int i = 0; i < randomIntBetween(0, 100); i++) {
+            try (BulkRequest bulkRequest = createBulkRequest()) {
+                for (int i = 0; i < randomIntBetween(0, 100); i++) {
+                    AssertingListener listener = new AssertingListener();
+                    listeners.add(listener);
+                    retry.consumeRequestWithRetries((bulkRequest1, listener1) -> {
+                        if (randomBoolean()) {
+                            listener1.onResponse(new BulkResponse(new BulkItemResponse[0], 5));
+                        } else {
+                            listener1.onFailure(new RuntimeException("Some failure"));
+                        }
+                    }, bulkRequest, listener);
+                }
+                for (AssertingListener listener : listeners) {
+                    listener.awaitCallbacksCalled();
+                }
                 AssertingListener listener = new AssertingListener();
-                listeners.add(listener);
                 retry.consumeRequestWithRetries((bulkRequest1, listener1) -> {
-                    if (randomBoolean()) {
-                        listener1.onResponse(new BulkResponse(new BulkItemResponse[0], 5));
-                    } else {
-                        listener1.onFailure(new RuntimeException("Some failure"));
-                    }
+                    // never calls onResponse or onFailure
                 }, bulkRequest, listener);
+                long waitTimeMillis = randomLongBetween(20, 200);
+                // Make sure that awaitClose completes without exception, and takes at least waitTimeMillis
+                long startTimeNanos = System.nanoTime();
+                retry.awaitClose(waitTimeMillis, TimeUnit.MILLISECONDS);
+                long stopTimeNanos = System.nanoTime();
+                long runtimeMillis = TimeValue.timeValueNanos((stopTimeNanos - startTimeNanos)).millis();
+                assertThat(runtimeMillis, greaterThanOrEqualTo(waitTimeMillis));
+                // A sanity check that it didn't take an extremely long time to complete:
+                assertThat(runtimeMillis, lessThanOrEqualTo(TimeValue.timeValueSeconds(1).millis()));
             }
-            for (AssertingListener listener : listeners) {
-                listener.awaitCallbacksCalled();
-            }
-            AssertingListener listener = new AssertingListener();
-            retry.consumeRequestWithRetries((bulkRequest1, listener1) -> {
-                // never calls onResponse or onFailure
-            }, bulkRequest, listener);
-            long waitTimeMillis = randomLongBetween(20, 200);
-            // Make sure that awaitClose completes without exception, and takes at least waitTimeMillis
-            long startTimeNanos = System.nanoTime();
-            retry.awaitClose(waitTimeMillis, TimeUnit.MILLISECONDS);
-            long stopTimeNanos = System.nanoTime();
-            long runtimeMillis = TimeValue.timeValueNanos((stopTimeNanos - startTimeNanos)).millis();
-            assertThat(runtimeMillis, greaterThanOrEqualTo(waitTimeMillis));
-            // A sanity check that it didn't take an extremely long time to complete:
-            assertThat(runtimeMillis, lessThanOrEqualTo(TimeValue.timeValueSeconds(1).millis()));
         }
     }
 

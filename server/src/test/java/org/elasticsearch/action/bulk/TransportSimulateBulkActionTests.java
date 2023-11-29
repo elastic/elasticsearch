@@ -129,78 +129,79 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
 
     public void testIndexData() {
         Task task = mock(Task.class); // unused
-        BulkRequest bulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null);
-        int bulkItemCount = randomIntBetween(0, 200);
-        for (int i = 0; i < bulkItemCount; i++) {
-            Map<String, ?> source = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(5));
-            IndexRequest indexRequest = new IndexRequest(randomAlphaOfLength(10)).id(randomAlphaOfLength(10)).source(source);
-            for (int j = 0; j < randomIntBetween(0, 10); j++) {
-                indexRequest.addPipeline(randomAlphaOfLength(12));
+        try (BulkRequest bulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null)) {
+            int bulkItemCount = randomIntBetween(0, 200);
+            for (int i = 0; i < bulkItemCount; i++) {
+                Map<String, ?> source = Map.of(randomAlphaOfLength(10), randomAlphaOfLength(5));
+                IndexRequest indexRequest = new IndexRequest(randomAlphaOfLength(10)).id(randomAlphaOfLength(10)).source(source);
+                for (int j = 0; j < randomIntBetween(0, 10); j++) {
+                    indexRequest.addPipeline(randomAlphaOfLength(12));
+                }
+                bulkRequest.add();
             }
-            bulkRequest.add();
-        }
-        AtomicBoolean onResponseCalled = new AtomicBoolean(false);
-        ActionListener<BulkResponse> listener = new ActionListener<>() {
-            @Override
-            public void onResponse(BulkResponse response) {
-                onResponseCalled.set(true);
-                BulkItemResponse[] responseItems = response.getItems();
-                assertThat(responseItems.length, equalTo(bulkRequest.requests().size()));
-                for (int i = 0; i < responseItems.length; i++) {
-                    BulkItemResponse responseItem = responseItems[i];
-                    IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(i);
-                    assertNull(responseItem.getFailure());
-                    assertThat(responseItem.getResponse(), instanceOf(SimulateIndexResponse.class));
-                    SimulateIndexResponse simulateIndexResponse = responseItem.getResponse();
-                    assertThat(simulateIndexResponse.getIndex(), equalTo(indexRequest.index()));
-                    /*
-                     * SimulateIndexResponse doesn't have an equals() method, and most of its state is private. So we check that
-                     * its toXContent method produces the expected output.
-                     */
-                    String output = Strings.toString(simulateIndexResponse);
-                    try {
-                        assertEquals(
-                            XContentHelper.stripWhitespace(
-                                Strings.format(
-                                    """
-                                        {
-                                          "_index": "%s",
-                                          "_source": %s,
-                                          "executed_pipelines": [%s]
-                                        }""",
-                                    indexRequest.index(),
-                                    indexRequest.source(),
-                                    indexRequest.getExecutedPipelines()
-                                        .stream()
-                                        .map(pipeline -> "\"" + pipeline + "\"")
-                                        .collect(Collectors.joining(","))
-                                )
-                            ),
-                            output
-                        );
-                    } catch (IOException e) {
-                        fail(e);
+            AtomicBoolean onResponseCalled = new AtomicBoolean(false);
+            ActionListener<BulkResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(BulkResponse response) {
+                    onResponseCalled.set(true);
+                    BulkItemResponse[] responseItems = response.getItems();
+                    assertThat(responseItems.length, equalTo(bulkRequest.requests().size()));
+                    for (int i = 0; i < responseItems.length; i++) {
+                        BulkItemResponse responseItem = responseItems[i];
+                        IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(i);
+                        assertNull(responseItem.getFailure());
+                        assertThat(responseItem.getResponse(), instanceOf(SimulateIndexResponse.class));
+                        SimulateIndexResponse simulateIndexResponse = responseItem.getResponse();
+                        assertThat(simulateIndexResponse.getIndex(), equalTo(indexRequest.index()));
+                        /*
+                         * SimulateIndexResponse doesn't have an equals() method, and most of its state is private. So we check that
+                         * its toXContent method produces the expected output.
+                         */
+                        String output = Strings.toString(simulateIndexResponse);
+                        try {
+                            assertEquals(
+                                XContentHelper.stripWhitespace(
+                                    Strings.format(
+                                        """
+                                            {
+                                              "_index": "%s",
+                                              "_source": %s,
+                                              "executed_pipelines": [%s]
+                                            }""",
+                                        indexRequest.index(),
+                                        indexRequest.source(),
+                                        indexRequest.getExecutedPipelines()
+                                            .stream()
+                                            .map(pipeline -> "\"" + pipeline + "\"")
+                                            .collect(Collectors.joining(","))
+                                    )
+                                ),
+                                output
+                            );
+                        } catch (IOException e) {
+                            fail(e);
+                        }
                     }
                 }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                fail(e, "Unexpected error");
-            }
-        };
-        Set<String> autoCreateIndices = Set.of(); // unused
-        Map<String, IndexNotFoundException> indicesThatCannotBeCreated = Map.of(); // unused
-        long startTime = 0;
-        bulkAction.createMissingIndicesAndIndexData(
-            task,
-            bulkRequest,
-            randomAlphaOfLength(10),
-            listener,
-            autoCreateIndices,
-            indicesThatCannotBeCreated,
-            startTime
-        );
-        assertThat(onResponseCalled.get(), equalTo(true));
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e, "Unexpected error");
+                }
+            };
+            Set<String> autoCreateIndices = Set.of(); // unused
+            Map<String, IndexNotFoundException> indicesThatCannotBeCreated = Map.of(); // unused
+            long startTime = 0;
+            bulkAction.createMissingIndicesAndIndexData(
+                task,
+                bulkRequest,
+                randomAlphaOfLength(10),
+                listener,
+                autoCreateIndices,
+                indicesThatCannotBeCreated,
+                startTime
+            );
+            assertThat(onResponseCalled.get(), equalTo(true));
+        }
     }
 }

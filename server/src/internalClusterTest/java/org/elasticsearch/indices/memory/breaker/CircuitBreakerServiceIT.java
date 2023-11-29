@@ -366,33 +366,34 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
         // we use the limit size as a (very) rough indication on how many requests we should sent to hit the limit
         int numRequests = inFlightRequestsLimit.bytesAsInt();
-        BulkRequest bulkRequest = new BulkRequest();
-        for (int i = 0; i < numRequests; i++) {
-            IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i));
-            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "num", i);
-            bulkRequest.add(indexRequest);
-        }
-
-        updateClusterSettings(
-            Settings.builder()
-                .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), inFlightRequestsLimit)
-        );
-
-        // can either fail directly with an exception or the response contains exceptions (depending on client)
-        try {
-            BulkResponse response = client.bulk(bulkRequest).actionGet();
-            if (response.hasFailures() == false) {
-                fail("Should have thrown CircuitBreakingException");
-            } else {
-                // each item must have failed with CircuitBreakingException
-                for (BulkItemResponse bulkItemResponse : response) {
-                    Throwable cause = ExceptionsHelper.unwrapCause(bulkItemResponse.getFailure().getCause());
-                    assertThat(cause, instanceOf(CircuitBreakingException.class));
-                    assertEquals(((CircuitBreakingException) cause).getByteLimit(), inFlightRequestsLimit.getBytes());
-                }
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            for (int i = 0; i < numRequests; i++) {
+                IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i));
+                indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "num", i);
+                bulkRequest.add(indexRequest);
             }
-        } catch (CircuitBreakingException ex) {
-            assertEquals(ex.getByteLimit(), inFlightRequestsLimit.getBytes());
+
+            updateClusterSettings(
+                Settings.builder()
+                    .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), inFlightRequestsLimit)
+            );
+
+            // can either fail directly with an exception or the response contains exceptions (depending on client)
+            try {
+                BulkResponse response = client.bulk(bulkRequest).actionGet();
+                if (response.hasFailures() == false) {
+                    fail("Should have thrown CircuitBreakingException");
+                } else {
+                    // each item must have failed with CircuitBreakingException
+                    for (BulkItemResponse bulkItemResponse : response) {
+                        Throwable cause = ExceptionsHelper.unwrapCause(bulkItemResponse.getFailure().getCause());
+                        assertThat(cause, instanceOf(CircuitBreakingException.class));
+                        assertEquals(((CircuitBreakingException) cause).getByteLimit(), inFlightRequestsLimit.getBytes());
+                    }
+                }
+            } catch (CircuitBreakingException ex) {
+                assertEquals(ex.getByteLimit(), inFlightRequestsLimit.getBytes());
+            }
         }
     }
 

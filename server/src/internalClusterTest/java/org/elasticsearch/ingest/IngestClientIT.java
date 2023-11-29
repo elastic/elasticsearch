@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -140,31 +141,32 @@ public class IngestClientIT extends ESIntegTestCase {
         clusterAdmin().putPipeline(putPipelineRequest).get();
 
         int numRequests = scaledRandomIntBetween(32, 128);
-        BulkRequest bulkRequest = new BulkRequest();
-        for (int i = 0; i < numRequests; i++) {
-            IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i)).setPipeline("_id");
-            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", i % 2 == 0);
-            bulkRequest.add(indexRequest);
-        }
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            for (int i = 0; i < numRequests; i++) {
+                IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i)).setPipeline("_id");
+                indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", i % 2 == 0);
+                bulkRequest.add(indexRequest);
+            }
 
-        BulkResponse response = client().bulk(bulkRequest).actionGet();
-        assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
-        for (int i = 0; i < bulkRequest.requests().size(); i++) {
-            BulkItemResponse itemResponse = response.getItems()[i];
-            if (i % 2 == 0) {
-                BulkItemResponse.Failure failure = itemResponse.getFailure();
-                ElasticsearchException compoundProcessorException = (ElasticsearchException) failure.getCause();
-                assertThat(compoundProcessorException.getRootCause().getMessage(), equalTo("test processor failed"));
-            } else {
-                IndexResponse indexResponse = itemResponse.getResponse();
-                assertThat(
-                    "Expected a successful response but found failure [" + itemResponse.getFailure() + "].",
-                    itemResponse.isFailed(),
-                    is(false)
-                );
-                assertThat(indexResponse, notNullValue());
-                assertThat(indexResponse.getId(), equalTo(Integer.toString(i)));
-                assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+            BulkResponse response = client().bulk(bulkRequest).actionGet();
+            assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
+            for (int i = 0; i < bulkRequest.requests().size(); i++) {
+                BulkItemResponse itemResponse = response.getItems()[i];
+                if (i % 2 == 0) {
+                    BulkItemResponse.Failure failure = itemResponse.getFailure();
+                    ElasticsearchException compoundProcessorException = (ElasticsearchException) failure.getCause();
+                    assertThat(compoundProcessorException.getRootCause().getMessage(), equalTo("test processor failed"));
+                } else {
+                    IndexResponse indexResponse = itemResponse.getResponse();
+                    assertThat(
+                        "Expected a successful response but found failure [" + itemResponse.getFailure() + "].",
+                        itemResponse.isFailed(),
+                        is(false)
+                    );
+                    assertThat(indexResponse, notNullValue());
+                    assertThat(indexResponse.getId(), equalTo(Integer.toString(i)));
+                    assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+                }
             }
         }
 
@@ -190,24 +192,25 @@ public class IngestClientIT extends ESIntegTestCase {
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         clusterAdmin().putPipeline(putPipelineRequest).get();
 
-        BulkRequest bulkRequest = new BulkRequest();
-        IndexRequest indexRequest = new IndexRequest("index").id("1").setPipeline("_id");
-        indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "val1");
-        bulkRequest.add(indexRequest);
-        UpdateRequest updateRequest = new UpdateRequest("index", "2");
-        updateRequest.doc("{}", Requests.INDEX_CONTENT_TYPE);
-        updateRequest.upsert("{\"field1\":\"upserted_val\"}", XContentType.JSON).upsertRequest().setPipeline("_id");
-        bulkRequest.add(updateRequest);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            IndexRequest indexRequest = new IndexRequest("index").id("1").setPipeline("_id");
+            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "val1");
+            bulkRequest.add(indexRequest);
+            UpdateRequest updateRequest = new UpdateRequest("index", "2");
+            updateRequest.doc("{}", Requests.INDEX_CONTENT_TYPE);
+            updateRequest.upsert("{\"field1\":\"upserted_val\"}", XContentType.JSON).upsertRequest().setPipeline("_id");
+            bulkRequest.add(updateRequest);
 
-        BulkResponse response = client().bulk(bulkRequest).actionGet();
+            BulkResponse response = client().bulk(bulkRequest).actionGet();
 
-        assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
-        Map<String, Object> inserted = client().prepareGet("index", "1").get().getSourceAsMap();
-        assertThat(inserted.get("field1"), equalTo("val1"));
-        assertThat(inserted.get("processed"), equalTo(true));
-        Map<String, Object> upserted = client().prepareGet("index", "2").get().getSourceAsMap();
-        assertThat(upserted.get("field1"), equalTo("upserted_val"));
-        assertThat(upserted.get("processed"), equalTo(true));
+            assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
+            Map<String, Object> inserted = client().prepareGet("index", "1").get().getSourceAsMap();
+            assertThat(inserted.get("field1"), equalTo("val1"));
+            assertThat(inserted.get("processed"), equalTo(true));
+            Map<String, Object> upserted = client().prepareGet("index", "2").get().getSourceAsMap();
+            assertThat(upserted.get("field1"), equalTo("upserted_val"));
+            assertThat(upserted.get("processed"), equalTo(true));
+        }
     }
 
     public void test() throws Exception {
@@ -236,9 +239,10 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(doc.get("field"), equalTo("value"));
         assertThat(doc.get("processed"), equalTo(true));
 
-        client().prepareBulk()
-            .add(client().prepareIndex("test").setId("2").setSource("field", "value2", "fail", false).setPipeline("_id"))
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("field", "value2", "fail", false).setPipeline("_id"))
+                .get();
+        }
         doc = client().prepareGet("test", "2").get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value2"));
         assertThat(doc.get("processed"), equalTo(true));
@@ -289,12 +293,13 @@ public class IngestClientIT extends ESIntegTestCase {
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         clusterAdmin().putPipeline(putPipelineRequest).get();
 
-        BulkItemResponse item = client(masterOnlyNode).prepareBulk()
-            .add(client().prepareIndex("test").setSource("field", "value2", "drop", true).setPipeline("_id"))
-            .get()
-            .getItems()[0];
-        assertFalse(item.isFailed());
-        assertEquals("auto-generated", item.getResponse().getId());
+        try (BulkRequestBuilder bulkRequestBuilder = client(masterOnlyNode).prepareBulk()) {
+            BulkItemResponse item = bulkRequestBuilder.add(
+                client().prepareIndex("test").setSource("field", "value2", "drop", true).setPipeline("_id")
+            ).get().getItems()[0];
+            assertFalse(item.isFailed());
+            assertEquals("auto-generated", item.getResponse().getId());
+        }
     }
 
     public void testPipelineOriginHeader() throws Exception {

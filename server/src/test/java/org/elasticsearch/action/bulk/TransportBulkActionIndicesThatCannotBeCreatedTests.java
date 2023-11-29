@@ -48,40 +48,43 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
     private static final Consumer<String> noop = index -> {};
 
     public void testNonExceptional() {
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
-        bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
-        bulkRequest.add(new DeleteRequest(randomAlphaOfLength(5)));
-        bulkRequest.add(new UpdateRequest(randomAlphaOfLength(5), randomAlphaOfLength(5)));
-        // Test emulating that index can be auto-created
-        indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, index -> true, noop);
-        // Test emulating that index cannot be auto-created
-        indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, index -> false, noop);
-        // Test emulating auto_create_index=true with some indices already created.
-        indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, index -> randomBoolean(), noop);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
+            bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
+            bulkRequest.add(new DeleteRequest(randomAlphaOfLength(5)));
+            bulkRequest.add(new UpdateRequest(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+            // Test emulating that index can be auto-created
+            indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, index -> true, noop);
+            // Test emulating that index cannot be auto-created
+            indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, index -> false, noop);
+            // Test emulating auto_create_index=true with some indices already created.
+            indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, index -> randomBoolean(), noop);
+        }
     }
 
     public void testAllFail() {
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("no"));
-        bulkRequest.add(new IndexRequest("can't"));
-        bulkRequest.add(new DeleteRequest("do").version(0).versionType(VersionType.EXTERNAL));
-        bulkRequest.add(new UpdateRequest("nothin", randomAlphaOfLength(5)));
-        indicesThatCannotBeCreatedTestCase(Set.of("no", "can't", "do", "nothin"), bulkRequest, index -> true, index -> {
-            throw new IndexNotFoundException("Can't make it because I say so");
-        });
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(new IndexRequest("no"));
+            bulkRequest.add(new IndexRequest("can't"));
+            bulkRequest.add(new DeleteRequest("do").version(0).versionType(VersionType.EXTERNAL));
+            bulkRequest.add(new UpdateRequest("nothin", randomAlphaOfLength(5)));
+            indicesThatCannotBeCreatedTestCase(Set.of("no", "can't", "do", "nothin"), bulkRequest, index -> true, index -> {
+                throw new IndexNotFoundException("Can't make it because I say so");
+            });
+        }
     }
 
     public void testSomeFail() {
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("ok"));
-        bulkRequest.add(new IndexRequest("bad"));
-        // Emulate auto_create_index=-bad,+*
-        indicesThatCannotBeCreatedTestCase(Set.of("bad"), bulkRequest, index -> true, index -> {
-            if (index.equals("bad")) {
-                throw new IndexNotFoundException("Can't make it because I say so");
-            }
-        });
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(new IndexRequest("ok"));
+            bulkRequest.add(new IndexRequest("bad"));
+            // Emulate auto_create_index=-bad,+*
+            indicesThatCannotBeCreatedTestCase(Set.of("bad"), bulkRequest, index -> true, index -> {
+                if (index.equals("bad")) {
+                    throw new IndexNotFoundException("Can't make it because I say so");
+                }
+            });
+        }
     }
 
     private void indicesThatCannotBeCreatedTestCase(

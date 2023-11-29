@@ -46,6 +46,7 @@ public class RestBulkActionTests extends ESTestCase {
                     assertThat(request.requests(), hasSize(2));
                     UpdateRequest updateRequest = (UpdateRequest) request.requests().get(1);
                     assertThat(updateRequest.upsertRequest().getPipeline(), equalTo("timestamps"));
+                    listener.onResponse(null);
                 }
             };
             final Map<String, String> params = new HashMap<>();
@@ -78,6 +79,7 @@ public class RestBulkActionTests extends ESTestCase {
                     listExecutedPipelinesRequest1.set(indexRequest1.getListExecutedPipelines());
                     IndexRequest indexRequest2 = (IndexRequest) request.requests().get(1);
                     listExecutedPipelinesRequest2.set(indexRequest2.getListExecutedPipelines());
+                    listener.onResponse(null);
                 }
             };
             Map<String, String> params = new HashMap<>();

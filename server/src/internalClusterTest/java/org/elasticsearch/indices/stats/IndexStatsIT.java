@@ -1232,16 +1232,17 @@ public class IndexStatsIT extends ESIntegTestCase {
             prepareCreate(index).setSettings(settingsBuilder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1))
         );
         ensureGreen();
-        final BulkRequest request1 = new BulkRequest();
-        for (int i = 0; i < 20; ++i) {
-            request1.add(new IndexRequest(index).source(Collections.singletonMap("key", "value" + i)))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        }
-        BulkResponse bulkResponse = client().bulk(request1).get();
-        assertThat(bulkResponse.hasFailures(), equalTo(false));
-        assertThat(bulkResponse.getItems().length, equalTo(20));
-        for (BulkItemResponse bulkItemResponse : bulkResponse) {
-            assertThat(bulkItemResponse.getIndex(), equalTo(index));
+        try (BulkRequest request1 = new BulkRequest()) {
+            for (int i = 0; i < 20; ++i) {
+                request1.add(new IndexRequest(index).source(Collections.singletonMap("key", "value" + i)))
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            }
+            BulkResponse bulkResponse = client().bulk(request1).get();
+            assertThat(bulkResponse.hasFailures(), equalTo(false));
+            assertThat(bulkResponse.getItems().length, equalTo(20));
+            for (BulkItemResponse bulkItemResponse : bulkResponse) {
+                assertThat(bulkItemResponse.getIndex(), equalTo(index));
+            }
         }
         IndicesStatsResponse stats = indicesAdmin().prepareStats(index).setBulk(true).get();
 

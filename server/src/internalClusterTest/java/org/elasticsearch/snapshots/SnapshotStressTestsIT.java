@@ -1387,19 +1387,22 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                                     clusterHealthResponse.isTimedOut()
                                 );
 
-                                final BulkRequestBuilder bulkRequestBuilder = client().prepareBulk(indexName);
+                                try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk(indexName)) {
 
-                                logger.info("--> indexing [{}] docs into [{}]", docCount, indexName);
+                                    logger.info("--> indexing [{}] docs into [{}]", docCount, indexName);
 
-                                for (int i = 0; i < docCount; i++) {
-                                    bulkRequestBuilder.add(
-                                        new IndexRequest().source(
-                                            jsonBuilder().startObject().field("field-" + between(1, 5), randomAlphaOfLength(10)).endObject()
-                                        )
-                                    );
+                                    for (int i = 0; i < docCount; i++) {
+                                        bulkRequestBuilder.add(
+                                            new IndexRequest().source(
+                                                jsonBuilder().startObject()
+                                                    .field("field-" + between(1, 5), randomAlphaOfLength(10))
+                                                    .endObject()
+                                            )
+                                        );
+                                    }
+
+                                    bulkRequestBuilder.execute(bulkStep);
                                 }
-
-                                bulkRequestBuilder.execute(bulkStep);
                             }));
 
                             bulkStep.addListener(mustSucceed(bulkItemResponses -> {

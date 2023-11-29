@@ -62,26 +62,28 @@ public class BulkRejectionIT extends ESIntegTestCase {
         final String index = "test";
         assertAcked(prepareCreate(index));
         ensureGreen();
-        final BulkRequest request1 = new BulkRequest();
-        for (int i = 0; i < 500; ++i) {
-            request1.add(new IndexRequest(index).source(Collections.singletonMap("key" + i, "value" + i)))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        try (BulkRequest request1 = new BulkRequest()) {
+            for (int i = 0; i < 500; ++i) {
+                request1.add(new IndexRequest(index).source(Collections.singletonMap("key" + i, "value" + i)))
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            }
+            // Huge request to keep the write pool busy so that requests waiting on a mapping update in the other bulk request get rejected
+            // by the write pool
+            try (BulkRequest request2 = new BulkRequest()) {
+                for (int i = 0; i < 10_000; ++i) {
+                    request2.add(new IndexRequest(index).source(Collections.singletonMap("key", "valuea" + i)))
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                }
+                final ActionFuture<BulkResponse> bulkFuture1 = client().bulk(request1);
+                final ActionFuture<BulkResponse> bulkFuture2 = client().bulk(request2);
+                try {
+                    bulkFuture1.actionGet();
+                    bulkFuture2.actionGet();
+                } catch (EsRejectedExecutionException e) {
+                    // ignored, one of the two bulk requests was rejected outright due to the write queue being full
+                }
+                internalCluster().assertSeqNos();
+            }
         }
-        // Huge request to keep the write pool busy so that requests waiting on a mapping update in the other bulk request get rejected
-        // by the write pool
-        final BulkRequest request2 = new BulkRequest();
-        for (int i = 0; i < 10_000; ++i) {
-            request2.add(new IndexRequest(index).source(Collections.singletonMap("key", "valuea" + i)))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        }
-        final ActionFuture<BulkResponse> bulkFuture1 = client().bulk(request1);
-        final ActionFuture<BulkResponse> bulkFuture2 = client().bulk(request2);
-        try {
-            bulkFuture1.actionGet();
-            bulkFuture2.actionGet();
-        } catch (EsRejectedExecutionException e) {
-            // ignored, one of the two bulk requests was rejected outright due to the write queue being full
-        }
-        internalCluster().assertSeqNos();
     }
 }

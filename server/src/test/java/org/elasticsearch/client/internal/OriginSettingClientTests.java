@@ -43,12 +43,16 @@ public class OriginSettingClientTests extends ESTestCase {
 
             final var client = new OriginSettingClient(mock, origin);
             // All of these should have the origin set
-            client.bulk(new BulkRequest());
+            try (BulkRequest bulkRequest = new BulkRequest()) {
+                client.bulk(bulkRequest);
+            }
             client.search(new SearchRequest());
             client.clearScroll(new ClearScrollRequest());
 
             ThreadContext threadContext = client.threadPool().getThreadContext();
-            client.bulk(new BulkRequest(), listenerThatAssertsOriginNotSet(threadContext));
+            try (BulkRequest bulkRequest = new BulkRequest()) {
+                client.bulk(bulkRequest, listenerThatAssertsOriginNotSet(threadContext));
+            }
             client.search(new SearchRequest(), listenerThatAssertsOriginNotSet(threadContext));
             client.clearScroll(new ClearScrollRequest(), listenerThatAssertsOriginNotSet(threadContext));
         }

@@ -87,18 +87,19 @@ public class ExceptionRetryIT extends ESIntegTestCase {
                 );
         }
 
-        BulkRequestBuilder bulkBuilder = client.prepareBulk();
-        for (int i = 0; i < numDocs; i++) {
-            XContentBuilder doc = null;
-            doc = jsonBuilder().startObject().field("foo", "bar").endObject();
-            bulkBuilder.add(client.prepareIndex("index").setSource(doc));
-        }
+        try (BulkRequestBuilder bulkBuilder = client.prepareBulk()) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = null;
+                doc = jsonBuilder().startObject().field("foo", "bar").endObject();
+                bulkBuilder.add(client.prepareIndex("index").setSource(doc));
+            }
 
-        BulkResponse response = bulkBuilder.get();
-        if (response.hasFailures()) {
-            for (BulkItemResponse singleIndexRespons : response.getItems()) {
-                if (singleIndexRespons.isFailed()) {
-                    fail("None of the bulk items should fail but got " + singleIndexRespons.getFailureMessage());
+            BulkResponse response = bulkBuilder.get();
+            if (response.hasFailures()) {
+                for (BulkItemResponse singleIndexRespons : response.getItems()) {
+                    if (singleIndexRespons.isFailed()) {
+                        fail("None of the bulk items should fail but got " + singleIndexRespons.getFailureMessage());
+                    }
                 }
             }
         }

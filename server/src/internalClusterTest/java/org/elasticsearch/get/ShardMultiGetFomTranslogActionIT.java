@@ -62,88 +62,89 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
         // There hasn't been any switches from unsafe to safe map
         assertThat(response.segmentGeneration(), equalTo(-1L));
 
-        var bulkRequest = client().prepareBulk();
-        var idsToIndex = randomSubsetOf(2, mgetIds);
-        for (String id : idsToIndex) {
-            bulkRequest.add(new IndexRequest("test").id(id).source("field1", "value1"));
-        }
-        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
-        var bulkResponse = bulkRequest.get();
-        assertNoFailures(bulkResponse);
-        response = getFromTranslog(indexOrAlias(), mgetIds);
-        multiGetShardResponse = response.multiGetShardResponse();
-        assertThat(getLocations(multiGetShardResponse).size(), equalTo(3));
-        assertThat(getFailures(multiGetShardResponse).size(), equalTo(3));
-        assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
-        var getResponses = getResponses(multiGetShardResponse);
-        assertThat(getResponses.size(), equalTo(3));
-        for (int location = 0; location < mgetIds.size(); location++) {
-            var id = mgetIds.get(location);
-            var getResponse = getResponses.get(location);
-            if (idsToIndex.contains(id)) {
-                assertNotNull(getResponse);
-                assertThat(getResponse.getId(), equalTo(id));
-                var bulkResponseForId = Arrays.stream(bulkResponse.getItems()).filter(r -> r.getId().equals(id)).toList();
-                assertThat(bulkResponseForId.size(), equalTo(1));
-                assertThat(getResponse.getVersion(), equalTo(bulkResponseForId.get(0).getVersion()));
-            } else {
-                assertNull(getResponse);
+        try (var bulkRequest = client().prepareBulk()) {
+            var idsToIndex = randomSubsetOf(2, mgetIds);
+            for (String id : idsToIndex) {
+                bulkRequest.add(new IndexRequest("test").id(id).source("field1", "value1"));
             }
-        }
-        assertThat(response.segmentGeneration(), equalTo(-1L));
-        // Get followed by a Delete should still return a result
-        var idToDelete = randomFrom(idsToIndex);
-        client().prepareDelete("test", idToDelete).get();
-        response = getFromTranslog(indexOrAlias(), idsToIndex);
-        multiGetShardResponse = response.multiGetShardResponse();
-        assertThat(getLocations(multiGetShardResponse).size(), equalTo(2));
-        assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
-        getResponses = getResponses(multiGetShardResponse);
-        assertThat(getResponses.size(), equalTo(2));
-        assertTrue(getResponses.stream().allMatch(Objects::nonNull));
-        for (var getResponse : getResponses) {
-            var shouldExist = getResponse.getId().equals(idToDelete) ? false : true;
-            assertThat(getResponse.isExists(), equalTo(shouldExist));
-        }
-        assertThat(response.segmentGeneration(), equalTo(-1L));
+            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+            response = getFromTranslog(indexOrAlias(), mgetIds);
+            multiGetShardResponse = response.multiGetShardResponse();
+            assertThat(getLocations(multiGetShardResponse).size(), equalTo(3));
+            assertThat(getFailures(multiGetShardResponse).size(), equalTo(3));
+            assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
+            var getResponses = getResponses(multiGetShardResponse);
+            assertThat(getResponses.size(), equalTo(3));
+            for (int location = 0; location < mgetIds.size(); location++) {
+                var id = mgetIds.get(location);
+                var getResponse = getResponses.get(location);
+                if (idsToIndex.contains(id)) {
+                    assertNotNull(getResponse);
+                    assertThat(getResponse.getId(), equalTo(id));
+                    var bulkResponseForId = Arrays.stream(bulkResponse.getItems()).filter(r -> r.getId().equals(id)).toList();
+                    assertThat(bulkResponseForId.size(), equalTo(1));
+                    assertThat(getResponse.getVersion(), equalTo(bulkResponseForId.get(0).getVersion()));
+                } else {
+                    assertNull(getResponse);
+                }
+            }
+            assertThat(response.segmentGeneration(), equalTo(-1L));
+            // Get followed by a Delete should still return a result
+            var idToDelete = randomFrom(idsToIndex);
+            client().prepareDelete("test", idToDelete).get();
+            response = getFromTranslog(indexOrAlias(), idsToIndex);
+            multiGetShardResponse = response.multiGetShardResponse();
+            assertThat(getLocations(multiGetShardResponse).size(), equalTo(2));
+            assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
+            getResponses = getResponses(multiGetShardResponse);
+            assertThat(getResponses.size(), equalTo(2));
+            assertTrue(getResponses.stream().allMatch(Objects::nonNull));
+            for (var getResponse : getResponses) {
+                var shouldExist = getResponse.getId().equals(idToDelete) ? false : true;
+                assertThat(getResponse.isExists(), equalTo(shouldExist));
+            }
+            assertThat(response.segmentGeneration(), equalTo(-1L));
 
-        indexResponse = client().prepareIndex("test").setSource("field1", "value2").get();
-        response = getFromTranslog(indexOrAlias(), List.of(indexResponse.getId()));
-        multiGetShardResponse = response.multiGetShardResponse();
-        assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));
-        assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
-        getResponses = getResponses(multiGetShardResponse);
-        assertThat(getResponses.size(), equalTo(1));
-        assertNotNull(getResponses.get(0));
-        assertThat(getResponses.get(0).getId(), equalTo(indexResponse.getId()));
-        assertThat(getResponses.get(0).getVersion(), equalTo(indexResponse.getVersion()));
-        assertThat(response.segmentGeneration(), equalTo(-1L));
-        // After a refresh we should not be able to get from translog
-        refresh("test");
-        response = getFromTranslog(indexOrAlias(), List.of(indexResponse.getId()));
-        multiGetShardResponse = response.multiGetShardResponse();
-        assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));
-        assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
-        assertTrue(
-            "after a refresh we should not be able to get from translog",
-            getResponses(multiGetShardResponse).stream().allMatch(Objects::isNull)
-        );
-        assertThat(response.segmentGeneration(), equalTo(-1L));
-        // After two refreshes the LiveVersionMap switches back to append-only and stops tracking IDs
-        // Refreshing with empty LiveVersionMap doesn't cause the switch, see {@link LiveVersionMap.Maps#shouldInheritSafeAccess()}.
-        client().prepareIndex("test").setSource("field1", "value3").get();
-        refresh("test");
-        refresh("test");
-        // An optimized index operation marks the maps as unsafe
-        client().prepareIndex("test").setSource("field1", "value4").get();
-        response = getFromTranslog(indexOrAlias(), List.of("non-existent"));
-        multiGetShardResponse = response.multiGetShardResponse();
-        assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));
-        assertThat(getFailures(multiGetShardResponse).size(), equalTo(1));
-        assertNull(getFailures(multiGetShardResponse).get(0));
-        assertThat(getResponses(multiGetShardResponse).size(), equalTo(1));
-        assertNull(getResponses(multiGetShardResponse).get(0));
-        assertThat(response.segmentGeneration(), greaterThan(0L));
+            indexResponse = client().prepareIndex("test").setSource("field1", "value2").get();
+            response = getFromTranslog(indexOrAlias(), List.of(indexResponse.getId()));
+            multiGetShardResponse = response.multiGetShardResponse();
+            assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));
+            assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
+            getResponses = getResponses(multiGetShardResponse);
+            assertThat(getResponses.size(), equalTo(1));
+            assertNotNull(getResponses.get(0));
+            assertThat(getResponses.get(0).getId(), equalTo(indexResponse.getId()));
+            assertThat(getResponses.get(0).getVersion(), equalTo(indexResponse.getVersion()));
+            assertThat(response.segmentGeneration(), equalTo(-1L));
+            // After a refresh we should not be able to get from translog
+            refresh("test");
+            response = getFromTranslog(indexOrAlias(), List.of(indexResponse.getId()));
+            multiGetShardResponse = response.multiGetShardResponse();
+            assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));
+            assertTrue(getFailures(multiGetShardResponse).stream().allMatch(Objects::isNull));
+            assertTrue(
+                "after a refresh we should not be able to get from translog",
+                getResponses(multiGetShardResponse).stream().allMatch(Objects::isNull)
+            );
+            assertThat(response.segmentGeneration(), equalTo(-1L));
+            // After two refreshes the LiveVersionMap switches back to append-only and stops tracking IDs
+            // Refreshing with empty LiveVersionMap doesn't cause the switch, see {@link LiveVersionMap.Maps#shouldInheritSafeAccess()}.
+            client().prepareIndex("test").setSource("field1", "value3").get();
+            refresh("test");
+            refresh("test");
+            // An optimized index operation marks the maps as unsafe
+            client().prepareIndex("test").setSource("field1", "value4").get();
+            response = getFromTranslog(indexOrAlias(), List.of("non-existent"));
+            multiGetShardResponse = response.multiGetShardResponse();
+            assertThat(getLocations(multiGetShardResponse).size(), equalTo(1));
+            assertThat(getFailures(multiGetShardResponse).size(), equalTo(1));
+            assertNull(getFailures(multiGetShardResponse).get(0));
+            assertThat(getResponses(multiGetShardResponse).size(), equalTo(1));
+            assertNull(getResponses(multiGetShardResponse).get(0));
+            assertThat(response.segmentGeneration(), greaterThan(0L));
+        }
     }
 
     private TransportShardMultiGetFomTranslogAction.Response getFromTranslog(String index, List<String> ids) throws Exception {

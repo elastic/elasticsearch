@@ -34,24 +34,25 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
         logger.info("Starting rounds [{}] ", rounds);
         for (int i = 0; i < rounds; ++i) {
             final int numDocs = scaledRandomIntBetween(100, 1000);
-            BulkRequestBuilder request = client().prepareBulk();
-            for (int j = 0; j < numDocs; ++j) {
-                request.add(
-                    new IndexRequest("test").id(Long.toString(id++))
-                        .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
+            try (BulkRequestBuilder request = client().prepareBulk()) {
+                for (int j = 0; j < numDocs; ++j) {
+                    request.add(
+                        new IndexRequest("test").id(Long.toString(id++))
+                            .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
+                    );
+                }
+                BulkResponse response = request.execute().actionGet();
+                refresh();
+                assertNoFailures(response);
+                IndicesStatsResponse stats = indicesAdmin().prepareStats("test").setSegments(true).setMerge(true).get();
+                logger.info(
+                    "index round [{}] - segments {}, total merges {}, current merge {}",
+                    i,
+                    stats.getPrimaries().getSegments().getCount(),
+                    stats.getPrimaries().getMerge().getTotal(),
+                    stats.getPrimaries().getMerge().getCurrent()
                 );
             }
-            BulkResponse response = request.execute().actionGet();
-            refresh();
-            assertNoFailures(response);
-            IndicesStatsResponse stats = indicesAdmin().prepareStats("test").setSegments(true).setMerge(true).get();
-            logger.info(
-                "index round [{}] - segments {}, total merges {}, current merge {}",
-                i,
-                stats.getPrimaries().getSegments().getCount(),
-                stats.getPrimaries().getMerge().getTotal(),
-                stats.getPrimaries().getMerge().getCurrent()
-            );
         }
         final long upperNumberSegments = 2 * numOfShards * 10;
 

@@ -45,6 +45,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -2082,14 +2083,23 @@ public class FieldSortIT extends ESIntegTestCase {
                 .setMapping("long_field", "type=long")
         );
 
-        BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        for (int i = 1; i <= 7000; i++) {
-            if (i % 3500 == 0) {
-                bulkBuilder.get();
-                bulkBuilder = client().prepareBulk();
+        Set<BulkRequestBuilder> toClose = new HashSet<>();
+        try {
+            BulkRequestBuilder bulkBuilder = client().prepareBulk();
+            toClose.add(bulkBuilder);
+            for (int i = 1; i <= 7000; i++) {
+                if (i % 3500 == 0) {
+                    bulkBuilder.get();
+                    bulkBuilder = client().prepareBulk();
+                    toClose.add(bulkBuilder);
+                }
+                String source = "{\"long_field\":" + randomLong() + "}";
+                bulkBuilder.add(client().prepareIndex("test1").setId(Integer.toString(i)).setSource(source, XContentType.JSON));
             }
-            String source = "{\"long_field\":" + randomLong() + "}";
-            bulkBuilder.add(client().prepareIndex("test1").setId(Integer.toString(i)).setSource(source, XContentType.JSON));
+        } finally {
+            for (BulkRequestBuilder bulkRequestBuilder : toClose) {
+                bulkRequestBuilder.close();
+            }
         }
         refresh();
 

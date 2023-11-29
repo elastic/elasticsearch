@@ -166,25 +166,31 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 .setTimeout(timeout)
         );
 
-        BulkRequestBuilder bulkRequestBuilder = clientToMasterlessNode.prepareBulk();
-        bulkRequestBuilder.add(
-            clientToMasterlessNode.prepareIndex("test").setId("1").setSource(XContentFactory.jsonBuilder().startObject().endObject())
-        );
-        bulkRequestBuilder.add(
-            clientToMasterlessNode.prepareIndex("test").setId("2").setSource(XContentFactory.jsonBuilder().startObject().endObject())
-        );
-        bulkRequestBuilder.setTimeout(timeout);
-        checkWriteAction(bulkRequestBuilder);
+        try (BulkRequestBuilder bulkRequestBuilder = clientToMasterlessNode.prepareBulk()) {
+            bulkRequestBuilder.add(
+                clientToMasterlessNode.prepareIndex("test").setId("1").setSource(XContentFactory.jsonBuilder().startObject().endObject())
+            );
+            bulkRequestBuilder.add(
+                clientToMasterlessNode.prepareIndex("test").setId("2").setSource(XContentFactory.jsonBuilder().startObject().endObject())
+            );
+            bulkRequestBuilder.setTimeout(timeout);
+            checkWriteAction(bulkRequestBuilder);
+        }
 
-        bulkRequestBuilder = clientToMasterlessNode.prepareBulk();
-        bulkRequestBuilder.add(
-            clientToMasterlessNode.prepareIndex("no_index").setId("1").setSource(XContentFactory.jsonBuilder().startObject().endObject())
-        );
-        bulkRequestBuilder.add(
-            clientToMasterlessNode.prepareIndex("no_index").setId("2").setSource(XContentFactory.jsonBuilder().startObject().endObject())
-        );
-        bulkRequestBuilder.setTimeout(timeout);
-        checkWriteAction(bulkRequestBuilder);
+        try (BulkRequestBuilder bulkRequestBuilder = clientToMasterlessNode.prepareBulk()) {
+            bulkRequestBuilder.add(
+                clientToMasterlessNode.prepareIndex("no_index")
+                    .setId("1")
+                    .setSource(XContentFactory.jsonBuilder().startObject().endObject())
+            );
+            bulkRequestBuilder.add(
+                clientToMasterlessNode.prepareIndex("no_index")
+                    .setId("2")
+                    .setSource(XContentFactory.jsonBuilder().startObject().endObject())
+            );
+            bulkRequestBuilder.setTimeout(timeout);
+            checkWriteAction(bulkRequestBuilder);
+        }
 
         internalCluster().clearDisruptionScheme(true);
     }

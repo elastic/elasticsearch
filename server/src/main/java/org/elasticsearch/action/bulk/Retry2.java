@@ -194,7 +194,13 @@ class Retry2 {
                     );
                     addResponses(bulkItemResponses, (r -> r.isFailed() == false));
                     BulkRequest retryRequest = createBulkRequestForRetry(bulkItemResponses);
-                    retry(retryRequest, responsesAccumulator, consumer, listener, retriesRemaining);
+                    retry(
+                        retryRequest,
+                        responsesAccumulator,
+                        consumer,
+                        ActionListener.releaseAfter(listener, retryRequest),
+                        retriesRemaining
+                    );
                 } else {
                     logger.trace(
                         "Got a response in {} with {} items including failures, cannot retry",

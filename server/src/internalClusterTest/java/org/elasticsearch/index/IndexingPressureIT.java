@@ -102,256 +102,269 @@ public class IndexingPressureIT extends ESIntegTestCase {
         final ThreadPool replicaThreadPool = replicaTransportService.getThreadPool();
         final Releasable replicaRelease = blockReplicas(replicaThreadPool);
 
-        final BulkRequest bulkRequest = new BulkRequest();
-        long totalRequestSize = 0;
-        for (int i = 0; i < 80; ++i) {
-            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
-                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
-            totalRequestSize += request.ramBytesUsed();
-            assertTrue(request.ramBytesUsed() > request.source().length());
-            bulkRequest.add(request);
-        }
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            long totalRequestSize = 0;
+            for (int i = 0; i < 80; ++i) {
+                IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                    .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+                totalRequestSize += request.ramBytesUsed();
+                assertTrue(request.ramBytesUsed() > request.source().length());
+                bulkRequest.add(request);
+            }
 
-        final long bulkRequestSize = bulkRequest.ramBytesUsed();
-        final long bulkShardRequestSize = totalRequestSize;
-        final long bulkOps = bulkRequest.numberOfActions();
+            final long bulkRequestSize = bulkRequest.ramBytesUsed();
+            final long bulkShardRequestSize = totalRequestSize;
+            final long bulkOps = bulkRequest.numberOfActions();
 
-        try {
-            final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
-            replicationSendPointReached.await();
+            try {
+                final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
+                replicationSendPointReached.await();
 
-            IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
-            IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
-            IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
+                IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
+                IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
+                IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
 
-            assertThat(primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
-            assertThat(primaryWriteLimits.stats().getCurrentPrimaryBytes(), greaterThan(bulkShardRequestSize));
-            assertThat(primaryWriteLimits.stats().getCurrentPrimaryOps(), greaterThanOrEqualTo(bulkOps));
-            assertEquals(0, primaryWriteLimits.stats().getCurrentCoordinatingBytes());
-            assertEquals(0, primaryWriteLimits.stats().getCurrentCoordinatingOps());
-            assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaBytes());
-            assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaOps());
-
-            assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingBytes());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingOps());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryBytes());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryOps());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentReplicaBytes());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentReplicaOps());
-
-            assertEquals(bulkRequestSize, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(bulkRequestSize, coordinatingWriteLimits.stats().getCurrentCoordinatingBytes());
-            assertEquals(bulkOps, coordinatingWriteLimits.stats().getCurrentCoordinatingOps());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentPrimaryBytes());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentPrimaryOps());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaBytes());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaOps());
-
-            latchBlockingReplicationSend.countDown();
-
-            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
-                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
-            final BulkRequest secondBulkRequest = new BulkRequest();
-            secondBulkRequest.add(request);
-
-            /*
-             * Use the primary as the coordinating node this time.
-             * We never use the replica as the coordinating node because
-             * we try to go async immediately and the replica's thread
-             * pool is stuffed.
-             */
-            final ActionFuture<BulkResponse> secondFuture = client(primaryName).bulk(secondBulkRequest);
-
-            final long secondBulkRequestSize = secondBulkRequest.ramBytesUsed();
-            final long secondBulkShardRequestSize = request.ramBytesUsed();
-            final long secondBulkOps = secondBulkRequest.numberOfActions();
-
-            assertBusy(() -> {
-                assertThat(
-                    primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(),
-                    greaterThan(bulkShardRequestSize + secondBulkRequestSize)
-                );
-                assertEquals(secondBulkRequestSize, primaryWriteLimits.stats().getCurrentCoordinatingBytes());
-                assertEquals(secondBulkOps, primaryWriteLimits.stats().getCurrentCoordinatingOps());
-                assertThat(primaryWriteLimits.stats().getCurrentPrimaryBytes(), greaterThan(bulkShardRequestSize + secondBulkRequestSize));
-                assertThat(primaryWriteLimits.stats().getCurrentPrimaryOps(), equalTo(bulkOps + secondBulkOps));
+                assertThat(primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
+                assertThat(primaryWriteLimits.stats().getCurrentPrimaryBytes(), greaterThan(bulkShardRequestSize));
+                assertThat(primaryWriteLimits.stats().getCurrentPrimaryOps(), greaterThanOrEqualTo(bulkOps));
+                assertEquals(0, primaryWriteLimits.stats().getCurrentCoordinatingBytes());
+                assertEquals(0, primaryWriteLimits.stats().getCurrentCoordinatingOps());
+                assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaBytes());
+                assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaOps());
 
                 assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingBytes());
                 assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingOps());
                 assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryBytes());
                 assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryOps());
-            });
-            assertEquals(bulkRequestSize, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertBusy(
-                () -> assertThat(
-                    replicaWriteLimits.stats().getCurrentReplicaBytes(),
-                    greaterThan(bulkShardRequestSize + secondBulkShardRequestSize)
-                )
-            );
-            assertBusy(() -> assertThat(replicaWriteLimits.stats().getCurrentReplicaOps(), equalTo(bulkOps + secondBulkOps)));
+                assertEquals(0, replicaWriteLimits.stats().getCurrentReplicaBytes());
+                assertEquals(0, replicaWriteLimits.stats().getCurrentReplicaOps());
 
-            replicaRelease.close();
+                assertEquals(bulkRequestSize, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                assertEquals(bulkRequestSize, coordinatingWriteLimits.stats().getCurrentCoordinatingBytes());
+                assertEquals(bulkOps, coordinatingWriteLimits.stats().getCurrentCoordinatingOps());
+                assertEquals(0, coordinatingWriteLimits.stats().getCurrentPrimaryBytes());
+                assertEquals(0, coordinatingWriteLimits.stats().getCurrentPrimaryOps());
+                assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaBytes());
+                assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaOps());
 
-            successFuture.actionGet();
-            secondFuture.actionGet();
-
-            assertEquals(0, primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(0, primaryWriteLimits.stats().getCurrentCoordinatingBytes());
-            assertEquals(0, primaryWriteLimits.stats().getCurrentCoordinatingOps());
-            assertEquals(0, primaryWriteLimits.stats().getCurrentPrimaryBytes());
-            assertEquals(0, primaryWriteLimits.stats().getCurrentPrimaryOps());
-            assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaBytes());
-            assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaOps());
-
-            assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingBytes());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingOps());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryBytes());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryOps());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentReplicaBytes());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentReplicaOps());
-
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentCoordinatingBytes());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentCoordinatingOps());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentPrimaryBytes());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentPrimaryOps());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaBytes());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaOps());
-        } finally {
-            if (replicationSendPointReached.getCount() > 0) {
-                replicationSendPointReached.countDown();
-            }
-            replicaRelease.close();
-            if (latchBlockingReplicationSend.getCount() > 0) {
                 latchBlockingReplicationSend.countDown();
+
+                IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                    .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+                try (BulkRequest secondBulkRequest = new BulkRequest()) {
+                    secondBulkRequest.add(request);
+
+                    /*
+                     * Use the primary as the coordinating node this time.
+                     * We never use the replica as the coordinating node because
+                     * we try to go async immediately and the replica's thread
+                     * pool is stuffed.
+                     */
+                    final ActionFuture<BulkResponse> secondFuture = client(primaryName).bulk(secondBulkRequest);
+
+                    final long secondBulkRequestSize = secondBulkRequest.ramBytesUsed();
+                    final long secondBulkShardRequestSize = request.ramBytesUsed();
+                    final long secondBulkOps = secondBulkRequest.numberOfActions();
+
+                    assertBusy(() -> {
+                        assertThat(
+                            primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(),
+                            greaterThan(bulkShardRequestSize + secondBulkRequestSize)
+                        );
+                        assertEquals(secondBulkRequestSize, primaryWriteLimits.stats().getCurrentCoordinatingBytes());
+                        assertEquals(secondBulkOps, primaryWriteLimits.stats().getCurrentCoordinatingOps());
+                        assertThat(
+                            primaryWriteLimits.stats().getCurrentPrimaryBytes(),
+                            greaterThan(bulkShardRequestSize + secondBulkRequestSize)
+                        );
+                        assertThat(primaryWriteLimits.stats().getCurrentPrimaryOps(), equalTo(bulkOps + secondBulkOps));
+
+                        assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                        assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingBytes());
+                        assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingOps());
+                        assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryBytes());
+                        assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryOps());
+                    });
+                    assertEquals(bulkRequestSize, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertBusy(
+                        () -> assertThat(
+                            replicaWriteLimits.stats().getCurrentReplicaBytes(),
+                            greaterThan(bulkShardRequestSize + secondBulkShardRequestSize)
+                        )
+                    );
+                    assertBusy(() -> assertThat(replicaWriteLimits.stats().getCurrentReplicaOps(), equalTo(bulkOps + secondBulkOps)));
+
+                    replicaRelease.close();
+
+                    successFuture.actionGet();
+                    secondFuture.actionGet();
+
+                    assertEquals(0, primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertEquals(0, primaryWriteLimits.stats().getCurrentCoordinatingBytes());
+                    assertEquals(0, primaryWriteLimits.stats().getCurrentCoordinatingOps());
+                    assertEquals(0, primaryWriteLimits.stats().getCurrentPrimaryBytes());
+                    assertEquals(0, primaryWriteLimits.stats().getCurrentPrimaryOps());
+                    assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaBytes());
+                    assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaOps());
+
+                    assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingBytes());
+                    assertEquals(0, replicaWriteLimits.stats().getCurrentCoordinatingOps());
+                    assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryBytes());
+                    assertEquals(0, replicaWriteLimits.stats().getCurrentPrimaryOps());
+                    assertEquals(0, replicaWriteLimits.stats().getCurrentReplicaBytes());
+                    assertEquals(0, replicaWriteLimits.stats().getCurrentReplicaOps());
+
+                    assertEquals(0, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertEquals(0, coordinatingWriteLimits.stats().getCurrentCoordinatingBytes());
+                    assertEquals(0, coordinatingWriteLimits.stats().getCurrentCoordinatingOps());
+                    assertEquals(0, coordinatingWriteLimits.stats().getCurrentPrimaryBytes());
+                    assertEquals(0, coordinatingWriteLimits.stats().getCurrentPrimaryOps());
+                    assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaBytes());
+                    assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaOps());
+                }
+            } finally {
+                if (replicationSendPointReached.getCount() > 0) {
+                    replicationSendPointReached.countDown();
+                }
+                replicaRelease.close();
+                if (latchBlockingReplicationSend.getCount() > 0) {
+                    latchBlockingReplicationSend.countDown();
+                }
+                replicaRelease.close();
+                primaryTransportService.clearAllRules();
             }
-            replicaRelease.close();
-            primaryTransportService.clearAllRules();
         }
     }
 
     public void testWriteCanBeRejectedAtCoordinatingLevel() throws Exception {
-        final BulkRequest bulkRequest = new BulkRequest();
-        long totalRequestSize = 0;
-        for (int i = 0; i < 80; ++i) {
-            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
-                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
-            totalRequestSize += request.ramBytesUsed();
-            assertTrue(request.ramBytesUsed() > request.source().length());
-            bulkRequest.add(request);
-        }
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            long totalRequestSize = 0;
+            for (int i = 0; i < 80; ++i) {
+                IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                    .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+                totalRequestSize += request.ramBytesUsed();
+                assertTrue(request.ramBytesUsed() > request.source().length());
+                bulkRequest.add(request);
+            }
 
-        final long bulkRequestSize = bulkRequest.ramBytesUsed();
-        final long bulkShardRequestSize = totalRequestSize;
-        restartNodesWithSettings(
-            Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
-        );
+            final long bulkRequestSize = bulkRequest.ramBytesUsed();
+            final long bulkShardRequestSize = totalRequestSize;
+            restartNodesWithSettings(
+                Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
+            );
 
-        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
-        ensureGreen(INDEX_NAME);
+            assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
+            ensureGreen(INDEX_NAME);
 
-        Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
-        String primaryName = primaryReplicaNodeNames.v1();
-        String replicaName = primaryReplicaNodeNames.v2();
-        String coordinatingOnlyNode = getCoordinatingOnlyNode();
+            Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
+            String primaryName = primaryReplicaNodeNames.v1();
+            String replicaName = primaryReplicaNodeNames.v2();
+            String coordinatingOnlyNode = getCoordinatingOnlyNode();
 
-        final ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
-        try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
-            final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
+            final ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
+            try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
+                final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
 
-            IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
-            IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
-            IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
+                IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
+                IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
+                IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
 
-            assertBusy(() -> {
-                assertThat(primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
+                assertBusy(() -> {
+                    assertThat(
+                        primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(),
+                        greaterThan(bulkShardRequestSize)
+                    );
+                    assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaBytes());
+                    assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertThat(replicaWriteLimits.stats().getCurrentReplicaBytes(), greaterThan(bulkShardRequestSize));
+                    assertEquals(bulkRequestSize, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaBytes());
+                });
+
+                expectThrows(EsRejectedExecutionException.class, () -> {
+                    if (randomBoolean()) {
+                        client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
+                    } else if (randomBoolean()) {
+                        client(primaryName).bulk(bulkRequest).actionGet();
+                    } else {
+                        client(replicaName).bulk(bulkRequest).actionGet();
+                    }
+                });
+
+                replicaRelease.close();
+
+                successFuture.actionGet();
+
+                assertEquals(0, primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaBytes());
                 assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-                assertThat(replicaWriteLimits.stats().getCurrentReplicaBytes(), greaterThan(bulkShardRequestSize));
-                assertEquals(bulkRequestSize, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                assertEquals(0, replicaWriteLimits.stats().getCurrentReplicaBytes());
+                assertEquals(0, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaBytes());
-            });
-
-            expectThrows(EsRejectedExecutionException.class, () -> {
-                if (randomBoolean()) {
-                    client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
-                } else if (randomBoolean()) {
-                    client(primaryName).bulk(bulkRequest).actionGet();
-                } else {
-                    client(replicaName).bulk(bulkRequest).actionGet();
-                }
-            });
-
-            replicaRelease.close();
-
-            successFuture.actionGet();
-
-            assertEquals(0, primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaBytes());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentReplicaBytes());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaBytes());
+            }
         }
     }
 
     public void testWriteCanBeRejectedAtPrimaryLevel() throws Exception {
-        final BulkRequest bulkRequest = new BulkRequest();
-        long totalRequestSize = 0;
-        for (int i = 0; i < 80; ++i) {
-            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
-                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
-            totalRequestSize += request.ramBytesUsed();
-            assertTrue(request.ramBytesUsed() > request.source().length());
-            bulkRequest.add(request);
-        }
-        final long bulkShardRequestSize = totalRequestSize;
-        restartNodesWithSettings(
-            Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
-        );
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            long totalRequestSize = 0;
+            for (int i = 0; i < 80; ++i) {
+                IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                    .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+                totalRequestSize += request.ramBytesUsed();
+                assertTrue(request.ramBytesUsed() > request.source().length());
+                bulkRequest.add(request);
+            }
+            final long bulkShardRequestSize = totalRequestSize;
+            restartNodesWithSettings(
+                Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
+            );
 
-        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
-        ensureGreen(INDEX_NAME);
+            assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
+            ensureGreen(INDEX_NAME);
 
-        Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
-        String primaryName = primaryReplicaNodeNames.v1();
-        String replicaName = primaryReplicaNodeNames.v2();
-        String coordinatingOnlyNode = getCoordinatingOnlyNode();
+            Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
+            String primaryName = primaryReplicaNodeNames.v1();
+            String replicaName = primaryReplicaNodeNames.v2();
+            String coordinatingOnlyNode = getCoordinatingOnlyNode();
 
-        final ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
-        try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
-            final ActionFuture<BulkResponse> successFuture = client(primaryName).bulk(bulkRequest);
+            final ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
+            try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
+                final ActionFuture<BulkResponse> successFuture = client(primaryName).bulk(bulkRequest);
 
-            IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
-            IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
-            IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
+                IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
+                IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
+                IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
 
-            assertBusy(() -> {
-                assertThat(primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
+                assertBusy(() -> {
+                    assertThat(
+                        primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(),
+                        greaterThan(bulkShardRequestSize)
+                    );
+                    assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaBytes());
+                    assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertThat(replicaWriteLimits.stats().getCurrentReplicaBytes(), greaterThan(bulkShardRequestSize));
+                    assertEquals(0, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaBytes());
+                });
+
+                BulkResponse responses = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
+                assertTrue(responses.hasFailures());
+                assertThat(responses.getItems()[0].getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
+
+                replicaRelease.close();
+
+                successFuture.actionGet();
+
+                assertEquals(0, primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaBytes());
                 assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-                assertThat(replicaWriteLimits.stats().getCurrentReplicaBytes(), greaterThan(bulkShardRequestSize));
+                assertEquals(0, replicaWriteLimits.stats().getCurrentReplicaBytes());
                 assertEquals(0, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaBytes());
-            });
-
-            BulkResponse responses = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
-            assertTrue(responses.hasFailures());
-            assertThat(responses.getItems()[0].getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
-
-            replicaRelease.close();
-
-            successFuture.actionGet();
-
-            assertEquals(0, primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaBytes());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(0, replicaWriteLimits.stats().getCurrentReplicaBytes());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
-            assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaBytes());
+            }
         }
     }
 

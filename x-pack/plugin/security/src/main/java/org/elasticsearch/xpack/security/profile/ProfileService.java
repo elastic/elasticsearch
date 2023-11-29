@@ -708,23 +708,26 @@ public class ProfileService {
                 getActionOrigin(),
                 BulkAction.INSTANCE,
                 bulkRequest,
-                TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
-                    assert docId.equals(indexResponse.getId());
-                    final VersionedDocument versionedDocument = new VersionedDocument(
-                        profileDocument,
-                        indexResponse.getPrimaryTerm(),
-                        indexResponse.getSeqNo()
-                    );
-                    listener.onResponse(versionedDocument.toProfile(Set.of()));
-                }, e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                        // Document already exists with the specified ID, get the document with the ID
-                        // and check whether it is the right profile for the subject
-                        getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }))
+                ActionListener.releaseAfter(
+                    TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
+                        assert docId.equals(indexResponse.getId());
+                        final VersionedDocument versionedDocument = new VersionedDocument(
+                            profileDocument,
+                            indexResponse.getPrimaryTerm(),
+                            indexResponse.getSeqNo()
+                        );
+                        listener.onResponse(versionedDocument.toProfile(Set.of()));
+                    }, e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                            // Document already exists with the specified ID, get the document with the ID
+                            // and check whether it is the right profile for the subject
+                            getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    })),
+                    bulkRequest
+                )
             )
         );
     }

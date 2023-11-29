@@ -95,9 +95,10 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
         clusterAdmin().putPipeline(new PutPipelineRequest("pipeline1", pipeline1Reference, XContentType.JSON)).actionGet();
 
         // index a single document through the pipeline
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("index1").id("1").source("{}", XContentType.JSON).setPipeline("pipeline1"));
-        client().bulk(bulkRequest).actionGet();
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(new IndexRequest("index1").id("1").source("{}", XContentType.JSON).setPipeline("pipeline1"));
+            client().bulk(bulkRequest).actionGet();
+        }
 
         {
             NodesStatsResponse nodesStatsResponse = clusterAdmin().nodesStats(new NodesStatsRequest().addMetric("ingest")).actionGet();

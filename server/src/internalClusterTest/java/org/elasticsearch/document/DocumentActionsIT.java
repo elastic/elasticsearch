@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -180,69 +181,72 @@ public class DocumentActionsIT extends ESIntegTestCase {
         logger.info("-> running Cluster Health");
         ensureGreen();
 
-        BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex("test").setId("1").setSource(source("1", "test")))
-            .add(client().prepareIndex().setIndex("test").setId("2").setSource(source("2", "test")).setCreate(true))
-            .add(client().prepareIndex().setIndex("test").setSource(source("3", "test")))
-            .add(client().prepareIndex().setIndex("test").setCreate(true).setSource(source("4", "test")))
-            .add(client().prepareDelete().setIndex("test").setId("1"))
-            .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
-            .execute()
-            .actionGet();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulkResponse = bulkRequestBuilder.add(
+                client().prepareIndex().setIndex("test").setId("1").setSource(source("1", "test"))
+            )
+                .add(client().prepareIndex().setIndex("test").setId("2").setSource(source("2", "test")).setCreate(true))
+                .add(client().prepareIndex().setIndex("test").setSource(source("3", "test")))
+                .add(client().prepareIndex().setIndex("test").setCreate(true).setSource(source("4", "test")))
+                .add(client().prepareDelete().setIndex("test").setId("1"))
+                .add(client().prepareIndex().setIndex("test").setSource("{ xxx }", XContentType.JSON)) // failure
+                .execute()
+                .actionGet();
 
-        assertThat(bulkResponse.hasFailures(), equalTo(true));
-        assertThat(bulkResponse.getItems().length, equalTo(6));
+            assertThat(bulkResponse.hasFailures(), equalTo(true));
+            assertThat(bulkResponse.getItems().length, equalTo(6));
 
-        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[0].getOpType(), equalTo(OpType.INDEX));
-        assertThat(bulkResponse.getItems()[0].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.getItems()[0].getId(), equalTo("1"));
+            assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
+            assertThat(bulkResponse.getItems()[0].getOpType(), equalTo(OpType.INDEX));
+            assertThat(bulkResponse.getItems()[0].getIndex(), equalTo(getConcreteIndexName()));
+            assertThat(bulkResponse.getItems()[0].getId(), equalTo("1"));
 
-        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[1].getOpType(), equalTo(OpType.CREATE));
-        assertThat(bulkResponse.getItems()[1].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.getItems()[1].getId(), equalTo("2"));
+            assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
+            assertThat(bulkResponse.getItems()[1].getOpType(), equalTo(OpType.CREATE));
+            assertThat(bulkResponse.getItems()[1].getIndex(), equalTo(getConcreteIndexName()));
+            assertThat(bulkResponse.getItems()[1].getId(), equalTo("2"));
 
-        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[2].getOpType(), equalTo(OpType.INDEX));
-        assertThat(bulkResponse.getItems()[2].getIndex(), equalTo(getConcreteIndexName()));
-        String generatedId3 = bulkResponse.getItems()[2].getId();
+            assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
+            assertThat(bulkResponse.getItems()[2].getOpType(), equalTo(OpType.INDEX));
+            assertThat(bulkResponse.getItems()[2].getIndex(), equalTo(getConcreteIndexName()));
+            String generatedId3 = bulkResponse.getItems()[2].getId();
 
-        assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[3].getOpType(), equalTo(OpType.CREATE));
-        assertThat(bulkResponse.getItems()[3].getIndex(), equalTo(getConcreteIndexName()));
-        String generatedId4 = bulkResponse.getItems()[3].getId();
+            assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(false));
+            assertThat(bulkResponse.getItems()[3].getOpType(), equalTo(OpType.CREATE));
+            assertThat(bulkResponse.getItems()[3].getIndex(), equalTo(getConcreteIndexName()));
+            String generatedId4 = bulkResponse.getItems()[3].getId();
 
-        assertThat(bulkResponse.getItems()[4].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[4].getOpType(), equalTo(OpType.DELETE));
-        assertThat(bulkResponse.getItems()[4].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.getItems()[4].getId(), equalTo("1"));
+            assertThat(bulkResponse.getItems()[4].isFailed(), equalTo(false));
+            assertThat(bulkResponse.getItems()[4].getOpType(), equalTo(OpType.DELETE));
+            assertThat(bulkResponse.getItems()[4].getIndex(), equalTo(getConcreteIndexName()));
+            assertThat(bulkResponse.getItems()[4].getId(), equalTo("1"));
 
-        assertThat(bulkResponse.getItems()[5].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[5].getOpType(), equalTo(OpType.INDEX));
-        assertThat(bulkResponse.getItems()[5].getIndex(), equalTo(getConcreteIndexName()));
+            assertThat(bulkResponse.getItems()[5].isFailed(), equalTo(true));
+            assertThat(bulkResponse.getItems()[5].getOpType(), equalTo(OpType.INDEX));
+            assertThat(bulkResponse.getItems()[5].getIndex(), equalTo(getConcreteIndexName()));
 
-        waitForRelocation(ClusterHealthStatus.GREEN);
-        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().actionGet();
-        assertNoFailures(refreshResponse);
-        assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
+            waitForRelocation(ClusterHealthStatus.GREEN);
+            RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().actionGet();
+            assertNoFailures(refreshResponse);
+            assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
-        for (int i = 0; i < 5; i++) {
-            GetResponse getResult = client().get(new GetRequest("test").id("1")).actionGet();
-            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
-            assertThat("cycle #" + i, getResult.isExists(), equalTo(false));
+            for (int i = 0; i < 5; i++) {
+                GetResponse getResult = client().get(new GetRequest("test").id("1")).actionGet();
+                assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+                assertThat("cycle #" + i, getResult.isExists(), equalTo(false));
 
-            getResult = client().get(new GetRequest("test").id("2")).actionGet();
-            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("2", "test"))));
-            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+                getResult = client().get(new GetRequest("test").id("2")).actionGet();
+                assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("2", "test"))));
+                assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
 
-            getResult = client().get(new GetRequest("test").id(generatedId3)).actionGet();
-            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("3", "test"))));
-            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+                getResult = client().get(new GetRequest("test").id(generatedId3)).actionGet();
+                assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("3", "test"))));
+                assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
 
-            getResult = client().get(new GetRequest("test").id(generatedId4)).actionGet();
-            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("4", "test"))));
-            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+                getResult = client().get(new GetRequest("test").id(generatedId4)).actionGet();
+                assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("4", "test"))));
+                assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+            }
         }
     }
 

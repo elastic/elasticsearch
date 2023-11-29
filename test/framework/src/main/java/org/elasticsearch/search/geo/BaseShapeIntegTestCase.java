@@ -10,6 +10,7 @@ package org.elasticsearch.search.geo;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
@@ -435,10 +436,12 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         xContentBuilder.field("ignore_malformed", true).endObject().endObject().endObject().endObject();
 
         client().admin().indices().prepareCreate("countries").setSettings(settings).setMapping(xContentBuilder).get();
-        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, xContentBuilder.contentType()).get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulk = bulkRequestBuilder.add(bulkAction, 0, bulkAction.length, null, xContentBuilder.contentType()).get();
 
-        for (BulkItemResponse item : bulk.getItems()) {
-            assertFalse("unable to index data: " + item.getFailureMessage(), item.isFailed());
+            for (BulkItemResponse item : bulk.getItems()) {
+                assertFalse("unable to index data: " + item.getFailureMessage(), item.isFailed());
+            }
         }
 
         assertNoFailures(client().admin().indices().prepareRefresh().get());

@@ -279,30 +279,31 @@ public class IndicesRequestIT extends ESIntegTestCase {
         interceptTransportActions(bulkShardActions);
 
         List<String> indicesOrAliases = new ArrayList<>();
-        BulkRequest bulkRequest = new BulkRequest();
-        int numIndexRequests = iterations(1, 10);
-        for (int i = 0; i < numIndexRequests; i++) {
-            String indexOrAlias = randomIndexOrAlias();
-            bulkRequest.add(new IndexRequest(indexOrAlias).id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
-            indicesOrAliases.add(indexOrAlias);
-        }
-        int numDeleteRequests = iterations(1, 10);
-        for (int i = 0; i < numDeleteRequests; i++) {
-            String indexOrAlias = randomIndexOrAlias();
-            bulkRequest.add(new DeleteRequest(indexOrAlias).id("id"));
-            indicesOrAliases.add(indexOrAlias);
-        }
-        int numUpdateRequests = iterations(1, 10);
-        for (int i = 0; i < numUpdateRequests; i++) {
-            String indexOrAlias = randomIndexOrAlias();
-            bulkRequest.add(new UpdateRequest(indexOrAlias, "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1"));
-            indicesOrAliases.add(indexOrAlias);
-        }
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            int numIndexRequests = iterations(1, 10);
+            for (int i = 0; i < numIndexRequests; i++) {
+                String indexOrAlias = randomIndexOrAlias();
+                bulkRequest.add(new IndexRequest(indexOrAlias).id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
+                indicesOrAliases.add(indexOrAlias);
+            }
+            int numDeleteRequests = iterations(1, 10);
+            for (int i = 0; i < numDeleteRequests; i++) {
+                String indexOrAlias = randomIndexOrAlias();
+                bulkRequest.add(new DeleteRequest(indexOrAlias).id("id"));
+                indicesOrAliases.add(indexOrAlias);
+            }
+            int numUpdateRequests = iterations(1, 10);
+            for (int i = 0; i < numUpdateRequests; i++) {
+                String indexOrAlias = randomIndexOrAlias();
+                bulkRequest.add(new UpdateRequest(indexOrAlias, "id").doc(Requests.INDEX_CONTENT_TYPE, "field1", "value1"));
+                indicesOrAliases.add(indexOrAlias);
+            }
 
-        internalCluster().coordOnlyNodeClient().bulk(bulkRequest).actionGet();
+            internalCluster().coordOnlyNodeClient().bulk(bulkRequest).actionGet();
 
-        clearInterceptedActions();
-        assertIndicesSubset(indicesOrAliases, bulkShardActions);
+            clearInterceptedActions();
+            assertIndicesSubset(indicesOrAliases, bulkShardActions);
+        }
     }
 
     public void testGet() {

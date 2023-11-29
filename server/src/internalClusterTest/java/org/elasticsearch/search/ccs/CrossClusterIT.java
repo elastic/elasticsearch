@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -320,25 +321,26 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
             .prepareCreate("users")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
-        cluster("cluster_a").client()
-            .prepareBulk("users")
-            .add(new IndexRequest().id("a").source("name", "Remote A"))
-            .add(new IndexRequest().id("b").source("name", "Remote B"))
-            .add(new IndexRequest().id("c").source("name", "Remote C"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = cluster("cluster_a").client().prepareBulk("users")) {
+            bulkRequestBuilder.add(new IndexRequest().id("a").source("name", "Remote A"))
+                .add(new IndexRequest().id("b").source("name", "Remote B"))
+                .add(new IndexRequest().id("c").source("name", "Remote C"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
 
         client().admin()
             .indices()
             .prepareCreate("users")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
-        client().prepareBulk("users")
-            .add(new IndexRequest().id("a").source("name", "Local A"))
-            .add(new IndexRequest().id("b").source("name", "Local B"))
-            .add(new IndexRequest().id("c").source("name", "Local C"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("users")) {
+            bulkRequestBuilder.add(new IndexRequest().id("a").source("name", "Local A"))
+                .add(new IndexRequest().id("b").source("name", "Local B"))
+                .add(new IndexRequest().id("c").source("name", "Local C"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
 
         // Setup calls on the local cluster
         client().admin()
@@ -347,11 +349,12 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .setMapping("from_user", "type=keyword", "to_user", "type=keyword")
             .get();
-        client().prepareBulk("local_calls")
-            .add(new IndexRequest().source("from_user", "a", "to_user", List.of("b", "c"), "duration", 95))
-            .add(new IndexRequest().source("from_user", "a", "to_user", "b", "duration", 25))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("local_calls")) {
+            bulkRequestBuilder.add(new IndexRequest().source("from_user", "a", "to_user", List.of("b", "c"), "duration", 95))
+                .add(new IndexRequest().source("from_user", "a", "to_user", "b", "duration", 25))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
 
         // Setup calls on the remote cluster
         cluster("cluster_a").client()
@@ -361,13 +364,13 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .setMapping("from_user", "type=keyword", "to_user", "type=keyword")
             .get();
-        cluster("cluster_a").client()
-            .prepareBulk("remote_calls")
-            .add(new IndexRequest().source("from_user", "a", "to_user", "b", "duration", 45))
-            .add(new IndexRequest().source("from_user", "unknown_caller", "to_user", "c", "duration", 50))
-            .add(new IndexRequest().source("from_user", List.of("a", "b"), "to_user", "c", "duration", 60))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        try (BulkRequestBuilder bulkRequestBuilder = cluster("cluster_a").client().prepareBulk("remote_calls")) {
+            bulkRequestBuilder.add(new IndexRequest().source("from_user", "a", "to_user", "b", "duration", 45))
+                .add(new IndexRequest().source("from_user", "unknown_caller", "to_user", "c", "duration", 50))
+                .add(new IndexRequest().source("from_user", List.of("a", "b"), "to_user", "c", "duration", 60))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
 
         final String runtimeMappingSource = """
             {

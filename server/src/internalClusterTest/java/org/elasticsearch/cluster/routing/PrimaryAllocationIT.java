@@ -12,6 +12,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -90,25 +91,25 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex().setIndex("test").setId("1").setSource("field1", "value1"))
-            .add(client().prepareUpdate().setIndex("test").setId("1").setDoc("field2", "value2"))
-            .execute()
-            .actionGet();
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulkResponse = bulkRequestBuilder.add(
+                client().prepareIndex().setIndex("test").setId("1").setSource("field1", "value1")
+            ).add(client().prepareUpdate().setIndex("test").setId("1").setDoc("field2", "value2")).execute().actionGet();
 
-        assertThat(bulkResponse.hasFailures(), equalTo(false));
-        assertThat(bulkResponse.getItems().length, equalTo(2));
+            assertThat(bulkResponse.hasFailures(), equalTo(false));
+            assertThat(bulkResponse.getItems().length, equalTo(2));
 
-        logger.info(Strings.toString(bulkResponse, true, true));
+            logger.info(Strings.toString(bulkResponse, true, true));
 
-        internalCluster().assertSeqNos();
+            internalCluster().assertSeqNos();
 
-        assertThat(bulkResponse.getItems()[0].getResponse().getId(), equalTo("1"));
-        assertThat(bulkResponse.getItems()[0].getResponse().getVersion(), equalTo(1L));
-        assertThat(bulkResponse.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        assertThat(bulkResponse.getItems()[1].getResponse().getId(), equalTo("1"));
-        assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(2L));
-        assertThat(bulkResponse.getItems()[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
+            assertThat(bulkResponse.getItems()[0].getResponse().getId(), equalTo("1"));
+            assertThat(bulkResponse.getItems()[0].getResponse().getVersion(), equalTo(1L));
+            assertThat(bulkResponse.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(bulkResponse.getItems()[1].getResponse().getId(), equalTo("1"));
+            assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(2L));
+            assertThat(bulkResponse.getItems()[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
+        }
     }
 
     // returns data paths settings of in-sync shard copy

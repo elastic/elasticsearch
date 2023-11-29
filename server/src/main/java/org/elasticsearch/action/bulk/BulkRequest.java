@@ -25,10 +25,14 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -54,7 +58,8 @@ public class BulkRequest extends ActionRequest
         CompositeIndicesRequest,
         WriteRequest<BulkRequest>,
         Accountable,
-        RawIndexingDataTransportRequest {
+        RawIndexingDataTransportRequest,
+        Releasable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
@@ -78,7 +83,11 @@ public class BulkRequest extends ActionRequest
 
     private long sizeInBytes = 0;
 
-    public BulkRequest() {}
+    private RefCounted refCounted;
+
+    public BulkRequest() {
+        this.refCounted = LeakTracker.wrap(new BulkRequestRefCounted());
+    }
 
     public BulkRequest(StreamInput in) throws IOException {
         super(in);
@@ -86,10 +95,12 @@ public class BulkRequest extends ActionRequest
         requests.addAll(in.readCollectionAsList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
+        this.refCounted = LeakTracker.wrap(new BulkRequestRefCounted());
     }
 
     public BulkRequest(@Nullable String globalIndex) {
         this.globalIndex = globalIndex;
+        this.refCounted = LeakTracker.wrap(new BulkRequestRefCounted());
     }
 
     /**
@@ -456,5 +467,38 @@ public class BulkRequest extends ActionRequest
 
     public Set<String> getIndices() {
         return Collections.unmodifiableSet(indices);
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    @Override
+    public void close() {
+        decRef();
+    }
+
+    private static class BulkRequestRefCounted extends AbstractRefCounted {
+
+        @Override
+        protected void closeInternal() {
+            // nothing to close
+        }
     }
 }

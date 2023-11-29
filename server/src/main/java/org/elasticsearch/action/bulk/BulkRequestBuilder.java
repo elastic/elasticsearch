@@ -20,6 +20,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -27,7 +28,10 @@ import org.elasticsearch.xcontent.XContentType;
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
-public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse> implements WriteRequestBuilder<BulkRequestBuilder> {
+public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse>
+    implements
+        WriteRequestBuilder<BulkRequestBuilder>,
+        Releasable {
 
     public BulkRequestBuilder(ElasticsearchClient client, BulkAction action, @Nullable String globalIndex) {
         super(client, action, new BulkRequest(globalIndex));
@@ -153,5 +157,10 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     public BulkRequestBuilder routing(String globalRouting) {
         request.routing(globalRouting);
         return this;
+    }
+
+    @Override
+    public void close() {
+        request.close();
     }
 }

@@ -78,18 +78,18 @@ public class RetryTests extends ESTestCase {
     public void testRetryBacksOff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
 
-        BulkRequest bulkRequest = createBulkRequest();
-        BulkResponse response = new Retry(backoff, bulkClient.threadPool()).withBackoff(bulkClient::bulk, bulkRequest).actionGet();
+        try (BulkRequest bulkRequest = createBulkRequest()) {
+            BulkResponse response = new Retry(backoff, bulkClient.threadPool()).withBackoff(bulkClient::bulk, bulkRequest).actionGet();
 
-        assertFalse(response.hasFailures());
-        assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
+            assertFalse(response.hasFailures());
+            assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
+        }
     }
 
     public void testRetryFailsAfterBackoff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL - 1);
 
-        BulkRequest bulkRequest = createBulkRequest();
-        try {
+        try (BulkRequest bulkRequest = createBulkRequest()) {
             BulkResponse response = new Retry(backoff, bulkClient.threadPool()).withBackoff(bulkClient::bulk, bulkRequest).actionGet();
             /*
              * If the last failure was an item failure we'll end up here
@@ -102,47 +102,48 @@ public class RetryTests extends ESTestCase {
              */
             assertThat(e.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
         }
-
     }
 
     public void testRetryWithListenerBacksOff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
         AssertingListener listener = new AssertingListener();
 
-        BulkRequest bulkRequest = createBulkRequest();
-        Retry retry = new Retry(backoff, bulkClient.threadPool());
-        retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
+        try (BulkRequest bulkRequest = createBulkRequest()) {
+            Retry retry = new Retry(backoff, bulkClient.threadPool());
+            retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
-        listener.awaitCallbacksCalled();
-        listener.assertOnResponseCalled();
-        listener.assertResponseWithoutFailures();
-        listener.assertResponseWithNumberOfItems(bulkRequest.numberOfActions());
-        listener.assertOnFailureNeverCalled();
+            listener.awaitCallbacksCalled();
+            listener.assertOnResponseCalled();
+            listener.assertResponseWithoutFailures();
+            listener.assertResponseWithNumberOfItems(bulkRequest.numberOfActions());
+            listener.assertOnFailureNeverCalled();
+        }
     }
 
     public void testRetryWithListenerFailsAfterBacksOff() throws Exception {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL - 1);
         AssertingListener listener = new AssertingListener();
 
-        BulkRequest bulkRequest = createBulkRequest();
-        Retry retry = new Retry(backoff, bulkClient.threadPool());
-        retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
+        try (BulkRequest bulkRequest = createBulkRequest()) {
+            Retry retry = new Retry(backoff, bulkClient.threadPool());
+            retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
-        listener.awaitCallbacksCalled();
+            listener.awaitCallbacksCalled();
 
-        if (listener.lastFailure == null) {
-            /*
-             * If the last failure was an item failure we'll end up here.
-             */
-            listener.assertOnResponseCalled();
-            listener.assertResponseWithFailures();
-            listener.assertResponseWithNumberOfItems(bulkRequest.numberOfActions());
-        } else {
-            /*
-             * If the last failure was a rejection we'll end up here.
-             */
-            assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
-            assertThat(listener.lastFailure.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
+            if (listener.lastFailure == null) {
+                /*
+                 * If the last failure was an item failure we'll end up here.
+                 */
+                listener.assertOnResponseCalled();
+                listener.assertResponseWithFailures();
+                listener.assertResponseWithNumberOfItems(bulkRequest.numberOfActions());
+            } else {
+                /*
+                 * If the last failure was a rejection we'll end up here.
+                 */
+                assertThat(listener.lastFailure, instanceOf(EsRejectedExecutionException.class));
+                assertThat(listener.lastFailure.getMessage(), equalTo("pretend the coordinating thread pool is stuffed"));
+            }
         }
     }
 

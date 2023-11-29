@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -724,12 +725,14 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .get();
 
         client().prepareIndex("a1").setId("test").setSource("{}", XContentType.JSON).get();
-        BulkResponse response = client().prepareBulk().add(new IndexRequest("a2").id("test").source("{}", XContentType.JSON)).get();
-        assertThat(response.hasFailures(), is(false));
-        assertThat(response.getItems()[0].isFailed(), equalTo(false));
-        assertThat(response.getItems()[0].getIndex(), equalTo("a2"));
-        assertThat(response.getItems()[0].getId(), equalTo("test"));
-        assertThat(response.getItems()[0].getVersion(), equalTo(1L));
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse response = bulkRequestBuilder.add(new IndexRequest("a2").id("test").source("{}", XContentType.JSON)).get();
+            assertThat(response.hasFailures(), is(false));
+            assertThat(response.getItems()[0].isFailed(), equalTo(false));
+            assertThat(response.getItems()[0].getIndex(), equalTo("a2"));
+            assertThat(response.getItems()[0].getId(), equalTo("test"));
+            assertThat(response.getItems()[0].getVersion(), equalTo(1L));
+        }
 
         // Before 2.0 alias filters were parsed at alias creation time, in order
         // for filters to work correctly ES required that fields mentioned in those
@@ -741,11 +744,13 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // an index that doesn't exist yet will succeed
         client().prepareIndex("b1").setId("test").setSource("{}", XContentType.JSON).get();
 
-        response = client().prepareBulk().add(new IndexRequest("b2").id("test").source("{}", XContentType.JSON)).get();
-        assertThat(response.hasFailures(), is(false));
-        assertThat(response.getItems()[0].isFailed(), equalTo(false));
-        assertThat(response.getItems()[0].getId(), equalTo("test"));
-        assertThat(response.getItems()[0].getVersion(), equalTo(1L));
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse response = bulkRequestBuilder.add(new IndexRequest("b2").id("test").source("{}", XContentType.JSON)).get();
+            assertThat(response.hasFailures(), is(false));
+            assertThat(response.getItems()[0].isFailed(), equalTo(false));
+            assertThat(response.getItems()[0].getId(), equalTo("test"));
+            assertThat(response.getItems()[0].getVersion(), equalTo(1L));
+        }
     }
 
     public void testCombineTemplates() throws Exception {

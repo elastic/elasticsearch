@@ -30,31 +30,33 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         createIndex("willwork");
         clusterAdmin().prepareHealth("willwork").setWaitForGreenStatus().execute().actionGet();
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("wontwork").setId("2").setSource("{\"foo\":2}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("willwork").setId("3").setSource("{\"foo\":3}", XContentType.JSON));
-        BulkResponse br = bulkRequestBuilder.get();
-        BulkItemResponse[] responses = br.getItems();
-        assertEquals(3, responses.length);
-        assertFalse("Operation on existing index should succeed", responses[0].isFailed());
-        assertTrue("Missing index should have been flagged", responses[1].isFailed());
-        assertThat(
-            responses[1].getFailureMessage(),
-            equalTo(
-                "[wontwork] org.elasticsearch.index.IndexNotFoundException: no such index [wontwork]"
-                    + " and [action.auto_create_index] is [false]"
-            )
-        );
-        assertFalse("Operation on existing index should succeed", responses[2].isFailed());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.add(client().prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON));
+            bulkRequestBuilder.add(client().prepareIndex("wontwork").setId("2").setSource("{\"foo\":2}", XContentType.JSON));
+            bulkRequestBuilder.add(client().prepareIndex("willwork").setId("3").setSource("{\"foo\":3}", XContentType.JSON));
+            BulkResponse br = bulkRequestBuilder.get();
+            BulkItemResponse[] responses = br.getItems();
+            assertEquals(3, responses.length);
+            assertFalse("Operation on existing index should succeed", responses[0].isFailed());
+            assertTrue("Missing index should have been flagged", responses[1].isFailed());
+            assertThat(
+                responses[1].getFailureMessage(),
+                equalTo(
+                    "[wontwork] org.elasticsearch.index.IndexNotFoundException: no such index [wontwork]"
+                        + " and [action.auto_create_index] is [false]"
+                )
+            );
+            assertFalse("Operation on existing index should succeed", responses[2].isFailed());
+        }
     }
 
     public void testIndexWithDisabledAutoCreateIndex() {
         updateClusterSettings(Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("-*", "+.*")));
-        final BulkItemResponse itemResponse = client().prepareBulk()
-            .add(client().prepareIndex("test-index").setSource("foo", "bar"))
-            .get()
-            .getItems()[0];
-        assertThat(itemResponse.getFailure().getCause(), instanceOf(IndexNotFoundException.class));
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            final BulkItemResponse itemResponse = bulkRequestBuilder.add(client().prepareIndex("test-index").setSource("foo", "bar"))
+                .get()
+                .getItems()[0];
+            assertThat(itemResponse.getFailure().getCause(), instanceOf(IndexNotFoundException.class));
+        }
     }
 }

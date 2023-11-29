@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -83,10 +84,14 @@ public class DynamicMappingIT extends ESIntegTestCase {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");
         client().prepareIndex("index").setId("1").setSource("foo", 3).get();
-        BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("index").setId("1").setSource("foo", 3)).get();
-        assertFalse(bulkResponse.hasFailures());
-        bulkResponse = client().prepareBulk().add(client().prepareIndex("index").setId("2").setSource("foo", "bar")).get();
-        assertTrue(bulkResponse.hasFailures());
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulkResponse = bulkRequestBuilder.add(client().prepareIndex("index").setId("1").setSource("foo", 3)).get();
+            assertFalse(bulkResponse.hasFailures());
+        }
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            BulkResponse bulkResponse = bulkRequestBuilder.add(client().prepareIndex("index").setId("2").setSource("foo", "bar")).get();
+            assertTrue(bulkResponse.hasFailures());
+        }
     }
 
     private static void assertMappingsHaveField(GetMappingsResponse mappings, String index, String field) throws IOException {
@@ -366,10 +371,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
         requests.add(new IndexRequest("test").id("5").source("array_of_numbers", new double[] { -71.34, 41.12 }));
 
         Randomness.shuffle(requests);
-        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        requests.forEach(bulkRequest::add);
-        final BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertFalse(bulkResponse.hasFailures());
+        try (BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            requests.forEach(bulkRequest::add);
+            final BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+            assertFalse(bulkResponse.hasFailures());
+        }
 
         assertSearchHits(
             prepareSearch("test").setQuery(
@@ -418,27 +424,28 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
         mappings.endObject();
 
-        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        bulkRequest.add(
-            new IndexRequest("test").id("1")
-                .source(XContentFactory.jsonBuilder().startObject().field("my_location", "41.12,-71.34").endObject())
-                .setDynamicTemplates(Map.of("my_location", "foo_bar")),
-            new IndexRequest("test").id("2")
-                .source(XContentFactory.jsonBuilder().startObject().field("address.location", "41.12,-71.34").endObject())
-                .setDynamicTemplates(Map.of("address.location", "bar_foo"))
-        );
-        final BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
-        assertTrue(bulkItemResponses.hasFailures());
-        assertThat(bulkItemResponses.getItems()[0].getFailure().getCause(), instanceOf(DocumentParsingException.class));
-        assertThat(
-            bulkItemResponses.getItems()[0].getFailureMessage(),
-            containsString("Can't find dynamic template for dynamic template name [foo_bar] of field [my_location]")
-        );
-        assertThat(bulkItemResponses.getItems()[1].getFailure().getCause(), instanceOf(DocumentParsingException.class));
-        assertThat(
-            bulkItemResponses.getItems()[1].getFailureMessage(),
-            containsString("[1:21] Can't find dynamic template for dynamic template name [bar_foo] of field [address.location]")
-        );
+        try (BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            bulkRequest.add(
+                new IndexRequest("test").id("1")
+                    .source(XContentFactory.jsonBuilder().startObject().field("my_location", "41.12,-71.34").endObject())
+                    .setDynamicTemplates(Map.of("my_location", "foo_bar")),
+                new IndexRequest("test").id("2")
+                    .source(XContentFactory.jsonBuilder().startObject().field("address.location", "41.12,-71.34").endObject())
+                    .setDynamicTemplates(Map.of("address.location", "bar_foo"))
+            );
+            final BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
+            assertTrue(bulkItemResponses.hasFailures());
+            assertThat(bulkItemResponses.getItems()[0].getFailure().getCause(), instanceOf(DocumentParsingException.class));
+            assertThat(
+                bulkItemResponses.getItems()[0].getFailureMessage(),
+                containsString("Can't find dynamic template for dynamic template name [foo_bar] of field [my_location]")
+            );
+            assertThat(bulkItemResponses.getItems()[1].getFailure().getCause(), instanceOf(DocumentParsingException.class));
+            assertThat(
+                bulkItemResponses.getItems()[1].getFailureMessage(),
+                containsString("[1:21] Can't find dynamic template for dynamic template name [bar_foo] of field [address.location]")
+            );
+        }
     }
 
     public void testDynamicRuntimeNoConflicts() {
@@ -453,13 +460,14 @@ public class DynamicMappingIT extends ESIntegTestCase {
         docs.add(new IndexRequest("test").source("""
             {"one":{"two": { "three": "three"}}}""", XContentType.JSON));
         Collections.shuffle(docs, random());
-        BulkRequest bulkRequest = new BulkRequest();
-        for (IndexRequest doc : docs) {
-            bulkRequest.add(doc);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            for (IndexRequest doc : docs) {
+                bulkRequest.add(doc);
+            }
+            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
+            assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
         }
-        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
-        assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
         assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("one", "one")), 1);
         assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("one.two", 3.5)), 1);
@@ -492,13 +500,14 @@ public class DynamicMappingIT extends ESIntegTestCase {
         docs.add(new IndexRequest("test").source("""
             {"obj":{"runtime":{"one":{"two": 1}}}}""", XContentType.JSON));
         Collections.shuffle(docs, random());
-        BulkRequest bulkRequest = new BulkRequest();
-        for (IndexRequest doc : docs) {
-            bulkRequest.add(doc);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            for (IndexRequest doc : docs) {
+                bulkRequest.add(doc);
+            }
+            bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
+            assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
         }
-        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
-        assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
         assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("obj.one", 1)), 1);
         assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("anything", "anything")), 1);

@@ -80,13 +80,16 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         ensureGreen();
 
         int max = between(3, 10);
-        BulkRequestBuilder bulk = client().prepareBulk();
-        for (int i = 0; i < max; i++) {
-            bulk.add(
-                client().prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog")
-            );
+        try (BulkRequestBuilder bulk = client().prepareBulk()) {
+            for (int i = 0; i < max; i++) {
+                bulk.add(
+                    client().prepareIndex("test")
+                        .setId(Integer.toString(i))
+                        .setSource("text", "the quick brown fox jumped over the lazy dog")
+                );
+            }
+            bulk.get();
         }
-        bulk.get();
 
         TermVectorsRequest request = new TermVectorsRequest("test", "0").termStatistics(true);
 
@@ -121,13 +124,16 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         ensureGreen();
 
         int max = between(3, 10);
-        BulkRequestBuilder bulk = client().prepareBulk();
-        for (int i = 0; i < max; i++) {
-            bulk.add(
-                client().prepareIndex("test").setId(Integer.toString(i)).setSource("text", "the quick brown fox jumped over the lazy dog")
-            );
+        try (BulkRequestBuilder bulk = client().prepareBulk()) {
+            for (int i = 0; i < max; i++) {
+                bulk.add(
+                    client().prepareIndex("test")
+                        .setId(Integer.toString(i))
+                        .setSource("text", "the quick brown fox jumped over the lazy dog")
+                );
+            }
+            bulk.get();
         }
-        bulk.get();
 
         TermVectorsRequest request = new TermVectorsRequest("test", "0").termStatistics(true);
 

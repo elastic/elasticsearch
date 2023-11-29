@@ -1088,36 +1088,37 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final SetOnce<Boolean> failure = new SetOnce<>();
 
-        BulkRequest bulkRequest = new BulkRequest();
-        final IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
-            .source(Map.of())
-            .setPipeline("_none")
-            .setFinalPipeline("_none");
-        bulkRequest.add(indexRequest1);
-        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(Map.of()).setPipeline(id).setFinalPipeline("_none");
-        bulkRequest.add(indexRequest2);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            final IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+                .source(Map.of())
+                .setPipeline("_none")
+                .setFinalPipeline("_none");
+            bulkRequest.add(indexRequest1);
+            IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(Map.of()).setPipeline(id).setFinalPipeline("_none");
+            bulkRequest.add(indexRequest2);
 
-        final BiConsumer<Integer, Exception> failureHandler = (slot, e) -> {
-            assertThat(e.getCause(), instanceOf(IllegalStateException.class));
-            assertThat(e.getCause().getMessage(), equalTo("error"));
-            failure.set(true);
-            assertThat(slot, equalTo(1));
-        };
+            final BiConsumer<Integer, Exception> failureHandler = (slot, e) -> {
+                assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+                assertThat(e.getCause().getMessage(), equalTo("error"));
+                failure.set(true);
+                assertThat(slot, equalTo(1));
+            };
 
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+            @SuppressWarnings("unchecked")
+            final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
 
-        ingestService.executeBulkRequest(
-            bulkRequest.numberOfActions(),
-            bulkRequest.requests(),
-            indexReq -> {},
-            failureHandler,
-            completionHandler,
-            Names.WRITE
-        );
+            ingestService.executeBulkRequest(
+                bulkRequest.numberOfActions(),
+                bulkRequest.requests(),
+                indexReq -> {},
+                failureHandler,
+                completionHandler,
+                Names.WRITE
+            );
 
-        assertTrue(failure.get());
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+            assertTrue(failure.get());
+            verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        }
     }
 
     public void testExecuteBulkPipelineDoesNotExist() {
@@ -1135,34 +1136,40 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-        BulkRequest bulkRequest = new BulkRequest();
-
-        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("_none").setFinalPipeline("_none");
-        bulkRequest.add(indexRequest1);
-        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(Map.of()).setPipeline("_id").setFinalPipeline("_none");
-        bulkRequest.add(indexRequest2);
-        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3")
-            .source(Map.of())
-            .setPipeline("does_not_exist")
-            .setFinalPipeline("_none");
-        bulkRequest.add(indexRequest3);
-        @SuppressWarnings("unchecked")
-        BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(
-            bulkRequest.numberOfActions(),
-            bulkRequest.requests(),
-            indexReq -> {},
-            failureHandler,
-            completionHandler,
-            Names.WRITE
-        );
-        verify(failureHandler, times(1)).accept(
-            argThat(item -> item == 2),
-            argThat(iae -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage()))
-        );
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+                .source(Map.of())
+                .setPipeline("_none")
+                .setFinalPipeline("_none");
+            bulkRequest.add(indexRequest1);
+            IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
+                .source(Map.of())
+                .setPipeline("_id")
+                .setFinalPipeline("_none");
+            bulkRequest.add(indexRequest2);
+            IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3")
+                .source(Map.of())
+                .setPipeline("does_not_exist")
+                .setFinalPipeline("_none");
+            bulkRequest.add(indexRequest3);
+            @SuppressWarnings("unchecked")
+            BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
+            @SuppressWarnings("unchecked")
+            final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+            ingestService.executeBulkRequest(
+                bulkRequest.numberOfActions(),
+                bulkRequest.requests(),
+                indexReq -> {},
+                failureHandler,
+                completionHandler,
+                Names.WRITE
+            );
+            verify(failureHandler, times(1)).accept(
+                argThat(item -> item == 2),
+                argThat(iae -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage()))
+            );
+            verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        }
     }
 
     public void testExecuteBulkRequestCallsDocumentParsingObserver() {
@@ -1204,26 +1211,27 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-        BulkRequest bulkRequest = new BulkRequest();
-        UpdateRequest updateRequest = new UpdateRequest("_index", "_id1").upsert("{}", "{}");
-        updateRequest.upsertRequest().setPipeline("_id");
-        bulkRequest.add(updateRequest);
-        IndexRequest indexRequest = new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("_id1");
-        bulkRequest.add(indexRequest);
-        @SuppressWarnings("unchecked")
-        BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(
-            bulkRequest.numberOfActions(),
-            bulkRequest.requests(),
-            indexReq -> {},
-            failureHandler,
-            completionHandler,
-            Names.WRITE
-        );
-        assertThat(setNameCalledCount.get(), equalTo(2));
-        assertThat(closeCalled.get(), equalTo(2));
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            UpdateRequest updateRequest = new UpdateRequest("_index", "_id1").upsert("{}", "{}");
+            updateRequest.upsertRequest().setPipeline("_id");
+            bulkRequest.add(updateRequest);
+            IndexRequest indexRequest = new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("_id1");
+            bulkRequest.add(indexRequest);
+            @SuppressWarnings("unchecked")
+            BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
+            @SuppressWarnings("unchecked")
+            final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+            ingestService.executeBulkRequest(
+                bulkRequest.numberOfActions(),
+                bulkRequest.requests(),
+                indexReq -> {},
+                failureHandler,
+                completionHandler,
+                Names.WRITE
+            );
+            assertThat(setNameCalledCount.get(), equalTo(2));
+            assertThat(closeCalled.get(), equalTo(2));
+        }
     }
 
     public void testExecuteSuccess() {
@@ -1503,133 +1511,135 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testBulkRequestExecutionWithFailures() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest();
-        String pipelineId = "_id";
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            String pipelineId = "_id";
 
-        int numRequest = scaledRandomIntBetween(8, 64);
-        int numIndexRequests = 0;
-        for (int i = 0; i < numRequest; i++) {
-            DocWriteRequest<?> request;
-            if (randomBoolean()) {
+            int numRequest = scaledRandomIntBetween(8, 64);
+            int numIndexRequests = 0;
+            for (int i = 0; i < numRequest; i++) {
+                DocWriteRequest<?> request;
                 if (randomBoolean()) {
-                    request = new DeleteRequest("_index", "_id");
+                    if (randomBoolean()) {
+                        request = new DeleteRequest("_index", "_id");
+                    } else {
+                        request = new UpdateRequest("_index", "_id");
+                    }
                 } else {
-                    request = new UpdateRequest("_index", "_id");
+                    IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
+                    indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+                    request = indexRequest;
+                    numIndexRequests++;
                 }
-            } else {
-                IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
-                indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
-                request = indexRequest;
-                numIndexRequests++;
+                bulkRequest.add(request);
             }
-            bulkRequest.add(request);
-        }
 
-        CompoundProcessor processor = mock(CompoundProcessor.class);
-        when(processor.isAsync()).thenReturn(true);
-        when(processor.getProcessors()).thenReturn(List.of(mock(Processor.class)));
-        Exception error = new RuntimeException();
-        doAnswer(args -> {
+            CompoundProcessor processor = mock(CompoundProcessor.class);
+            when(processor.isAsync()).thenReturn(true);
+            when(processor.getProcessors()).thenReturn(List.of(mock(Processor.class)));
+            Exception error = new RuntimeException();
+            doAnswer(args -> {
+                @SuppressWarnings("unchecked")
+                BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
+                handler.accept(null, error);
+                return null;
+            }).when(processor).execute(any(), any());
+            IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
+            PutPipelineRequest putRequest = new PutPipelineRequest(
+                "_id",
+                new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+                XContentType.JSON
+            );
+            ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+            ClusterState previousClusterState = clusterState;
+            clusterState = executePut(putRequest, clusterState);
+            ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
             @SuppressWarnings("unchecked")
-            BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
-            handler.accept(null, error);
-            return null;
-        }).when(processor).execute(any(), any());
-        IngestService ingestService = createWithProcessors(Map.of("mock", (factories, tag, description, config) -> processor));
-        PutPipelineRequest putRequest = new PutPipelineRequest(
-            "_id",
-            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
-            XContentType.JSON
-        );
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
-        ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
-        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+            BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
+            @SuppressWarnings("unchecked")
+            final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+            ingestService.executeBulkRequest(
+                numRequest,
+                bulkRequest.requests(),
+                indexReq -> {},
+                requestItemErrorHandler,
+                completionHandler,
+                Names.WRITE
+            );
 
-        @SuppressWarnings("unchecked")
-        BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(
-            numRequest,
-            bulkRequest.requests(),
-            indexReq -> {},
-            requestItemErrorHandler,
-            completionHandler,
-            Names.WRITE
-        );
-
-        verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(e -> e.getCause().equals(error)));
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+            verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(e -> e.getCause().equals(error)));
+            verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        }
     }
 
     public void testBulkRequestExecution() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest();
-        String pipelineId = "_id";
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            String pipelineId = "_id";
 
-        // Test to make sure that ingest respects content types other than the default index content type
-        XContentType xContentType = randomFrom(
-            Arrays.stream(XContentType.values()).filter(t -> Requests.INDEX_CONTENT_TYPE.equals(t) == false).toList()
-        );
+            // Test to make sure that ingest respects content types other than the default index content type
+            XContentType xContentType = randomFrom(
+                Arrays.stream(XContentType.values()).filter(t -> Requests.INDEX_CONTENT_TYPE.equals(t) == false).toList()
+            );
 
-        logger.info("Using [{}], not randomly determined default [{}]", xContentType, Requests.INDEX_CONTENT_TYPE);
-        int numRequest = scaledRandomIntBetween(8, 64);
-        List<Boolean> executedPipelinesExpected = new ArrayList<>();
-        for (int i = 0; i < numRequest; i++) {
-            IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
-            indexRequest.source(xContentType, "field1", "value1");
-            boolean shouldListExecutedPiplines = randomBoolean();
-            executedPipelinesExpected.add(shouldListExecutedPiplines);
-            indexRequest.setListExecutedPipelines(shouldListExecutedPiplines);
-            bulkRequest.add(indexRequest);
-        }
+            logger.info("Using [{}], not randomly determined default [{}]", xContentType, Requests.INDEX_CONTENT_TYPE);
+            int numRequest = scaledRandomIntBetween(8, 64);
+            List<Boolean> executedPipelinesExpected = new ArrayList<>();
+            for (int i = 0; i < numRequest; i++) {
+                IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
+                indexRequest.source(xContentType, "field1", "value1");
+                boolean shouldListExecutedPiplines = randomBoolean();
+                executedPipelinesExpected.add(shouldListExecutedPiplines);
+                indexRequest.setListExecutedPipelines(shouldListExecutedPiplines);
+                bulkRequest.add(indexRequest);
+            }
 
-        final Processor processor = mock(Processor.class);
-        when(processor.getType()).thenReturn("mock");
-        when(processor.getTag()).thenReturn("mockTag");
-        doAnswer(args -> {
+            final Processor processor = mock(Processor.class);
+            when(processor.getType()).thenReturn("mock");
+            when(processor.getTag()).thenReturn("mockTag");
+            doAnswer(args -> {
+                @SuppressWarnings("unchecked")
+                BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
+                handler.accept(RandomDocumentPicks.randomIngestDocument(random()), null);
+                return null;
+            }).when(processor).execute(any(), any());
+            Map<String, Processor.Factory> map = Maps.newMapWithExpectedSize(2);
+            map.put("mock", (factories, tag, description, config) -> processor);
+
+            IngestService ingestService = createWithProcessors(map);
+            PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
+                {"processors": [{"mock": {}}], "description": "_description"}"""), XContentType.JSON);
+            ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+            ClusterState previousClusterState = clusterState;
+            clusterState = executePut(putRequest, clusterState);
+            ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
             @SuppressWarnings("unchecked")
-            BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
-            handler.accept(RandomDocumentPicks.randomIngestDocument(random()), null);
-            return null;
-        }).when(processor).execute(any(), any());
-        Map<String, Processor.Factory> map = Maps.newMapWithExpectedSize(2);
-        map.put("mock", (factories, tag, description, config) -> processor);
+            BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
+            @SuppressWarnings("unchecked")
+            final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+            ingestService.executeBulkRequest(
+                numRequest,
+                bulkRequest.requests(),
+                indexReq -> {},
+                requestItemErrorHandler,
+                completionHandler,
+                Names.WRITE
+            );
 
-        IngestService ingestService = createWithProcessors(map);
-        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
-            {"processors": [{"mock": {}}], "description": "_description"}"""), XContentType.JSON);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
-        ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
-        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-
-        @SuppressWarnings("unchecked")
-        BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(
-            numRequest,
-            bulkRequest.requests(),
-            indexReq -> {},
-            requestItemErrorHandler,
-            completionHandler,
-            Names.WRITE
-        );
-
-        verify(requestItemErrorHandler, never()).accept(any(), any());
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
-        for (int i = 0; i < bulkRequest.requests().size(); i++) {
-            DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(i);
-            IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(docWriteRequest);
-            assertThat(indexRequest, notNullValue());
-            assertThat(indexRequest.getContentType(), equalTo(xContentType.canonical()));
-            if (executedPipelinesExpected.get(i)) {
-                assertThat(indexRequest.getExecutedPipelines(), equalTo(List.of(pipelineId)));
-            } else if (indexRequest.getListExecutedPipelines()) {
-                assertThat(indexRequest.getExecutedPipelines(), equalTo(List.of()));
-            } else {
-                assertThat(indexRequest.getExecutedPipelines(), nullValue());
+            verify(requestItemErrorHandler, never()).accept(any(), any());
+            verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+            for (int i = 0; i < bulkRequest.requests().size(); i++) {
+                DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(i);
+                IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(docWriteRequest);
+                assertThat(indexRequest, notNullValue());
+                assertThat(indexRequest.getContentType(), equalTo(xContentType.canonical()));
+                if (executedPipelinesExpected.get(i)) {
+                    assertThat(indexRequest.getExecutedPipelines(), equalTo(List.of(pipelineId)));
+                } else if (indexRequest.getListExecutedPipelines()) {
+                    assertThat(indexRequest.getExecutedPipelines(), equalTo(List.of()));
+                } else {
+                    assertThat(indexRequest.getExecutedPipelines(), nullValue());
+                }
             }
         }
     }
@@ -1926,33 +1936,37 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-        BulkRequest bulkRequest = new BulkRequest();
-        final IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
-            .source(Map.of())
-            .setPipeline("_none")
-            .setFinalPipeline("_none");
-        bulkRequest.add(indexRequest1);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            final IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1")
+                .source(Map.of())
+                .setPipeline("_none")
+                .setFinalPipeline("_none");
+            bulkRequest.add(indexRequest1);
 
-        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(Map.of()).setPipeline("_id").setFinalPipeline("_none");
-        bulkRequest.add(indexRequest2);
+            IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2")
+                .source(Map.of())
+                .setPipeline("_id")
+                .setFinalPipeline("_none");
+            bulkRequest.add(indexRequest2);
 
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked")
-        final IntConsumer dropHandler = mock(IntConsumer.class);
-        ingestService.executeBulkRequest(
-            bulkRequest.numberOfActions(),
-            bulkRequest.requests(),
-            dropHandler,
-            failureHandler,
-            completionHandler,
-            Names.WRITE
-        );
-        verify(failureHandler, never()).accept(any(), any());
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
-        verify(dropHandler, times(1)).accept(1);
+            @SuppressWarnings("unchecked")
+            final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
+            @SuppressWarnings("unchecked")
+            final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+            @SuppressWarnings("unchecked")
+            final IntConsumer dropHandler = mock(IntConsumer.class);
+            ingestService.executeBulkRequest(
+                bulkRequest.numberOfActions(),
+                bulkRequest.requests(),
+                dropHandler,
+                failureHandler,
+                completionHandler,
+                Names.WRITE
+            );
+            verify(failureHandler, never()).accept(any(), any());
+            verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+            verify(dropHandler, times(1)).accept(1);
+        }
     }
 
     public void testIngestClusterStateListeners_orderOfExecution() {
@@ -2092,25 +2106,26 @@ public class IngestServiceTests extends ESTestCase {
         // both a request and a final pipeline
         IndexRequest indexRequest8 = new IndexRequest("idx").setPipeline("_id1").setFinalPipeline("_id2").source(doc2);
 
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(indexRequest1);
-        bulkRequest.add(indexRequest2);
-        bulkRequest.add(indexRequest3);
-        bulkRequest.add(indexRequest4);
-        bulkRequest.add(indexRequest5);
-        bulkRequest.add(indexRequest6);
-        bulkRequest.add(indexRequest7);
-        bulkRequest.add(indexRequest8);
-        ingestService.executeBulkRequest(8, bulkRequest.requests(), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
+        try (BulkRequest bulkRequest = new BulkRequest()) {
+            bulkRequest.add(indexRequest1);
+            bulkRequest.add(indexRequest2);
+            bulkRequest.add(indexRequest3);
+            bulkRequest.add(indexRequest4);
+            bulkRequest.add(indexRequest5);
+            bulkRequest.add(indexRequest6);
+            bulkRequest.add(indexRequest7);
+            bulkRequest.add(indexRequest8);
+            ingestService.executeBulkRequest(8, bulkRequest.requests(), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
 
-        assertThat(indexRequest1.getRawTimestamp(), nullValue());
-        assertThat(indexRequest2.getRawTimestamp(), nullValue());
-        assertThat(indexRequest3.getRawTimestamp(), equalTo(100));
-        assertThat(indexRequest4.getRawTimestamp(), equalTo(100));
-        assertThat(indexRequest5.getRawTimestamp(), nullValue());
-        assertThat(indexRequest6.getRawTimestamp(), equalTo(10));
-        assertThat(indexRequest7.getRawTimestamp(), equalTo(100));
-        assertThat(indexRequest8.getRawTimestamp(), equalTo(100));
+            assertThat(indexRequest1.getRawTimestamp(), nullValue());
+            assertThat(indexRequest2.getRawTimestamp(), nullValue());
+            assertThat(indexRequest3.getRawTimestamp(), equalTo(100));
+            assertThat(indexRequest4.getRawTimestamp(), equalTo(100));
+            assertThat(indexRequest5.getRawTimestamp(), nullValue());
+            assertThat(indexRequest6.getRawTimestamp(), equalTo(10));
+            assertThat(indexRequest7.getRawTimestamp(), equalTo(100));
+            assertThat(indexRequest8.getRawTimestamp(), equalTo(100));
+        }
     }
 
     public void testUpdateIndexRequestWithPipelinesShouldShortCircuitExecution() {

@@ -41,13 +41,17 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
             assertEquals(parentTaskId[0], client.getParentTask());
 
             // All of these should have the parentTaskId set
-            client.bulk(new BulkRequest());
+            try (BulkRequest bulkRequest = new BulkRequest()) {
+                client.bulk(bulkRequest);
+            }
             client.search(new SearchRequest());
             client.clearScroll(new ClearScrollRequest());
 
             // Now lets verify that unwrapped calls don't have the parentTaskId set
             parentTaskId[0] = TaskId.EMPTY_TASK_ID;
-            client.unwrap().bulk(new BulkRequest());
+            try (BulkRequest bulkRequest = new BulkRequest()) {
+                client.unwrap().bulk(bulkRequest);
+            }
             client.unwrap().search(new SearchRequest());
             client.unwrap().clearScroll(new ClearScrollRequest());
         }

@@ -47,11 +47,16 @@ public final class BulkRequestHandler {
         Runnable toRelease = () -> {};
         boolean bulkRequestSetupSuccessful = false;
         try {
-            listener.beforeBulk(executionId, bulkRequest);
+            try {
+                listener.beforeBulk(executionId, bulkRequest);
+            } catch (Exception e) {
+                bulkRequest.close();
+                throw e;
+            }
             semaphore.acquire();
             toRelease = semaphore::release;
             CountDownLatch latch = new CountDownLatch(1);
-            retry.withBackoff(consumer, bulkRequest, ActionListener.runAfter(new ActionListener<BulkResponse>() {
+            retry.withBackoff(consumer, bulkRequest, ActionListener.releaseAfter(ActionListener.runAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(BulkResponse response) {
                     listener.afterBulk(executionId, bulkRequest, response);
@@ -64,7 +69,7 @@ public final class BulkRequestHandler {
             }, () -> {
                 semaphore.release();
                 latch.countDown();
-            }));
+            }), bulkRequest));
             bulkRequestSetupSuccessful = true;
             if (concurrentRequests == 0) {
                 latch.await();

@@ -114,27 +114,31 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
 
     public void testBulk() {
         // Index by bulk with RefreshPolicy.WAIT_UNTIL
-        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        bulk.add(client().prepareIndex("test").setId("1").setSource("foo", "bar"));
-        assertBulkSuccess(bulk.get());
-        assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
+        try (BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)) {
+            bulk.add(client().prepareIndex("test").setId("1").setSource("foo", "bar"));
+            assertBulkSuccess(bulk.get());
+            assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
+        }
 
         // Update by bulk with RefreshPolicy.WAIT_UNTIL
-        bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        bulk.add(client().prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz"));
-        assertBulkSuccess(bulk.get());
-        assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "baz")), "1");
+        try (BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)) {
+            bulk.add(client().prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz"));
+            assertBulkSuccess(bulk.get());
+            assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "baz")), "1");
+        }
 
         // Delete by bulk with RefreshPolicy.WAIT_UNTIL
-        bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        bulk.add(client().prepareDelete("test", "1"));
-        assertBulkSuccess(bulk.get());
-        assertNoSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")));
+        try (BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)) {
+            bulk.add(client().prepareDelete("test", "1"));
+            assertBulkSuccess(bulk.get());
+            assertNoSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")));
+        }
 
         // Update makes a noop
-        bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        bulk.add(client().prepareDelete("test", "1"));
-        assertBulkSuccess(bulk.get());
+        try (BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)) {
+            bulk.add(client().prepareDelete("test", "1"));
+            assertBulkSuccess(bulk.get());
+        }
     }
 
     /**

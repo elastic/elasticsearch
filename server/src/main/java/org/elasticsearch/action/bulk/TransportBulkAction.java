@@ -883,6 +883,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 } else {
                     long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
                     BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
+                    boolean bulkRequestNeedsClosing = bulkRequest != original;
                     ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(
                         ingestTookInMillis,
                         listener
@@ -892,11 +893,20 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // so we stop and send an empty response back to the client.
                         // (this will happen if pre-processing all items in the bulk failed)
                         actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
+                        if (bulkRequestNeedsClosing) {
+                            bulkRequest.close();
+                        }
                     } else {
                         ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                             @Override
                             protected void doRun() {
-                                doInternalExecute(task, bulkRequest, executorName, actionListener);
+                                final ActionListener<BulkResponse> listener1;
+                                if (bulkRequestNeedsClosing) {
+                                    listener1 = ActionListener.releaseAfter(actionListener, bulkRequest);
+                                } else {
+                                    listener1 = actionListener;
+                                }
+                                doInternalExecute(task, bulkRequest, executorName, listener1);
                             }
 
                             @Override

@@ -47,38 +47,43 @@ public class ShardInfoIT extends ESIntegTestCase {
 
     public void testBulkWithIndexAndDeleteItems() throws Exception {
         prepareIndex(1);
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        for (int i = 0; i < 10; i++) {
-            bulkRequestBuilder.add(client().prepareIndex("idx").setSource("{}", XContentType.JSON));
-        }
+        try (BulkRequestBuilder indexBulkRequestBuilder = client().prepareBulk()) {
+            for (int i = 0; i < 10; i++) {
+                indexBulkRequestBuilder.add(client().prepareIndex("idx").setSource("{}", XContentType.JSON));
+            }
 
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        bulkRequestBuilder = client().prepareBulk();
-        for (BulkItemResponse item : bulkResponse) {
-            assertThat(item.isFailed(), equalTo(false));
-            assertShardInfo(item.getResponse());
-            bulkRequestBuilder.add(client().prepareDelete("idx", item.getId()));
-        }
+            BulkResponse bulkResponse = indexBulkRequestBuilder.get();
+            try (BulkRequestBuilder deleteBulkRequestBuilder = client().prepareBulk()) {
+                for (BulkItemResponse item : bulkResponse) {
+                    assertThat(item.isFailed(), equalTo(false));
+                    assertShardInfo(item.getResponse());
+                    deleteBulkRequestBuilder.add(client().prepareDelete("idx", item.getId()));
+                }
 
-        bulkResponse = bulkRequestBuilder.get();
-        for (BulkItemResponse item : bulkResponse) {
-            assertThat(item.isFailed(), equalTo(false));
-            assertShardInfo(item.getResponse());
+                bulkResponse = deleteBulkRequestBuilder.get();
+                for (BulkItemResponse item : bulkResponse) {
+                    assertThat(item.isFailed(), equalTo(false));
+                    assertShardInfo(item.getResponse());
+                }
+            }
         }
     }
 
     public void testBulkWithUpdateItems() throws Exception {
         prepareIndex(1);
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        for (int i = 0; i < 10; i++) {
-            bulkRequestBuilder.add(client().prepareUpdate("idx", Integer.toString(i)).setDoc("{}", XContentType.JSON).setDocAsUpsert(true));
-        }
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            for (int i = 0; i < 10; i++) {
+                bulkRequestBuilder.add(
+                    client().prepareUpdate("idx", Integer.toString(i)).setDoc("{}", XContentType.JSON).setDocAsUpsert(true)
+                );
+            }
 
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
-        for (BulkItemResponse item : bulkResponse) {
-            assertThat(item.getFailure(), nullValue());
-            assertThat(item.isFailed(), equalTo(false));
-            assertShardInfo(item.getResponse());
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            for (BulkItemResponse item : bulkResponse) {
+                assertThat(item.getFailure(), nullValue());
+                assertThat(item.isFailed(), equalTo(false));
+                assertShardInfo(item.getResponse());
+            }
         }
     }
 

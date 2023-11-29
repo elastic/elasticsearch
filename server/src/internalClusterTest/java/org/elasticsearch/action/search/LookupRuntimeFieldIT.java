@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -47,11 +48,12 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("publishers")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
-        client().prepareBulk("publishers")
-            .add(new IndexRequest().id("p1").source("name", "The first publisher", "city", List.of("Montreal", "Vancouver")))
-            .add(new IndexRequest().id("p2").source("name", "The second publisher", "city", "Toronto"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        try (BulkRequestBuilder bulkBuilder = client().prepareBulk("publishers")) {
+            bulkBuilder.add(new IndexRequest().id("p1").source("name", "The first publisher", "city", List.of("Montreal", "Vancouver")))
+                .add(new IndexRequest().id("p2").source("name", "The second publisher", "city", "Toronto"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        }
         indicesAdmin().prepareCreate("books").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)).setMapping("""
             {
                 "properties": {

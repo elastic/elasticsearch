@@ -368,6 +368,9 @@ public class BulkProcessor implements Closeable {
                 return this.bulkRequestHandler.awaitClose(timeout, unit);
             } finally {
                 onClose.run();
+                if (bulkRequest.hasReferences()) {
+                    bulkRequest.close();
+                }
             }
         } finally {
             lock.unlock();

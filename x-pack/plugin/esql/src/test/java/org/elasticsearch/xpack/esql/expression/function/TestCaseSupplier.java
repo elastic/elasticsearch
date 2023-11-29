@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
@@ -160,6 +161,36 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
+        casesCrossProduct(
+            (l, r) -> expected.apply(l.doubleValue(), r.doubleValue()),
+            lhsSuppliers,
+            rhsSuppliers,
+            (lhsType, rhsType) -> name
+                + "["
+                + lhsName
+                + "="
+                + castToDoubleEvaluator("Attribute[channel=0]", lhsType)
+                + ", "
+                + rhsName
+                + "="
+                + castToDoubleEvaluator("Attribute[channel=1]", rhsType)
+                + "]",
+            warnings,
+            suppliers,
+            DataTypes.DOUBLE
+        );
+        return suppliers;
+    }
+
+    private static void casesCrossProduct(
+        BinaryOperator<Number> expected,
+        List<TypedDataSupplier> lhsSuppliers,
+        List<TypedDataSupplier> rhsSuppliers,
+        BiFunction<DataType, DataType, String> evaluatorToString,
+        List<String> warnings,
+        List<TestCaseSupplier> suppliers,
+        DataType expectedType
+    ) {
         for (TypedDataSupplier lhsSupplier : lhsSuppliers) {
             for (TypedDataSupplier rhsSupplier : rhsSuppliers) {
                 String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
@@ -177,12 +208,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                         rhsSupplier.type(),
                         "rhs"
                     );
-                    String lhsEvalName = castToDoubleEvaluator("Attribute[channel=0]", lhsSupplier.type());
-                    String rhsEvalName = castToDoubleEvaluator("Attribute[channel=1]", rhsSupplier.type());
                     TestCase testCase = new TestCase(
                         List.of(lhsTyped, rhsTyped),
-                        name + "[" + lhsName + "=" + lhsEvalName + ", " + rhsName + "=" + rhsEvalName + "]",
-                        DataTypes.DOUBLE,
+                        evaluatorToString.apply(lhsSupplier.type(), rhsSupplier.type()),
+                        expectedType,
                         equalTo(expected.apply(lhs.doubleValue(), rhs.doubleValue()))
                     );
                     for (String warning : warnings) {
@@ -192,8 +221,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 }));
             }
         }
-
-        return suppliers;
     }
 
     public static List<TypedDataSupplier> castToDoubleSuppliersFromRange(Double Min, Double Max) {
@@ -202,6 +229,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         suppliers.addAll(longCases(Min.longValue(), Max.longValue()));
         suppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(Min)), BigInteger.valueOf((long) Math.floor(Max))));
         suppliers.addAll(doubleCases(Min, Max));
+        return suppliers;
+    }
+
+    public static List<TestCaseSupplier> forBinaryNumericNotCasting(
+        String name,
+        String lhsName,
+        String rhsName,
+        BinaryOperator<Number> expected,
+        DataType expectedType,
+        List<TypedDataSupplier> lhsSuppliers,
+        List<TypedDataSupplier> rhsSuppliers,
+        List<String> warnings
+
+    ) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        casesCrossProduct(
+            expected,
+            lhsSuppliers,
+            rhsSuppliers,
+            (lhsType, rhsType) -> name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]",
+            warnings,
+            suppliers,
+            expectedType
+        );
         return suppliers;
     }
 
@@ -456,7 +507,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
     }
 
-    private static List<TypedDataSupplier> intCases(int min, int max) {
+    public static List<TypedDataSupplier> intCases(int min, int max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         if (0 <= max && 0 >= min) {
             cases.add(new TypedDataSupplier("<0 int>", () -> 0, DataTypes.INTEGER));
@@ -480,7 +531,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    private static List<TypedDataSupplier> longCases(long min, long max) {
+    public static List<TypedDataSupplier> longCases(long min, long max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
         if (0L <= max && 0L >= min) {
             cases.add(new TypedDataSupplier("<0 long>", () -> 0L, DataTypes.LONG));
@@ -505,7 +556,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    private static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max) {
+    public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         // Zero
@@ -545,7 +596,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    private static List<TypedDataSupplier> doubleCases(double min, double max) {
+    public static List<TypedDataSupplier> doubleCases(double min, double max) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         // Zeros
@@ -633,7 +684,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static List<TypedDataSupplier> ipCases() {
+    public static List<TypedDataSupplier> ipCases() {
         return List.of(
             new TypedDataSupplier(
                 "<127.0.0.1 ip>",

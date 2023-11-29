@@ -21,6 +21,7 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -42,20 +43,20 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Int + Int", () -> {
-            // Ensure we don't have an overflow
-            int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.INTEGER, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.INTEGER, "rhs")
-                ),
-                "AddIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNumericNotCasting(
+                "AddIntsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> l.intValue() + r.intValue(),
                 DataTypes.INTEGER,
-                equalTo(lhs + rhs)
-            );
-        }), new TestCaseSupplier("Long + Long", () -> {
+                TestCaseSupplier.intCases((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1),
+                TestCaseSupplier.intCases((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1),
+                List.of()
+            )
+        );
+        suppliers.addAll(List.of(new TestCaseSupplier("Long + Long", () -> {
             // Ensure we don't have an overflow
             long rhs = randomLongBetween((Long.MIN_VALUE >> 1) - 1, (Long.MAX_VALUE >> 1) - 1);
             long lhs = randomLongBetween((Long.MIN_VALUE >> 1) - 1, (Long.MAX_VALUE >> 1) - 1);
@@ -181,6 +182,7 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 is(nullValue())
             );
         })));
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     @Override

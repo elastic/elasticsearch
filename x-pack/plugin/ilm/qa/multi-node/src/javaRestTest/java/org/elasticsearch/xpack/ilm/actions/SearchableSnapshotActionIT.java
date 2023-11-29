@@ -58,6 +58,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfPrimarySeg
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
+import static org.elasticsearch.xpack.core.ilm.DeleteAction.WITH_SNAPSHOT_DELETE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -184,10 +185,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         Map<String, LifecycleAction> coldActions = Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put(
-            "delete",
-            new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
-        );
+        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();
@@ -572,6 +570,99 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 aliasExists(searchableSnapMountedIndexName, SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index)
             )
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testResumingSearchableSnapshotFromFullToPartial() throws Exception {
+        String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        var policyCold = "policy-cold";
+        createPolicy(
+            client(),
+            policyCold,
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+            ),
+            null,
+            null
+        );
+        var policyFrozen = "policy-cold-frozen";
+        createPolicy(
+            client(),
+            policyFrozen,
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+            ),
+            new Phase(
+                "frozen",
+                TimeValue.ZERO,
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+            ),
+            new Phase(
+                "delete",
+                TimeValue.timeValueSeconds(2), // give time for the checks to happen
+                singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)
+            )
+        );
+
+        createIndex(index, Settings.EMPTY);
+        ensureGreen(index);
+        indexDocument(client(), index, true);
+
+        // enable ILM after we indexed a document as otherwise ILM might sometimes run so fast the indexDocument call will fail with
+        // `index_not_found_exception`
+        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyCold));
+
+        final String fullMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
+
+        assertBusy(() -> {
+            logger.info("--> waiting for [{}] to exist...", fullMountedIndexName);
+            assertTrue(indexExists(fullMountedIndexName));
+        }, 30, TimeUnit.SECONDS);
+
+        assertBusy(() -> {
+            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), fullMountedIndexName);
+            assertThat(stepKeyForIndex.phase(), is("cold"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
+
+        // remove ILM
+        {
+            Request request = new Request("POST", "/" + fullMountedIndexName + "/_ilm/remove");
+            Map<String, Object> responseMap = responseAsMap(client().performRequest(request));
+            assertThat(responseMap.get("has_failures"), is(false));
+        }
+        // add cold-frozen
+        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyFrozen));
+        String partiallyMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX + fullMountedIndexName;
+        assertBusy(() -> {
+            logger.info("--> waiting for [{}] to exist...", partiallyMountedIndexName);
+            assertTrue(indexExists(partiallyMountedIndexName));
+        }, 30, TimeUnit.SECONDS);
+
+        assertBusy(() -> {
+            logger.info("--> waiting for [{}] to be deleted...", partiallyMountedIndexName);
+            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), partiallyMountedIndexName);
+            assertThat(stepKeyForIndex.phase(), is("frozen"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
+
+        // Ensure the searchable snapshot is not deleted when the index was deleted because it was not created by this
+        // policy
+        assertBusy(() -> {
+            assertThat(indexExists(partiallyMountedIndexName), is(false));
+            Request getSnaps = new Request("GET", "/_snapshot/" + snapshotRepo + "/_all");
+            Map<String, Object> responseMap = responseAsMap(client().performRequest(getSnaps));
+            assertThat(((List<Map<String, Object>>) responseMap.get("snapshots")).size(), equalTo(1));
+        });
     }
 
     public void testSecondSearchableSnapshotUsingDifferentRepoThrows() throws Exception {

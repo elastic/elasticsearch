@@ -57,7 +57,7 @@
   - do:
       esql.query:
         body:
-          query: 'ROW name="sales" | ENRICH departments-policy ON name WITH department=name | WHERE name=department | KEEP name, department | LIMIT 10'
+          query: 'ROW name="sales" | ENRICH departments-policy ON name WITH department=name | WHERE name==department | KEEP name, department | LIMIT 10'
 
   - match: { columns.0.name: "name" }
   - match: { columns.0.type: "keyword" }

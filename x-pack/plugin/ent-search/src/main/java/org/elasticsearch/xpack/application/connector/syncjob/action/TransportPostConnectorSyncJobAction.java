@@ -47,6 +47,6 @@ public class TransportPostConnectorSyncJobAction extends HandledTransportAction<
         PostConnectorSyncJobAction.Request request,
         ActionListener<PostConnectorSyncJobAction.Response> listener
     ) {
-        syncJobIndexService.createConnectorSyncJob(request, listener.map(response -> response));
+        syncJobIndexService.createConnectorSyncJob(request, listener);
     }
 }

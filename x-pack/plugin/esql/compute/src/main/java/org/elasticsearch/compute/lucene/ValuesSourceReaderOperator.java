@@ -184,11 +184,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             if (useSequentialStoredFieldsReader(docVector.docs())) {
                 storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
                 trackStoredFields(storedFieldsSpec, true);
-                System.err.println("sequential");
             } else {
                 storedFieldLoader = StoredFieldLoader.fromSpec(storedFieldsSpec);
                 trackStoredFields(storedFieldsSpec, false);
-                System.err.println("non-sequential");
             }
             BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 // TODO enable the optimization by passing non-null to docs if correct

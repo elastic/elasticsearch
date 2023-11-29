@@ -580,10 +580,7 @@ public class StatementParserTests extends ESTestCase {
             "1:11: mismatched input '[' expecting {<EOF>, '|', 'and', ',', 'or', '+', '-', '*', '/', '%'}"
         );
         expectError("show functions [metadata _index]", "line 1:16: token recognition error at: '['");
-        expectError(
-            "explain [from foo] [metadata _index]",
-            "line 1:20: mismatched input '[' expecting {'|', ',', OPENING_BRACKET, ']'}"
-        );
+        expectError("explain [from foo] [metadata _index]", "line 1:20: mismatched input '[' expecting {'|', ',', OPENING_BRACKET, ']'}");
     }
 
     public void testMetadataFieldMultipleDeclarations() {

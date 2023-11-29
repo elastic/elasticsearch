@@ -313,9 +313,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> {
             final NamedExpression policyName = visitQualifiedNamePattern(ctx.policyName);
             var source = source(ctx);
-            NamedExpression matchField = ctx.ON() != null
-                ? visitQualifiedNamePattern(ctx.matchField)
-                : new EmptyAttribute(source);
+            NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
             if (matchField.name().contains("*")) {
                 throw new ParsingException(
                     source(ctx),

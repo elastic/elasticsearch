@@ -126,13 +126,6 @@ public class NodeMetrics {
             () -> new LongWithAttributes(stats.getOrRefresh().getIndices().getTranslog().getEarliestLastModifiedAge())
         );
 
-        registry.registerLongGauge(
-            "es.node.stats.http.current_open",
-            "Current number of open HTTP connections for the node.",
-            "connections",
-            () -> new LongWithAttributes(stats.getOrRefresh().getHttp().getServerOpen())
-        );
-
         registry.registerLongAsyncCounter(
             "es.node.stats.transport.rx_size",
             "Size, in bytes, of RX packets received by the node during internal cluster communication.",
@@ -214,7 +207,7 @@ public class NodeMetrics {
             false,
             true,
             true,
-            true,
+            false,
             false,
             false,
             false,

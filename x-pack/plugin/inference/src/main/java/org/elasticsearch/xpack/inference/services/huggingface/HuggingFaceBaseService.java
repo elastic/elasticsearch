@@ -66,12 +66,14 @@ public abstract class HuggingFaceBaseService extends SenderService {
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
         var model = createModel(modelId, taskType, serviceSettingsMap, secretSettingsMap, parsePersistedConfigErrorMsg(modelId, name()));
 
         throwIfNotEmptyMap(config, name());
         throwIfNotEmptyMap(secrets, name());
         throwIfNotEmptyMap(serviceSettingsMap, name());
+        throwIfNotEmptyMap(taskSettingsMap, name());
         throwIfNotEmptyMap(secretSettingsMap, name());
 
         return model;

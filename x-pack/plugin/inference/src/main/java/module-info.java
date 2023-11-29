@@ -24,5 +24,6 @@ module org.elasticsearch.inference {
     exports org.elasticsearch.xpack.inference.results;
     exports org.elasticsearch.xpack.inference.services;
     exports org.elasticsearch.xpack.inference.external.http.sender;
+    exports org.elasticsearch.xpack.inference.external.http;
     exports org.elasticsearch.xpack.inference;
 }

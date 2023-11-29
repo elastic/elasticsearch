@@ -147,8 +147,7 @@ public class ConnectorIndexService {
                 public void onResponse(SearchResponse searchResponse) {
                     try {
                         listener.onResponse(mapSearchResponseToConnectorList(searchResponse));
-                    }
-                    catch (Exception e) {
+                    } catch (Exception e) {
                         listener.onFailure(e);
                     }
                 }

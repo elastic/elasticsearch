@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @param <T> delegated instrument
  */
 public abstract class AbstractInstrument<T> implements Instrument {
-    private static final int MAX_NAME_LENGTH = 63; // TODO(stu): change to 255 when we upgrade to otel 1.30+, see #101679
+    private static final int MAX_NAME_LENGTH = 255;
     private final AtomicReference<T> delegate;
     private final String name;
     private final String description;

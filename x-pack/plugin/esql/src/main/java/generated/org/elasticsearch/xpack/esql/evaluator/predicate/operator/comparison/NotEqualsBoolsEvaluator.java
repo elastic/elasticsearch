@@ -33,20 +33,18 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref lhsRef = lhs.eval(page)) {
-      BooleanBlock lhsBlock = (BooleanBlock) lhsRef.block();
-      try (Block.Ref rhsRef = rhs.eval(page)) {
-        BooleanBlock rhsBlock = (BooleanBlock) rhsRef.block();
+  public Block eval(Page page) {
+    try (BooleanBlock lhsBlock = (BooleanBlock) lhs.eval(page)) {
+      try (BooleanBlock rhsBlock = (BooleanBlock) rhs.eval(page)) {
         BooleanVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
         BooleanVector rhsVector = rhsBlock.asVector();
         if (rhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector).asBlock());
+        return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
       }
     }
   }

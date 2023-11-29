@@ -39,20 +39,18 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref baseRef = base.eval(page)) {
-      DoubleBlock baseBlock = (DoubleBlock) baseRef.block();
-      try (Block.Ref exponentRef = exponent.eval(page)) {
-        DoubleBlock exponentBlock = (DoubleBlock) exponentRef.block();
+  public Block eval(Page page) {
+    try (DoubleBlock baseBlock = (DoubleBlock) base.eval(page)) {
+      try (DoubleBlock exponentBlock = (DoubleBlock) exponent.eval(page)) {
         DoubleVector baseVector = baseBlock.asVector();
         if (baseVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), baseBlock, exponentBlock));
+          return eval(page.getPositionCount(), baseBlock, exponentBlock);
         }
         DoubleVector exponentVector = exponentBlock.asVector();
         if (exponentVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), baseBlock, exponentBlock));
+          return eval(page.getPositionCount(), baseBlock, exponentBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), baseVector, exponentVector));
+        return eval(page.getPositionCount(), baseVector, exponentVector);
       }
     }
   }

@@ -8,14 +8,18 @@
 
 package org.elasticsearch.test.fixtures.minio;
 
+import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.junit.rules.TestRule;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
-public class MinioTestContainer extends GenericContainer<MinioTestContainer> implements TestRule {
+public final class MinioTestContainer extends DockerEnvironmentAwareTestContainer implements TestRule {
 
     private static final int servicePort = 9000;
     private final boolean enabled;
+
+    public MinioTestContainer() {
+        this(true);
+    }
 
     public MinioTestContainer(boolean enabled) {
         super(

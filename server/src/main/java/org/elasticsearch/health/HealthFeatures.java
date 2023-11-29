@@ -16,7 +16,7 @@ import java.util.Map;
 
 public class HealthFeatures implements FeatureSpecification {
 
-    public static final NodeFeature SUPPORTS_HEALTH = new NodeFeature("supports_health");
+    public static final NodeFeature SUPPORTS_HEALTH = new NodeFeature("health.supports_health");
 
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {

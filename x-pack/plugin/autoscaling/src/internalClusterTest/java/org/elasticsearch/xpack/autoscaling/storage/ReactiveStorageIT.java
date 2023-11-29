@@ -68,7 +68,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         indexRandom(
             true,
             IntStream.range(1, 100)
-                .mapToObj(i -> client().prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
+                .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
                 .toArray(IndexRequestBuilder[]::new)
         );
         forceMerge();
@@ -267,7 +267,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         indexRandom(
             true,
             IntStream.range(1, 100)
-                .mapToObj(i -> client().prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
+                .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
                 .toArray(IndexRequestBuilder[]::new)
         );
         forceMerge();
@@ -420,7 +420,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         indexRandom(
             true,
             IntStream.range(1, 100)
-                .mapToObj(i -> client().prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
+                .mapToObj(i -> prepareIndex(indexName).setSource("field", randomAlphaOfLength(50)))
                 .toArray(IndexRequestBuilder[]::new)
         );
         forceMerge();

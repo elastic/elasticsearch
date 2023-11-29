@@ -126,7 +126,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     public Iterable<String> valueNames() {
-        return Arrays.stream(percents).mapToObj(d -> String.valueOf(d)).toList();
+        return Arrays.stream(percents).mapToObj(String::valueOf).toList();
     }
 
     @Override

@@ -38,14 +38,13 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valueRef = value.eval(page)) {
-      LongBlock valueBlock = (LongBlock) valueRef.block();
+  public Block eval(Page page) {
+    try (LongBlock valueBlock = (LongBlock) value.eval(page)) {
       LongVector valueVector = valueBlock.asVector();
       if (valueVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), valueBlock));
+        return eval(page.getPositionCount(), valueBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valueVector).asBlock());
+      return eval(page.getPositionCount(), valueVector).asBlock();
     }
   }
 

@@ -82,7 +82,7 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
         // Disable expensive query
         new ClusterUpdateSettingsRequestBuilder(client(), ClusterUpdateSettingsAction.INSTANCE).setTransientSettings(
             Settings.builder().put(ALLOW_EXPENSIVE_QUERIES.getKey(), false)
-        ).execute().actionGet();
+        ).get();
 
         try {
             // Prove that expensive queries are indeed disabled
@@ -96,9 +96,7 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
             );
 
             // Get privileges work with wildcard application name
-            final GetPrivilegesResponse getPrivilegesResponse = new GetPrivilegesRequestBuilder(client()).application("yourapp*")
-                .execute()
-                .actionGet();
+            final GetPrivilegesResponse getPrivilegesResponse = new GetPrivilegesRequestBuilder(client()).application("yourapp*").get();
             assertThat(getPrivilegesResponse.privileges(), arrayWithSize(4));
             assertThat(
                 Arrays.stream(getPrivilegesResponse.privileges())
@@ -124,13 +122,12 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
                     }
                   ]
                 }
-                """), XContentType.JSON).execute().actionGet();
+                """), XContentType.JSON).get();
 
             new PutUserRequestBuilder(client(), PutUserAction.INSTANCE).username("app_user")
                 .password(TEST_PASSWORD_SECURE_STRING, getFastStoredHashAlgoForTests())
                 .roles("app_user_role")
-                .execute()
-                .actionGet();
+                .get();
 
             Client appUserClient;
             appUserClient = client().filterWithHeader(
@@ -192,7 +189,7 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
             // Reset setting since test suite expects things in a clean slate
             new ClusterUpdateSettingsRequestBuilder(client(), ClusterUpdateSettingsAction.INSTANCE).setTransientSettings(
                 Settings.builder().putNull(ALLOW_EXPENSIVE_QUERIES.getKey())
-            ).execute().actionGet();
+            ).get();
         }
     }
 }

@@ -158,7 +158,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         disableAllocation("test");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
@@ -269,7 +269,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
@@ -402,11 +402,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(prepareSearch().setSize(0), numDocs);
 
@@ -541,11 +541,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(prepareSearch().setSize(0), numDocs);
 
@@ -608,11 +608,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(prepareSearch().setSize(0), numDocs);
 

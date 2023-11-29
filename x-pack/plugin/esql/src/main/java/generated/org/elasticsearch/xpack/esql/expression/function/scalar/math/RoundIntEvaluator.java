@@ -35,20 +35,18 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      IntBlock valBlock = (IntBlock) valRef.block();
-      try (Block.Ref decimalsRef = decimals.eval(page)) {
-        LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
+  public Block eval(Page page) {
+    try (IntBlock valBlock = (IntBlock) val.eval(page)) {
+      try (LongBlock decimalsBlock = (LongBlock) decimals.eval(page)) {
         IntVector valVector = valBlock.asVector();
         if (valVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+          return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
         LongVector decimalsVector = decimalsBlock.asVector();
         if (decimalsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+          return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), valVector, decimalsVector).asBlock());
+        return eval(page.getPositionCount(), valVector, decimalsVector).asBlock();
       }
     }
   }

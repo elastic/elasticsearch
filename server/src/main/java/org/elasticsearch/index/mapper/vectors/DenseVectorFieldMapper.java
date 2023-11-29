@@ -83,6 +83,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     private static final float EPS = 1e-4f;
 
+    static boolean isNotUnitVector(float magnitude) {
+        return Math.abs(magnitude - 1.0f) > EPS;
+    }
+
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
     public static final IndexVersion NORMALIZE_COSINE = IndexVersions.NORMALIZED_VECTOR_COSINE;
@@ -468,6 +472,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             @Override
                             public FloatVectorValues getFloatVectorValues(String fieldName) throws IOException {
                                 FloatVectorValues values = in.getFloatVectorValues(fieldName);
+                                if (values == null) {
+                                    return null;
+                                }
                                 return new NormalizedCosineFloatVectorValues(
                                     values,
                                     in.getNumericDocValues(fieldName + COSINE_MAGNITUDE_FIELD_SUFFIX)
@@ -499,7 +506,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException(appender.apply(errorBuilder).toString());
                 }
 
-                if (similarity == VectorSimilarity.DOT_PRODUCT && Math.abs(squaredMagnitude - 1.0f) > EPS) {
+                if (similarity == VectorSimilarity.DOT_PRODUCT && isNotUnitVector(squaredMagnitude)) {
                     errorBuilder = new StringBuilder(
                         "The [" + VectorSimilarity.DOT_PRODUCT + "] similarity can only be used with unit-length vectors."
                     );
@@ -532,13 +539,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 checkVectorMagnitude(fieldMapper.fieldType().similarity, errorFloatElementsAppender(vector), squaredMagnitude);
                 if (fieldMapper.indexCreatedVersion.onOrAfter(NORMALIZE_COSINE)
                     && fieldMapper.fieldType().similarity.equals(VectorSimilarity.COSINE)
-                    && Math.abs(squaredMagnitude - 1f) > EPS) {
+                    && isNotUnitVector(squaredMagnitude)) {
                     float length = (float) Math.sqrt(squaredMagnitude);
                     for (int i = 0; i < vector.length; i++) {
                         vector[i] /= length;
                     }
-                    Field magnitudeField = new FloatDocValuesField(fieldMapper.fieldType().name() + COSINE_MAGNITUDE_FIELD_SUFFIX, length);
-                    context.doc().addWithKey(fieldMapper.fieldType().name() + COSINE_MAGNITUDE_FIELD_SUFFIX, magnitudeField);
+                    final String fieldName = fieldMapper.fieldType().name() + COSINE_MAGNITUDE_FIELD_SUFFIX;
+                    Field magnitudeField = new FloatDocValuesField(fieldName, length);
+                    context.doc().addWithKey(fieldName, magnitudeField);
                 }
                 Field field = createKnnVectorField(
                     fieldMapper.fieldType().name(),
@@ -966,7 +974,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (similarity == VectorSimilarity.COSINE
                     && ElementType.FLOAT.equals(elementType)
                     && indexVersionCreated.onOrAfter(NORMALIZE_COSINE)) {
-                    if (Math.abs(squaredMagnitude - 1.0f) > EPS) {
+                    if (isNotUnitVector(squaredMagnitude)) {
                         float length = (float) Math.sqrt(squaredMagnitude);
                         queryVector = Arrays.copyOf(queryVector, queryVector.length);
                         for (int i = 0; i < queryVector.length; i++) {

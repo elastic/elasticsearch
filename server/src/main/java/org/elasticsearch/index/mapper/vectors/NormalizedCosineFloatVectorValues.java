@@ -13,6 +13,8 @@ import org.apache.lucene.index.NumericDocValues;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.isNotUnitVector;
+
 public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
 
     private final FloatVectorValues in;
@@ -51,16 +53,12 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
 
     @Override
     public int nextDoc() throws IOException {
-        int docId = in.nextDoc();
-        hasMagnitude = decodedMagnitude(docId);
-        return docId;
+        return in.nextDoc();
     }
 
     @Override
     public int advance(int target) throws IOException {
-        int docId = in.advance(target);
-        hasMagnitude = decodedMagnitude(docId);
-        return docId;
+        return in.advance(target);
     }
 
     public float magnitude() {
@@ -70,7 +68,8 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
     private float[] vectorValue(int docId) throws IOException {
         if (docId != this.docId) {
             this.docId = docId;
-            // We should only copy and transform if we have a stored magnitude
+            hasMagnitude = decodedMagnitude(docId);
+            // We should only copy and transform if we have a stored a non-unit length magnitude
             if (hasMagnitude) {
                 System.arraycopy(in.vectorValue(), 0, vector, 0, dimension());
                 for (int i = 0; i < vector.length; i++) {
@@ -90,15 +89,12 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
             return false;
         }
         int currentDoc = magnitudeIn.docID();
-        if (currentDoc == NO_MORE_DOCS || docId < currentDoc) {
-            magnitude = 1f;
-            return false;
-        } else if (docId == currentDoc) {
-            return true;
+        if (docId == currentDoc) {
+            return isNotUnitVector(magnitude);
         } else {
             if (magnitudeIn.advanceExact(docId)) {
                 magnitude = Float.intBitsToFloat((int) magnitudeIn.longValue());
-                return true;
+                return isNotUnitVector(magnitude);
             } else {
                 magnitude = 1f;
                 return false;

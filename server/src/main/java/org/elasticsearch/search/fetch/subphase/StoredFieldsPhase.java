@@ -55,7 +55,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
 
     private static final List<StoredField> METADATA_FIELDS = List.of(
         new StoredField("_routing", RoutingFieldMapper.FIELD_TYPE, true),
-        new StoredField("_ignored", IgnoredFieldMapper.FIELD_TYPE, true),
+        new StoredField("_ignored", IgnoredFieldMapper.LEGACY_FIELD_TYPE, true),
         // pre-6.0 indexes can return a _type field, this will be valueless in modern indexes and ignored
         new StoredField("_type", LegacyTypeFieldMapper.FIELD_TYPE, true)
     );

@@ -42,10 +42,10 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         public static final String NAME = IgnoredFieldMapper.NAME;
     }
 
-    public static final IgnoredFieldType FIELD_TYPE = new IgnoredFieldType(true);
+    public static final IgnoredFieldType FIELD_TYPE = new IgnoredFieldType();
     private static final IgnoredFieldMapper INSTANCE = new IgnoredFieldMapper(FIELD_TYPE);
 
-    public static final IgnoredFieldType LEGACY_FIELD_TYPE = new IgnoredFieldType(false);
+    public static final LegacyIgnoredFieldType LEGACY_FIELD_TYPE = new LegacyIgnoredFieldType();
     private static final IgnoredFieldMapper LEGACY_INSTANCE = new IgnoredFieldMapper(LEGACY_FIELD_TYPE);
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> getInstance(c.indexVersionCreated()));
@@ -54,10 +54,10 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         return indexVersion.onOrAfter(AGGS_SUPPORT_VERSION) ? INSTANCE : LEGACY_INSTANCE;
     }
 
-    public static final class IgnoredFieldType extends StringFieldType {
+    public static final class LegacyIgnoredFieldType extends StringFieldType {
 
-        private IgnoredFieldType(boolean hasDocValues) {
-            super(NAME, true, true, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        private LegacyIgnoredFieldType() {
+            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -67,11 +67,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            if (hasDocValues()) {
-                return new FieldExistsQuery(name());
-            } else {
-                return new TermRangeQuery(name(), null, null, true, true);
-            }
+            return new TermRangeQuery(name(), null, null, true, true);
         }
 
         @Override
@@ -81,15 +77,39 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            if (hasDocValues() == false) {
-                throw new IllegalArgumentException(
-                    "aggregations on the '"
-                        + typeName()
-                        + "' field are supported for indices created by stack version "
-                        + AGGS_SUPPORT_VERSION
-                        + " or higher"
-                );
-            }
+            throw new IllegalArgumentException(
+                "aggregations on the '"
+                    + typeName()
+                    + "' field are supported for indices created by stack version "
+                    + AGGS_SUPPORT_VERSION
+                    + " or higher"
+            );
+        }
+    }
+
+    public static final class IgnoredFieldType extends StringFieldType {
+
+        private IgnoredFieldType() {
+            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            return new FieldExistsQuery(name());
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
@@ -98,7 +118,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private IgnoredFieldMapper(IgnoredFieldType fieldType) {
+    private IgnoredFieldMapper(StringFieldType fieldType) {
         super(fieldType);
     }
 
@@ -109,8 +129,11 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             if (mappedFieldType.hasDocValues()) {
                 final BytesRef binaryValue = new BytesRef(field);
                 context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+                context.doc().add(new StringField(NAME, field, Field.Store.NO));
+            } else {
+                context.doc().add(new StringField(NAME, field, Field.Store.YES));
             }
-            context.doc().add(new StringField(NAME, field, Field.Store.YES));
+
         }
     }
 

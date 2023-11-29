@@ -658,13 +658,16 @@ class NodeConstruction {
         rerouteServiceReference.set(rerouteService);
         clusterService.setRerouteService(rerouteService);
 
-        clusterInfoService.addListener(new DiskThresholdMonitor(settings,
-            clusterService::state,
-            clusterService.getClusterSettings(),
-            client,
-            threadPool::relativeTimeInMillis,
-            rerouteService
-        )::onNewInfo);
+        clusterInfoService.addListener(
+            new DiskThresholdMonitor(
+                settings,
+                clusterService::state,
+                clusterService.getClusterSettings(),
+                client,
+                threadPool::relativeTimeInMillis,
+                rerouteService
+            )::onNewInfo
+        );
 
         IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
         modules.add(indicesModule);
@@ -739,7 +742,8 @@ class NodeConstruction {
             indexSettingProviders
         );
 
-        modules.bindToInstance(MetadataCreateDataStreamService.class,
+        modules.bindToInstance(
+            MetadataCreateDataStreamService.class,
             new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService)
         );
         modules.bindToInstance(MetadataDataStreamsService.class, new MetadataDataStreamsService(clusterService, indicesService));
@@ -838,7 +842,8 @@ class NodeConstruction {
             circuitBreakerService,
             namedWriteableRegistry,
             xContentRegistry,
-            networkService, actionModule.getRestController(),
+            networkService,
+            actionModule.getRestController(),
             actionModule::copyRequestHeadersToThreadContext,
             clusterService.getClusterSettings(),
             telemetryProvider.getTracer()
@@ -933,9 +938,11 @@ class NodeConstruction {
         );
 
         DiscoveryModule discoveryModule = createDiscoveryModule(
-            settings, threadPool,
+            settings,
+            threadPool,
             transportService,
-            networkService, clusterService,
+            networkService,
+            clusterService,
             clusterModule.getAllocationService(),
             rerouteService,
             circuitBreakerService,
@@ -989,9 +996,11 @@ class NodeConstruction {
                 metadataCreateIndexService
             )
         );
-        
-        modules.add(loadPluginShutdownService(clusterService),
-            loadDiagnosticServices(settings,
+
+        modules.add(
+            loadPluginShutdownService(clusterService),
+            loadDiagnosticServices(
+                settings,
                 discoveryModule.getCoordinator(),
                 clusterService,
                 transportService,
@@ -1120,8 +1129,9 @@ class NodeConstruction {
     }
 
     private Module loadPluginShutdownService(ClusterService clusterService) {
-        PluginShutdownService pluginShutdownService =
-            new PluginShutdownService(pluginsService.filterPlugins(ShutdownAwarePlugin.class).toList());
+        PluginShutdownService pluginShutdownService = new PluginShutdownService(
+            pluginsService.filterPlugins(ShutdownAwarePlugin.class).toList()
+        );
         clusterService.addListener(pluginShutdownService);
 
         return b -> b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
@@ -1132,7 +1142,9 @@ class NodeConstruction {
         Coordinator coordinator,
         ClusterService clusterService,
         TransportService transportService,
-        FeatureService featureService, ThreadPool threadPool, TelemetryProvider telemetryProvider
+        FeatureService featureService,
+        ThreadPool threadPool,
+        TelemetryProvider telemetryProvider
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1156,8 +1168,13 @@ class NodeConstruction {
             Stream.concat(serverHealthIndicatorServices, pluginHealthIndicatorServices).toList(),
             threadPool
         );
-        HealthPeriodicLogger healthPeriodicLogger =
-            HealthPeriodicLogger.create(settings, clusterService, client, healthService, telemetryProvider);
+        HealthPeriodicLogger healthPeriodicLogger = HealthPeriodicLogger.create(
+            settings,
+            clusterService,
+            client,
+            healthService,
+            telemetryProvider
+        );
         HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
             settings,
@@ -1396,7 +1413,8 @@ class NodeConstruction {
         GatewayMetaState gatewayMetaState = new GatewayMetaState();
         FsHealthService fsHealthService = new FsHealthService(settings, clusterService.getClusterSettings(), threadPool, nodeEnvironment);
 
-        DiscoveryModule module = new DiscoveryModule(settings,
+        DiscoveryModule module = new DiscoveryModule(
+            settings,
             transportService,
             client,
             namedWriteableRegistry,

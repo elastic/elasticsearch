@@ -79,9 +79,13 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         return mock(HealthService.class);
     }
 
-    private MeterRegistry getMockedMeterRegistry() {return mock(MeterRegistry.class);}
+    private MeterRegistry getMockedMeterRegistry() {
+        return mock(MeterRegistry.class);
+    }
 
-    private TelemetryProvider getMockedTelemetryProvider() {return mock(TelemetryProvider.class);}
+    private TelemetryProvider getMockedTelemetryProvider() {
+        return mock(TelemetryProvider.class);
+    }
 
     @Before
     public void setupServices() {

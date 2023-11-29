@@ -101,16 +101,29 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
      * @param telemetryProvider used to get the meter registry for metrics
      */
     public static HealthPeriodicLogger create(
-        Settings settings, ClusterService clusterService, Client client, HealthService healthService, TelemetryProvider telemetryProvider
+        Settings settings,
+        ClusterService clusterService,
+        Client client,
+        HealthService healthService,
+        TelemetryProvider telemetryProvider
     ) {
-        HealthPeriodicLogger logger =
-            new HealthPeriodicLogger(settings, clusterService, client, healthService, telemetryProvider.getMeterRegistry());
+        HealthPeriodicLogger logger = new HealthPeriodicLogger(
+            settings,
+            clusterService,
+            client,
+            healthService,
+            telemetryProvider.getMeterRegistry()
+        );
         logger.registerListeners();
         return logger;
     }
 
     private HealthPeriodicLogger(
-        Settings settings, ClusterService clusterService, Client client, HealthService healthService, MeterRegistry meterRegistry
+        Settings settings,
+        ClusterService clusterService,
+        Client client,
+        HealthService healthService,
+        MeterRegistry meterRegistry
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -136,12 +149,15 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
             "shards_capacity",
             "slm" };
         for (String indicator : indicators) {
-            metrics.put(indicator, LongGaugeMetric.create(
-                meterRegistry,
-                String.format(Locale.ROOT, "es.health.status.%s.red", indicator),
-                String.format(Locale.ROOT, "%s: Red", indicator),
-                "{cluster}"
-            ));
+            metrics.put(
+                indicator,
+                LongGaugeMetric.create(
+                    meterRegistry,
+                    String.format(Locale.ROOT, "es.health.status.%s.red", indicator),
+                    String.format(Locale.ROOT, "%s: Red", indicator),
+                    "{cluster}"
+                )
+            );
         }
     }
 

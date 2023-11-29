@@ -17,7 +17,7 @@ import java.util.List;
 
 public class ExceptionCollectionHandling {
 
-    public static ElasticsearchStatusException exceptionCollectionToSingleWith429OrMatchingStatus(
+    public static ElasticsearchStatusException exceptionArrayToStatusException(
         AtomicArray<Exception> failures,
         String message
     ) {
@@ -26,13 +26,53 @@ public class ExceptionCollectionHandling {
         if (caughtExceptions.isEmpty()) {
             throw new ElasticsearchStatusException("No exceptions caught", RestStatus.INTERNAL_SERVER_ERROR);
         } else {
-            return new ElasticsearchStatusException(
-                message,
-                caughtExceptions.get(0) instanceof ElasticsearchStatusException // TODO check if getting zero is correct
-                    ? ((ElasticsearchStatusException) caughtExceptions.get(0)).status()
-                    : RestStatus.TOO_MANY_REQUESTS,
-                caughtExceptions.get(0)
-            );
+
+            boolean allElasticsearchStatusException = true;
+            boolean allElasticsearchStatusException4xx = true;
+            boolean allSameCode = true;
+            int firstCode = -1;
+
+            for (Exception exception : caughtExceptions) {
+                if (exception instanceof ElasticsearchStatusException == false) {
+                    allElasticsearchStatusException = false;
+                    break;
+                }
+                ElasticsearchStatusException elasticsearchStatusException = (ElasticsearchStatusException) exception;
+                if (firstCode == -1) {
+                    firstCode = elasticsearchStatusException.status().getStatus();
+                } else if (false == (firstCode == elasticsearchStatusException.status().getStatus())) {
+                    allSameCode = false;
+                }
+
+                if (elasticsearchStatusException.status().getStatus() < 400 ||
+                    elasticsearchStatusException.status().getStatus() >= 500) {
+                    allElasticsearchStatusException4xx = false;
+                }
+            }
+
+            assert allElasticsearchStatusException; //TODO Remove this
+
+            if (allElasticsearchStatusException && allElasticsearchStatusException4xx) {
+                if (allSameCode) {
+                    return new ElasticsearchStatusException(
+                        message,
+                        ((ElasticsearchStatusException) caughtExceptions.get(0)).status(),
+                        caughtExceptions.get(0)
+                    );
+                } else {
+                    return new ElasticsearchStatusException(
+                        message,
+                        RestStatus.REQUEST_TIMEOUT
+                    );
+                }
+            } else {
+                return new ElasticsearchStatusException(
+                    message,
+                    RestStatus.INTERNAL_SERVER_ERROR
+                );
+            }
+
+
         }
 
     }

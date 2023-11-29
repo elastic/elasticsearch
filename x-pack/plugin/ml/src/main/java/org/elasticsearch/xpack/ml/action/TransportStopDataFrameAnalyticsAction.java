@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -58,7 +57,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.ml.utils.ExceptionCollectionHandling.exceptionCollectionToSingleWith429OrMatchingStatus;
+import static org.elasticsearch.xpack.ml.utils.ExceptionCollectionHandling.exceptionArrayToStatusException;
 
 /**
  * Stops the persistent task for running data frame analytics.
@@ -299,7 +298,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         AtomicArray<Exception> failures
     ) {
         List<Exception> caughtExceptions = failures.asList();
-        if (caughtExceptions.size() == 0) {
+        if (caughtExceptions.isEmpty()) {
             listener.onResponse(new StopDataFrameAnalyticsAction.Response(true));
             return;
         }
@@ -308,11 +307,11 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
             + analyticsId
             + "] with ["
             + caughtExceptions.size()
-            + "] failures, rethrowing last, all Exceptions: ["
+            + "] failures, rethrowing first. All Exceptions: ["
             + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
             + "]";
 
-        ElasticsearchStatusException e = exceptionCollectionToSingleWith429OrMatchingStatus(failures, msg);
+        ElasticsearchStatusException e = exceptionArrayToStatusException(failures, msg);
         listener.onFailure(e);
     }
 

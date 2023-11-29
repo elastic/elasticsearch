@@ -14,7 +14,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ConnectorSyncJobTriggerMethodTests extends ESTestCase {
 
     public void testFromString_WithValidTriggerMethodString() {
-        ConnectorSyncJobTriggerMethod triggerMethod = ConnectorSyncJobTestUtils.getRandomTriggerMethod();
+        ConnectorSyncJobTriggerMethod triggerMethod = ConnectorSyncJobTestUtils.getRandomConnectorSyncJobTriggerMethod();
 
         assertThat(triggerMethod, equalTo(ConnectorSyncJobTriggerMethod.fromString(triggerMethod.toString())));
     }

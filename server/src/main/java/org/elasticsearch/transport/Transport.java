@@ -8,8 +8,6 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,8 +23,8 @@ import org.elasticsearch.core.TimeValue;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -35,8 +33,6 @@ import java.util.function.Predicate;
 import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
 
 public interface Transport extends LifecycleComponent {
-
-    Logger logger = LogManager.getLogger(Transport.class);
 
     /**
      * Registers a new request handler
@@ -162,32 +158,12 @@ public interface Transport extends LifecycleComponent {
      * This class represents a response context that encapsulates the actual response handler, the action and the connection it was
      * executed on.
      */
-    final class ResponseContext<T extends TransportResponse> {
-
-        private final TransportResponseHandler<T> handler;
-
-        private final Connection connection;
-
-        private final String action;
-
-        ResponseContext(TransportResponseHandler<T> handler, Connection connection, String action) {
-            this.handler = handler;
-            this.connection = connection;
-            this.action = action;
-        }
-
-        public TransportResponseHandler<T> handler() {
-            return handler;
-        }
-
-        public Connection connection() {
-            return this.connection;
-        }
-
-        public String action() {
-            return this.action;
-        }
-    }
+    record ResponseContext<T extends TransportResponse> (
+        TransportResponseHandler<T> handler,
+        Connection connection,
+        String action,
+        Long requestId
+    ) {};
 
     /**
      * This class is a registry that allows
@@ -214,14 +190,19 @@ public interface Transport extends LifecycleComponent {
 
         /**
          * Adds a new response context and associates it with a new request ID.
-         * @return the new request ID
+         * @return the new response context
          * @see Connection#sendRequest(long, String, TransportRequest, TransportRequestOptions)
          */
-        public long add(ResponseContext<? extends TransportResponse> holder) {
+        public ResponseContext<? extends TransportResponse> add(
+            TransportResponseHandler<? extends TransportResponse> handler,
+            Connection connection,
+            String action
+        ) {
             long requestId = newRequestId();
+            ResponseContext<? extends TransportResponse> holder = new ResponseContext<>(handler, connection, action, requestId);
             ResponseContext<? extends TransportResponse> existing = handlers.put(requestId, holder);
             assert existing == null : "request ID already in use: " + requestId;
-            return requestId;
+            return holder;
         }
 
         /**
@@ -235,17 +216,14 @@ public interface Transport extends LifecycleComponent {
         /**
          * Removes and returns all {@link ResponseContext} instances that match the predicate
          */
-        public Map<Long, ResponseContext<? extends TransportResponse>> prune(
-            Predicate<ResponseContext<? extends TransportResponse>> predicate
-        ) {
-            final Map<Long, ResponseContext<? extends TransportResponse>> holders = new HashMap<>();
+        public List<ResponseContext<? extends TransportResponse>> prune(Predicate<ResponseContext<? extends TransportResponse>> predicate) {
+            final List<ResponseContext<? extends TransportResponse>> holders = new ArrayList<>();
             for (Map.Entry<Long, ResponseContext<? extends TransportResponse>> entry : handlers.entrySet()) {
-                Long requestId = entry.getKey();
                 ResponseContext<? extends TransportResponse> holder = entry.getValue();
                 if (predicate.test(holder)) {
-                    ResponseContext<? extends TransportResponse> remove = handlers.remove(requestId);
+                    ResponseContext<? extends TransportResponse> remove = handlers.remove(entry.getKey());
                     if (remove != null) {
-                        holders.put(requestId, holder);
+                        holders.add(holder);
                     }
                 }
             }

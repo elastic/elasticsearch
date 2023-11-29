@@ -46,8 +46,6 @@ public class ExceptionCollectionHandling {
                 }
             }
 
-            assert allElasticsearchStatusException; // TODO Remove this
-
             if (allElasticsearchStatusException && allElasticsearchStatusException4xx) {
                 if (allSameCode) {
                     return new ElasticsearchStatusException(

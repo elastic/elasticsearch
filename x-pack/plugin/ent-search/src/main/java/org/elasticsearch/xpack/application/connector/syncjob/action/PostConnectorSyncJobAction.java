@@ -69,11 +69,20 @@ public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobA
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "connector_sync_job_post_request",
             false,
-            ((args) -> new Request(
-                (String) args[0],
-                ConnectorSyncJobType.fromString((String) args[1]),
-                ConnectorSyncJobTriggerMethod.fromString((String) args[2])
-            ))
+            ((args) -> {
+                String connectorId = (String) args[0];
+                String syncJobTypeString = (String) args[1];
+                String triggerMethodString = (String) args[2];
+
+                boolean syncJobTypeSpecified = syncJobTypeString != null;
+                boolean triggerMethodSpecified = triggerMethodString != null;
+
+                return new Request(
+                    connectorId,
+                    syncJobTypeSpecified ? ConnectorSyncJobType.fromString(syncJobTypeString) : null,
+                    triggerMethodSpecified ? ConnectorSyncJobTriggerMethod.fromString(triggerMethodString) : null
+                );
+            })
         );
 
         static {

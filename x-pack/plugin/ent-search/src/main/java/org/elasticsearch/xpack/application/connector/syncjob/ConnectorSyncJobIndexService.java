@@ -62,46 +62,45 @@ public class ConnectorSyncJobIndexService {
     ) {
         try {
             getSyncJobConnectorInfo(request.getId(), listener.delegateFailure((l, connector) -> {
-                    Instant now = Instant.now();
-                    ConnectorSyncJobType jobType = Objects.requireNonNullElse(request.getJobType(), ConnectorSyncJob.DEFAULT_JOB_TYPE);
-                    ConnectorSyncJobTriggerMethod triggerMethod = Objects.requireNonNullElse(
-                        request.getTriggerMethod(),
-                        ConnectorSyncJob.DEFAULT_TRIGGER_METHOD
+                Instant now = Instant.now();
+                ConnectorSyncJobType jobType = Objects.requireNonNullElse(request.getJobType(), ConnectorSyncJob.DEFAULT_JOB_TYPE);
+                ConnectorSyncJobTriggerMethod triggerMethod = Objects.requireNonNullElse(
+                    request.getTriggerMethod(),
+                    ConnectorSyncJob.DEFAULT_TRIGGER_METHOD
+                );
+
+                try {
+                    String syncJobId = generateId();
+
+                    final IndexRequest indexRequest = new IndexRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).id(syncJobId)
+                        .opType(DocWriteRequest.OpType.INDEX)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+                    ConnectorSyncJob syncJob = new ConnectorSyncJob.Builder().setId(syncJobId)
+                        .setJobType(jobType)
+                        .setTriggerMethod(triggerMethod)
+                        .setStatus(ConnectorSyncJob.DEFAULT_INITIAL_STATUS)
+                        .setConnector(connector)
+                        .setCreatedAt(now)
+                        .setLastSeen(now)
+                        .setTotalDocumentCount(ZERO)
+                        .setIndexedDocumentCount(ZERO)
+                        .setIndexedDocumentVolume(ZERO)
+                        .setDeletedDocumentCount(ZERO)
+                        .build();
+
+                    indexRequest.source(syncJob.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
+
+                    clientWithOrigin.index(
+                        indexRequest,
+                        ActionListener.wrap(
+                            indexResponse -> listener.onResponse(new PostConnectorSyncJobAction.Response(indexResponse.getId())),
+                            listener::onFailure
+                        )
                     );
-
-                    try {
-                        String syncJobId = generateId();
-
-                        final IndexRequest indexRequest = new IndexRequest(CONNECTOR_SYNC_JOB_INDEX_NAME)
-                            .id(syncJobId)
-                            .opType(DocWriteRequest.OpType.INDEX)
-                            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
-                        ConnectorSyncJob syncJob = new ConnectorSyncJob.Builder().setId(syncJobId)
-                            .setJobType(jobType)
-                            .setTriggerMethod(triggerMethod)
-                            .setStatus(ConnectorSyncJob.DEFAULT_INITIAL_STATUS)
-                            .setConnector(connector)
-                            .setCreatedAt(now)
-                            .setLastSeen(now)
-                            .setTotalDocumentCount(ZERO)
-                            .setIndexedDocumentCount(ZERO)
-                            .setIndexedDocumentVolume(ZERO)
-                            .setDeletedDocumentCount(ZERO)
-                            .build();
-
-                        indexRequest.source(syncJob.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
-
-                        clientWithOrigin.index(
-                            indexRequest,
-                            ActionListener.wrap(
-                                indexResponse -> listener.onResponse(new PostConnectorSyncJobAction.Response(indexResponse.getId())),
-                                listener::onFailure
-                            )
-                        );
-                    } catch (IOException e) {
-                        listener.onFailure(e);
-                    }
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                }
             }));
         } catch (Exception e) {
             listener.onFailure(e);

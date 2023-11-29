@@ -95,19 +95,19 @@ public class TimeSeriesAggregatorTsidHashingTests extends AggregationTestCase {
         }, ts -> {
             assertThat(ts.getBuckets(), hasSize(3));
 
-            assertThat(ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMmPM3J-Az1W934hGmwK9c1PmP91fi3PSqA").docCount, equalTo(2L));
+            assertThat(ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzJjzNyfgM9Vvd-IRpsCvXNT5j_dX4tz0qg").docCount, equalTo(2L));
             assertThat(
-                ((Sum) ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMmPM3J-Az1W934hGmwK9c1PmP91fi3PSqA").getAggregations().get("sum")).value(),
+                ((Sum) ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzJjzNyfgM9Vvd-IRpsCvXNT5j_dX4tz0qg").getAggregations().get("sum")).value(),
                 equalTo(6.0)
             );
-            assertThat(ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMmPM3J-3EIxC4a_5c4_P0nptkz5mFQadXg").docCount, equalTo(2L));
+            assertThat(ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzJjzNyftxCMQuGv-XOPz9J6bZM-ZhUGnV4").docCount, equalTo(2L));
             assertThat(
-                ((Sum) ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMmPM3J-3EIxC4a_5c4_P0nptkz5mFQadXg").getAggregations().get("sum")).value(),
+                ((Sum) ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzJjzNyftxCMQuGv-XOPz9J6bZM-ZhUGnV4").getAggregations().get("sum")).value(),
                 equalTo(8.0)
             );
-            assertThat(ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMhL_RWtkZqXKUU-L12Qrh1jJj2DTLJtLqg").docCount, equalTo(4L));
+            assertThat(ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzIS_0VrZGalylFPi9dkK4dYyY9g0yybS6o").docCount, equalTo(4L));
             assertThat(
-                ((Sum) ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMhL_RWtkZqXKUU-L12Qrh1jJj2DTLJtLqg").getAggregations().get("sum")).value(),
+                ((Sum) ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzIS_0VrZGalylFPi9dkK4dYyY9g0yybS6o").getAggregations().get("sum")).value(),
                 equalTo(22.0)
             );
 
@@ -190,24 +190,24 @@ public class TimeSeriesAggregatorTsidHashingTests extends AggregationTestCase {
         Consumer<InternalTimeSeries> verifier = ts -> {
             assertThat(ts.getBuckets(), hasSize(3));
 
-            assertThat(ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMmPM3J-Az1W934hGmwK9c1PmP91fi3PSqA").docCount, equalTo(2L));
-            InternalDateHistogram byTimeStampBucket = ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMmPM3J-Az1W934hGmwK9c1PmP91fi3PSqA")
+            assertThat(ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzJjzNyfgM9Vvd-IRpsCvXNT5j_dX4tz0qg").docCount, equalTo(2L));
+            InternalDateHistogram byTimeStampBucket = ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzJjzNyfgM9Vvd-IRpsCvXNT5j_dX4tz0qg")
                 .getAggregations()
                 .get("by_timestamp");
             assertThat(
                 byTimeStampBucket.getBuckets(),
                 contains(new InternalDateHistogram.Bucket(startTime, 2, false, null, InternalAggregations.EMPTY))
             );
-            assertThat(ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMmPM3J-3EIxC4a_5c4_P0nptkz5mFQadXg").docCount, equalTo(2L));
-            byTimeStampBucket = ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMmPM3J-3EIxC4a_5c4_P0nptkz5mFQadXg")
+            assertThat(ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzJjzNyftxCMQuGv-XOPz9J6bZM-ZhUGnV4").docCount, equalTo(2L));
+            byTimeStampBucket = ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzJjzNyftxCMQuGv-XOPz9J6bZM-ZhUGnV4")
                 .getAggregations()
                 .get("by_timestamp");
             assertThat(
                 byTimeStampBucket.getBuckets(),
                 contains(new InternalDateHistogram.Bucket(startTime, 2, false, null, InternalAggregations.EMPTY))
             );
-            assertThat(ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMhL_RWtkZqXKUU-L12Qrh1jJj2DTLJtLqg").docCount, equalTo(4L));
-            byTimeStampBucket = ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMhL_RWtkZqXKUU-L12Qrh1jJj2DTLJtLqg")
+            assertThat(ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzIS_0VrZGalylFPi9dkK4dYyY9g0yybS6o").docCount, equalTo(4L));
+            byTimeStampBucket = ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzIS_0VrZGalylFPi9dkK4dYyY9g0yybS6o")
                 .getAggregations()
                 .get("by_timestamp");
             assertThat(
@@ -229,9 +229,9 @@ public class TimeSeriesAggregatorTsidHashingTests extends AggregationTestCase {
 
         List<Consumer<InternalTimeSeries>> verifiers = new ArrayList<Consumer<InternalTimeSeries>>();
 
-        verifiers.add(ts -> assertThat(ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMhL_RWtkZqXKUU-L12Qrh1jJj2DTLJtLqg").docCount, equalTo(4L)));
-        verifiers.add(ts -> assertThat(ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMmPM3J-Az1W934hGmwK9c1PmP91fi3PSqA").docCount, equalTo(2L)));
-        verifiers.add(ts -> assertThat(ts.getBucketByKey("C0uMhZuLQSpAQ5ipTZFLMmPM3J-3EIxC4a_5c4_P0nptkz5mFQadXg").docCount, equalTo(2L)));
+        verifiers.add(ts -> assertThat(ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzIS_0VrZGalylFPi9dkK4dYyY9g0yybS6o").docCount, equalTo(4L)));
+        verifiers.add(ts -> assertThat(ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzJjzNyfgM9Vvd-IRpsCvXNT5j_dX4tz0qg").docCount, equalTo(2L)));
+        verifiers.add(ts -> assertThat(ts.getBucketByKey("KAtLjIWbi0EqQEOYqU2RSzJjzNyftxCMQuGv-XOPz9J6bZM-ZhUGnV4").docCount, equalTo(2L)));
 
         for (int i = 1; i <= 3; i++) {
             int size = i;

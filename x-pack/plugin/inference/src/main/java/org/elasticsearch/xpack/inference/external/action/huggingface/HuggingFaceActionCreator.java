@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.inference.external.action.huggingface;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.retry.AlwaysRetryingResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceElserResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -32,16 +32,18 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
 
     @Override
     public ExecutableAction create(HuggingFaceEmbeddingsModel model) {
-        var responseHandler = new AlwaysRetryingResponseHandler(
+        var responseHandler = new HuggingFaceResponseHandler(
             "hugging face text embeddings",
             HuggingFaceEmbeddingsResponseEntity::fromResponse
         );
+
         return new HuggingFaceAction(sender, model, serviceComponents, responseHandler, "text embeddings");
     }
 
     @Override
     public ExecutableAction create(HuggingFaceElserModel model) {
-        var responseHandler = new AlwaysRetryingResponseHandler("hugging face elser", HuggingFaceElserResponseEntity::fromResponse);
+        var responseHandler = new HuggingFaceResponseHandler("hugging face elser", HuggingFaceElserResponseEntity::fromResponse);
+
         return new HuggingFaceAction(sender, model, serviceComponents, responseHandler, "ELSER");
     }
 }

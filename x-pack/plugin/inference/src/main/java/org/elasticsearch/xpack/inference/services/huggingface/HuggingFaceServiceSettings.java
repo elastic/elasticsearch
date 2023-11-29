@@ -30,22 +30,25 @@ public record HuggingFaceServiceSettings(URI uri) implements ServiceSettings {
 
     static final String URL = "url";
 
-    // TODO handle duplication
     public static HuggingFaceServiceSettings fromMap(Map<String, Object> map) {
+        return new HuggingFaceServiceSettings(extractUri(map, URL));
+    }
+
+    public static URI extractUri(Map<String, Object> map, String fieldName) {
         ValidationException validationException = new ValidationException();
 
-        String parsedUrl = extractRequiredString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String parsedUrl = extractRequiredString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        URI uri = convertToUri(parsedUrl, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        URI uri = convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new HuggingFaceServiceSettings(uri);
+        return uri;
     }
 
     public HuggingFaceServiceSettings {

@@ -570,7 +570,7 @@ public class OpenAiServiceTests extends ESTestCase {
             service.infer(model, List.of("abc"), new HashMap<>(), listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(error.getMessage(), containsString("Received a authentication error status code for request"));
+            assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
             assertThat(error.getMessage(), containsString("Error message: [Incorrect API key provided:]"));
             assertThat(webServer.requests(), hasSize(1));
         }

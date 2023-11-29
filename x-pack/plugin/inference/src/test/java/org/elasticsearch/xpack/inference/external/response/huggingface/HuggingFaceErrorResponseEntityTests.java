@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.response.openai;
+package org.elasticsearch.xpack.inference.external.response.huggingface;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
@@ -15,23 +15,19 @@ import java.nio.charset.StandardCharsets;
 
 import static org.mockito.Mockito.mock;
 
-public class OpenAiErrorResponseEntityTests extends ESTestCase {
+public class HuggingFaceErrorResponseEntityTests extends ESTestCase {
     public void testFromResponse() {
         String responseJson = """
             {
-                "error": {
-                    "message": "You didn't provide an API key",
-                    "type": "invalid_request_error",
-                    "param": null,
-                    "code": null
-                }
+                "error": "A valid user token is required"
             }
             """;
 
-        OpenAiErrorResponseEntity errorMessage = OpenAiErrorResponseEntity.fromResponse(
+        HuggingFaceErrorResponseEntity errorMessage = HuggingFaceErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        assertEquals("You didn't provide an API key", errorMessage.getErrorMessage());
+        assertNotNull(errorMessage);
+        assertEquals("A valid user token is required", errorMessage.getErrorMessage());
     }
 
     public void testFromResponse_noMessage() {
@@ -43,7 +39,7 @@ public class OpenAiErrorResponseEntityTests extends ESTestCase {
             }
             """;
 
-        OpenAiErrorResponseEntity errorMessage = OpenAiErrorResponseEntity.fromResponse(
+        HuggingFaceErrorResponseEntity errorMessage = HuggingFaceErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
         assertNull(errorMessage);
@@ -58,7 +54,7 @@ public class OpenAiErrorResponseEntityTests extends ESTestCase {
             }
             """;
 
-        OpenAiErrorResponseEntity errorMessage = OpenAiErrorResponseEntity.fromResponse(
+        HuggingFaceErrorResponseEntity errorMessage = HuggingFaceErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
         assertNull(errorMessage);

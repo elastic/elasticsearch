@@ -22,6 +22,7 @@ import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -110,6 +111,7 @@ import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -2121,7 +2123,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
             var transportVersion = getTransportVersionWithFallback(
                 objectPath.evaluate("nodes." + id + ".version"),
-                objectPath.evaluate("nodes." + id + ".transport_version")
+                objectPath.evaluate("nodes." + id + ".transport_version"),
+                () -> TransportVersions.MINIMUM_COMPATIBLE
             );
             if (minTransportVersion == null || minTransportVersion.after(transportVersion)) {
                 minTransportVersion = transportVersion;
@@ -2132,19 +2135,25 @@ public abstract class ESRestTestCase extends ESTestCase {
         return minTransportVersion;
     }
 
-    protected static TransportVersion getTransportVersionWithFallback(Object versionField, Object transportVersionField) {
+    protected static TransportVersion getTransportVersionWithFallback(
+        Object versionField,
+        Object transportVersionField,
+        Supplier<TransportVersion> fallbackSupplier
+    ) {
         if (transportVersionField instanceof Integer transportVersionId) {
             return TransportVersion.fromId(transportVersionId);
         } else if (transportVersionField instanceof String transportVersionString) {
             return TransportVersion.fromString(transportVersionString);
         } else { // no transport_version field
-            // this json might be from a node <8.8.0, but about a node >=8.8.0
-            // In that case the transport_version field won't exist. Fall back to version.
+            // The response might be from a node <8.8.0, but about a node >=8.8.0
+            // In that case the transport_version field won't exist. Use version, but only for <8.8.0: after that versions diverge.
             var version = parseLegacyVersion(versionField.toString());
-
-            assert version.isPresent() && version.get().before(Version.V_8_8_0);
-            return TransportVersion.fromId(version.get().id);
+            assert version.isPresent();
+            if (version.get().before(Version.V_8_8_0)) {
+                return TransportVersion.fromId(version.get().id);
+            }
         }
+        return fallbackSupplier.get();
     }
 
     private static Optional<Version> parseLegacyVersion(String version) {

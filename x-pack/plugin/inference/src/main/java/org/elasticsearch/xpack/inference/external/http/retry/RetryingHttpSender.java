@@ -113,7 +113,7 @@ public class RetryingHttpSender implements Retrier {
         /**
          * If the connection gets closed by the server or because of the connections time to live is exceeded we'll likely get a
          * {@link org.apache.http.ConnectionClosedException} exception which is a child of IOException.
-         * 
+         *
          * @param e the Exception received while sending the request
          * @return a {@link RetryException} if this exception can be retried
          */

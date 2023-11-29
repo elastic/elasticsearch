@@ -29,10 +29,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomIndexVersionValue;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomTranslogLocation;
 import static org.hamcrest.Matchers.empty;
@@ -46,33 +48,37 @@ public class LiveVersionMapTests extends ESTestCase {
         var vl = new LiveVersionMap.VersionLookup(newConcurrentMapWithAggressiveConcurrency());
         assertEquals(0, vl.ramBytesUsed());
         Set<BytesRef> existingKeys = new HashSet<>();
-        IntStream.range(0, randomIntBetween(1, 100)).forEach(i -> {
+        Supplier<Tuple<BytesRef, IndexVersionValue>> randomEntry = () -> {
+            var key = randomBoolean() || existingKeys.isEmpty() ? uid(randomIdentifier()) : randomFrom(existingKeys);
+            return tuple(key, randomIndexVersionValue());
+        };
+        IntStream.range(0, randomIntBetween(10, 100)).forEach(i -> {
             switch (randomIntBetween(0, 2)) {
                 case 0: // put
-                    if (randomBoolean() && existingKeys.isEmpty() == false) {
-                        // replace existing
-                        assertNotNull(vl.put(randomFrom(existingKeys), randomIndexVersionValue()));
+                    var entry = randomEntry.get();
+                    var previousValue = vl.put(entry.v1(), entry.v2());
+                    if (existingKeys.contains(entry.v1())) {
+                        assertNotNull(previousValue);
                     } else {
-                        // insert (most likely) new
-                        var key = uid(randomIdentifier());
-                        vl.put(key, randomIndexVersionValue());
-                        existingKeys.add(key);
+                        assertNull(previousValue);
+                        existingKeys.add(entry.v1());
                     }
                     break;
                 case 1: // remove
                     if (existingKeys.isEmpty() == false) {
                         var key = randomFrom(existingKeys);
-                        vl.remove(key);
+                        assertNotNull(vl.remove(key));
                         existingKeys.remove(key);
                     }
                     break;
                 case 2: // merge
-                    var toMerge = new LiveVersionMap.VersionLookup(
-                        IntStream.range(0, randomIntBetween(1, 100))
-                            .mapToObj(n -> Tuple.tuple(uid(randomIdentifier()), randomIndexVersionValue()))
-                            .collect(Collectors.toMap(Tuple::v1, Tuple::v2))
-                    );
+                    Map<BytesRef, VersionValue> entries = IntStream.range(0, randomIntBetween(1, 100))
+                        .mapToObj(n -> randomEntry.get())
+                        // in case we pick the same existing key more than once, just pick a value randomly
+                        .collect(Collectors.toMap(Tuple::v1, Tuple::v2, ESTestCase::randomFrom));
+                    var toMerge = new LiveVersionMap.VersionLookup(entries);
                     vl.merge(toMerge);
+                    existingKeys.addAll(entries.keySet());
                     break;
                 default:
                     throw new IllegalStateException("branch value unexpected");

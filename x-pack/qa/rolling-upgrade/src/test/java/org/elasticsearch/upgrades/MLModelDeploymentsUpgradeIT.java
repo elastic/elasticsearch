@@ -8,11 +8,11 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -98,7 +98,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeployment() throws Exception {
-        assumeTrue("NLP model deployments added in 8.0", isOriginalClusterVersionAtLeast(Version.V_8_0_0));
+        assumeTrue("NLP model deployments feature", clusterHasFeature(RestTestLegacyFeatures.ML_NLP_MODEL_DEPLOYMENT_SUPPORTED));
 
         final String modelId = "upgrade-deployment-test";
 
@@ -134,7 +134,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
-        assumeTrue("NLP model deployments added in 8.0", isOriginalClusterVersionAtLeast(Version.V_8_0_0));
+        assumeTrue("NLP model deployments feature", clusterHasFeature(RestTestLegacyFeatures.ML_NLP_MODEL_DEPLOYMENT_SUPPORTED));
 
         final String modelId = "upgrade-deployment-test-stop-mixed-cluster";
 

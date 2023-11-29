@@ -9,8 +9,6 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -19,6 +17,8 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -46,15 +46,14 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
-    public static final Version API_KEY_SUPPORT_REMOTE_INDICES_VERSION = Build.current().isSnapshot() ? Version.V_8_8_0 : Version.V_8_9_1;
-
     private RestClient oldVersionClient = null;
     private RestClient newVersionClient = null;
 
     public void testCreatingAndUpdatingApiKeys() throws Exception {
         assumeTrue(
-            "The remote_indices for API Keys are not supported before version " + API_KEY_SUPPORT_REMOTE_INDICES_VERSION,
-            isOriginalClusterVersionAtLeast(API_KEY_SUPPORT_REMOTE_INDICES_VERSION) == false
+            "The remote_indices for API Keys are not supported before transport version "
+                + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY,
+            minimumTransportVersion().before(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -76,7 +75,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 );
 
                 RestClient client = client();
-                if (isUpdateApiSupported(client)) {
+                if (isUpdateApiSupported()) {
                     var updateException = expectThrows(
                         Exception.class,
                         () -> updateOrBulkUpdateApiKey(client, apiKey.v1(), randomRoleDescriptors(true))
@@ -103,7 +102,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
                     // fail when remote_indices are provided:
                     // against old node
-                    if (isUpdateApiSupported(oldVersionClient)) {
+                    if (isUpdateApiSupported()) {
                         Exception e = expectThrows(
                             Exception.class,
                             () -> updateOrBulkUpdateApiKey(oldVersionClient, apiKey.v1(), randomRoleDescriptors(true))
@@ -183,7 +182,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "role_descriptors": %s
             }""", name, roles);
         // Grant API did not exist before 7.7.0
-        final boolean grantApiKey = randomBoolean() && isOriginalClusterVersionAtLeast(Version.V_7_7_0);
+        final boolean grantApiKey = randomBoolean() && clusterHasFeature(RestTestLegacyFeatures.SECURITY_GRANT_API_SUPPORTED);
         if (grantApiKey) {
             createApiKeyRequest = new Request("POST", "/_security/api_key/grant");
             createApiKeyRequest.setJsonEntity(org.elasticsearch.common.Strings.format("""
@@ -218,28 +217,20 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         updateOrBulkUpdateApiKey(client(), id, roles);
     }
 
-    private boolean isUpdateApiSupported(RestClient client) {
-        return switch (CLUSTER_TYPE) {
-            case OLD -> isOriginalClusterVersionAtLeast(Version.V_8_4_0); // Update API was introduced in 8.4.0.
-            case MIXED -> isOriginalClusterVersionAtLeast(Version.V_8_4_0) || client == newVersionClient;
-            case UPGRADED -> true;
-        };
+    private boolean isUpdateApiSupported() {
+        return clusterHasFeature(RestTestLegacyFeatures.SECURITY_UPDATE_API_KEY);
     }
 
-    private boolean isBulkUpdateApiSupported(RestClient client) {
-        return switch (CLUSTER_TYPE) {
-            case OLD -> isOriginalClusterVersionAtLeast(Version.V_8_5_0); // Bulk update API was introduced in 8.5.0.
-            case MIXED -> isOriginalClusterVersionAtLeast(Version.V_8_5_0) || client == newVersionClient;
-            case UPGRADED -> true;
-        };
+    private boolean isBulkUpdateApiSupported() {
+        return clusterHasFeature(RestTestLegacyFeatures.SECURITY_BULK_UPDATE_API_KEY);
     }
 
     private void updateOrBulkUpdateApiKey(RestClient client, String id, String roles) throws IOException {
-        if (false == isUpdateApiSupported(client)) {
+        if (false == isUpdateApiSupported()) {
             return; // Update API is not supported.
         }
         final Request updateApiKeyRequest;
-        final boolean bulkUpdate = randomBoolean() && isBulkUpdateApiSupported(client);
+        final boolean bulkUpdate = randomBoolean() && isBulkUpdateApiSupported();
         if (bulkUpdate) {
             updateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
             updateApiKeyRequest.setJsonEntity(org.elasticsearch.common.Strings.format("""
@@ -304,10 +295,11 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     boolean nodeSupportApiKeyRemoteIndices(Map<String, Object> nodeDetails) {
-        // TODO[lor]: the method can be kept, but we need to replace version check with features checks
-        String versionString = (String) nodeDetails.get("version");
-        Version version = Version.fromString(versionString.replace("-SNAPSHOT", ""));
-        return version.onOrAfter(API_KEY_SUPPORT_REMOTE_INDICES_VERSION);
+        var transportVersion = getTransportVersionWithFallback(
+            nodeDetails.get("version").toString(),
+            nodeDetails.get("transport_version").toString()
+        );
+        return transportVersion.after(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
     }
 
     private void createClientsByVersion() throws IOException {

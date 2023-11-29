@@ -11,7 +11,6 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -288,7 +288,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             assertHitCount(index, equalTo(numberOfDocs * 2L));
             deleteIndex(index);
 
-            if (isOriginalClusterVersionAtLeast(Version.V_7_13_0)) {
+            if (clusterHasFeature(RestTestLegacyFeatures.SNAPSHOT_BLOB_CACHE_INDEX_DATA_TIER_PREFERENCE_UPDATED)) {
                 final Request request = new Request(
                     "GET",
                     "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference"

@@ -21,6 +21,7 @@ import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -2105,6 +2106,45 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         assertNotNull(minVersion);
         return minVersion;
+    }
+
+    /**
+     * Returns the minimum transport version among all nodes of the cluster
+     */
+    protected static TransportVersion minimumTransportVersion() throws IOException {
+        Response response = client.performRequest(new Request("GET", "_nodes"));
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+
+        TransportVersion minTransportVersion = null;
+        for (String id : nodesAsMap.keySet()) {
+
+            var transportVersion = getTransportVersionWithFallback(
+                objectPath.evaluate("nodes." + id + ".version"),
+                objectPath.evaluate("nodes." + id + ".transport_version")
+            );
+            if (minTransportVersion == null || minTransportVersion.after(transportVersion)) {
+                minTransportVersion = transportVersion;
+            }
+        }
+
+        assertNotNull(minTransportVersion);
+        return minTransportVersion;
+    }
+
+    protected static TransportVersion getTransportVersionWithFallback(String versionString, Object transportVersion) {
+        if (transportVersion instanceof Integer transportVersionId) {
+            return TransportVersion.fromId(transportVersionId);
+        } else if (transportVersion instanceof String transportVersionString) {
+            return TransportVersion.fromString(transportVersionString);
+        } else { // no transport_version field
+            // this json might be from a node <8.8.0, but about a node >=8.8.0
+            // In that case the transport_version field won't exist. Fall back to version.
+            var version = parseLegacyVersion(versionString);
+
+            assert version.isPresent() && version.get().before(Version.V_8_8_0);
+            return TransportVersion.fromId(version.get().id);
+        }
     }
 
     private static Optional<Version> parseLegacyVersion(String version) {

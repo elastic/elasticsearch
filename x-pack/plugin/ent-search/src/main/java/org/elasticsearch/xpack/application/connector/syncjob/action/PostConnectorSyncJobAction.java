@@ -18,12 +18,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTriggerMethod;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
 
@@ -67,7 +67,7 @@ public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobA
         }
 
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
-            "connector_sync_job_put_request",
+            "connector_sync_job_post_request",
             false,
             ((args) -> new Request(
                 (String) args[0],
@@ -77,9 +77,9 @@ public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobA
         );
 
         static {
-            PARSER.declareString(constructorArg(), new ParseField("id"));
-            PARSER.declareString(optionalConstructorArg(), new ParseField("job_type"));
-            PARSER.declareString(optionalConstructorArg(), new ParseField("trigger_method"));
+            PARSER.declareString(constructorArg(), ConnectorSyncJob.ID_FIELD);
+            PARSER.declareString(optionalConstructorArg(), ConnectorSyncJob.JOB_TYPE_FIELD);
+            PARSER.declareString(optionalConstructorArg(), ConnectorSyncJob.TRIGGER_METHOD_FIELD);
         }
 
         public String getId() {

@@ -202,7 +202,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             );
         }
 
-        public void tryBlockOnce(String logMessage) {
+        public void logIfBlocked(String logMessage) {
             if (shouldBlock.tryAcquire(1) == false) {
                 LogManager.getLogger(AbstractSearchCancellationTestCase.class).info(logMessage);
             } else {
@@ -245,7 +245,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             if (runnable != null) {
                 runnable.run();
             }
-            tryBlockOnce("Blocking in reduce");
+            logIfBlocked("Blocking in reduce");
             hits.incrementAndGet();
             waitForBlock(10, TimeUnit.SECONDS);
             return 42;
@@ -256,7 +256,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             if (runnable != null) {
                 runnable.run();
             }
-            tryBlockOnce("Blocking in map");
+            logIfBlocked("Blocking in map");
             hits.incrementAndGet();
             waitForBlock(10, TimeUnit.SECONDS);
             return 1;

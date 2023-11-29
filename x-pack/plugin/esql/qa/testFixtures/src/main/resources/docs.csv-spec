@@ -662,11 +662,31 @@ FROM sample_data
 @timestamp:date | client_ip:ip | event_duration:long | message:keyword
 ;
 
+docsGettingStartedFromLowercase
+// tag::gs-from-lowercase[]
+from sample_data
+// end::gs-from-lowercase[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
+;
+
 docsGettingStartedLimit
 // tag::gs-limit[]
 FROM sample_data
 | LIMIT 3
 // end::gs-limit[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
+;
+
+docsGettingStartedLimitOneLine
+// tag::gs-limit-one-line[]
+FROM sample_data | LIMIT 3
+// end::gs-limit-one-line[]
 | LIMIT 0
 ;
 

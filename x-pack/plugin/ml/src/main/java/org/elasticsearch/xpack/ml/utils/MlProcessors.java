@@ -69,6 +69,6 @@ public final class MlProcessors {
                 total += nodeProcessors.roundDown();
             }
         }
-        return Processors.of((double) total);
+        return total == 0 ? Processors.ZERO : Processors.of((double) total);
     }
 }

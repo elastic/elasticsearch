@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -153,13 +154,16 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             Model model,
             List<String> input,
             Map<String, Object> taskSettings,
-            ActionListener<List<? extends InferenceResults>> listener
+            ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
                 case SPARSE_EMBEDDING -> {
-                    var results = new ArrayList<TestResults>();
-                    input.forEach(i -> { results.add(new TestResults("bar")); });
-                    listener.onResponse(results);
+                    var strings = new ArrayList<String>();
+                    for (int i = 0; i < input.size(); i++) {
+                        strings.add(Integer.toString(i));
+                    }
+
+                    listener.onResponse(new TestResults(strings));
                 }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
@@ -344,17 +348,18 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         }
     }
 
-    private static class TestResults implements InferenceResults {
+    private static class TestResults implements InferenceServiceResults, InferenceResults {
 
-        private String result;
+        private static final String RESULTS_FIELD = "result";
+        private List<String> result;
 
-        public TestResults(String result) {
+        TestResults(List<String> result) {
             this.result = result;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("result", result);
+            builder.field(RESULTS_FIELD, result);
             return builder;
         }
 
@@ -365,12 +370,17 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(result);
+            out.writeStringCollection(result);
         }
 
         @Override
         public String getResultsField() {
-            return "result";
+            return RESULTS_FIELD;
+        }
+
+        @Override
+        public List<? extends InferenceResults> transformToLegacyFormat() {
+            return List.of(this);
         }
 
         @Override

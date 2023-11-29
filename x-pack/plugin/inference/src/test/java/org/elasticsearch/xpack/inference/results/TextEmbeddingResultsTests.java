@@ -8,19 +8,39 @@
 package org.elasticsearch.xpack.inference.results;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class TextEmbeddingResultsTests extends ESTestCase {
+public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingResults> {
+    public static TextEmbeddingResults createRandomResults() {
+        int embeddings = randomIntBetween(1, 10);
+        List<TextEmbeddingResults.Embedding> embeddingResults = new ArrayList<>(embeddings);
+
+        for (int i = 0; i < embeddings; i++) {
+            embeddingResults.add(createRandomEmbedding());
+        }
+
+        return new TextEmbeddingResults(embeddingResults);
+    }
+
+    private static TextEmbeddingResults.Embedding createRandomEmbedding() {
+        int columns = randomIntBetween(1, 10);
+        List<Float> floats = new ArrayList<>(columns);
+
+        for (int i = 0; i < columns; i++) {
+            floats.add(randomFloat());
+        }
+
+        return new TextEmbeddingResults.Embedding(floats);
+    }
+
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
         var entity = new TextEmbeddingResults(List.of(new TextEmbeddingResults.Embedding(List.of(0.1F))));
 
@@ -29,7 +49,7 @@ public class TextEmbeddingResultsTests extends ESTestCase {
             is(Map.of(TextEmbeddingResults.TEXT_EMBEDDING, List.of(Map.of(TextEmbeddingResults.Embedding.EMBEDDING, List.of(0.1F)))))
         );
 
-        String xContentResult = toJsonString(entity);
+        String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "text_embedding" : [
@@ -61,7 +81,7 @@ public class TextEmbeddingResultsTests extends ESTestCase {
             )
         );
 
-        String xContentResult = toJsonString(entity);
+        String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "text_embedding" : [
@@ -79,12 +99,34 @@ public class TextEmbeddingResultsTests extends ESTestCase {
             }"""));
     }
 
-    private static String toJsonString(ToXContentFragment entity) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
-        builder.startObject();
-        entity.toXContent(builder, null);
-        builder.endObject();
+    @Override
+    protected Writeable.Reader<TextEmbeddingResults> instanceReader() {
+        return TextEmbeddingResults::new;
+    }
 
-        return Strings.toString(builder);
+    @Override
+    protected TextEmbeddingResults createTestInstance() {
+        return createRandomResults();
+    }
+
+    @Override
+    protected TextEmbeddingResults mutateInstance(TextEmbeddingResults instance) throws IOException {
+        // if true we reduce the embeddings list by a random amount, if false we add an embedding to the list
+        if (randomBoolean()) {
+            // -1 to remove at least one item from the list
+            int end = randomInt(instance.embeddings().size() - 1);
+            return new TextEmbeddingResults(instance.embeddings().subList(0, end));
+        } else {
+            List<TextEmbeddingResults.Embedding> embeddings = new ArrayList<>(instance.embeddings());
+            embeddings.add(createRandomEmbedding());
+            return new TextEmbeddingResults(embeddings);
+        }
+    }
+
+    public static Map<String, Object> buildExpectation(List<List<Float>> embeddings) {
+        return Map.of(
+            TextEmbeddingResults.TEXT_EMBEDDING,
+            embeddings.stream().map(embedding -> Map.of(TextEmbeddingResults.Embedding.EMBEDDING, embedding)).toList()
+        );
     }
 }

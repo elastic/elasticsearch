@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jwt.JWTClaimsSet;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.Nullable;
@@ -59,6 +58,8 @@ public class JwtStringClaimValidator implements JwtFieldValidator {
         Collection<String> allowedClaimValues,
         Collection<String> allowedClaimValuePatterns
     ) {
+        assert allowedClaimValues != null : "allowed claim values should be empty rather than null";
+        assert allowedClaimValuePatterns != null : "allowed claim value patterns should be empty rather than null";
         this.claimName = claimName;
         this.singleValuedClaim = singleValuedClaim;
         this.fallbackClaimNames = fallbackClaimNames;

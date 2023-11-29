@@ -153,6 +153,10 @@ public final class EsqlDataTypes {
         return t == DATE_PERIOD || t == TIME_DURATION;
     }
 
+    public static boolean isSpatial(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT;
+    }
+
     /**
      * Supported types that can be contained in a block.
      */

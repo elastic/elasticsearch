@@ -314,6 +314,18 @@ public class LocalExecutionPlanner {
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }
 
+    /**
+     * Map QL's {@link DataType} to the compute engine's {@link ElementType}, for sortable types only.
+     * This specifically excludes GEO_POINT and CARTESIAN_POINT, which are backed by DataType.LONG
+     * but are not themselves sortable (the long can be sorted, but the sort order is not usually useful).
+     */
+    public static ElementType toSortableElementType(DataType dataType) {
+        if (dataType == EsqlDataTypes.GEO_POINT || dataType == EsqlDataTypes.CARTESIAN_POINT) {
+            return ElementType.UNKNOWN;
+        }
+        return toElementType(dataType);
+    }
+
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(outputExec.child(), context);
         var output = outputExec.output();

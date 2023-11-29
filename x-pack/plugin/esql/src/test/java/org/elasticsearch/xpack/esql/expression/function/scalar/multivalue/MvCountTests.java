@@ -49,7 +49,7 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
 
     @Override
     protected DataType[] supportedTypes() {
-        return representable();
+        return representableTypes();
     }
 
     @Override

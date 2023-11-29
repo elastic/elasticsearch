@@ -44,8 +44,6 @@ public class MvMaxTests extends AbstractMultivalueFunctionTestCase {
             (size, values) -> equalTo(NumericUtils.asLongUnsigned(values.reduce(BigInteger::max).get()))
         );
         dateTimes(cases, "mv_max", "MvMax", (size, values) -> equalTo(values.max().getAsLong()));
-        geoPoints(cases, "mv_max", "MvMax", (size, values) -> equalTo(values.max().getAsLong()));
-        cartesianPoints(cases, "mv_max", "MvMax", (size, values) -> equalTo(values.max().getAsLong()));
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, cases)));
     }
 
@@ -56,6 +54,6 @@ public class MvMaxTests extends AbstractMultivalueFunctionTestCase {
 
     @Override
     protected DataType[] supportedTypes() {
-        return representable();
+        return representableNonSpatialTypes();
     }
 }

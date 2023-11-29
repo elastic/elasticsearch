@@ -253,7 +253,7 @@ public class ExampleModels {
                   "inference": {
                     "model_id": "%s",
                     "field_map": {
-                      "text_field": "body"
+                      "body": "input"
                     }
                   }
                 }

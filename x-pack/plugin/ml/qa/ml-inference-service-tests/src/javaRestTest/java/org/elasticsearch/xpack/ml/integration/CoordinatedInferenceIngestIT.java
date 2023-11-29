@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +26,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 public class CoordinatedInferenceIngestIT extends ESRestTestCase {
@@ -85,23 +85,25 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         {
             var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinition(inferenceServiceModelId), docs);
             var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
-            System.out.println("IS DOCS " + simulatedDocs);
             assertThat(simulatedDocs, hasSize(2));
             assertEquals(inferenceServiceModelId, MapHelper.dig("doc._source.ml.model_id", simulatedDocs.get(0)));
-            assertEquals("bar", MapHelper.dig("doc._source.ml.body", simulatedDocs.get(0)));
+            var sparseEmbedding = (Map<String, Double>) MapHelper.dig("doc._source.ml.body", simulatedDocs.get(0));
+            assertEquals(Double.valueOf(1.0), sparseEmbedding.get("1"));
             assertEquals(inferenceServiceModelId, MapHelper.dig("doc._source.ml.model_id", simulatedDocs.get(1)));
-            assertEquals("bar", MapHelper.dig("doc._source.ml.body", simulatedDocs.get(1)));
+            sparseEmbedding = (Map<String, Double>) MapHelper.dig("doc._source.ml.body", simulatedDocs.get(1));
+            assertEquals(Double.valueOf(1.0), sparseEmbedding.get("1"));
         }
 
         {
             var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinition(pyTorchModelId), docs);
             var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
-            System.out.println("PT DOCS " + simulatedDocs);
             assertThat(simulatedDocs, hasSize(2));
             assertEquals(pyTorchModelId, MapHelper.dig("doc._source.ml.model_id", simulatedDocs.get(0)));
             List<List<Double>> results = (List<List<Double>>) MapHelper.dig("doc._source.ml.body", simulatedDocs.get(0));
             assertThat(results.get(0), contains(1.0, 1.0));
             assertEquals(pyTorchModelId, MapHelper.dig("doc._source.ml.model_id", simulatedDocs.get(1)));
+            results = (List<List<Double>>) MapHelper.dig("doc._source.ml.body", simulatedDocs.get(1));
+            assertThat(results.get(0), contains(1.0, 1.0));
         }
 
         String boostedTreeDocs = Strings.format("""
@@ -120,7 +122,6 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
                 boostedTreeDocs
             );
             var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
-            System.out.println("DFA DOCS " + simulatedDocs);
             assertThat(simulatedDocs, hasSize(2));
             assertEquals(boostedTreeModelId, MapHelper.dig("doc._source.ml.regression.model_id", simulatedDocs.get(0)));
             assertNotNull(MapHelper.dig("doc._source.ml.regression.predicted_value", simulatedDocs.get(0)));
@@ -161,18 +162,25 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         {
             var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinitionWithFieldMap(pyTorchModelId), docs);
             var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
-            System.out.println("DOCS pt" + simulatedDocs);
             assertThat(simulatedDocs, hasSize(2));
-            // assertEquals(boostedTreeModelId, MapHelper.dig("doc._source.ml.regression.model_id", simulatedDocs.get(0)));
+            assertEquals(pyTorchModelId, MapHelper.dig("doc._source.ml.inference.model_id", simulatedDocs.get(0)));
+            List<List<Double>> results = (List<List<Double>>) MapHelper.dig(
+                "doc._source.ml.inference.predicted_value",
+                simulatedDocs.get(0)
+            );
+            assertThat(results.get(0), contains(1.0, 1.0));
+            assertEquals(pyTorchModelId, MapHelper.dig("doc._source.ml.inference.model_id", simulatedDocs.get(1)));
+            results = (List<List<Double>>) MapHelper.dig("doc._source.ml.inference.predicted_value", simulatedDocs.get(1));
+            assertThat(results.get(0), contains(1.0, 1.0));
         }
 
         {
+            // Inference service models cannot be configured with the field map
             var responseMap = simulatePipeline(ExampleModels.nlpModelPipelineDefinitionWithFieldMap(inferenceServiceModelId), docs);
             var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
-            System.out.println("DOCS is" + simulatedDocs);
+            var errorMsg = (String) MapHelper.dig("error.reason", simulatedDocs.get(0));
+            assertThat(errorMsg, containsString("[is_model] is configured for the _inference API and does not accept documents as input"));
             assertThat(simulatedDocs, hasSize(2));
-            // "[" + inferenceServiceModelId + "] is configured for the _inference API and does not accept documents as input"
-            // assertEquals(boostedTreeModelId, MapHelper.dig("doc._source.ml.regression.model_id", simulatedDocs.get(0)));
         }
 
     }
@@ -216,8 +224,6 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
 
         Request request = new Request("POST", "_ingest/pipeline/_simulate?error_trace=true");
         request.setJsonEntity(simulate);
-        var response = client().performRequest(request);
-        System.out.println(EntityUtils.toString(response.getEntity()));
         return entityAsMap(client().performRequest(request));
     }
 

@@ -9,7 +9,6 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.inference.InferenceService;
 
 import java.util.List;
 

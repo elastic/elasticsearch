@@ -187,9 +187,11 @@ These values are typically URLs, UUIDs, or other case-sensitive string values.
 Analogous to `allowed_subjects` but it accepts a list of <<regexp-syntax,Lucene regexp>>
 and wildcards for the allowed JWT subjects. Wildcards use the `*` and `?` special
 characters (which are escaped by `\`) to mean "any string" and "any single character"
-respectively. <<regexp-syntax,Lucene regexp>> must be enclosed between `/`,
-for e.g. `/https?://[^/]+/?/` matches any http or https URL with no path component
-(matches https://elastic.co/ but not https://elastic.co/guide).
+respectively, for example "a?\\**", matches "a1*" and "ab*whatever", but not "a", "abc", or "abc*"
+(in Java strings `\` must itself be escaped by another `\`).
+<<regexp-syntax,Lucene regexp>> must be enclosed between `/`,
+for example "/https?://[^/]+/?/" matches any http or https URL with no path component
+(matches "https://elastic.co/" but not "https://elastic.co/guide").
 
 NOTE: At least one of the `allowed_subjects` or `allowed_subject_patterns` settings must be specified
 (and be non-empty) when `token_type` is `access_token`.

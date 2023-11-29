@@ -60,9 +60,7 @@ public class ConnectorSyncJobIndexService {
         ActionListener<PostConnectorSyncJobAction.Response> listener
     ) {
         try {
-            getSyncJobConnectorInfo(request.getId(), new ActionListener<>() {
-                @Override
-                public void onResponse(Connector connector) {
+            getSyncJobConnectorInfo(request.getId(), listener.delegateFailure((l, connector) -> {
                     Instant now = Instant.now();
                     ConnectorSyncJobType jobType = Objects.requireNonNullElse(request.getJobType(), ConnectorSyncJob.DEFAULT_JOB_TYPE);
                     ConnectorSyncJobTriggerMethod triggerMethod = Objects.requireNonNullElse(
@@ -102,13 +100,7 @@ public class ConnectorSyncJobIndexService {
                     } catch (IOException e) {
                         listener.onFailure(e);
                     }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }

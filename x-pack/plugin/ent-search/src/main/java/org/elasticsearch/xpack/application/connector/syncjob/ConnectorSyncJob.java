@@ -183,7 +183,7 @@ public class ConnectorSyncJob implements Writeable, ToXContentObject {
         this.createdAt = createdAt;
         this.deletedDocumentCount = deletedDocumentCount;
         this.error = error;
-        this.id = id;
+        this.id = Objects.requireNonNull(id, "[id] cannot be null");
         this.indexedDocumentCount = indexedDocumentCount;
         this.indexedDocumentVolume = indexedDocumentVolume;
         this.jobType = Objects.requireNonNullElse(jobType, ConnectorSyncJobType.FULL);

@@ -37,7 +37,7 @@ public enum ConnectorSyncStatus {
             }
         }
 
-        return null;
+        throw new IllegalArgumentException("Unknown sync status '" + syncStatusString + "'.");
     }
 
     @Override

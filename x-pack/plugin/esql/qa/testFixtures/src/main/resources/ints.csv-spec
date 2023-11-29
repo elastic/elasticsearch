@@ -224,7 +224,7 @@ int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer
 2147483647       |2147483646.2        |2147483647  |2147483646
 ;
 
-convertStringToIntFail
+convertStringToIntFail#[skip:-8.11.99, reason:double rounding in conversion updated in 8.12]
 row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);
 warning:Line 1:79: evaluation of [to_integer(str1)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:79: java.lang.NumberFormatException: For input string: \"2147483647.2\"

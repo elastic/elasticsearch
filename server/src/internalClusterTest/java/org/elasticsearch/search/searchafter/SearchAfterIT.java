@@ -12,15 +12,15 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
@@ -63,12 +63,11 @@ public class SearchAfterIT extends ESIntegTestCase {
     public void testsShouldFail() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=long", "field2", "type=keyword").get());
         ensureGreen();
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto"));
+        indexRandom(true, prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto"));
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("test")
-                    .addSort("field1", SortOrder.ASC)
+                () -> prepareSearch("test").addSort("field1", SortOrder.ASC)
                     .setQuery(matchAllQuery())
                     .searchAfter(new Object[] { 0 })
                     .setScroll("1m")
@@ -83,8 +82,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("test")
-                    .addSort("field1", SortOrder.ASC)
+                () -> prepareSearch("test").addSort("field1", SortOrder.ASC)
                     .setQuery(matchAllQuery())
                     .searchAfter(new Object[] { 0 })
                     .setFrom(10)
@@ -99,7 +97,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("test").setQuery(matchAllQuery()).searchAfter(new Object[] { 0.75f }).get()
+                () -> prepareSearch("test").setQuery(matchAllQuery()).searchAfter(new Object[] { 0.75f }).get()
             );
             assertTrue(e.shardFailures().length > 0);
             for (ShardSearchFailure failure : e.shardFailures()) {
@@ -110,8 +108,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("test")
-                    .addSort("field2", SortOrder.DESC)
+                () -> prepareSearch("test").addSort("field2", SortOrder.DESC)
                     .addSort("field1", SortOrder.ASC)
                     .setQuery(matchAllQuery())
                     .searchAfter(new Object[] { 1 })
@@ -126,8 +123,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("test")
-                    .setQuery(matchAllQuery())
+                () -> prepareSearch("test").setQuery(matchAllQuery())
                     .addSort("field1", SortOrder.ASC)
                     .searchAfter(new Object[] { 1, 2 })
                     .get()
@@ -141,8 +137,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("test")
-                    .setQuery(matchAllQuery())
+                () -> prepareSearch("test").setQuery(matchAllQuery())
                     .addSort("field1", SortOrder.ASC)
                     .searchAfter(new Object[] { "toto" })
                     .get()
@@ -159,11 +154,10 @@ public class SearchAfterIT extends ESIntegTestCase {
         ensureGreen();
         indexRandom(
             true,
-            client().prepareIndex("test").setId("0").setSource("field1", 0),
-            client().prepareIndex("test").setId("1").setSource("field1", 100, "field2", "toto")
+            prepareIndex("test").setId("0").setSource("field1", 0),
+            prepareIndex("test").setId("1").setSource("field1", 100, "field2", "toto")
         );
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .addSort("field1", SortOrder.ASC)
+        SearchResponse searchResponse = prepareSearch("test").addSort("field1", SortOrder.ASC)
             .addSort("field2", SortOrder.ASC)
             .setQuery(matchAllQuery())
             .searchAfter(new Object[] { 0, null })
@@ -235,8 +229,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             .add(new IndexRequest("test").id("5").source("start_date", "2017-01-20", "end_date", "2025-05-28"))
             .get();
 
-        SearchResponse resp = client().prepareSearch("test")
-            .addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+        SearchResponse resp = prepareSearch("test").addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
             .addSort(SortBuilders.fieldSort("end_date").setFormat("yyyy-MM-dd"))
             .setSize(2)
             .get();
@@ -244,8 +237,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         assertThat(resp.getHits().getHits()[0].getSortValues(), arrayContaining("22/01/2015", "2022-07-23"));
         assertThat(resp.getHits().getHits()[1].getSortValues(), arrayContaining("21/02/2016", "2024-03-24"));
 
-        resp = client().prepareSearch("test")
-            .addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+        resp = prepareSearch("test").addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
             .addSort(SortBuilders.fieldSort("end_date").setFormat("yyyy-MM-dd"))
             .searchAfter(new String[] { "21/02/2016", "2024-03-24" })
             .setSize(2)
@@ -254,8 +246,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         assertThat(resp.getHits().getHits()[0].getSortValues(), arrayContaining("20/01/2017", "2025-05-28"));
         assertThat(resp.getHits().getHits()[1].getSortValues(), arrayContaining("23/04/2018", "2021-02-22"));
 
-        resp = client().prepareSearch("test")
-            .addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+        resp = prepareSearch("test").addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
             .addSort(SortBuilders.fieldSort("end_date")) // it's okay because end_date has the format "yyyy-MM-dd"
             .searchAfter(new String[] { "21/02/2016", "2024-03-24" })
             .setSize(2)
@@ -264,15 +255,13 @@ public class SearchAfterIT extends ESIntegTestCase {
         assertThat(resp.getHits().getHits()[0].getSortValues(), arrayContaining("20/01/2017", 1748390400000L));
         assertThat(resp.getHits().getHits()[1].getSortValues(), arrayContaining("23/04/2018", 1613952000000L));
 
-        SearchRequestBuilder searchRequest = client().prepareSearch("test")
-            .addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+        SearchRequestBuilder searchRequest = prepareSearch("test").addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
             .addSort(SortBuilders.fieldSort("end_date").setFormat("epoch_millis"))
             .searchAfter(new Object[] { "21/02/2016", 1748390400000L })
             .setSize(2);
-        assertNoFailures(searchRequest.get());
+        assertNoFailures(searchRequest);
 
-        searchRequest = client().prepareSearch("test")
-            .addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
+        searchRequest = prepareSearch("test").addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))
             .addSort(SortBuilders.fieldSort("end_date").setFormat("epoch_millis")) // wrong format
             .searchAfter(new Object[] { "21/02/2016", "23/04/2018" })
             .setSize(2);
@@ -325,7 +314,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                     builder.field("field" + Integer.toString(j), documents.get(i).get(j));
                 }
                 builder.endObject();
-                requests.add(client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource(builder));
+                requests.add(prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource(builder));
             }
             indexRandom(true, requests);
         }
@@ -334,7 +323,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         int offset = 0;
         Object[] sortValues = null;
         while (offset < documents.size()) {
-            SearchRequestBuilder req = client().prepareSearch(indexName);
+            SearchRequestBuilder req = prepareSearch(indexName);
             for (int i = 0; i < documents.get(0).size(); i++) {
                 req.addSort("field" + Integer.toString(i), SortOrder.ASC);
             }
@@ -441,8 +430,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         Collections.sort(timestamps);
         // scroll with big index
         {
-            SearchResponse resp = client().prepareSearch("test")
-                .setSize(randomIntBetween(50, 100))
+            SearchResponse resp = prepareSearch("test").setSize(randomIntBetween(50, 100))
                 .setQuery(new MatchAllQueryBuilder())
                 .addSort(new FieldSortBuilder("timestamp"))
                 .setScroll(TimeValue.timeValueMinutes(5))
@@ -468,7 +456,7 @@ public class SearchAfterIT extends ESIntegTestCase {
         String pitID;
         {
             OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(5));
-            pitID = client().execute(OpenPointInTimeAction.INSTANCE, openPITRequest).actionGet().getPointInTimeId();
+            pitID = client().execute(TransportOpenPointInTimeAction.TYPE, openPITRequest).actionGet().getPointInTimeId();
             SearchRequest searchRequest = new SearchRequest("test").source(
                 new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitID).setKeepAlive(TimeValue.timeValueMinutes(5)))
                     .sort("timestamp")
@@ -495,14 +483,14 @@ public class SearchAfterIT extends ESIntegTestCase {
                 } while (resp.getHits().getHits().length > 0);
                 assertThat(foundHits, equalTo(timestamps.size()));
             } finally {
-                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitID)).actionGet();
+                client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitID)).actionGet();
             }
         }
 
         // search_after without sort with point in time
         {
             OpenPointInTimeRequest openPITRequest = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(5));
-            pitID = client().execute(OpenPointInTimeAction.INSTANCE, openPITRequest).actionGet().getPointInTimeId();
+            pitID = client().execute(TransportOpenPointInTimeAction.TYPE, openPITRequest).actionGet().getPointInTimeId();
             SearchRequest searchRequest = new SearchRequest("test").source(
                 new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitID).setKeepAlive(TimeValue.timeValueMinutes(5)))
                     .sort(SortBuilders.pitTiebreaker())
@@ -529,7 +517,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 Collections.sort(foundSeqNos);
                 assertThat(foundSeqNos, equalTo(timestamps));
             } finally {
-                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitID)).actionGet();
+                client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitID)).actionGet();
             }
         }
     }

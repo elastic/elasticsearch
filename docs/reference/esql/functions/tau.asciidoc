@@ -1,3 +1,4 @@
+[discrete]
 [[esql-tau]]
 === `TAU`
 [.text-center]

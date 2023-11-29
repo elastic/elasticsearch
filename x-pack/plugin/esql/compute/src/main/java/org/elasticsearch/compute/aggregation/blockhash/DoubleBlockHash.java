@@ -62,8 +62,8 @@ final class DoubleBlockHash extends BlockHash {
                     addInput.add(0, groupIds);
                 }
             } else {
-                try (IntBlock groupIds = add(doubleVector).asBlock()) {
-                    addInput.add(0, groupIds.asVector());
+                try (IntVector groupIds = add(doubleVector)) {
+                    addInput.add(0, groupIds);
                 }
             }
         }
@@ -71,7 +71,7 @@ final class DoubleBlockHash extends BlockHash {
 
     private IntVector add(DoubleVector vector) {
         int positions = vector.getPositionCount();
-        try (var builder = IntVector.newVectorFixedBuilder(positions, blockFactory)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(Double.doubleToLongBits(vector.getDouble(i))))));
             }
@@ -80,7 +80,7 @@ final class DoubleBlockHash extends BlockHash {
     }
 
     private IntBlock add(DoubleBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(Block.Ref.floating(block)).hash(longHash); // TODO: block factory
+        MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hash(blockFactory, longHash);
         seenNull |= result.sawNull();
         return result.ords();
     }

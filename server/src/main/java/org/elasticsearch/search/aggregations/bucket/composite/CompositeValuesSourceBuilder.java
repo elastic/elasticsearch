@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 /**
  * A {@link ValuesSource} builder for {@link CompositeAggregationBuilder}
@@ -324,5 +325,13 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
      */
     protected ZoneId timeZone() {
         return null;
+    }
+
+    /**
+     * Return false if this composite source does not support parallel collection.
+     * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query phase.
+     */
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return true;
     }
 }

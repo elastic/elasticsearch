@@ -64,6 +64,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 "manage_saml",
                 "manage_token",
                 "manage_oidc",
+                // For SLO to install enrich policy
+                "manage_enrich",
                 // For Fleet package upgrade
                 "manage_pipeline",
                 "manage_ilm",
@@ -194,10 +196,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Fleet telemetry queries Agent Logs indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-elastic_agent*").privileges("read").build(),
                 // Fleet publishes Agent metrics in kibana task runner
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("metrics-fleet_server*")
-                    .privileges("auto_configure", "read", "write", "delete")
-                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("metrics-fleet_server*").privileges("all").build(),
                 // Legacy "Alerts as data" used in Security Solution.
                 // Kibana user creates these indices; reads / writes to them.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_LEGACY_INDEX).privileges("all").build(),
@@ -351,6 +350,10 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".asset-criticality.asset-criticality-*")
+                    .privileges("create_index", "manage", "read")
+                    .build(),
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_defend.*", "metrics-cloud_defend.*")

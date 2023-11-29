@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
@@ -17,7 +18,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
  */
 public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse> {
 
-    public MultiSearchRequestBuilder(ElasticsearchClient client, MultiSearchAction action) {
+    public MultiSearchRequestBuilder(ElasticsearchClient client, ActionType<MultiSearchResponse> action) {
         super(client, action, new MultiSearchRequest());
     }
 
@@ -63,11 +64,4 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
         return this;
     }
 
-    /**
-     * Sets how many search requests specified in this multi search requests are allowed to be ran concurrently.
-     */
-    public MultiSearchRequestBuilder setMaxConcurrentSearchRequests(int maxConcurrentSearchRequests) {
-        request().maxConcurrentSearchRequests(maxConcurrentSearchRequests);
-        return this;
-    }
 }

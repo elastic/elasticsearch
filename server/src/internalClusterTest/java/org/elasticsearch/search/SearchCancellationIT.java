@@ -11,17 +11,17 @@ package org.elasticsearch.search;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.Script;
@@ -50,9 +50,15 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99929")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102257")
 public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
+
+    @Override
+    // TODO all tests need to be updated to work with concurrent search
+    protected boolean enableConcurrentSearch() {
+        return false;
+    }
 
     public void testCancellationDuringQueryPhase() throws Exception {
 
@@ -60,12 +66,12 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
-            .execute();
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setQuery(
+            scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap()))
+        ).execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
         logger.info("Segments {}", Strings.toString(indicesAdmin().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
@@ -77,12 +83,13 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap()))
-            .execute();
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").addScriptField(
+            "test_field",
+            new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
+        ).execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
         logger.info("Segments {}", Strings.toString(indicesAdmin().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
@@ -105,8 +112,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             termsAggregationBuilder.field("field.keyword");
         }
 
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setQuery(matchAllQuery())
             .addAggregation(
                 termsAggregationBuilder.subAggregation(
                     new ScriptedMetricAggregationBuilder("sub_agg").initScript(
@@ -128,7 +134,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             )
             .execute();
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
         ensureSearchWasCancelled(searchResponse);
     }
@@ -139,14 +145,13 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .setScroll(TimeValue.timeValueSeconds(10))
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setScroll(TimeValue.timeValueSeconds(10))
             .setSize(5)
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
         SearchResponse response = ensureSearchWasCancelled(searchResponse);
         if (response != null) {
@@ -166,8 +171,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
         logger.info("Executing search");
         TimeValue keepAlive = TimeValue.timeValueSeconds(5);
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setScroll(keepAlive)
+        SearchResponse searchResponse = prepareSearch("test").setScroll(keepAlive)
             .setSize(2)
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .get();
@@ -187,7 +191,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             .execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchScrollAction.NAME);
+        cancelSearch(TransportSearchScrollAction.TYPE.name());
         disableBlocks(plugins);
 
         SearchResponse response = ensureSearchWasCancelled(scrollResponse);
@@ -204,15 +208,14 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         indexTestData();
         ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch()
             .add(
-                client().prepareSearch("test")
-                    .addScriptField(
-                        "test_field",
-                        new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
-                    )
+                prepareSearch("test").addScriptField(
+                    "test_field",
+                    new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
+                )
             )
             .execute();
         awaitForBlock(plugins);
-        cancelSearch(MultiSearchAction.NAME);
+        cancelSearch(TransportMultiSearchAction.TYPE.name());
         disableBlocks(plugins);
         for (MultiSearchResponse.Item item : msearchResponse.actionGet()) {
             if (item.getFailure() != null) {
@@ -227,6 +230,9 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
     }
 
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
+        // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
+        // are limited to 1
+        internalCluster().ensureAtLeastNumDataNodes(2);
         int numberOfShards = between(2, 5);
         createIndex("test", numberOfShards, 0);
         indexTestData();
@@ -235,8 +241,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         Thread searchThread = new Thread(() -> {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("test")
-                    .setSearchType(SearchType.QUERY_THEN_FETCH)
+                () -> prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
                     .setAllowPartialSearchResults(false)
                     .setSize(1000)
@@ -297,7 +302,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         for (String nodeName : internalCluster().getNodeNames()) {
             TransportService transportService = internalCluster().getInstance(TransportService.class, nodeName);
             for (Task task : transportService.getTaskManager().getCancellableTasks().values()) {
-                if (task.getAction().equals(SearchAction.NAME)) {
+                if (task.getAction().equals(TransportSearchAction.TYPE.name())) {
                     tasks.add((SearchTask) task);
                 }
             }

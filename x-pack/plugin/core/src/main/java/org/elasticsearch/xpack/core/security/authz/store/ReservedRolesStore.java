@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
+import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
@@ -60,6 +60,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     /** "Security Solutions" only lists index for value list items for detections */
     public static final String LISTS_ITEMS_INDEX = ".items-*";
+
+    /** Index pattern for Universal Profiling */
+    public static final String UNIVERSAL_PROFILING_ALIASES = "profiling-*";
+    public static final String UNIVERSAL_PROFILING_BACKING_INDICES = ".profiling-*";
 
     public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor(
         "superuser",
@@ -160,7 +164,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 "monitoring_user",
                 new RoleDescriptor(
                     "monitoring_user",
-                    new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", RemoteInfoAction.NAME },
+                    new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", TransportRemoteInfoAction.TYPE.name() },
                     new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices(".monitoring-*")
@@ -641,6 +645,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ALERTS_INDEX_ALIAS, ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS)
                     .privileges("read", "view_index_metadata")
+                    .build(),
+                // Universal Profiling
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.UNIVERSAL_PROFILING_ALIASES, ReservedRolesStore.UNIVERSAL_PROFILING_BACKING_INDICES)
+                    .privileges("read", "view_index_metadata")
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
@@ -684,6 +693,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS
                     )
                     .privileges("read", "view_index_metadata", "write", "maintenance")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.UNIVERSAL_PROFILING_ALIASES, ReservedRolesStore.UNIVERSAL_PROFILING_BACKING_INDICES)
+                    .privileges("read", "view_index_metadata")
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()

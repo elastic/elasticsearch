@@ -33,32 +33,24 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
-      LongBlock valBlock = (LongBlock) valRef.block();
-      try (Block.Ref decimalsRef = decimals.eval(page)) {
-        if (decimalsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
+  public Block eval(Page page) {
+    try (LongBlock valBlock = (LongBlock) val.eval(page)) {
+      try (LongBlock decimalsBlock = (LongBlock) decimals.eval(page)) {
         LongVector valVector = valBlock.asVector();
         if (valVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+          return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
         LongVector decimalsVector = decimalsBlock.asVector();
         if (decimalsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+          return eval(page.getPositionCount(), valBlock, decimalsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), valVector, decimalsVector).asBlock());
+        return eval(page.getPositionCount(), valVector, decimalsVector).asBlock();
       }
     }
   }
 
   public LongBlock eval(int positionCount, LongBlock valBlock, LongBlock decimalsBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -75,7 +67,7 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongVector eval(int positionCount, LongVector valVector, LongVector decimalsVector) {
-    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendLong(Round.process(valVector.getLong(p), decimalsVector.getLong(p)));
       }
@@ -91,5 +83,27 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(val, decimals);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    private final EvalOperator.ExpressionEvaluator.Factory decimals;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val,
+        EvalOperator.ExpressionEvaluator.Factory decimals) {
+      this.val = val;
+      this.decimals = decimals;
+    }
+
+    @Override
+    public RoundLongEvaluator get(DriverContext context) {
+      return new RoundLongEvaluator(val.get(context), decimals.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "RoundLongEvaluator[" + "val=" + val + ", decimals=" + decimals + "]";
+    }
   }
 }

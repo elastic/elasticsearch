@@ -10,6 +10,7 @@ package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -54,12 +55,12 @@ public class MalformedDynamicTemplateIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(indexSettings())
                     .put("number_of_shards", 1)
-                    .put("index.version.created", IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0))
-            ).setMapping(mapping).get()
+                    .put("index.version.created", IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0))
+            ).setMapping(mapping)
         );
-        client().prepareIndex(indexName).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        prepareIndex(indexName).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertNoFailures((indicesAdmin().prepareRefresh(indexName)).get());
-        assertHitCount(client().prepareSearch(indexName).get(), 1);
+        assertHitCount(prepareSearch(indexName), 1);
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,

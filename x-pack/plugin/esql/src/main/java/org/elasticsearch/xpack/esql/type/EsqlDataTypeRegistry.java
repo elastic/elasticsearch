@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -52,12 +51,12 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
 
     @Override
     public boolean canConvert(DataType from, DataType to) {
-        return DataTypeConverter.canConvert(from, to);
+        return EsqlDataTypeConverter.canConvert(from, to);
     }
 
     @Override
     public Object convert(Object value, DataType type) {
-        return DataTypeConverter.convert(value, type);
+        return EsqlDataTypeConverter.convert(value, type);
     }
 
     @Override
@@ -71,6 +70,6 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
         if (left == DATE_PERIOD && right == DATE_PERIOD) {
             return DATE_PERIOD;
         }
-        return DataTypeConverter.commonType(left, right);
+        return EsqlDataTypeConverter.commonType(left, right);
     }
 }

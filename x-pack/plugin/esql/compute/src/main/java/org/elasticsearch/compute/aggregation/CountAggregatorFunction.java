@@ -85,6 +85,10 @@ public class CountAggregatorFunction implements AggregatorFunction {
         assert channels.size() == intermediateBlockCount();
         var blockIndex = blockIndex();
         assert page.getBlockCount() >= blockIndex + intermediateStateDesc().size();
+        Block uncastBlock = page.getBlock(channels.get(0));
+        if (uncastBlock.areAllValuesNull()) {
+            return;
+        }
         LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
         BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
         assert count.getPositionCount() == 1;
@@ -93,13 +97,13 @@ public class CountAggregatorFunction implements AggregatorFunction {
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset) {
-        state.toIntermediate(blocks, offset);
+    public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        state.toIntermediate(blocks, offset, driverContext);
     }
 
     @Override
     public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-        blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1, driverContext.blockFactory());
+        blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1);
     }
 
     @Override

@@ -300,12 +300,10 @@ public class GatewayServiceTests extends ESTestCase {
         // The 1st schedule is effectively cancelled if a new term begins
         final TimeValue elapsed = TimeValue.timeValueMinutes(1);
         final ClusterState clusterStateOfTerm2 = incrementTerm(clusterService.state());
-        deterministicTaskQueue.scheduleAt(
+        deterministicTaskQueue.scheduleAtAndRunUpTo(
             elapsed.millis(),
             () -> setClusterStateTaskQueue.submitTask(randomAlphaOfLength(5), new SetClusterStateTask(clusterStateOfTerm2), null)
         );
-        deterministicTaskQueue.advanceTime();
-        deterministicTaskQueue.runAllRunnableTasks();
         assertThat(gatewayService.currentPendingStateRecovery, not(sameInstance(pendingStateRecoveryOfTerm1)));
         // The 1st scheduled recovery is now a no-op
         deterministicTaskQueue.advanceTime();
@@ -384,20 +382,16 @@ public class GatewayServiceTests extends ESTestCase {
 
         // The 1st schedule is cancelled when data nodes drop below recoverAfterDataNodes
         final TimeValue elapsed = TimeValue.timeValueMinutes(1);
-        deterministicTaskQueue.scheduleAt(
+        deterministicTaskQueue.scheduleAtAndRunUpTo(
             elapsed.millis(),
             () -> setDataNodeCountTaskQueue.submitTask(randomAlphaOfLength(5), new SetDataNodeCountTask(recoverAfterNodes - 1), null)
         );
-        deterministicTaskQueue.advanceTime();
-        deterministicTaskQueue.runAllRunnableTasks();
 
         // The 2nd scheduled recovery when data nodes are above recoverAfterDataNodes again
-        deterministicTaskQueue.scheduleAt(
+        deterministicTaskQueue.scheduleAtAndRunUpTo(
             elapsed.millis() * 2,
             () -> setDataNodeCountTaskQueue.submitTask(randomAlphaOfLength(5), new SetDataNodeCountTask(recoverAfterNodes), null)
         );
-        deterministicTaskQueue.advanceTime();
-        deterministicTaskQueue.runAllRunnableTasks();
 
         assertThat(gatewayService.currentPendingStateRecovery, sameInstance(pendingStateRecoveryOfInitialTerm));
         assertThat(deterministicTaskQueue.getCurrentTimeMillis(), equalTo(elapsed.millis() * 2));

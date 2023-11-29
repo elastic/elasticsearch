@@ -40,7 +40,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             Map.of("author", "jack", "first_name", "Jack", "last_name", "Austin", "joined", "1999-11-03")
         );
         for (Map<String, String> author : authors) {
-            client().prepareIndex("authors").setSource(author).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
+            prepareIndex("authors").setSource(author).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
         }
         indicesAdmin().prepareRefresh("authors").get();
 
@@ -126,14 +126,13 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             Map.of("title", "the fifth book", "genre", "science", "author_id", "mike", "publisher_id", "p2", "published_date", "2021-06-30")
         );
         for (Map<String, Object> book : books) {
-            client().prepareIndex("books").setSource(book).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
+            prepareIndex("books").setSource(book).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
         }
         indicesAdmin().prepareRefresh("books").get();
     }
 
     public void testBasic() {
-        SearchResponse searchResponse = client().prepareSearch("books")
-            .addFetchField("author")
+        SearchResponse searchResponse = prepareSearch("books").addFetchField("author")
             .addFetchField("title")
             .addSort("published_date", SortOrder.DESC)
             .setSize(3)
@@ -169,18 +168,17 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
     }
 
     public void testLookupMultipleIndices() throws IOException {
-        SearchResponse searchResponse = client().prepareSearch("books")
-            .setRuntimeMappings(parseMapping("""
-                {
-                    "publisher": {
-                        "type": "lookup",
-                        "target_index": "publishers",
-                        "input_field": "publisher_id",
-                        "target_field": "_id",
-                        "fetch_fields": ["name", "city"]
-                    }
+        SearchResponse searchResponse = prepareSearch("books").setRuntimeMappings(parseMapping("""
+            {
+                "publisher": {
+                    "type": "lookup",
+                    "target_index": "publishers",
+                    "input_field": "publisher_id",
+                    "target_field": "_id",
+                    "fetch_fields": ["name", "city"]
                 }
-                """))
+            }
+            """))
             .setFetchSource(false)
             .addFetchField("title")
             .addFetchField("author")
@@ -217,7 +215,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
     }
 
     public void testFetchField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("books").setRuntimeMappings(parseMapping("""
+        SearchResponse searchResponse = prepareSearch("books").setRuntimeMappings(parseMapping("""
             {
                 "author": {
                     "type": "lookup",

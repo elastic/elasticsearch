@@ -52,16 +52,13 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  *     retrieves all available information about the API for this specific context</li>
  * </ul>
  */
-public class PainlessContextAction extends ActionType<PainlessContextAction.Response> {
+public class PainlessContextAction {
 
-    public static final PainlessContextAction INSTANCE = new PainlessContextAction();
-    private static final String NAME = "cluster:admin/scripts/painless/context";
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/context", Response::new);
 
     private static final String SCRIPT_CONTEXT_NAME_PARAM = "context";
 
-    private PainlessContextAction() {
-        super(NAME, PainlessContextAction.Response::new);
-    }
+    private PainlessContextAction() {/* no instances */}
 
     public static class Request extends ActionRequest {
 
@@ -143,7 +140,13 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, PainlessScriptEngine painlessScriptEngine) {
-            super(NAME, transportService, actionFilters, (Writeable.Reader<Request>) Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(
+                INSTANCE.name(),
+                transportService,
+                actionFilters,
+                (Writeable.Reader<Request>) Request::new,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
             this.painlessScriptEngine = painlessScriptEngine;
         }
 

@@ -8,7 +8,6 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -26,7 +25,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -75,12 +75,10 @@ public class SamplerIT extends ESIntegTestCase {
 
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split(",");
-            client().prepareIndex("test")
-                .setId("" + i)
+            prepareIndex("test").setId("" + i)
                 .setSource("author", parts[5], "name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
                 .get();
-            client().prepareIndex("idx_unmapped_author")
-                .setId("" + i)
+            prepareIndex("idx_unmapped_author").setId("" + i)
                 .setSource("name", parts[2], "genre", parts[8], "price", Float.parseFloat(parts[3]))
                 .get();
         }
@@ -91,101 +89,103 @@ public class SamplerIT extends ESIntegTestCase {
         // Tests that we can refer to nested elements under a sample in a path
         // statement
         boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .addAggregation(
-                terms("genres").field("genre")
-                    .order(BucketOrder.aggregation("sample>max_price.value", asc))
-                    .subAggregation(sampler("sample").shardSize(100).subAggregation(max("max_price").field("price")))
-            )
-            .get();
-        assertSearchResponse(response);
-        Terms genres = response.getAggregations().get("genres");
-        List<? extends Bucket> genreBuckets = genres.getBuckets();
-        // For this test to be useful we need >1 genre bucket to compare
-        assertThat(genreBuckets.size(), greaterThan(1));
-        double lastMaxPrice = asc ? Double.MIN_VALUE : Double.MAX_VALUE;
-        for (Terms.Bucket genreBucket : genres.getBuckets()) {
-            Sampler sample = genreBucket.getAggregations().get("sample");
-            Max maxPriceInGenre = sample.getAggregations().get("max_price");
-            double price = maxPriceInGenre.value();
-            if (asc) {
-                assertThat(price, greaterThanOrEqualTo(lastMaxPrice));
-            } else {
-                assertThat(price, lessThanOrEqualTo(lastMaxPrice));
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .addAggregation(
+                    terms("genres").field("genre")
+                        .order(BucketOrder.aggregation("sample>max_price.value", asc))
+                        .subAggregation(sampler("sample").shardSize(100).subAggregation(max("max_price").field("price")))
+                ),
+            response -> {
+                Terms genres = response.getAggregations().get("genres");
+                List<? extends Bucket> genreBuckets = genres.getBuckets();
+                // For this test to be useful we need >1 genre bucket to compare
+                assertThat(genreBuckets.size(), greaterThan(1));
+                double lastMaxPrice = asc ? Double.MIN_VALUE : Double.MAX_VALUE;
+                for (Terms.Bucket genreBucket : genres.getBuckets()) {
+                    Sampler sample = genreBucket.getAggregations().get("sample");
+                    Max maxPriceInGenre = sample.getAggregations().get("max_price");
+                    double price = maxPriceInGenre.value();
+                    if (asc) {
+                        assertThat(price, greaterThanOrEqualTo(lastMaxPrice));
+                    } else {
+                        assertThat(price, lessThanOrEqualTo(lastMaxPrice));
+                    }
+                    lastMaxPrice = price;
+                }
             }
-            lastMaxPrice = price;
-        }
-
+        );
     }
 
     public void testSimpleSampler() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setQuery(new TermQueryBuilder("genre", "fantasy"))
-            .setFrom(0)
-            .setSize(60)
-            .addAggregation(sampleAgg)
-            .get();
-        assertSearchResponse(response);
-        Sampler sample = response.getAggregations().get("sample");
-        Terms authors = sample.getAggregations().get("authors");
-        List<? extends Bucket> testBuckets = authors.getBuckets();
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(new TermQueryBuilder("genre", "fantasy"))
+                .setFrom(0)
+                .setSize(60)
+                .addAggregation(sampleAgg),
+            response -> {
+                Sampler sample = response.getAggregations().get("sample");
+                Terms authors = sample.getAggregations().get("authors");
+                List<? extends Bucket> testBuckets = authors.getBuckets();
 
-        long maxBooksPerAuthor = 0;
-        for (Terms.Bucket testBucket : testBuckets) {
-            maxBooksPerAuthor = Math.max(testBucket.getDocCount(), maxBooksPerAuthor);
-        }
-        assertThat(maxBooksPerAuthor, equalTo(3L));
+                long maxBooksPerAuthor = 0;
+                for (Terms.Bucket testBucket : testBuckets) {
+                    maxBooksPerAuthor = Math.max(testBucket.getDocCount(), maxBooksPerAuthor);
+                }
+                assertThat(maxBooksPerAuthor, equalTo(3L));
+            }
+        );
     }
 
     public void testUnmappedChildAggNoDiversity() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("idx_unmapped")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setQuery(new TermQueryBuilder("genre", "fantasy"))
-            .setFrom(0)
-            .setSize(60)
-            .addAggregation(sampleAgg)
-            .get();
-        assertSearchResponse(response);
-        Sampler sample = response.getAggregations().get("sample");
-        assertThat(sample.getDocCount(), equalTo(0L));
-        Terms authors = sample.getAggregations().get("authors");
-        assertThat(authors.getBuckets().size(), equalTo(0));
+        assertNoFailuresAndResponse(
+            prepareSearch("idx_unmapped").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(new TermQueryBuilder("genre", "fantasy"))
+                .setFrom(0)
+                .setSize(60)
+                .addAggregation(sampleAgg),
+            response -> {
+                Sampler sample = response.getAggregations().get("sample");
+                assertThat(sample.getDocCount(), equalTo(0L));
+                Terms authors = sample.getAggregations().get("authors");
+                assertThat(authors.getBuckets().size(), equalTo(0));
+            }
+        );
     }
 
     public void testPartiallyUnmappedChildAggNoDiversity() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("idx_unmapped", "test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setQuery(new TermQueryBuilder("genre", "fantasy"))
-            .setFrom(0)
-            .setSize(60)
-            .setExplain(true)
-            .addAggregation(sampleAgg)
-            .get();
-        assertSearchResponse(response);
-        Sampler sample = response.getAggregations().get("sample");
-        assertThat(sample.getDocCount(), greaterThan(0L));
-        Terms authors = sample.getAggregations().get("authors");
-        assertThat(authors.getBuckets().size(), greaterThan(0));
+        assertNoFailuresAndResponse(
+            prepareSearch("idx_unmapped", "test").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(new TermQueryBuilder("genre", "fantasy"))
+                .setFrom(0)
+                .setSize(60)
+                .setExplain(true)
+                .addAggregation(sampleAgg),
+            response -> {
+                Sampler sample = response.getAggregations().get("sample");
+                assertThat(sample.getDocCount(), greaterThan(0L));
+                Terms authors = sample.getAggregations().get("authors");
+                assertThat(authors.getBuckets().size(), greaterThan(0));
+            }
+        );
     }
 
     public void testRidiculousShardSizeSampler() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(Integer.MAX_VALUE);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setQuery(new TermQueryBuilder("genre", "fantasy"))
-            .setFrom(0)
-            .setSize(60)
-            .addAggregation(sampleAgg)
-            .get();
-        assertSearchResponse(response);
+        assertNoFailures(
+            prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(new TermQueryBuilder("genre", "fantasy"))
+                .setFrom(0)
+                .setSize(60)
+                .addAggregation(sampleAgg)
+        );
     }
 }

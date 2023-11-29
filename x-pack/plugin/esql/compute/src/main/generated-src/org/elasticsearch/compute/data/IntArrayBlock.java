@@ -11,7 +11,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.stream.IntStream;
 
 /**
  * Block implementation that stores an array of int.
@@ -83,12 +82,21 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
         if (firstValueIndexes == null) {
             return this;
         }
-        int end = firstValueIndexes[getPositionCount()];
-        if (nullsMask == null) {
-            return new IntArrayVector(values, end).asBlock();
+        // TODO use reference counting to share the values
+        try (var builder = blockFactory.newIntBlockBuilder(firstValueIndexes[getPositionCount()])) {
+            for (int pos = 0; pos < getPositionCount(); pos++) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int first = getFirstValueIndex(pos);
+                int end = first + getValueCount(pos);
+                for (int i = first; i < end; i++) {
+                    builder.appendInt(getInt(i));
+                }
+            }
+            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
         }
-        int[] firstValues = IntStream.range(0, end + 1).toArray();
-        return new IntArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED, blockFactory);
     }
 
     public static long ramBytesEstimated(int[] values, int[] firstValueIndexes, BitSet nullsMask) {
@@ -127,11 +135,7 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

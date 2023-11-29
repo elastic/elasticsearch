@@ -74,7 +74,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             // Make sure we have a few segments
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < 20; j++) {
-                bulkRequestBuilder.add(client().prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
+                bulkRequestBuilder.add(prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
             }
             assertNoFailures(bulkRequestBuilder.get());
         }
@@ -83,7 +83,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
     protected List<ScriptedBlockPlugin> initBlockFactory() {
         List<ScriptedBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(ScriptedBlockPlugin.class));
+            pluginsService.filterPlugins(ScriptedBlockPlugin.class).forEach(plugins::add);
         }
         for (ScriptedBlockPlugin plugin : plugins) {
             plugin.reset();
@@ -263,7 +263,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
     protected List<SearchShardBlockingPlugin> initSearchShardBlockingPlugin() {
         List<SearchShardBlockingPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(SearchShardBlockingPlugin.class));
+            pluginsService.filterPlugins(SearchShardBlockingPlugin.class).forEach(plugins::add);
         }
         return plugins;
     }
@@ -281,7 +281,9 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             indexModule.addSearchOperationListener(new SearchOperationListener() {
                 @Override
                 public void onNewReaderContext(ReaderContext c) {
-                    runOnNewReaderContext.get().accept(c);
+                    if (runOnNewReaderContext.get() != null) {
+                        runOnNewReaderContext.get().accept(c);
+                    }
                 }
             });
         }

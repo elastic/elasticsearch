@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -17,11 +19,14 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -47,16 +52,22 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderB
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
+import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
-import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -75,7 +86,11 @@ import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEqual
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 
-public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
+public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
+
+    public LogicalPlanOptimizer(LogicalOptimizerContext optimizerContext) {
+        super(optimizerContext);
+    }
 
     public LogicalPlan optimize(LogicalPlan verified) {
         return verified.optimized() ? verified : execute(verified);
@@ -93,7 +108,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
             new ReplaceAliasingEvalWithProject()
-            // new ReplaceTextFieldAttributesWithTheKeywordSubfield()
+            // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
 
         var operators = new Batch<>(
@@ -122,6 +137,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new PruneColumns(),
             new PruneLiteralsInOrderBy(),
             new PushDownAndCombineLimits(),
+            new DuplicateLimitAfterMvExpand(),
             new PushDownAndCombineFilters(),
             new PushDownEval(),
             new PushDownRegexExtract(),
@@ -132,10 +148,17 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         );
 
         var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
-        var cleanup = new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN());
+        var cleanup = new Batch<>(
+            "Clean Up",
+            new ReplaceDuplicateAggWithEval(),
+            // pushing down limits again, because ReplaceDuplicateAggWithEval could create new Project nodes that can still be optimized
+            new PushDownAndCombineLimits(),
+            new ReplaceLimitAndSortAsTopN()
+        );
+        var defaultTopN = new Batch<>("Add default TopN", new AddDefaultTopN());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
-        return asList(substitutions, operators, skip, cleanup, label);
+        return asList(substitutions, operators, skip, cleanup, defaultTopN, label);
     }
 
     // TODO: currently this rule only works for aggregate functions (AVG)
@@ -263,7 +286,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                     // eliminate lower project but first replace the aliases in the upper one
                     return p.withProjections(combineProjections(project.projections(), p.projections()));
                 } else if (child instanceof Aggregate a) {
-                    return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(project.projections(), a.aggregates()));
+                    var aggs = a.aggregates();
+                    var newAggs = combineProjections(project.projections(), aggs);
+                    var newGroups = replacePrunedAliasesUsedInGroupBy(a.groupings(), aggs, newAggs);
+                    return new Aggregate(a.source(), a.child(), newGroups, newAggs);
                 }
             }
 
@@ -300,6 +326,39 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 replaced.add((NamedExpression) trimNonTopLevelAliases(replacedExp));
             }
             return replaced;
+        }
+
+        /**
+         * Replace grouping alias previously contained in the aggregations that might have been projected away.
+         */
+        private List<Expression> replacePrunedAliasesUsedInGroupBy(
+            List<Expression> groupings,
+            List<? extends NamedExpression> oldAggs,
+            List<? extends NamedExpression> newAggs
+        ) {
+            AttributeMap<Expression> removedAliases = new AttributeMap<>();
+            AttributeSet currentAliases = new AttributeSet(Expressions.asAttributes(newAggs));
+
+            // record only removed aliases
+            for (NamedExpression ne : oldAggs) {
+                if (ne instanceof Alias alias) {
+                    var attr = ne.toAttribute();
+                    if (currentAliases.contains(attr) == false) {
+                        removedAliases.put(attr, alias.child());
+                    }
+                }
+            }
+
+            if (removedAliases.isEmpty()) {
+                return groupings;
+            }
+
+            var newGroupings = new ArrayList<Expression>(groupings.size());
+            for (Expression group : groupings) {
+                newGroupings.add(group.transformUp(Attribute.class, a -> removedAliases.resolve(a, a)));
+            }
+
+            return newGroupings;
         }
 
         public static Expression trimNonTopLevelAliases(Expression e) {
@@ -407,6 +466,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             while (plan instanceof Aggregate == false) {
                 if (plan instanceof Limit limit) {
                     return limit;
+                } else if (plan instanceof MvExpand) {
+                    // the limit that applies to mv_expand shouldn't be changed
+                    // ie "| limit 1 | mv_expand x | limit 20" where we want that last "limit" to apply on expand results
+                    return null;
                 }
                 if (plan.child() instanceof UnaryPlan unaryPlan) {
                     plan = unaryPlan;
@@ -415,6 +478,92 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return null;
+        }
+    }
+
+    static class DuplicateLimitAfterMvExpand extends OptimizerRules.OptimizerRule<Limit> {
+
+        @Override
+        protected LogicalPlan rule(Limit limit) {
+            var child = limit.child();
+            var shouldSkip = child instanceof Eval
+                || child instanceof Project
+                || child instanceof RegexExtract
+                || child instanceof Enrich
+                || child instanceof Limit;
+
+            if (shouldSkip == false && child instanceof UnaryPlan unary) {
+                MvExpand mvExpand = descendantMvExpand(unary);
+                if (mvExpand != null) {
+                    Limit limitBeforeMvExpand = limitBeforeMvExpand(mvExpand);
+                    // if there is no "appropriate" limit before mv_expand, then push down a copy of the one after it so that:
+                    // - a possible TopN is properly built as low as possible in the tree (closed to Lucene)
+                    // - the input of mv_expand is as small as possible before it is expanded (less rows to inflate and occupy memory)
+                    if (limitBeforeMvExpand == null) {
+                        var duplicateLimit = new Limit(limit.source(), limit.limit(), mvExpand.child());
+                        return limit.replaceChild(propagateDuplicateLimitUntilMvExpand(duplicateLimit, mvExpand, unary));
+                    }
+                }
+            }
+            return limit;
+        }
+
+        private static MvExpand descendantMvExpand(UnaryPlan unary) {
+            UnaryPlan plan = unary;
+            AttributeSet filterReferences = new AttributeSet();
+            while (plan instanceof Aggregate == false) {
+                if (plan instanceof MvExpand mve) {
+                    // don't return the mv_expand that has a filter after it which uses the expanded values
+                    // since this will trigger the use of a potentially incorrect (too restrictive) limit further down in the tree
+                    if (filterReferences.isEmpty() == false) {
+                        if (filterReferences.contains(mve.target()) // the same field or reference attribute is used in mv_expand AND filter
+                            || mve.target() instanceof ReferenceAttribute // or the mv_expand attr hasn't yet been resolved to a field attr
+                            // or not all filter references have been resolved to field attributes
+                            || filterReferences.stream().anyMatch(ref -> ref instanceof ReferenceAttribute)) {
+                            return null;
+                        }
+                    }
+                    return mve;
+                } else if (plan instanceof Filter filter) {
+                    // gather all the filters' references to be checked later when a mv_expand is found
+                    filterReferences.addAll(filter.references());
+                } else if (plan instanceof OrderBy) {
+                    // ordering after mv_expand COULD break the order of the results, so the limit shouldn't be copied past mv_expand
+                    // something like from test | sort emp_no | mv_expand job_positions | sort first_name | limit 5
+                    // (the sort first_name likely changes the order of the docs after sort emp_no, so "limit 5" shouldn't be copied down
+                    return null;
+                }
+
+                if (plan.child() instanceof UnaryPlan unaryPlan) {
+                    plan = unaryPlan;
+                } else {
+                    break;
+                }
+            }
+            return null;
+        }
+
+        private static Limit limitBeforeMvExpand(MvExpand mvExpand) {
+            UnaryPlan plan = mvExpand;
+            while (plan instanceof Aggregate == false) {
+                if (plan instanceof Limit limit) {
+                    return limit;
+                }
+                if (plan.child() instanceof UnaryPlan unaryPlan) {
+                    plan = unaryPlan;
+                } else {
+                    break;
+                }
+            }
+            return null;
+        }
+
+        private LogicalPlan propagateDuplicateLimitUntilMvExpand(Limit duplicateLimit, MvExpand mvExpand, UnaryPlan child) {
+            if (child == mvExpand) {
+                return mvExpand.replaceChild(duplicateLimit);
+            } else {
+                return child.replaceChild(propagateDuplicateLimitUntilMvExpand(duplicateLimit, mvExpand, (UnaryPlan) child.child()));
+            }
         }
     }
 
@@ -492,7 +641,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             if (plan.child() instanceof LocalRelation local && local.supplier() == LocalSupplier.EMPTY) {
                 // only care about non-grouped aggs might return something (count)
                 if (plan instanceof Aggregate agg && agg.groupings().isEmpty()) {
-                    p = skipPlan(plan, aggsFromEmpty(agg.aggregates()));
+                    List<Block> emptyBlocks = aggsFromEmpty(agg.aggregates());
+                    p = skipPlan(plan, LocalSupplier.of(emptyBlocks.toArray(Block[]::new)));
                 } else {
                     p = skipPlan(plan);
                 }
@@ -500,19 +650,36 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             return p;
         }
 
-        private static LocalSupplier aggsFromEmpty(List<? extends NamedExpression> aggs) {
-            var result = new ArrayList<>(aggs.size());
+        private static List<Block> aggsFromEmpty(List<? extends NamedExpression> aggs) {
+            // TODO: Should we introduce skip operator that just never queries the source
+            List<Block> blocks = new ArrayList<>();
+            var blockFactory = BlockFactory.getNonBreakingInstance();
+            int i = 0;
             for (var agg : aggs) {
                 // there needs to be an alias
                 if (agg instanceof Alias a && a.child() instanceof AggregateFunction aggFunc) {
-                    result.add(aggFunc instanceof Count ? 0L : null);
+                    List<Attribute> output = AbstractPhysicalOperationProviders.intermediateAttributes(List.of(agg), List.of());
+                    for (Attribute o : output) {
+                        DataType dataType = o.dataType();
+                        // fill the boolean block later in LocalExecutionPlanner
+                        if (dataType != DataTypes.BOOLEAN) {
+                            // look for count(literal) with literal != null
+                            var wrapper = BlockUtils.wrapperFor(blockFactory, LocalExecutionPlanner.toElementType(dataType), 1);
+                            if (aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null)) {
+                                wrapper.accept(0L);
+                            } else {
+                                wrapper.accept(null);
+                            }
+                            blocks.add(wrapper.builder().build());
+                        }
+                    }
                 } else {
                     throw new EsqlIllegalArgumentException("Did not expect a non-aliased aggregation {}", agg);
                 }
             }
-            var blocks = BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), result);
-            return LocalSupplier.of(blocks);
+            return blocks;
         }
+
     }
 
     private static LogicalPlan skipPlan(UnaryPlan plan) {
@@ -654,14 +821,13 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     protected static class PushDownAndCombineOrderBy extends OptimizerRules.OptimizerRule<OrderBy> {
-
         @Override
         protected LogicalPlan rule(OrderBy orderBy) {
             LogicalPlan child = orderBy.child();
 
             if (child instanceof OrderBy childOrder) {
                 // combine orders
-                return new OrderBy(orderBy.source(), childOrder.child(), CollectionUtils.combine(orderBy.order(), childOrder.order()));
+                return new OrderBy(orderBy.source(), childOrder.child(), orderBy.order());
             } else if (child instanceof Project) {
                 return pushDownPastProject(orderBy);
             }
@@ -850,6 +1016,40 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    /**
+     * This adds an explicit TopN node to a plan that only has an OrderBy right before Lucene.
+     * To date, the only known use case that "needs" this is a query of the form
+     * from test
+     * | sort emp_no
+     * | mv_expand first_name
+     * | rename first_name AS x
+     * | where x LIKE "*a*"
+     * | limit 15
+     *
+     * or
+     *
+     * from test
+     * | sort emp_no
+     * | mv_expand first_name
+     * | sort first_name
+     * | limit 15
+     *
+     * PushDownAndCombineLimits rule will copy the "limit 15" after "sort emp_no" if there is no filter on the expanded values
+     * OR if there is no sort between "limit" and "mv_expand".
+     * But, since this type of query has such a filter, the "sort emp_no" will have no limit when it reaches the current rule.
+     */
+    static class AddDefaultTopN extends ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext context) {
+            if (plan instanceof UnaryPlan unary && unary.child() instanceof OrderBy order && order.child() instanceof EsRelation relation) {
+                var limit = new Literal(Source.EMPTY, context.configuration().resultTruncationMaxSize(), DataTypes.INTEGER);
+                return unary.replaceChild(new TopN(plan.source(), relation, order.order(), limit));
+            }
+            return plan;
+        }
+    }
+
     public static class ReplaceRegexMatch extends OptimizerRules.ReplaceRegexMatch {
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
@@ -935,6 +1135,140 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
             return plan;
         }
+    }
 
+    private abstract static class ParameterizedOptimizerRule<SubPlan extends LogicalPlan, P> extends ParameterizedRule<
+        SubPlan,
+        LogicalPlan,
+        P> {
+
+        public final LogicalPlan apply(LogicalPlan plan, P context) {
+            return plan.transformDown(typeToken(), t -> rule(t, context));
+        }
+
+        protected abstract LogicalPlan rule(SubPlan plan, P context);
+    }
+
+    /**
+     * Normalize aggregation functions by:
+     * 1. replaces reference to field attributes with their source
+     * 2. in case of Count, aligns the various forms (Count(1), Count(0), Count(), Count(*)) to Count(*)
+     */
+    // TODO waiting on https://github.com/elastic/elasticsearch/issues/100634
+    static class NormalizeAggregate extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            AttributeMap<Expression> aliases = new AttributeMap<>();
+
+            // traverse the tree bottom-up
+            // 1. if it's Aggregate, normalize the aggregates
+            // regardless, collect the attributes but only if they refer to an attribute or literal
+            plan = plan.transformUp(p -> {
+                if (p instanceof Aggregate agg) {
+                    p = normalize(agg, aliases);
+                }
+                p.forEachExpression(Alias.class, a -> {
+                    var child = a.child();
+                    if (child.foldable() || child instanceof NamedExpression) {
+                        aliases.putIfAbsent(a.toAttribute(), child);
+                    }
+                });
+
+                return p;
+            });
+            return plan;
+        }
+
+        private static LogicalPlan normalize(Aggregate aggregate, AttributeMap<Expression> aliases) {
+            var aggs = aggregate.aggregates();
+            List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
+            boolean changed = false;
+
+            for (NamedExpression agg : aggs) {
+                if (agg instanceof Alias as && as.child() instanceof AggregateFunction af) {
+                    // replace field reference
+                    if (af.field() instanceof NamedExpression ne) {
+                        Attribute attr = ne.toAttribute();
+                        var resolved = aliases.resolve(attr, attr);
+                        if (resolved != attr) {
+                            changed = true;
+                            var newChildren = CollectionUtils.combine(Collections.singletonList(resolved), af.parameters());
+                            // update the reference so Count can pick it up
+                            af = (AggregateFunction) af.replaceChildren(newChildren);
+                            agg = as.replaceChild(af);
+                        }
+                    }
+                    // handle Count(*)
+                    if (af instanceof Count count) {
+                        var field = af.field();
+                        if (field.foldable()) {
+                            var fold = field.fold();
+                            if (fold != null && StringUtils.WILDCARD.equals(fold) == false) {
+                                changed = true;
+                                var source = count.source();
+                                agg = as.replaceChild(new Count(source, new Literal(source, StringUtils.WILDCARD, DataTypes.KEYWORD)));
+                            }
+                        }
+                    }
+                }
+                newAggs.add(agg);
+            }
+            return changed ? new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs) : aggregate;
+        }
+    }
+
+    /**
+     * Replace aggregations that are duplicated inside an Aggregate with an Eval to avoid duplicated compute.
+     * stats a = min(x), b = min(x), c = count(*), d = count() by g
+     * becomes
+     * stats a = min(x), c = count(*) by g
+     * eval b = a, d = c
+     * keep a, b, c, d, g
+     */
+    static class ReplaceDuplicateAggWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+
+        ReplaceDuplicateAggWithEval() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(Aggregate aggregate) {
+            LogicalPlan plan = aggregate;
+
+            boolean foundDuplicate = false;
+            var aggs = aggregate.aggregates();
+            Map<AggregateFunction, Attribute> seenAggs = Maps.newMapWithExpectedSize(aggs.size());
+            List<NamedExpression> projections = new ArrayList<>();
+            List<NamedExpression> keptAggs = new ArrayList<>(aggs.size());
+
+            for (NamedExpression agg : aggs) {
+                var attr = agg.toAttribute();
+                if (agg instanceof Alias as && as.child() instanceof AggregateFunction af) {
+                    var seen = seenAggs.putIfAbsent(af, attr);
+                    if (seen != null) {
+                        foundDuplicate = true;
+                        projections.add(as.replaceChild(seen));
+                    }
+                    // otherwise keep the agg in place
+                    else {
+                        keptAggs.add(agg);
+                        projections.add(attr);
+                    }
+                } else {
+                    keptAggs.add(agg);
+                    projections.add(attr);
+                }
+            }
+
+            // at least one duplicate found - add the projection (to keep the output in place)
+            if (foundDuplicate) {
+                var source = aggregate.source();
+                var newAggregate = new Aggregate(source, aggregate.child(), aggregate.groupings(), keptAggs);
+                plan = new Project(source, newAggregate, projections);
+            }
+
+            return plan;
+        }
     }
 }

@@ -278,7 +278,7 @@ docsWhereFunction
 // tag::whereFunction[]
 FROM employees
 | KEEP first_name, last_name, height
-| WHERE length(first_name) < 4
+| WHERE LENGTH(first_name) < 4
 // end::whereFunction[]
 | SORT first_name
 ;
@@ -408,8 +408,10 @@ ROW date_string = "2022-05-06"
 // end::dateParse[]
 ;
 
+//tag::dateParse-result[]
 date_string:keyword | date:date
 2022-05-06          | 2022-05-06T00:00:00.000Z
+// end::dateParse-result[]
 ;
 
 docsReplace
@@ -424,4 +426,228 @@ ROW str = "Hello World"
 str:keyword
 Hello Universe
 // end::replaceString-result[]
+;
+
+docsCase
+// tag::case[]
+FROM employees
+| EVAL type = CASE(
+    languages <= 1, "monolingual",
+    languages <= 2, "bilingual",
+     "polyglot")
+| KEEP emp_no, languages, type
+// end::case[]
+| SORT emp_no
+| LIMIT 5
+;
+
+// tag::case-result[]
+emp_no:integer | languages:integer| type:keyword
+10001          | 2                |bilingual      
+10002          | 5                |polyglot       
+10003          | 4                |polyglot       
+10004          | 5                |polyglot       
+10005          | 1                |monolingual    
+// end::case-result[]
+;
+
+docsCountAll
+// tag::countAll[]
+FROM employees 
+| STATS count = COUNT(*) BY languages 
+| SORT languages DESC
+// end::countAll[]
+;
+
+// tag::countAll-result[]
+count:long | languages:integer
+10         |null
+21         |5 
+18         |4
+17         |3
+19         |2
+15         |1
+// end::countAll-result[]
+;
+
+basicGrok
+// tag::basicGrok[]
+ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42" 
+| GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num}" 
+| KEEP date, ip, email, num
+// end::basicGrok[]
+;
+
+// tag::basicGrok-result[]
+date:keyword          | ip:keyword    | email:keyword       | num:keyword
+2023-01-23T12:15:00.000Z  | 127.0.0.1     | some.email@foo.com  | 42
+// end::basicGrok-result[]
+;
+
+grokWithConversionSuffix
+// tag::grokWithConversionSuffix[]
+ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42" 
+| GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}" 
+| KEEP date, ip, email, num
+// end::grokWithConversionSuffix[]
+;
+
+// tag::grokWithConversionSuffix-result[]
+date:keyword              | ip:keyword    | email:keyword       | num:integer
+2023-01-23T12:15:00.000Z  | 127.0.0.1     | some.email@foo.com  | 42
+// end::grokWithConversionSuffix-result[]
+;
+
+grokWithToDatetime
+// tag::grokWithToDatetime[]
+ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42" 
+| GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}" 
+| KEEP date, ip, email, num
+| EVAL date = TO_DATETIME(date)
+// end::grokWithToDatetime[]
+;
+
+// tag::grokWithToDatetime-result[]
+ip:keyword    | email:keyword       | num:integer | date:date
+127.0.0.1     | some.email@foo.com  | 42          | 2023-01-23T12:15:00.000Z
+// end::grokWithToDatetime-result[]
+;
+
+grokWithEscape
+// tag::grokWithEscape[]
+ROW a = "1.2.3.4 [2023-01-23T12:15:00.000Z] Connected"
+| GROK a "%{IP:ip} \\[%{TIMESTAMP_ISO8601:@timestamp}\\] %{GREEDYDATA:status}"
+// end::grokWithEscape[]
+| KEEP @timestamp
+;
+
+// tag::grokWithEscape-result[]
+@timestamp:keyword
+2023-01-23T12:15:00.000Z
+// end::grokWithEscape-result[]
+;
+
+basicDissect
+// tag::basicDissect[]
+ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1" 
+| DISSECT a "%{date} - %{msg} - %{ip}"
+| KEEP date, msg, ip
+// end::basicDissect[]
+;
+
+// tag::basicDissect-result[]
+date:keyword             | msg:keyword  | ip:keyword
+2023-01-23T12:15:00.000Z | some text    | 127.0.0.1
+// end::basicDissect-result[]
+;
+
+dissectWithToDatetime
+// tag::dissectWithToDatetime[]
+ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1" 
+| DISSECT a "%{date} - %{msg} - %{ip}" 
+| KEEP date, msg, ip
+| EVAL date = TO_DATETIME(date)
+// end::dissectWithToDatetime[]
+;
+
+// tag::dissectWithToDatetime-result[]
+msg:keyword  | ip:keyword | date:date
+some text    | 127.0.0.1  | 2023-01-23T12:15:00.000Z
+// end::dissectWithToDatetime-result[]
+;
+
+dissectRightPaddingModifier
+// tag::dissectRightPaddingModifier[]
+ROW message="1998-08-10T17:15:42          WARN"
+| DISSECT message "%{ts->} %{level}"
+// end::dissectRightPaddingModifier[]
+;
+
+// tag::dissectRightPaddingModifier-result[]
+message:keyword  | ts:keyword | level:keyword
+1998-08-10T17:15:42          WARN|1998-08-10T17:15:42|WARN
+// end::dissectRightPaddingModifier-result[]
+;
+
+dissectEmptyRightPaddingModifier
+// tag::dissectEmptyRightPaddingModifier[]
+ROW message="[1998-08-10T17:15:42]          [WARN]"
+| DISSECT message "[%{ts}]%{->}[%{level}]"
+// end::dissectEmptyRightPaddingModifier[]
+| KEEP message, ts, level
+;
+
+// tag::dissectEmptyRightPaddingModifier-result[]
+message:keyword  | ts:keyword | level:keyword
+[1998-08-10T17:15:42]          [WARN]|1998-08-10T17:15:42 |WARN
+// end::dissectEmptyRightPaddingModifier-result[]
+;
+
+dissectAppendModifier
+// tag::dissectAppendModifier[]
+ROW message="john jacob jingleheimer schmidt"
+| DISSECT message "%{+name} %{+name} %{+name} %{+name}" APPEND_SEPARATOR=" "
+// end::dissectAppendModifier[]
+;
+
+// tag::dissectAppendModifier-result[]
+message:keyword  | name:keyword
+john jacob jingleheimer schmidt|john jacob jingleheimer schmidt
+// end::dissectAppendModifier-result[]
+;
+
+dissectAppendWithOrderModifier
+// tag::dissectAppendWithOrderModifier[]
+ROW message="john jacob jingleheimer schmidt"
+| DISSECT message "%{+name/2} %{+name/4} %{+name/3} %{+name/1}" APPEND_SEPARATOR=","
+// end::dissectAppendWithOrderModifier[]
+;
+
+// tag::dissectAppendWithOrderModifier-result[]
+message:keyword  | name:keyword
+john jacob jingleheimer schmidt|schmidt,john,jingleheimer,jacob
+// end::dissectAppendWithOrderModifier-result[]
+;
+
+dissectNamedSkipKey
+// tag::dissectNamedSkipKey[]
+ROW message="1.2.3.4 - - 30/Apr/1998:22:00:52 +0000"
+| DISSECT message "%{clientip} %{?ident} %{?auth} %{@timestamp}"
+// end::dissectNamedSkipKey[]
+;
+
+// tag::dissectNamedSkipKey-result[]
+message:keyword  | clientip:keyword  | @timestamp:keyword
+1.2.3.4 - - 30/Apr/1998:22:00:52 +0000|1.2.3.4        |30/Apr/1998:22:00:52 +0000
+// end::dissectNamedSkipKey-result[]
+;
+
+docsLike
+// tag::like[]
+FROM employees
+| WHERE first_name LIKE "?b*"
+| KEEP first_name, last_name
+// end::like[]
+| SORT first_name
+;
+
+// tag::like-result[]
+first_name:keyword  | last_name:keyword
+Ebbe           |Callaway    
+Eberhardt      |Terkki         
+// end::like-result[]
+;
+
+docsRlike
+// tag::rlike[]
+FROM employees
+| WHERE first_name RLIKE ".leja.*"
+| KEEP first_name, last_name
+// end::rlike[]
+;
+
+// tag::rlike-result[]
+first_name:keyword  | last_name:keyword
+Alejandro      |McAlpine     
+// end::rlike-result[]
 ;

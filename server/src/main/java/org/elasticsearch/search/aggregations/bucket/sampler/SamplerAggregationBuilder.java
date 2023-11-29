@@ -67,13 +67,6 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
         return this;
     }
 
-    /**
-     * Get the max num docs to be returned from each shard.
-     */
-    public int shardSize() {
-        return shardSize;
-    }
-
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.ONE;

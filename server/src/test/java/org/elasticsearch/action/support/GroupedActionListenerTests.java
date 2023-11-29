@@ -30,17 +30,7 @@ public class GroupedActionListenerTests extends ESTestCase {
 
     public void testNotifications() throws InterruptedException {
         AtomicReference<Collection<Integer>> resRef = new AtomicReference<>();
-        ActionListener<Collection<Integer>> result = new ActionListener<Collection<Integer>>() {
-            @Override
-            public void onResponse(Collection<Integer> integers) {
-                resRef.set(integers);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        ActionListener<Collection<Integer>> result = ActionTestUtils.assertNoFailureListener(resRef::set);
         final int groupSize = randomIntBetween(10, 1000);
         AtomicInteger count = new AtomicInteger();
         GroupedActionListener<Integer> listener = new GroupedActionListener<>(groupSize, result);

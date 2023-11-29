@@ -26,7 +26,15 @@ public class GetStackTracesResponseTests extends AbstractWireSerializingTestCase
         Map<String, StackTrace> stackTraces = randomNullable(
             Map.of(
                 "QjoLteG7HX3VUUXr-J4kHQ",
-                new StackTrace(List.of(1083999), List.of("QCCDqjSg3bMK1C4YRK6Tiw"), List.of("QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf"), List.of(2))
+                new StackTrace(
+                    List.of(1083999),
+                    List.of("QCCDqjSg3bMK1C4YRK6Tiw"),
+                    List.of("QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf"),
+                    List.of(2),
+                    0.3d,
+                    2.7d,
+                    1
+                )
             )
         );
         int maxInlined = randomInt(5);
@@ -42,9 +50,11 @@ public class GetStackTracesResponseTests extends AbstractWireSerializingTestCase
             )
         );
         Map<String, String> executables = randomNullable(Map.of("QCCDqjSg3bMK1C4YRK6Tiw", "libc.so.6"));
-        Map<String, Integer> stackTraceEvents = randomNullable(Map.of(randomAlphaOfLength(12), randomIntBetween(1, 200)));
+        long totalSamples = randomLongBetween(1L, 200L);
+        String stackTraceID = randomAlphaOfLength(12);
+        Map<String, TraceEvent> stackTraceEvents = randomNullable(Map.of(stackTraceID, new TraceEvent(stackTraceID, totalSamples)));
 
-        return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, 1.0);
+        return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, 1.0, totalSamples);
     }
 
     @Override

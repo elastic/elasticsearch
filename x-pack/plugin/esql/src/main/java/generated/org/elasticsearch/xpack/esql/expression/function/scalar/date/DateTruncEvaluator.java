@@ -34,22 +34,18 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref fieldValRef = fieldVal.eval(page)) {
-      if (fieldValRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
-      LongBlock fieldValBlock = (LongBlock) fieldValRef.block();
+  public Block eval(Page page) {
+    try (LongBlock fieldValBlock = (LongBlock) fieldVal.eval(page)) {
       LongVector fieldValVector = fieldValBlock.asVector();
       if (fieldValVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), fieldValBlock));
+        return eval(page.getPositionCount(), fieldValBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), fieldValVector).asBlock());
+      return eval(page.getPositionCount(), fieldValVector).asBlock();
     }
   }
 
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -62,7 +58,7 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
-    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendLong(DateTrunc.process(fieldValVector.getLong(p), rounding));
       }
@@ -78,5 +74,26 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(fieldVal);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+
+    private final Rounding.Prepared rounding;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory fieldVal, Rounding.Prepared rounding) {
+      this.fieldVal = fieldVal;
+      this.rounding = rounding;
+    }
+
+    @Override
+    public DateTruncEvaluator get(DriverContext context) {
+      return new DateTruncEvaluator(fieldVal.get(context), rounding, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateTruncEvaluator[" + "fieldVal=" + fieldVal + ", rounding=" + rounding + "]";
+    }
   }
 }

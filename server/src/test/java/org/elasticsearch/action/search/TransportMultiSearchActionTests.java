@@ -39,7 +39,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -101,9 +100,9 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 client
             );
 
-            PlainActionFuture<MultiSearchResponse> future = newFuture();
+            PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
             action.execute(task, multiSearchRequest, future);
-            future.get();
+            future.get().decRef();
             assertEquals(numSearchRequests, counter.get());
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
@@ -206,9 +205,13 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             }
 
             MultiSearchResponse response = ActionTestUtils.executeBlocking(action, multiSearchRequest);
-            assertThat(response.getResponses().length, equalTo(numSearchRequests));
-            assertThat(requests.size(), equalTo(numSearchRequests));
-            assertThat(errorHolder.get(), nullValue());
+            try {
+                assertThat(response.getResponses().length, equalTo(numSearchRequests));
+                assertThat(requests.size(), equalTo(numSearchRequests));
+                assertThat(errorHolder.get(), nullValue());
+            } finally {
+                response.decRef();
+            }
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

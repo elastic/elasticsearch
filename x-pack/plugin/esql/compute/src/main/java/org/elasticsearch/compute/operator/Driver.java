@@ -8,8 +8,10 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
@@ -22,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -54,6 +57,10 @@ public class Driver implements Releasable, Describable {
 
     private final AtomicReference<String> cancelReason = new AtomicReference<>();
     private final AtomicReference<SubscribableListener<Void>> blocked = new AtomicReference<>();
+
+    private final AtomicBoolean started = new AtomicBoolean();
+    private final SubscribableListener<Void> completionListener = new SubscribableListener<>();
+
     /**
      * Status reported to the tasks API. We write the status at most once every
      * {@link #statusNanos}, as soon as loop has finished and after {@link #statusNanos}
@@ -147,7 +154,7 @@ public class Driver implements Releasable, Describable {
         if (isFinished()) {
             status.set(updateStatus(DriverStatus.Status.DONE));
             driverContext.finish();
-            releasable.close();
+            Releasables.close(releasable, driverContext.getSnapshot());
         } else {
             status.set(updateStatus(DriverStatus.Status.WAITING));
         }
@@ -157,13 +164,26 @@ public class Driver implements Releasable, Describable {
     /**
      * Whether the driver has run the chain of operators to completion.
      */
-    public boolean isFinished() {
+    private boolean isFinished() {
         return activeOperators.isEmpty();
     }
 
     @Override
     public void close() {
         drainAndCloseOperators(null);
+    }
+
+    /**
+     * Abort the driver and wait for it to finish
+     */
+    public void abort(Exception reason, ActionListener<Void> listener) {
+        completionListener.addListener(listener);
+        if (started.compareAndSet(false, true)) {
+            drainAndCloseOperators(reason);
+            completionListener.onFailure(reason);
+        } else {
+            cancel(reason.getMessage());
+        }
     }
 
     private SubscribableListener<Void> runSingleLoopIteration() {
@@ -252,9 +272,18 @@ public class Driver implements Releasable, Describable {
         }
     }
 
-    public static void start(Executor executor, Driver driver, int maxIterations, ActionListener<Void> listener) {
-        driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));
-        schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, executor, driver, listener);
+    public static void start(
+        ThreadContext threadContext,
+        Executor executor,
+        Driver driver,
+        int maxIterations,
+        ActionListener<Void> listener
+    ) {
+        driver.completionListener.addListener(listener);
+        if (driver.started.compareAndSet(false, true)) {
+            driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));
+            schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, driver.completionListener);
+        }
     }
 
     // Drains all active operators and closes them.
@@ -271,36 +300,50 @@ public class Driver implements Releasable, Describable {
             itr.remove();
         }
         driverContext.finish();
-        Releasables.closeWhileHandlingException(releasable);
+        Releasables.closeWhileHandlingException(releasable, driverContext.getSnapshot());
     }
 
-    private static void schedule(TimeValue maxTime, int maxIterations, Executor executor, Driver driver, ActionListener<Void> listener) {
+    private static void schedule(
+        TimeValue maxTime,
+        int maxIterations,
+        ThreadContext threadContext,
+        Executor executor,
+        Driver driver,
+        ActionListener<Void> listener
+    ) {
         executor.execute(new AbstractRunnable() {
+
             @Override
             protected void doRun() {
                 if (driver.isFinished()) {
-                    listener.onResponse(null);
+                    onComplete(listener);
                     return;
                 }
                 SubscribableListener<Void> fut = driver.run(maxTime, maxIterations);
                 if (fut.isDone()) {
-                    schedule(maxTime, maxIterations, executor, driver, listener);
+                    schedule(maxTime, maxIterations, threadContext, executor, driver, listener);
                 } else {
                     synchronized (driver) {
                         if (driver.isCancelled() == false) {
                             driver.blocked.set(fut);
                         }
                     }
-                    fut.addListener(
-                        ActionListener.wrap(ignored -> schedule(maxTime, maxIterations, executor, driver, listener), this::onFailure)
+                    ActionListener<Void> readyListener = ActionListener.wrap(
+                        ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener),
+                        this::onFailure
                     );
+                    fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 driver.drainAndCloseOperators(e);
-                listener.onFailure(e);
+                onComplete(ActionListener.running(() -> listener.onFailure(e)));
+            }
+
+            void onComplete(ActionListener<Void> listener) {
+                driver.driverContext.waitForAsyncActions(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
             }
         });
     }

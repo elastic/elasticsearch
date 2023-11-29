@@ -1,4 +1,5 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.dra.DraResolvePlugin
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -13,27 +14,42 @@ esplugin {
   extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 
+def localRepo = providers.systemProperty('build.ml_cpp.repo').orNull
 if (useDra == false) {
   repositories {
     exclusiveContent {
+      filter {
+        includeGroup 'org.elasticsearch.ml'
+      }
       forRepository {
         ivy {
           name "ml-cpp"
-          url providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').get()
           metadataSources {
             // no repository metadata, look directly for the artifact
             artifact()
           }
-          patternLayout {
-            artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/[module]-[revision](-[classifier]).[ext]"
+          if (localRepo) {
+            url localRepo
+            patternLayout {
+              artifact "maven/[orgPath]/[module]/[revision]/[module]-[revision](-[classifier]).[ext]"
+            }
+          } else {
+            url "https://artifacts-snapshot.elastic.co/"
+            patternLayout {
+              if (VersionProperties.isElasticsearchSnapshot()) {
+                artifact '/ml-cpp/[revision]/downloads/ml-cpp/[module]-[revision]-[classifier].[ext]'
+              } else {
+                // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
+                // Release builds are always done with a local repo.
+                artifact '/ml-cpp/[revision]-SNAPSHOT/downloads/ml-cpp/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+              }
+            }
           }
         }
       }
-      filter {
-        includeGroup 'org.elasticsearch.ml'
-      }
     }
   }
+
 }
 
 configurations {
@@ -70,6 +86,7 @@ dependencies {
   testImplementation project(':modules:reindex')
   testImplementation project(':modules:analysis-common')
   testImplementation project(':modules:mapper-extras')
+  testImplementation project(':modules:lang-mustache')
   // This should not be here
   testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation project(path: xpackModule('wildcard'))
@@ -80,18 +97,14 @@ dependencies {
   api "org.apache.lucene:lucene-analysis-icu:${versions.lucene}"
   api "org.apache.lucene:lucene-analysis-kuromoji:${versions.lucene}"
   implementation 'org.ojalgo:ojalgo:51.2.0'
-  nativeBundle("org.elasticsearch.ml:ml-cpp:${mlCppVersion()}:deps@zip") {
+  nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}:deps@zip") {
     changing = true
   }
-  nativeBundle("org.elasticsearch.ml:ml-cpp:${mlCppVersion()}:nodeps@zip") {
+  nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}:nodeps@zip") {
     changing = true
   }
   testImplementation 'org.ini4j:ini4j:0.5.2'
-}
-
-def mlCppVersion(){
-  return (project.gradle.parent != null && BuildParams.isSnapshotBuild() == false) ?
-      (project.version + "-SNAPSHOT") : project.version;
+  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
 }
 
 artifacts {
@@ -107,15 +120,12 @@ tasks.register("extractNativeLicenses", Copy) {
   }
   include 'platform/licenses/**'
 }
-project.afterEvaluate {
-  // Add an extra licenses directory to the combined notices
-  tasks.named('generateNotice').configure {
-    dependsOn "extractNativeLicenses"
-    licensesDir new File("${project.buildDir}/extractedNativeLicenses/platform/licenses")
-    outputs.upToDateWhen {
-      extractNativeLicenses.didWork
-    }
-  }
+
+// Add an extra licenses directory to the combined notices
+tasks.named('generateNotice').configure {
+  dependsOn "extractNativeLicenses"
+  inputs.dir("${project.buildDir}/extractedNativeLicenses/platform/licenses")
+  licenseDirs.add(tasks.named("extractNativeLicenses").map {new File(it.destinationDir, "platform/licenses") })
 }
 
 tasks.named("dependencyLicenses").configure {

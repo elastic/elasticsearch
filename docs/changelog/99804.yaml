@@ -1,6 +1,0 @@
-pr: 99804
-summary: Correctly handle `ScriptScoreQuery` in plain highlighter
-area: Highlighting
-type: bug
-issues:
- - 99700

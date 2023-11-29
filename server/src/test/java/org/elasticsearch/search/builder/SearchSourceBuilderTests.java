@@ -69,6 +69,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -78,7 +79,6 @@ import static org.hamcrest.Matchers.hasToString;
 
 public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96896")
     public void testFromXContent() throws IOException {
         SearchSourceBuilder testSearchSourceBuilder = createSearchSourceBuilder();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -900,53 +900,81 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             searchSourceBuilder.profile(false);
             return searchSourceBuilder;
         };
+        ToLongFunction<String> fieldCardinality = name -> -1;
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             if (searchSourceBuilder.aggregations() == null) {
-                assertTrue(searchSourceBuilder.supportsParallelCollection());
+                assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
             } else {
                 assertEquals(
-                    searchSourceBuilder.aggregations().supportsParallelCollection(),
-                    searchSourceBuilder.supportsParallelCollection()
+                    searchSourceBuilder.aggregations().supportsParallelCollection(fieldCardinality),
+                    searchSourceBuilder.supportsParallelCollection(fieldCardinality)
                 );
             }
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.aggregation(new MaxAggregationBuilder("max"));
-            assertTrue(searchSourceBuilder.supportsParallelCollection());
-
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
-            assertFalse(searchSourceBuilder.supportsParallelCollection());
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.collapse(CollapseBuilderTests.randomCollapseBuilder());
-            assertFalse(searchSourceBuilder.supportsParallelCollection());
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().collapse(CollapseBuilderTests.randomCollapseBuilder());
-            assertFalse(searchSourceBuilder.supportsParallelCollection());
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
-            assertTrue(searchSourceBuilder.supportsParallelCollection());
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
             searchSourceBuilder.sort(
                 SortBuilders.scriptSort(
                     new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "foo", emptyMap()),
                     ScriptSortBuilder.ScriptSortType.NUMBER
                 ).order(randomFrom(SortOrder.values()))
             );
-            assertFalse(searchSourceBuilder.supportsParallelCollection());
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(SortBuilders.fieldSort("field"));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(SortBuilders.geoDistanceSort("field", 0, 0));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(SortBuilders.pitTiebreaker());
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.profile(true);
-            assertFalse(searchSourceBuilder.supportsParallelCollection());
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
     }
 

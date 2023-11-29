@@ -67,14 +67,16 @@ Directly matching incoming documents to documents in source indices could be
 slow and resource intensive. To speed things up, the enrich processor uses an
 enrich index.
 
+// tag::enrich-index[]
 Enrich indices contain enrich data from source indices but have a few special
 properties to help streamline them:
 
 * They are system indices, meaning they're managed internally by {es} and only
-  intended for use with enrich processors.
+  intended for use with enrich processors and the {esql} `ENRICH` command.
 * They always begin with `.enrich-*`.
 * They are read-only, meaning you can't directly change them.
 * They are <<indices-forcemerge,force merged>> for fast retrieval.
+// end::enrich-index[]
 --
 
 [[enrich-setup]]
@@ -115,8 +117,9 @@ include::{es-repo-dir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-
 [[create-enrich-source-index]]
 ==== Add enrich data
 
+// tag::create-enrich-source-index[]
 To begin, add documents to one or more source indices. These documents should
-contain the enrich data you eventually want to add to incoming documents.
+contain the enrich data you eventually want to add to incoming data.
 
 You can manage source indices just like regular {es} indices using the
 <<docs,document>> and <<indices,index>> APIs.
@@ -125,29 +128,38 @@ You also can set up {beats-ref}/getting-started.html[{beats}], such as a
 {filebeat-ref}/filebeat-installation-configuration.html[{filebeat}], to
 automatically send and index documents to your source indices. See
 {beats-ref}/getting-started.html[Getting started with {beats}].
+//end::create-enrich-source-index[]
 
 [[create-enrich-policy]]
 ==== Create an enrich policy
 
+// tag::create-enrich-policy[]
 After adding enrich data to your source indices, use the
-<<put-enrich-policy-api,create enrich policy API>> to create an enrich policy.
+<<put-enrich-policy-api,create enrich policy API>> or
+<<manage-enrich-policies,Index Management in {kib}>> to create an enrich policy.
 
 [WARNING]
 ====
 Once created, you can't update or change an enrich policy.
 See <<update-enrich-policies>>.
 ====
+// end::create-enrich-policy[]
 
 [[execute-enrich-policy]]
 ==== Execute the enrich policy
 
-Once the enrich policy is created, you can execute it using the
-<<execute-enrich-policy-api,execute enrich policy API>> to create an
+// tag::execute-enrich-policy1[]
+Once the enrich policy is created, you need to execute it using the
+<<execute-enrich-policy-api,execute enrich policy API>> or
+<<manage-enrich-policies,Index Management in {kib}>> to create an
 <<enrich-index,enrich index>>.
+// end::execute-enrich-policy1[]
 
 image::images/ingest/enrich/enrich-policy-index.svg[align="center"]
 
+// tag::execute-enrich-policy2[]
 include::apis/enrich/execute-enrich-policy.asciidoc[tag=execute-enrich-policy-def]
+// end::execute-enrich-policy2[]
 
 [[add-enrich-processor]]
 ==== Add an enrich processor to an ingest pipeline
@@ -208,9 +220,10 @@ Instead, you can:
 
 . Replace the previous enrich policy
     with the new enrich policy
-    in any in-use enrich processors.
+    in any in-use enrich processors or {esql} queries.
 
-. Use the <<delete-enrich-policy-api, delete enrich policy>> API
+. Use the <<delete-enrich-policy-api, delete enrich policy>> API or
+<<manage-enrich-policies,Index Management in {kib}>>
     to delete the previous enrich policy.
 // end::update-enrich-policy[]
 

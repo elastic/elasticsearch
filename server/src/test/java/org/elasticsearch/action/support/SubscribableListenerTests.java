@@ -249,17 +249,7 @@ public class SubscribableListenerTests extends ESTestCase {
 
         try (var refs = new RefCountingRunnable(() -> completion.set(true))) {
             final var expectedResult = new Object();
-            final var assertingListener = new ActionListener<>() {
-                @Override
-                public void onResponse(Object result) {
-                    assertSame(expectedResult, result);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
-                }
-            };
+            final var assertingListener = ActionTestUtils.assertNoFailureListener(result -> assertSame(expectedResult, result));
 
             final var listener = new SubscribableListener<>();
             final var headerName = "test-header";
@@ -504,7 +494,7 @@ public class SubscribableListenerTests extends ESTestCase {
             try {
                 listener.rawResult();
             } catch (Exception e) {
-                throw new AssertionError("unexpected", e);
+                fail(e);
             }
         } else {
             assertEquals(expectedFailureMessage, expectThrows(ElasticsearchException.class, listener::rawResult).getMessage());

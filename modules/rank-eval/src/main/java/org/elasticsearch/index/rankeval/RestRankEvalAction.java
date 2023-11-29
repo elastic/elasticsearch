@@ -99,7 +99,7 @@ public class RestRankEvalAction extends BaseRestHandler {
             parseRankEvalRequest(rankEvalRequest, request, parser);
         }
         return channel -> client.executeLocally(
-            RankEvalAction.INSTANCE,
+            RankEvalPlugin.ACTION,
             rankEvalRequest,
             new RestToXContentListener<RankEvalResponse>(channel)
         );

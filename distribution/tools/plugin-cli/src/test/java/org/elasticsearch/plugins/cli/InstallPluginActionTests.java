@@ -88,7 +88,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -298,7 +297,7 @@ public class InstallPluginActionTests extends ESTestCase {
                 "version",
                 "1.0",
                 "elasticsearch.version",
-                InstallPluginAction.getSemanticVersion(Build.current().version()),
+                Build.current().version(),
                 "java.version",
                 System.getProperty("java.specification.version")
 
@@ -1110,8 +1109,8 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = String.format(
             Locale.ROOT,
             "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
-            InstallPluginAction.getSemanticVersion(Build.current().version()),
-            Build.current().version()
+            Build.current().version(),
+            Build.current().qualifiedVersion()
         );
         assertInstallPluginFromUrl("analysis-icu", url, "abc123", true);
     }
@@ -1120,8 +1119,8 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = String.format(
             Locale.ROOT,
             "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
-            InstallPluginAction.getSemanticVersion(Build.current().version()),
-            Build.current().version()
+            Build.current().version(),
+            Build.current().qualifiedVersion()
         );
         // attempting to install a release build of a plugin (no staging ID) on a snapshot build should throw a user exception
         final UserException e = expectThrows(
@@ -1137,9 +1136,9 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testOfficialPluginStaging() throws Exception {
         String url = "https://staging.elastic.co/"
-            + InstallPluginAction.getSemanticVersion(Build.current().version())
-            + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.current().version()
+            + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
+            + Build.current().qualifiedVersion()
             + ".zip";
         assertInstallPluginFromUrl("analysis-icu", url, "abc123", false);
     }
@@ -1148,7 +1147,7 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Platforms.PLATFORM_NAME
             + "-"
-            + Build.current().version()
+            + Build.current().qualifiedVersion()
             + ".zip";
         assertInstallPluginFromUrl("analysis-icu", url, null, false);
     }
@@ -1157,16 +1156,16 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = String.format(
             Locale.ROOT,
             "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s-%s.zip",
-            InstallPluginAction.getSemanticVersion(Build.current().version()),
+            Build.current().version(),
             Platforms.PLATFORM_NAME,
-            Build.current().version()
+            Build.current().qualifiedVersion()
         );
         assertInstallPluginFromUrl("analysis-icu", url, "abc123", true);
     }
 
     public void testOfficialPlatformPluginStaging() throws Exception {
         String url = "https://staging.elastic.co/"
-            + InstallPluginAction.getSemanticVersion(Build.current().version())
+            + Build.current().version()
             + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Platforms.PLATFORM_NAME
             + "-"
@@ -1589,15 +1588,6 @@ public class InstallPluginActionTests extends ESTestCase {
         assertThat(InstallPluginAction.getSemanticVersion("1.2"), nullValue());
         assertThat(InstallPluginAction.getSemanticVersion("foo"), nullValue());
         assertThat(InstallPluginAction.getSemanticVersion("foo-1.2.3"), nullValue());
-    }
-
-    private Map<String, Map<String, String>> namedComponentsMap() {
-        Map<String, Map<String, String>> result = new LinkedHashMap<>();
-        Map<String, String> extensibles = new LinkedHashMap<>();
-        extensibles.put("a_component", "p.A");
-        extensibles.put("b_component", "p.B");
-        result.put("org.elasticsearch.plugins.cli.test_model.ExtensibleInterface", extensibles);
-        return result;
     }
 
     private static String namedComponentsJSON() {

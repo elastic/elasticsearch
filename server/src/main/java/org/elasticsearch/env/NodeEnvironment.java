@@ -49,6 +49,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -198,7 +199,7 @@ public final class NodeEnvironment implements Closeable {
      */
     static final String SEARCHABLE_SHARED_CACHE_FILE = "shared_snapshot_cache";
 
-    public static class NodeLock implements Releasable {
+    public static final class NodeLock implements Releasable {
 
         private final Lock[] locks;
         private final DataPath[] dataPaths;
@@ -212,7 +213,6 @@ public final class NodeEnvironment implements Closeable {
          * Tries to acquire a node lock for a node id, throws {@code IOException} if it is unable to acquire it
          * @param pathFunction function to check node path before attempt of acquiring a node lock
          */
-        @SuppressWarnings("this-escape")
         public NodeLock(
             final Logger logger,
             final Environment environment,
@@ -537,7 +537,7 @@ public final class NodeEnvironment implements Closeable {
                     + "] is incompatible. Revert this node to version ["
                     + bestDowngradeVersion
                     + "] and delete any indices with versions earlier than ["
-                    + IndexVersion.MINIMUM_COMPATIBLE
+                    + IndexVersions.MINIMUM_COMPATIBLE
                     + "] before upgrading to version ["
                     + Build.current().version()
                     + "]. If all such indices have already been deleted, revert this node to version ["
@@ -989,7 +989,7 @@ public final class NodeEnvironment implements Closeable {
             lockDetails = Tuple.tuple(System.nanoTime(), details);
         }
 
-        protected void release() {
+        private void release() {
             mutex.release();
             decWaitCount();
         }

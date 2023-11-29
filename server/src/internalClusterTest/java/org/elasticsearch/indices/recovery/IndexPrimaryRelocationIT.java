@@ -40,11 +40,11 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
             @Override
             public void run() {
                 while (finished.get() == false && numAutoGenDocs.get() < 10_000) {
-                    DocWriteResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
+                    DocWriteResponse indexResponse = prepareIndex("test").setId("id").setSource("field", "value").get();
                     assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                     DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
                     assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-                    client().prepareIndex("test").setSource("auto", true).get();
+                    prepareIndex("test").setSource("auto", true).get();
                     numAutoGenDocs.incrementAndGet();
                 }
             }
@@ -64,14 +64,12 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
             logger.info("--> [iteration {}] relocating from {} to {} ", i, relocationSource.getName(), relocationTarget.getName());
             clusterAdmin().prepareReroute()
                 .add(new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()))
-                .execute()
-                .actionGet();
+                .get();
             ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
                 .setTimeout(TimeValue.timeValueSeconds(60))
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNoRelocatingShards(true)
-                .execute()
-                .actionGet();
+                .get();
             if (clusterHealthResponse.isTimedOut()) {
                 final String hotThreads = clusterAdmin().prepareNodesHotThreads()
                     .setIgnoreIdleThreads(false)
@@ -105,12 +103,10 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
         finished.set(true);
         indexingThread.join();
         refresh("test");
-        ElasticsearchAssertions.assertHitCount(client().prepareSearch("test").setTrackTotalHits(true).get(), numAutoGenDocs.get());
+        ElasticsearchAssertions.assertHitCount(prepareSearch("test").setTrackTotalHits(true), numAutoGenDocs.get());
         ElasticsearchAssertions.assertHitCount(
-            client().prepareSearch("test")
-                .setTrackTotalHits(true)// extra paranoia ;)
-                .setQuery(QueryBuilders.termQuery("auto", true))
-                .get(),
+            prepareSearch("test").setTrackTotalHits(true)// extra paranoia ;)
+                .setQuery(QueryBuilders.termQuery("auto", true)),
             numAutoGenDocs.get()
         );
     }

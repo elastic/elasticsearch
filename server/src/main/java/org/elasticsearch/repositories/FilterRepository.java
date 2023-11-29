@@ -27,6 +27,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 public class FilterRepository implements Repository {
 
@@ -61,8 +62,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void getRepositoryData(ActionListener<RepositoryData> listener) {
-        in.getRepositoryData(listener);
+    public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
+        in.getRepositoryData(responseExecutor, listener);
     }
 
     @Override
@@ -74,10 +75,10 @@ public class FilterRepository implements Repository {
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
-        IndexVersion repositoryFormatIndexVersion,
+        IndexVersion minimumNodeVersion,
         SnapshotDeleteListener listener
     ) {
-        in.deleteSnapshots(snapshotIds, repositoryDataGeneration, repositoryFormatIndexVersion, listener);
+        in.deleteSnapshots(snapshotIds, repositoryDataGeneration, minimumNodeVersion, listener);
     }
 
     @Override
@@ -128,7 +129,7 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         return in.getShardSnapshotStatus(snapshotId, indexId, shardId);
     }
 

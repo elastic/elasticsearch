@@ -89,8 +89,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         for (DocTemplate dt : socialNetTemplate) {
             for (int i = 0; i < dt.numDocs; i++) {
                 // Supply a doc ID for deterministic routing of docs to shards
-                client().prepareIndex("test")
-                    .setId("doc#" + numDocs)
+                prepareIndex("test").setId("doc#" + numDocs)
                     .setSource("decade", dt.decade, "people", dt.people, "description", dt.description)
                     .get();
                 numDocs++;
@@ -99,7 +98,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("test").get();
         // Ensure single segment with no deletes. Hopefully solves test instability in
         // issue https://github.com/elastic/x-pack-elasticsearch/issues/918
-        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge("test").setFlush(true).setMaxNumSegments(1).execute().actionGet();
+        ForceMergeResponse actionGet = indicesAdmin().prepareForceMerge("test").setFlush(true).setMaxNumSegments(1).get();
         indicesAdmin().prepareRefresh("test").get();
         assertAllSuccessful(actionGet);
         for (IndexShardSegments seg : indicesAdmin().prepareSegments().get().getIndices().get("test")) {
@@ -109,7 +108,7 @@ public class GraphTests extends ESSingleNodeTestCase {
             }
         }
 
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), numDocs);
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()), numDocs);
     }
 
     @Override

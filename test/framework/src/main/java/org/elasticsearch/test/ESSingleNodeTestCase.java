@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.AdminClient;
@@ -133,7 +134,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         var deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
         deleteDataStreamsRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         try {
-            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest).actionGet());
+            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest));
         } catch (IllegalStateException e) {
             // Ignore if action isn't registered, because data streams is a module and
             // if the delete action isn't registered then there no data streams to delete.
@@ -254,8 +255,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
         boolean enableConcurrentSearch = enableConcurrentSearch();
         if (enableConcurrentSearch) {
-            settingBuilder.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), true)
-                .put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
+            settingBuilder.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
+        } else {
+            settingBuilder.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false);
         }
         Settings settings = settingBuilder.build();
 
@@ -379,6 +381,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
+    }
+
+    protected IndexRequestBuilder prepareIndex(String index) {
+        return client().prepareIndex(index);
     }
 
     /**

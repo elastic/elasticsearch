@@ -310,7 +310,7 @@ public class TransportNodesActionTests extends ESTestCase {
             Writeable.Reader<TestNodeRequest> nodeRequest,
             Executor nodeExecutor
         ) {
-            super("indices:admin/test", threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
+            super("indices:admin/test", clusterService, transportService, actionFilters, nodeRequest, nodeExecutor);
         }
 
         @Override
@@ -434,16 +434,6 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         protected TestNodeResponse(StreamInput in) throws IOException {
-            super(in);
-        }
-    }
-
-    private static class OtherNodeResponse extends BaseNodeResponse {
-        OtherNodeResponse() {
-            super(mock(DiscoveryNode.class));
-        }
-
-        protected OtherNodeResponse(StreamInput in) throws IOException {
             super(in);
         }
     }

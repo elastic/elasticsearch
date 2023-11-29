@@ -30,22 +30,18 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
-      LongBlock vBlock = (LongBlock) vRef.block();
+  public Block eval(Page page) {
+    try (LongBlock vBlock = (LongBlock) v.eval(page)) {
       LongVector vVector = vBlock.asVector();
       if (vVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+        return eval(page.getPositionCount(), vBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), vVector).asBlock());
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
   }
 
   public LongBlock eval(int positionCount, LongBlock vBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -58,7 +54,7 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
   }
 
   public LongVector eval(int positionCount, LongVector vVector) {
-    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendLong(Cast.castLongToUnsignedLong(vVector.getLong(p)));
       }
@@ -74,5 +70,23 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+      this.v = v;
+    }
+
+    @Override
+    public CastLongToUnsignedLongEvaluator get(DriverContext context) {
+      return new CastLongToUnsignedLongEvaluator(v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "CastLongToUnsignedLongEvaluator[" + "v=" + v + "]";
+    }
   }
 }

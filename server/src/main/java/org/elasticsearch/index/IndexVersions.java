@@ -1,0 +1,173 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.index;
+
+import org.apache.lucene.util.Version;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.UpdateForV9;
+
+import java.lang.reflect.Field;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+@SuppressWarnings("deprecation")
+public class IndexVersions {
+
+    /*
+     * NOTE: IntelliJ lies!
+     * This map is used during class construction, referenced by the registerIndexVersion method.
+     * When all the index version constants have been registered, the map is cleared & never touched again.
+     */
+    @SuppressWarnings("UnusedAssignment")
+    static TreeSet<Integer> IDS = new TreeSet<>();
+
+    private static IndexVersion def(int id, Version luceneVersion) {
+        if (IDS == null) throw new IllegalStateException("The IDS map needs to be present to call this method");
+
+        if (IDS.add(id) == false) {
+            throw new IllegalArgumentException("Version id " + id + " defined twice");
+        }
+        if (id < IDS.last()) {
+            throw new IllegalArgumentException("Version id " + id + " is not defined in the right location. Keep constants sorted");
+        }
+        return new IndexVersion(id, luceneVersion);
+    }
+
+    @UpdateForV9 // remove the index versions with which v9 will not need to interact
+    public static final IndexVersion ZERO = def(0, Version.LATEST);
+    public static final IndexVersion V_7_0_0 = def(7_00_00_99, Version.LUCENE_8_0_0);
+
+    public static final IndexVersion V_7_1_0 = def(7_01_00_99, Version.LUCENE_8_0_0);
+    public static final IndexVersion V_7_2_0 = def(7_02_00_99, Version.LUCENE_8_0_0);
+    public static final IndexVersion V_7_2_1 = def(7_02_01_99, Version.LUCENE_8_0_0);
+    public static final IndexVersion V_7_3_0 = def(7_03_00_99, Version.LUCENE_8_1_0);
+    public static final IndexVersion V_7_4_0 = def(7_04_00_99, Version.LUCENE_8_2_0);
+    public static final IndexVersion V_7_5_0 = def(7_05_00_99, Version.LUCENE_8_3_0);
+    public static final IndexVersion V_7_5_2 = def(7_05_02_99, Version.LUCENE_8_3_0);
+    public static final IndexVersion V_7_6_0 = def(7_06_00_99, Version.LUCENE_8_4_0);
+    public static final IndexVersion V_7_7_0 = def(7_07_00_99, Version.LUCENE_8_5_1);
+    public static final IndexVersion V_7_8_0 = def(7_08_00_99, Version.LUCENE_8_5_1);
+    public static final IndexVersion V_7_9_0 = def(7_09_00_99, Version.LUCENE_8_6_0);
+    public static final IndexVersion V_7_10_0 = def(7_10_00_99, Version.LUCENE_8_7_0);
+    public static final IndexVersion V_7_11_0 = def(7_11_00_99, Version.LUCENE_8_7_0);
+    public static final IndexVersion V_7_12_0 = def(7_12_00_99, Version.LUCENE_8_8_0);
+    public static final IndexVersion V_7_13_0 = def(7_13_00_99, Version.LUCENE_8_8_2);
+    public static final IndexVersion V_7_14_0 = def(7_14_00_99, Version.LUCENE_8_9_0);
+    public static final IndexVersion V_7_15_0 = def(7_15_00_99, Version.LUCENE_8_9_0);
+    public static final IndexVersion V_7_16_0 = def(7_16_00_99, Version.LUCENE_8_10_1);
+    public static final IndexVersion V_7_17_0 = def(7_17_00_99, Version.LUCENE_8_11_1);
+    public static final IndexVersion V_8_0_0 = def(8_00_00_99, Version.LUCENE_9_0_0);
+    public static final IndexVersion V_8_1_0 = def(8_01_00_99, Version.LUCENE_9_0_0);
+    public static final IndexVersion V_8_2_0 = def(8_02_00_99, Version.LUCENE_9_1_0);
+    public static final IndexVersion V_8_3_0 = def(8_03_00_99, Version.LUCENE_9_2_0);
+    public static final IndexVersion V_8_4_0 = def(8_04_00_99, Version.LUCENE_9_3_0);
+    public static final IndexVersion V_8_5_0 = def(8_05_00_99, Version.LUCENE_9_4_1);
+    public static final IndexVersion V_8_6_0 = def(8_06_00_99, Version.LUCENE_9_4_2);
+    public static final IndexVersion V_8_7_0 = def(8_07_00_99, Version.LUCENE_9_5_0);
+    public static final IndexVersion V_8_8_0 = def(8_08_00_99, Version.LUCENE_9_6_0);
+    public static final IndexVersion V_8_8_2 = def(8_08_02_99, Version.LUCENE_9_6_0);
+    public static final IndexVersion V_8_9_0 = def(8_09_00_99, Version.LUCENE_9_7_0);
+    public static final IndexVersion V_8_9_1 = def(8_09_01_99, Version.LUCENE_9_7_0);
+    public static final IndexVersion V_8_10_0 = def(8_10_00_99, Version.LUCENE_9_7_0);
+    /*
+     * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW INDEX VERSIONS
+     * Detached index versions added below here.
+     */
+    public static final IndexVersion FIRST_DETACHED_INDEX_VERSION = def(8_500_000, Version.LUCENE_9_7_0);
+    public static final IndexVersion NEW_SPARSE_VECTOR = def(8_500_001, Version.LUCENE_9_7_0);
+    public static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_SUPPORT = def(8_500_002, Version.LUCENE_9_7_0);
+    public static final IndexVersion UPGRADE_LUCENE_9_8 = def(8_500_003, Version.LUCENE_9_8_0);
+    public static final IndexVersion ES_VERSION_8_12 = def(8_500_004, Version.LUCENE_9_8_0);
+
+    /*
+     * STOP! READ THIS FIRST! No, really,
+     *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
+     *       / ___|_   _/ _ \|  _ \| |      |  _ \| ____|  / \  |  _ \  |_   _| | | |_ _/ ___|  |  ___|_ _|  _ \/ ___|_   _| |
+     *       \___ \ | || | | | |_) | |      | |_) |  _|   / _ \ | | | |   | | | |_| || |\___ \  | |_   | || |_) \___ \ | | | |
+     *        ___) || || |_| |  __/|_|      |  _ <| |___ / ___ \| |_| |   | | |  _  || | ___) | |  _|  | ||  _ < ___) || | |_|
+     *       |____/ |_| \___/|_|   (_)      |_| \_\_____/_/   \_\____/    |_| |_| |_|___|____/  |_|   |___|_| \_\____/ |_| (_)
+     *
+     * A new index version should be added EVERY TIME a change is made to index metadata or data storage.
+     * Each index version should only be used in a single merged commit (apart from the BwC versions copied from o.e.Version, ≤V_8_11_0).
+     *
+     * To add a new index version, add a new constant at the bottom of the list, above this comment, which is one greater than the
+     * current highest version id. Use a descriptive constant name. Don't add other lines, comments, etc.
+     *
+     * REVERTING AN INDEX VERSION
+     *
+     * If you revert a commit with an index version change, you MUST ensure there is a NEW index version representing the reverted
+     * change. DO NOT let the index version go backwards, it must ALWAYS be incremented.
+     *
+     * DETERMINING TRANSPORT VERSIONS FROM GIT HISTORY
+     *
+     * TODO after the release of v8.11.0, copy the instructions about using git to track the history of versions from TransportVersion.java
+     * (the example commands won't make sense until at least 8.11.0 is released)
+     */
+
+    public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
+
+    static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);
+    static final IndexVersion LATEST_DEFINED;
+    static {
+        LATEST_DEFINED = VERSION_IDS.lastEntry().getValue();
+
+        // see comment on IDS field
+        // now we're registered the index versions, we can clear the map
+        IDS = null;
+    }
+
+    static NavigableMap<Integer, IndexVersion> getAllVersionIds(Class<?> cls) {
+        Map<Integer, String> versionIdFields = new HashMap<>();
+        NavigableMap<Integer, IndexVersion> builder = new TreeMap<>();
+
+        Set<String> ignore = Set.of("ZERO", "MINIMUM_COMPATIBLE");
+
+        for (Field declaredField : cls.getFields()) {
+            if (declaredField.getType().equals(IndexVersion.class)) {
+                String fieldName = declaredField.getName();
+                if (ignore.contains(fieldName)) {
+                    continue;
+                }
+
+                IndexVersion version;
+                try {
+                    version = (IndexVersion) declaredField.get(null);
+                } catch (IllegalAccessException e) {
+                    throw new AssertionError(e);
+                }
+                builder.put(version.id(), version);
+
+                if (Assertions.ENABLED) {
+                    // check the version number is unique
+                    var sameVersionNumber = versionIdFields.put(version.id(), fieldName);
+                    assert sameVersionNumber == null
+                        : "Versions ["
+                            + sameVersionNumber
+                            + "] and ["
+                            + fieldName
+                            + "] have the same version number ["
+                            + version.id()
+                            + "]. Each IndexVersion should have a different version number";
+                }
+            }
+        }
+
+        return Collections.unmodifiableNavigableMap(builder);
+    }
+
+    static Collection<IndexVersion> getAllVersions() {
+        return VERSION_IDS.values();
+    }
+}

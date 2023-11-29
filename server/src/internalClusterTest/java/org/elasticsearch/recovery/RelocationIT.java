@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -79,7 +79,8 @@ import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.forEachF
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -121,42 +122,40 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
         logger.info("--> flush so we have an actual index");
-        indicesAdmin().prepareFlush().execute().actionGet();
+        indicesAdmin().prepareFlush().get();
         logger.info("--> index more docs so we have something in the translog");
         for (int i = 10; i < 20; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         logger.info("--> verifying count");
-        indicesAdmin().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
+        indicesAdmin().prepareRefresh().get();
+        assertThat(prepareSearch("test").setSize(0).get().getHits().getTotalHits().value, equalTo(20L));
 
         logger.info("--> start another node");
         final String node_2 = internalCluster().startNode();
         ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("2")
-            .execute()
-            .actionGet();
+            .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).execute().actionGet();
+        clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
 
         clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)
             .setTimeout(ACCEPTABLE_RELOCATION_TIME)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verifying count again...");
-        indicesAdmin().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
+        indicesAdmin().prepareRefresh().get();
+        assertThat(prepareSearch("test").setSize(0).get().getHits().getTotalHits().value, equalTo(20L));
     }
 
     public void testRelocationWhileIndexingRandom() throws Exception {
@@ -186,8 +185,7 @@ public class RelocationIT extends ESIntegTestCase {
                     .setWaitForEvents(Priority.LANGUID)
                     .setWaitForNodes(Integer.toString(i))
                     .setWaitForGreenStatus()
-                    .execute()
-                    .actionGet();
+                    .get();
                 assertThat(healthResponse.isTimedOut(), equalTo(false));
             }
         }
@@ -218,8 +216,7 @@ public class RelocationIT extends ESIntegTestCase {
                     .setWaitForEvents(Priority.LANGUID)
                     .setWaitForNoRelocatingShards(true)
                     .setTimeout(ACCEPTABLE_RELOCATION_TIME)
-                    .execute()
-                    .actionGet();
+                    .get();
                 assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
                 indexer.pauseIndexing();
                 logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
@@ -230,17 +227,15 @@ public class RelocationIT extends ESIntegTestCase {
             logger.info("--> indexing threads stopped");
 
             logger.info("--> refreshing the index");
-            indicesAdmin().prepareRefresh("test").execute().actionGet();
+            indicesAdmin().prepareRefresh("test").get();
             logger.info("--> searching the index");
             boolean ranOnce = false;
             for (int i = 0; i < 10; i++) {
                 logger.info("--> START search test round {}", i + 1);
-                SearchHits hits = client().prepareSearch("test")
-                    .setQuery(matchAllQuery())
+                SearchHits hits = prepareSearch("test").setQuery(matchAllQuery())
                     .setSize((int) indexer.totalIndexedDocs())
                     .storedFields()
-                    .execute()
-                    .actionGet()
+                    .get()
                     .getHits();
                 ranOnce = true;
                 if (hits.getTotalHits().value != indexer.totalIndexedDocs()) {
@@ -298,8 +293,7 @@ public class RelocationIT extends ESIntegTestCase {
                     .setWaitForEvents(Priority.LANGUID)
                     .setWaitForNodes(Integer.toString(i + 1))
                     .setWaitForGreenStatus()
-                    .execute()
-                    .actionGet();
+                    .get();
                 assertThat(healthResponse.isTimedOut(), equalTo(false));
             }
         }
@@ -334,12 +328,12 @@ public class RelocationIT extends ESIntegTestCase {
 
             List<IndexRequestBuilder> builders1 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders1.add(client().prepareIndex("test").setSource("{}", XContentType.JSON));
+                builders1.add(prepareIndex("test").setSource("{}", XContentType.JSON));
             }
 
             List<IndexRequestBuilder> builders2 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders2.add(client().prepareIndex("test").setSource("{}", XContentType.JSON));
+                builders2.add(prepareIndex("test").setSource("{}", XContentType.JSON));
             }
 
             logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
@@ -366,15 +360,15 @@ public class RelocationIT extends ESIntegTestCase {
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
 
             logger.debug("--> verifying all searches return the same number of docs");
-            long expectedCount = -1;
+            long[] expectedCount = new long[] { -1 };
             for (Client client : clients()) {
-                SearchResponse response = client.prepareSearch("test").setPreference("_local").setSize(0).get();
-                assertNoFailures(response);
-                if (expectedCount < 0) {
-                    expectedCount = response.getHits().getTotalHits().value;
-                } else {
-                    assertEquals(expectedCount, response.getHits().getTotalHits().value);
-                }
+                assertNoFailuresAndResponse(client.prepareSearch("test").setPreference("_local").setSize(0), response -> {
+                    if (expectedCount[0] < 0) {
+                        expectedCount[0] = response.getHits().getTotalHits().value;
+                    } else {
+                        assertEquals(expectedCount[0], response.getHits().getTotalHits().value);
+                    }
+                });
             }
 
         }
@@ -394,7 +388,7 @@ public class RelocationIT extends ESIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName).setSource("{}", XContentType.JSON));
+            requests.add(prepareIndex(indexName).setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());
@@ -404,7 +398,7 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> blocking recoveries from primary (allowed failures: [{}])", allowedFailures);
         CountDownLatch corruptionCount = new CountDownLatch(allowedFailures);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, p_node);
-        MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, p_node);
+        final var mockTransportService = MockTransportService.getInstance(p_node);
         for (DiscoveryNode node : clusterService.state().nodes()) {
             if (node.equals(clusterService.localNode()) == false) {
                 mockTransportService.addSendBehavior(
@@ -485,7 +479,7 @@ public class RelocationIT extends ESIntegTestCase {
         for (int i = 0; i < searchThreads.length; i++) {
             searchThreads[i] = new Thread(() -> {
                 while (stopped.get() == false) {
-                    assertNoFailures(client().prepareSearch("test").setRequestCache(false).get());
+                    assertNoFailures(prepareSearch("test").setRequestCache(false));
                 }
             });
             searchThreads[i].start();
@@ -497,11 +491,10 @@ public class RelocationIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             String id = randomRealisticUnicodeOfLength(10) + String.valueOf(i);
             ids.add(id);
-            docs[i] = client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i));
+            docs[i] = prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i));
         }
         indexRandom(true, docs);
-        SearchResponse countResponse = client().prepareSearch("test").get();
-        assertHitCount(countResponse, numDocs);
+        assertHitCount(prepareSearch("test"), numDocs);
 
         logger.info(" --> moving index to new nodes");
         updateIndexSettings(
@@ -513,7 +506,7 @@ public class RelocationIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             String id = randomRealisticUnicodeOfLength(10) + String.valueOf(numDocs + i);
             ids.add(id);
-            docs[i] = client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(numDocs + i));
+            docs[i] = prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(numDocs + i));
         }
         indexRandom(true, docs);
 
@@ -523,9 +516,7 @@ public class RelocationIT extends ESIntegTestCase {
         final int numIters = randomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {
             logger.info(" --> checking iteration {}", i);
-            SearchResponse afterRelocation = client().prepareSearch().setSize(ids.size()).get();
-            assertNoFailures(afterRelocation);
-            assertSearchHits(afterRelocation, ids.toArray(new String[ids.size()]));
+            assertSearchHitsWithoutFailures(prepareSearch().setSize(ids.size()), ids.toArray(Strings.EMPTY_ARRAY));
         }
         stopped.set(true);
         for (Thread searchThread : searchThreads) {
@@ -547,14 +538,13 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
         logger.info("--> flush so we have an actual index");
-        indicesAdmin().prepareFlush().execute().actionGet();
+        indicesAdmin().prepareFlush().get();
         logger.info("--> index more docs so we have something in the translog");
         for (int i = 10; i < 20; i++) {
-            client().prepareIndex("test")
-                .setId(Integer.toString(i))
+            prepareIndex("test").setId(Integer.toString(i))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                 .setSource("field", "value" + i)
                 .execute();
@@ -565,24 +555,22 @@ public class RelocationIT extends ESIntegTestCase {
         ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("2")
-            .execute()
-            .actionGet();
+            .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
-        clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).execute().actionGet();
+        clusterAdmin().prepareReroute().add(new MoveAllocationCommand("test", 0, node1, node2)).get();
 
         clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)
             .setTimeout(ACCEPTABLE_RELOCATION_TIME)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verifying count");
-        indicesAdmin().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
+        indicesAdmin().prepareRefresh().get();
+        assertThat(prepareSearch("test").setSize(0).get().getHits().getTotalHits().value, equalTo(20L));
     }
 
     public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {
@@ -598,16 +586,15 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
         logger.info("--> flush so we have an actual index");
-        indicesAdmin().prepareFlush().execute().actionGet();
+        indicesAdmin().prepareFlush().get();
         logger.info("--> index more docs so we have something in the translog");
         final List<ActionFuture<DocWriteResponse>> pendingIndexResponses = new ArrayList<>();
         for (int i = 10; i < 20; i++) {
             pendingIndexResponses.add(
-                client().prepareIndex("test")
-                    .setId(Integer.toString(i))
+                prepareIndex("test").setId(Integer.toString(i))
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                     .setSource("field", "value" + i)
                     .execute()
@@ -619,8 +606,7 @@ public class RelocationIT extends ESIntegTestCase {
         ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("2")
-            .execute()
-            .actionGet();
+            .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
@@ -630,8 +616,7 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> index 100 docs while relocating");
         for (int i = 20; i < 120; i++) {
             pendingIndexResponses.add(
-                client().prepareIndex("test")
-                    .setId(Integer.toString(i))
+                prepareIndex("test").setId(Integer.toString(i))
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                     .setSource("field", "value" + i)
                     .execute()
@@ -642,17 +627,16 @@ public class RelocationIT extends ESIntegTestCase {
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)
             .setTimeout(ACCEPTABLE_RELOCATION_TIME)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verifying count");
         assertBusy(() -> {
-            indicesAdmin().prepareRefresh().execute().actionGet();
+            indicesAdmin().prepareRefresh().get();
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
 
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(120L));
+        assertThat(prepareSearch("test").setSize(0).get().getHits().getTotalHits().value, equalTo(120L));
     }
 
     public void testRelocationEstablishedPeerRecoveryRetentionLeases() throws Exception {

@@ -1,0 +1,21 @@
+[[esql-using]]
+== Using {esql}
+
+<<esql-rest>>::
+Information about using the <<esql-query-api,{esql} query API>>.
+
+<<esql-kibana>>::
+Using {esql} in {kib} to query and aggregate your data, create visualizations,
+and set up alerts.
+
+<<esql-elastic-security>>::
+Using {esql} in {elastic-sec} to investigate events in Timeline, create
+detection rules, and build {esql} queries using Elastic AI Assistant. 
+
+<<esql-task-management>>::
+Using the <<tasks,task management API>> to list and cancel {esql} queries.
+
+include::esql-rest.asciidoc[]
+include::esql-kibana.asciidoc[]
+include::esql-security-solution.asciidoc[]
+include::task-management.asciidoc[]

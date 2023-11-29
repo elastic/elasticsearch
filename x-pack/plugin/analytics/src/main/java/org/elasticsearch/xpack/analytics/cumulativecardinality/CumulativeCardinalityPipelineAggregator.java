@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -80,15 +80,6 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
     ) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
-        if (propertyValue == null) {
-            throw new AggregationExecutionException(
-                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName() + " must reference a cardinality aggregation"
-            );
-        }
-
-        if (propertyValue instanceof InternalCardinality) {
-            return ((InternalCardinality) propertyValue).getCounts();
-        }
 
         String currentAggName;
         if (aggPathsList.isEmpty()) {
@@ -97,13 +88,24 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
             currentAggName = aggPathsList.get(0);
         }
 
-        throw new AggregationExecutionException(
-            AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                + " must reference a cardinality aggregation, got: ["
-                + propertyValue.getClass().getSimpleName()
-                + "] at aggregation ["
-                + currentAggName
-                + "]"
+        if (propertyValue == null) {
+            throw AggregationErrors.incompatibleAggregationType(
+                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName(),
+                "cardinality",
+                "null",
+                currentAggName
+            );
+        }
+
+        if (propertyValue instanceof InternalCardinality) {
+            return ((InternalCardinality) propertyValue).getCounts();
+        }
+
+        throw AggregationErrors.incompatibleAggregationType(
+            AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName(),
+            "cardinality",
+            propertyValue.getClass().getSimpleName(),
+            currentAggName
         );
     }
 

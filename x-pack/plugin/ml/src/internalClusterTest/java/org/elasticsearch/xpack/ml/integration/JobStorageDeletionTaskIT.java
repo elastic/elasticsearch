@@ -203,8 +203,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
         // Make sure all results referencing the dedicated job are gone
         assertThat(
-            client().prepareSearch()
-                .setIndices(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
+            prepareSearch().setIndices(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpenHidden())
                 .setTrackTotalHits(true)
                 .setSize(0)

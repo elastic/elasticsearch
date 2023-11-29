@@ -176,12 +176,12 @@ EXPR_WS
 // FROM command
 //
 mode FROM_MODE;
-
-FROM_PIPE : '|' -> type(PIPE), popMode;
+FROM_PIPE : PIPE -> type(PIPE), popMode;
 FROM_OPENING_BRACKET : '[' -> type(OPENING_BRACKET), pushMode(FROM_MODE), pushMode(FROM_MODE);
 FROM_CLOSING_BRACKET : ']' -> popMode, popMode, type(CLOSING_BRACKET);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
+
 METADATA: 'metadata';
 
 fragment SRC_UNQUOTED_IDENTIFIER_PART
@@ -245,10 +245,11 @@ PROJECT_WS
 //
 mode RENAME_MODE;
 RENAME_PIPE : PIPE -> type(PIPE), popMode;
-RENAME_AS : 'as';
 RENAME_ASSIGN : ASSIGN -> type(ASSIGN);
 RENAME_COMMA : COMMA -> type(COMMA);
 RENAME_DOT: DOT -> type(DOT);
+
+AS : 'as';
 
 RENAME_QUOTED_IDENTIFIER
     : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)

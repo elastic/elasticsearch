@@ -121,18 +121,29 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return dvrCxt -> new CoalesceEvaluator(
-            dvrCxt,
-            LocalExecutionPlanner.toElementType(dataType()),
-            children().stream().map(toEvaluator).map(x -> x.get(dvrCxt)).toList()
-        );
+        List<ExpressionEvaluator.Factory> childEvaluators = children().stream().map(toEvaluator).toList();
+        return new ExpressionEvaluator.Factory() {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new CoalesceEvaluator(
+                    context,
+                    LocalExecutionPlanner.toElementType(dataType()),
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
+            }
+
+            @Override
+            public String toString() {
+                return "CoalesceEvaluator[values=" + childEvaluators + ']';
+            }
+        };
     }
 
     private record CoalesceEvaluator(DriverContext driverContext, ElementType resultType, List<EvalOperator.ExpressionEvaluator> evaluators)
         implements
             EvalOperator.ExpressionEvaluator {
         @Override
-        public Block.Ref eval(Page page) {
+        public Block eval(Page page) {
             /*
              * We have to evaluate lazily so any errors or warnings that would be
              * produced by the right hand side are avoided. And so if anything
@@ -152,9 +163,9 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (EvalOperator.ExpressionEvaluator eval : evaluators) {
-                            try (Block.Ref ref = eval.eval(limited)) {
-                                if (false == ref.block().isNull(0)) {
-                                    result.copyFrom(ref.block(), 0, 1);
+                            try (Block block = eval.eval(limited)) {
+                                if (false == block.isNull(0)) {
+                                    result.copyFrom(block, 0, 1);
                                     continue position;
                                 }
                             }
@@ -162,7 +173,7 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
                         result.appendNull();
                     }
                 }
-                return Block.Ref.floating(result.build());
+                return result.build();
             }
         }
 

@@ -8,12 +8,15 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 
+import java.io.Closeable;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public interface InferenceService {
+public interface InferenceService extends Closeable {
 
     String name();
 
@@ -59,7 +62,7 @@ public interface InferenceService {
      * @param taskSettings Settings in the request to override the model's defaults
      * @param listener Inference result listener
      */
-    void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener);
+    void infer(Model model, List<String> input, Map<String, Object> taskSettings, ActionListener<InferenceServiceResults> listener);
 
     /**
      * Start or prepare the model for use.
@@ -75,4 +78,10 @@ public interface InferenceService {
     default boolean isInClusterService() {
         return false;
     }
+
+    /**
+     * Defines the version required across all clusters to use this service
+     * @return {@link TransportVersion} specifying the version
+     */
+    TransportVersion getMinimalSupportedVersion();
 }

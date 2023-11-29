@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -79,6 +81,9 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
+    static final List<Attribute> NO_FIELDS = List.of(
+        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataTypes.NULL, null, Nullability.TRUE, null, false)
+    );
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
@@ -140,7 +145,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsIndex esIndex = context.indexResolution().get();
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            return new EsRelation(plan.source(), esIndex, attributes);
+            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes);
         }
 
     }
@@ -323,7 +328,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveEnrich(p, childrenOutput);
             }
 
+            if (plan instanceof MvExpand p) {
+                return resolveMvExpand(p, childrenOutput);
+            }
+
             return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+        }
+
+        private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
+            if (p.target() instanceof UnresolvedAttribute ua) {
+                Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
+                if (resolved == ua) {
+                    return p;
+                }
+                return new MvExpand(
+                    p.source(),
+                    p.child(),
+                    resolved,
+                    new ReferenceAttribute(resolved.source(), resolved.name(), resolved.dataType(), null, resolved.nullable(), null, false)
+                );
+            }
+            return p;
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
@@ -500,11 +525,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 if (resolved.resolved() && resolved.dataType() != KEYWORD) {
                     resolved = ua.withUnresolvedMessage(
-                        "Unsupported type ["
-                            + resolved.dataType()
-                            + "]  for enrich matching field ["
-                            + ua.name()
-                            + "]; only KEYWORD allowed"
+                        "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; only KEYWORD allowed"
                     );
                 }
                 return new Enrich(enrich.source(), enrich.child(), enrich.policyName(), resolved, enrich.policy(), enrich.enrichFields());
@@ -614,9 +635,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
-            var limit = limits.isEmpty() == false
-                ? context.configuration().resultTruncationMaxSize() // user provided a limit: cap result entries to the max
-                : context.configuration().resultTruncationDefaultSize(); // user provided no limit: cap to a default
+            int limit;
+            if (limits.isEmpty()) {
+                HeaderWarning.addWarning(
+                    "No limit defined, adding default limit of [{}]",
+                    context.configuration().resultTruncationDefaultSize()
+                );
+                limit = context.configuration().resultTruncationDefaultSize(); // user provided no limit: cap to a default
+            } else {
+                limit = context.configuration().resultTruncationMaxSize(); // user provided a limit: cap result entries to the max
+            }
             return new Limit(Source.EMPTY, new Literal(Source.EMPTY, limit, DataTypes.INTEGER), logicalPlan);
         }
     }

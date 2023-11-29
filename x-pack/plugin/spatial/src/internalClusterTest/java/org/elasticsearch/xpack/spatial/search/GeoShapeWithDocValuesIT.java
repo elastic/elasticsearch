@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.spatial.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.Geometry;
@@ -18,6 +17,7 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.percolator.PercolateQueryBuilder;
 import org.elasticsearch.percolator.PercolatorPlugin;
@@ -40,6 +40,7 @@ import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,9 +71,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
     public void testMappingUpdate() {
         // create index
         IndexVersion version = randomSupportedVersion();
-        assertAcked(
-            indicesAdmin().prepareCreate("test").setSettings(settings(version).build()).setMapping("shape", "type=geo_shape").get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(settings(version).build()).setMapping("shape", "type=geo_shape"));
         ensureGreen();
 
         String update = """
@@ -85,7 +84,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
               }
             }""";
 
-        if (version.before(IndexVersion.V_8_0_0)) {
+        if (version.before(IndexVersions.V_8_0_0)) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> indicesAdmin().preparePutMapping("test").setSource(update, XContentType.JSON).get()
@@ -111,8 +110,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
             indicesAdmin().prepareCreate("test").setMapping("id", "type=keyword", "field1", "type=geo_shape", "query", "type=percolator")
         );
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("query", geoDistanceQuery("field1").point(52.18, 4.38).distance(50, DistanceUnit.KILOMETERS))
@@ -121,8 +119,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test")
-            .setId("2")
+        prepareIndex("test").setId("2")
             .setSource(
                 jsonBuilder().startObject()
                     .field("query", geoBoundingBoxQuery("field1").setCorners(52.3, 4.4, 52.1, 4.6))
@@ -131,8 +128,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
             )
             .get();
 
-        client().prepareIndex("test")
-            .setId("3")
+        prepareIndex("test").setId("3")
             .setSource(
                 jsonBuilder().startObject()
                     .field(
@@ -149,14 +145,15 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         refresh();
 
         BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "POINT(4.51 52.20)").endObject());
-        SearchResponse response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
-            .addSort("id", SortOrder.ASC)
-            .get();
-        assertHitCount(response, 3);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+        assertNoFailuresAndResponse(
+            client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).addSort("id", SortOrder.ASC),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+                assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+            }
+        );
     }
 
     // make sure we store the normalised geometry
@@ -175,20 +172,21 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
               "shape": "POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))"
             }""";
 
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
+        indexRandom(true, prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setFetchSource(false).addStoredField("shape").get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        SearchHit searchHit = searchResponse.getHits().getAt(0);
-        assertThat(searchHit.field("shape").getValue(), instanceOf(BytesRef.class));
-        BytesRef bytesRef = searchHit.field("shape").getValue();
-        Geometry geometry = WellKnownBinary.fromWKB(
-            StandardValidator.instance(true),
-            false,
-            bytesRef.bytes,
-            bytesRef.offset,
-            bytesRef.length
-        );
-        assertThat(geometry.type(), equalTo(ShapeType.MULTIPOLYGON));
+        assertNoFailuresAndResponse(client().prepareSearch("test").setFetchSource(false).addStoredField("shape"), response -> {
+            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            SearchHit searchHit = response.getHits().getAt(0);
+            assertThat(searchHit.field("shape").getValue(), instanceOf(BytesRef.class));
+            BytesRef bytesRef = searchHit.field("shape").getValue();
+            Geometry geometry = WellKnownBinary.fromWKB(
+                StandardValidator.instance(true),
+                false,
+                bytesRef.bytes,
+                bytesRef.offset,
+                bytesRef.length
+            );
+            assertThat(geometry.type(), equalTo(ShapeType.MULTIPOLYGON));
+        });
     }
 }

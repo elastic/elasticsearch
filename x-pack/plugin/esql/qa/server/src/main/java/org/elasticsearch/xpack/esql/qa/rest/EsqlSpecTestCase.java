@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -90,11 +91,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     public final void test() throws Throwable {
         try {
-            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName));
+            shouldSkipTest(testName);
             doTest();
         } catch (Exception e) {
             throw reworkException(e);
         }
+    }
+
+    protected void shouldSkipTest(String testName) {
+        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
     }
 
     protected final void doTest() throws Throwable {

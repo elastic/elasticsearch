@@ -1,0 +1,5 @@
+pr: 102396
+summary: Add more logging to the real memory circuit breaker and lower minimum interval
+area: "Infra/Circuit Breakers"
+type: bug
+issues: []

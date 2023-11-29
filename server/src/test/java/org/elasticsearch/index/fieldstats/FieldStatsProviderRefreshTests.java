@@ -18,7 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -29,7 +29,6 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
             indicesAdmin().prepareCreate("index")
                 .setMapping("s", "type=text")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                .get()
         );
 
         // Index some documents
@@ -48,7 +47,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
             .setSize(0)
             .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
             .get();
-        assertSearchResponse(r1);
+        assertNoFailures(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(3L));
         assertRequestCacheStats(0, 1);
 
@@ -58,7 +57,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
             .setSize(0)
             .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
             .get();
-        assertSearchResponse(r2);
+        assertNoFailures(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(3L));
         assertRequestCacheStats(1, 1);
 
@@ -73,7 +72,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
             .setSize(0)
             .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
             .get();
-        assertSearchResponse(r3);
+        assertNoFailures(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(5L));
         assertRequestCacheStats(1, 2);
     }
@@ -95,7 +94,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
     }
 
     private void indexDocument(String id, String sValue) {
-        DocWriteResponse response = client().prepareIndex("index").setId(id).setSource("s", sValue).get();
+        DocWriteResponse response = prepareIndex("index").setId(id).setSource("s", sValue).get();
         assertThat(response.status(), anyOf(equalTo(RestStatus.OK), equalTo(RestStatus.CREATED)));
     }
 }

@@ -110,7 +110,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {
-                if (item.getKey().equals("append_separator") == false) {
+                if (item.getKey().equalsIgnoreCase("append_separator") == false) {
                     throw new ParsingException(source(ctx), "Invalid option for dissect: [{}]", item.getKey());
                 }
                 if (item.getValue() instanceof String == false) {
@@ -134,12 +134,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                         referenceKeys.iterator().next()
                     );
                 }
-                List<Attribute> keys = parser.outputKeys()
-                    .stream()
-                    .map(x -> new ReferenceAttribute(src, x, DataTypes.KEYWORD))
-                    .map(Attribute.class::cast)
-                    .toList();
-
+                List<Attribute> keys = new ArrayList<>();
+                for (var x : parser.outputKeys()) {
+                    if (x.isEmpty() == false) {
+                        keys.add(new ReferenceAttribute(src, x, DataTypes.KEYWORD));
+                    }
+                }
                 return new Dissect(src, p, expression(ctx.primaryExpression()), new Dissect.Parser(pattern, appendSeparator, parser), keys);
             } catch (DissectException e) {
                 throw new ParsingException(src, "Invalid pattern for dissect: [{}]", pattern);
@@ -149,7 +149,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
-        return child -> new MvExpand(source(ctx), child, visitIdentifierPattern(ctx.identifierPattern()));
+        String identifier = visitSourceIdentifier(ctx.sourceIdentifier());
+        Source src = source(ctx);
+        return child -> new MvExpand(src, child, new UnresolvedAttribute(src, identifier), new UnresolvedAttribute(src, identifier));
 
     }
 

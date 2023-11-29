@@ -180,7 +180,7 @@ renameCommand
     ;
 
 renameClause:
-    oldName=identifier RENAME_AS newName=identifier
+    oldName=identifier AS newName=identifier
     ;
 
 dissectCommand

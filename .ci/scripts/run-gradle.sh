@@ -31,5 +31,10 @@ if ! uname -a | grep -q MING; then
   export GLIBC_VERSION=$(ldd --version | grep '^ldd' | sed 's/.* \([1-9]\.[0-9]*\).*/\1/')
 fi
 
+# Running on 2-core machines without ramdisk can make this value be 0
+if [[ "$MAX_WORKERS" == "0" ]]; then
+  MAX_WORKERS=1
+fi
+
 set -e
 $GRADLEW -S --max-workers=$MAX_WORKERS $@

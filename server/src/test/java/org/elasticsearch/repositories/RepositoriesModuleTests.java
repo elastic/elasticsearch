@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -70,8 +71,7 @@ public class RepositoriesModuleTests extends ESTestCase {
             mock(ClusterService.class),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             contentRegistry,
-            recoverySettings
-        );
+            recoverySettings, TelemetryProvider.NOOP);
     }
 
     public void testCannotRegisterTwoRepositoriesWithSameTypes() {
@@ -89,8 +89,7 @@ public class RepositoriesModuleTests extends ESTestCase {
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
-                recoverySettings
-            )
+                recoverySettings, TelemetryProvider.NOOP)
         );
 
         assertEquals("Repository type [type1] is already registered", ex.getMessage());
@@ -113,8 +112,7 @@ public class RepositoriesModuleTests extends ESTestCase {
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
-                recoverySettings
-            )
+                recoverySettings, TelemetryProvider.NOOP)
         );
 
         assertEquals("Internal repository type [type1] is already registered", ex.getMessage());
@@ -136,8 +134,7 @@ public class RepositoriesModuleTests extends ESTestCase {
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
-                recoverySettings
-            )
+                recoverySettings, TelemetryProvider.NOOP)
         );
 
         assertEquals("Internal repository type [type1] is already registered as a non-internal repository", ex.getMessage());

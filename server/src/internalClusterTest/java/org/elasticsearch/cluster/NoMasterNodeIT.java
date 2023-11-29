@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
@@ -45,6 +44,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -72,7 +72,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final List<String> nodes = internalCluster().startNodes(3, settings);
 
         createIndex("test");
-        clusterAdmin().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth("test").setWaitForGreenStatus().get();
 
         final NetworkDisruption disruptionScheme = new NetworkDisruption(
             new IsolateAllNodes(new HashSet<>(nodes)),
@@ -84,7 +84,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final Client clientToMasterlessNode = client();
 
         assertBusy(() -> {
-            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
@@ -224,8 +224,8 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         prepareCreate("test1").setSettings(indexSettings(1, 2)).get();
         prepareCreate("test2").setSettings(indexSettings(3, 0)).get();
         clusterAdmin().prepareHealth("_all").setWaitForGreenStatus().get();
-        client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
-        client().prepareIndex("test2").setId("1").setSource("field", "value1").get();
+        prepareIndex("test1").setId("1").setSource("field", "value1").get();
+        prepareIndex("test2").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureSearchable("test1", "test2");
@@ -250,16 +250,15 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "1").get();
         assertExists(getResponse);
 
-        SearchResponse countResponse = clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get();
-        assertHitCount(countResponse, 1L);
+        assertHitCount(clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0), 1L);
 
         logger.info("--> here 3");
-        SearchResponse searchResponse = clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).get();
-        assertHitCount(searchResponse, 1L);
+        assertHitCount(clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true), 1L);
 
-        countResponse = clientToMasterlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0).get();
-        assertThat(countResponse.getTotalShards(), equalTo(3));
-        assertThat(countResponse.getSuccessfulShards(), equalTo(1));
+        assertResponse(clientToMasterlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0), countResponse -> {
+            assertThat(countResponse.getTotalShards(), equalTo(3));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(1));
+        });
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
         long now = System.currentTimeMillis();
@@ -301,7 +300,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         prepareCreate("test1").setSettings(indexSettings(1, 1)).get();
         clusterAdmin().prepareHealth("_all").setWaitForGreenStatus().get();
-        client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
+        prepareIndex("test1").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureGreen("test1");
@@ -347,11 +346,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         expectThrows(Exception.class, () -> client(partitionedNode).prepareGet("test1", "1").get());
 
-        SearchResponse countResponse = client(randomFrom(nodesWithShards)).prepareSearch("test1")
-            .setAllowPartialSearchResults(true)
-            .setSize(0)
-            .get();
-        assertHitCount(countResponse, 1L);
+        assertHitCount(client(randomFrom(nodesWithShards)).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0), 1L);
 
         expectThrows(
             Exception.class,

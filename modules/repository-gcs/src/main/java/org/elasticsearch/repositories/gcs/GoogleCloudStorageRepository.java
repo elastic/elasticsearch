@@ -21,7 +21,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Map;
@@ -78,7 +78,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             recoverySettings,
             buildBasePath(metadata),
             buildLocation(metadata),
-            Meter.NOOP
+            MeterRegistry.NOOP
         );
         this.storageService = storageService;
 

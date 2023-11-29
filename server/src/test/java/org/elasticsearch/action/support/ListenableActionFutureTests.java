@@ -103,33 +103,17 @@ public class ListenableActionFutureTests extends ESTestCase {
                         // If there are multiple completer threads then onResponse might return on one thread, and hence postComplete is
                         // set, before the other completer thread notifies all the listeners. OTOH with one completer thread we know that
                         // postComplete indicates that the listeners were already notified.
-                        future.addListener(new ActionListener<>() {
-                            @Override
-                            public void onResponse(Void response) {
-                                assertTrue(isComplete.compareAndSet(false, true));
-                                assertThat(Thread.currentThread().getName(), equalTo(threadName));
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                throw new AssertionError("unexpected", e);
-                            }
-                        });
+                        future.addListener(ActionTestUtils.assertNoFailureListener(ignored -> {
+                            assertTrue(isComplete.compareAndSet(false, true));
+                            assertThat(Thread.currentThread().getName(), equalTo(threadName));
+                        }));
                         assertTrue(isComplete.get());
                     } else {
                         final PlainActionFuture<String> completingThreadNameFuture = new PlainActionFuture<>();
-                        future.addListener(new ActionListener<>() {
-                            @Override
-                            public void onResponse(Void response) {
-                                assertTrue(isComplete.compareAndSet(false, true));
-                                completingThreadNameFuture.onResponse(Thread.currentThread().getName());
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                throw new AssertionError("unexpected", e);
-                            }
-                        });
+                        future.addListener(ActionTestUtils.assertNoFailureListener(ignored -> {
+                            assertTrue(isComplete.compareAndSet(false, true));
+                            completingThreadNameFuture.onResponse(Thread.currentThread().getName());
+                        }));
 
                         final boolean incompleteAfterAdd = preComplete.get() == false;
                         final String completingThreadName = completingThreadNameFuture.actionGet(10L, TimeUnit.SECONDS);

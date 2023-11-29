@@ -268,9 +268,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNull(meta.index("test"));
 
         test = createIndex("test");
-        client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
-        assertHitCount(client().prepareSearch("test").get(), 1);
+        assertHitCount(client().prepareSearch("test"), 1);
         IndexMetadata secondMetadata = clusterService.state().metadata().index("test");
         assertAcked(client().admin().indices().prepareClose("test"));
         ShardPath secondPath = ShardPath.loadShardPath(

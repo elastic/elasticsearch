@@ -30,7 +30,7 @@ public class EsqlBaseLexer extends Lexer {
     EXPR_MULTILINE_COMMENT=68, EXPR_WS=69, METADATA=70, FROM_UNQUOTED_IDENTIFIER=71, 
     FROM_QUOTED_IDENTIFIER=72, SRC_LINE_COMMENT=73, SRC_MULTILINE_COMMENT=74, 
     SRC_WS=75, PROJECT_UNQUOTED_IDENTIFIER=76, PROJECT_LINE_COMMENT=77, PROJECT_MULTILINE_COMMENT=78, 
-    PROJECT_WS=79, RENAME_AS=80, RENAME_LINE_COMMENT=81, RENAME_MULTILINE_COMMENT=82, 
+    PROJECT_WS=79, AS=80, RENAME_LINE_COMMENT=81, RENAME_MULTILINE_COMMENT=82, 
     RENAME_WS=83, ON=84, WITH=85, ENRICH_LINE_COMMENT=86, ENRICH_MULTILINE_COMMENT=87, 
     ENRICH_WS=88, INFO=89, FUNCTIONS=90, SHOW_LINE_COMMENT=91, SHOW_MULTILINE_COMMENT=92, 
     SHOW_WS=93;
@@ -66,7 +66,7 @@ public class EsqlBaseLexer extends Lexer {
       "SRC_MULTILINE_COMMENT", "SRC_WS", "PROJECT_PIPE", "PROJECT_DOT", "PROJECT_COMMA", 
       "UNQUOTED_ID_BODY_WITH_PATTERN", "PROJECT_UNQUOTED_IDENTIFIER", "PROJECT_QUOTED_IDENTIFIER", 
       "PROJECT_LINE_COMMENT", "PROJECT_MULTILINE_COMMENT", "PROJECT_WS", "RENAME_PIPE", 
-      "RENAME_AS", "RENAME_ASSIGN", "RENAME_COMMA", "RENAME_DOT", "RENAME_QUOTED_IDENTIFIER", 
+      "RENAME_ASSIGN", "RENAME_COMMA", "RENAME_DOT", "AS", "RENAME_QUOTED_IDENTIFIER", 
       "RENAME_UNQUOTED_IDENTIFIER", "RENAME_LINE_COMMENT", "RENAME_MULTILINE_COMMENT", 
       "RENAME_WS", "ENRICH_PIPE", "ENRICH_ASSIGN", "ENRICH_COMMA", "ENRICH_DOT", 
       "ON", "WITH", "ENRICH_QUOTED_IDENTIFIER", "ENRICH_UNQUOTED_IDENTIFIER", 
@@ -81,14 +81,14 @@ public class EsqlBaseLexer extends Lexer {
       null, "'dissect'", "'drop'", "'enrich'", "'eval'", "'explain'", "'from'", 
       "'grok'", "'inlinestats'", "'keep'", "'limit'", "'mv_expand'", "'project'", 
       "'rename'", "'row'", "'show'", "'sort'", "'stats'", "'where'", null, 
-      null, null, null, null, null, null, null, null, null, null, "'by'", "'and'", 
-      "'asc'", "'='", "','", "'desc'", "'.'", "'false'", "'first'", "'last'", 
-      "'('", "'in'", "'is'", "'like'", "'not'", "'null'", "'nulls'", "'or'", 
-      "'?'", "'rlike'", "')'", "'true'", "'=='", "'!='", "'<'", "'<='", "'>'", 
-      "'>='", "'+'", "'-'", "'*'", "'/'", "'%'", null, "']'", null, null, null, 
-      null, null, "'metadata'", null, null, null, null, null, null, null, null, 
-      null, "'as'", null, null, null, "'on'", "'with'", null, null, null, "'info'", 
-      "'functions'"
+      null, null, null, null, null, null, "'|'", null, null, null, "'by'", 
+      "'and'", "'asc'", "'='", "','", "'desc'", "'.'", "'false'", "'first'", 
+      "'last'", "'('", "'in'", "'is'", "'like'", "'not'", "'null'", "'nulls'", 
+      "'or'", "'?'", "'rlike'", "')'", "'true'", "'=='", "'!='", "'<'", "'<='", 
+      "'>'", "'>='", "'+'", "'-'", "'*'", "'/'", "'%'", null, "']'", null, 
+      null, null, null, null, "'metadata'", null, null, null, null, null, null, 
+      null, null, null, "'as'", null, null, null, "'on'", "'with'", null, null, 
+      null, "'info'", "'functions'"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
@@ -106,7 +106,7 @@ public class EsqlBaseLexer extends Lexer {
       "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", "EXPR_MULTILINE_COMMENT", "EXPR_WS", 
       "METADATA", "FROM_UNQUOTED_IDENTIFIER", "FROM_QUOTED_IDENTIFIER", "SRC_LINE_COMMENT", 
       "SRC_MULTILINE_COMMENT", "SRC_WS", "PROJECT_UNQUOTED_IDENTIFIER", "PROJECT_LINE_COMMENT", 
-      "PROJECT_MULTILINE_COMMENT", "PROJECT_WS", "RENAME_AS", "RENAME_LINE_COMMENT", 
+      "PROJECT_MULTILINE_COMMENT", "PROJECT_WS", "AS", "RENAME_LINE_COMMENT", 
       "RENAME_MULTILINE_COMMENT", "RENAME_WS", "ON", "WITH", "ENRICH_LINE_COMMENT", 
       "ENRICH_MULTILINE_COMMENT", "ENRICH_WS", "INFO", "FUNCTIONS", "SHOW_LINE_COMMENT", 
       "SHOW_MULTILINE_COMMENT", "SHOW_WS"
@@ -147,6 +147,7 @@ public class EsqlBaseLexer extends Lexer {
   }
 
 
+  @SuppressWarnings("this-escape")
   public EsqlBaseLexer(CharStream input) {
     super(input);
     _interp = new LexerATNSimulator(this,_ATN,_decisionToDFA,_sharedContextCache);
@@ -278,8 +279,8 @@ public class EsqlBaseLexer extends Lexer {
     "\u0354\ta\u0001a\u0001a\u0003a\u0358\ba\u0001a\u0004a\u035b\ba\u000ba"+
     "\fa\u035c\u0003a\u035f\ba\u0001b\u0001b\u0001b\u0001b\u0001c\u0001c\u0001"+
     "c\u0001c\u0001d\u0001d\u0001d\u0001d\u0001e\u0001e\u0001e\u0001e\u0001"+
-    "f\u0001f\u0001f\u0001f\u0001f\u0001g\u0001g\u0001g\u0001h\u0001h\u0001"+
-    "h\u0001h\u0001i\u0001i\u0001i\u0001i\u0001j\u0001j\u0001j\u0001j\u0001"+
+    "f\u0001f\u0001f\u0001f\u0001f\u0001g\u0001g\u0001g\u0001g\u0001h\u0001"+
+    "h\u0001h\u0001h\u0001i\u0001i\u0001i\u0001i\u0001j\u0001j\u0001j\u0001"+
     "k\u0001k\u0001k\u0001k\u0001l\u0001l\u0001l\u0001l\u0001m\u0001m\u0001"+
     "m\u0001m\u0001n\u0001n\u0001n\u0001n\u0001o\u0001o\u0001o\u0001o\u0001"+
     "p\u0001p\u0001p\u0001p\u0001p\u0001q\u0001q\u0001q\u0001q\u0001r\u0001"+
@@ -300,7 +301,7 @@ public class EsqlBaseLexer extends Lexer {
     "D\u00a8E\u00aa\u0000\u00ac\u0000\u00ae\u0000\u00b0\u0000\u00b2\u0000\u00b4"+
     "F\u00b6\u0000\u00b8G\u00baH\u00bcI\u00beJ\u00c0K\u00c2\u0000\u00c4\u0000"+
     "\u00c6\u0000\u00c8\u0000\u00caL\u00cc\u0000\u00ceM\u00d0N\u00d2O\u00d4"+
-    "\u0000\u00d6P\u00d8\u0000\u00da\u0000\u00dc\u0000\u00de\u0000\u00e0\u0000"+
+    "\u0000\u00d6\u0000\u00d8\u0000\u00da\u0000\u00dcP\u00de\u0000\u00e0\u0000"+
     "\u00e2Q\u00e4R\u00e6S\u00e8\u0000\u00ea\u0000\u00ec\u0000\u00ee\u0000"+
     "\u00f0T\u00f2U\u00f4\u0000\u00f6\u0000\u00f8V\u00faW\u00fcX\u00feY\u0100"+
     "Z\u0102[\u0104\\\u0106]\b\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007"+
@@ -411,8 +412,8 @@ public class EsqlBaseLexer extends Lexer {
     "\u035e\u0001\u0000\u0000\u0000\u00cc\u0360\u0001\u0000\u0000\u0000\u00ce"+
     "\u0364\u0001\u0000\u0000\u0000\u00d0\u0368\u0001\u0000\u0000\u0000\u00d2"+
     "\u036c\u0001\u0000\u0000\u0000\u00d4\u0370\u0001\u0000\u0000\u0000\u00d6"+
-    "\u0375\u0001\u0000\u0000\u0000\u00d8\u0378\u0001\u0000\u0000\u0000\u00da"+
-    "\u037c\u0001\u0000\u0000\u0000\u00dc\u0380\u0001\u0000\u0000\u0000\u00de"+
+    "\u0375\u0001\u0000\u0000\u0000\u00d8\u0379\u0001\u0000\u0000\u0000\u00da"+
+    "\u037d\u0001\u0000\u0000\u0000\u00dc\u0381\u0001\u0000\u0000\u0000\u00de"+
     "\u0384\u0001\u0000\u0000\u0000\u00e0\u0388\u0001\u0000\u0000\u0000\u00e2"+
     "\u038c\u0001\u0000\u0000\u0000\u00e4\u0390\u0001\u0000\u0000\u0000\u00e6"+
     "\u0394\u0001\u0000\u0000\u0000\u00e8\u0398\u0001\u0000\u0000\u0000\u00ea"+
@@ -665,7 +666,7 @@ public class EsqlBaseLexer extends Lexer {
     "\u00030\u0014\u0000\u02f3\u02f4\u0001\u0000\u0000\u0000\u02f4\u02f5\u0006"+
     "O\u0007\u0000\u02f5\u00a7\u0001\u0000\u0000\u0000\u02f6\u02f7\u00032\u0015"+
     "\u0000\u02f7\u02f8\u0001\u0000\u0000\u0000\u02f8\u02f9\u0006P\u0007\u0000"+
-    "\u02f9\u00a9\u0001\u0000\u0000\u0000\u02fa\u02fb\u0005|\u0000\u0000\u02fb"+
+    "\u02f9\u00a9\u0001\u0000\u0000\u0000\u02fa\u02fb\u0003>\u001b\u0000\u02fb"+
     "\u02fc\u0001\u0000\u0000\u0000\u02fc\u02fd\u0006Q\n\u0000\u02fd\u02fe"+
     "\u0006Q\u000b\u0000\u02fe\u00ab\u0001\u0000\u0000\u0000\u02ff\u0300\u0005"+
     "[\u0000\u0000\u0300\u0301\u0001\u0000\u0000\u0000\u0301\u0302\u0006R\b"+
@@ -727,28 +728,28 @@ public class EsqlBaseLexer extends Lexer {
     "\u036f\u0006e\u0007\u0000\u036f\u00d3\u0001\u0000\u0000\u0000\u0370\u0371"+
     "\u0003>\u001b\u0000\u0371\u0372\u0001\u0000\u0000\u0000\u0372\u0373\u0006"+
     "f\n\u0000\u0373\u0374\u0006f\u000b\u0000\u0374\u00d5\u0001\u0000\u0000"+
-    "\u0000\u0375\u0376\u0005a\u0000\u0000\u0376\u0377\u0005s\u0000\u0000\u0377"+
-    "\u00d7\u0001\u0000\u0000\u0000\u0378\u0379\u0003`,\u0000\u0379\u037a\u0001"+
-    "\u0000\u0000\u0000\u037a\u037b\u0006h\u000e\u0000\u037b\u00d9\u0001\u0000"+
-    "\u0000\u0000\u037c\u037d\u0003b-\u0000\u037d\u037e\u0001\u0000\u0000\u0000"+
-    "\u037e\u037f\u0006i\r\u0000\u037f\u00db\u0001\u0000\u0000\u0000\u0380"+
-    "\u0381\u0003f/\u0000\u0381\u0382\u0001\u0000\u0000\u0000\u0382\u0383\u0006"+
-    "j\u000f\u0000\u0383\u00dd\u0001\u0000\u0000\u0000\u0384\u0385\u0003\u00a2"+
-    "M\u0000\u0385\u0386\u0001\u0000\u0000\u0000\u0386\u0387\u0006k\u0010\u0000"+
-    "\u0387\u00df\u0001\u0000\u0000\u0000\u0388\u0389\u0003\u00a0L\u0000\u0389"+
-    "\u038a\u0001\u0000\u0000\u0000\u038a\u038b\u0006l\u0011\u0000\u038b\u00e1"+
-    "\u0001\u0000\u0000\u0000\u038c\u038d\u0003.\u0013\u0000\u038d\u038e\u0001"+
-    "\u0000\u0000\u0000\u038e\u038f\u0006m\u0007\u0000\u038f\u00e3\u0001\u0000"+
-    "\u0000\u0000\u0390\u0391\u00030\u0014\u0000\u0391\u0392\u0001\u0000\u0000"+
-    "\u0000\u0392\u0393\u0006n\u0007\u0000\u0393\u00e5\u0001\u0000\u0000\u0000"+
-    "\u0394\u0395\u00032\u0015\u0000\u0395\u0396\u0001\u0000\u0000\u0000\u0396"+
-    "\u0397\u0006o\u0007\u0000\u0397\u00e7\u0001\u0000\u0000\u0000\u0398\u0399"+
-    "\u0003>\u001b\u0000\u0399\u039a\u0001\u0000\u0000\u0000\u039a\u039b\u0006"+
-    "p\n\u0000\u039b\u039c\u0006p\u000b\u0000\u039c\u00e9\u0001\u0000\u0000"+
-    "\u0000\u039d\u039e\u0003`,\u0000\u039e\u039f\u0001\u0000\u0000\u0000\u039f"+
-    "\u03a0\u0006q\u000e\u0000\u03a0\u00eb\u0001\u0000\u0000\u0000\u03a1\u03a2"+
-    "\u0003b-\u0000\u03a2\u03a3\u0001\u0000\u0000\u0000\u03a3\u03a4\u0006r"+
-    "\r\u0000\u03a4\u00ed\u0001\u0000\u0000\u0000\u03a5\u03a6\u0003f/\u0000"+
+    "\u0000\u0375\u0376\u0003`,\u0000\u0376\u0377\u0001\u0000\u0000\u0000\u0377"+
+    "\u0378\u0006g\u000e\u0000\u0378\u00d7\u0001\u0000\u0000\u0000\u0379\u037a"+
+    "\u0003b-\u0000\u037a\u037b\u0001\u0000\u0000\u0000\u037b\u037c\u0006h"+
+    "\r\u0000\u037c\u00d9\u0001\u0000\u0000\u0000\u037d\u037e\u0003f/\u0000"+
+    "\u037e\u037f\u0001\u0000\u0000\u0000\u037f\u0380\u0006i\u000f\u0000\u0380"+
+    "\u00db\u0001\u0000\u0000\u0000\u0381\u0382\u0005a\u0000\u0000\u0382\u0383"+
+    "\u0005s\u0000\u0000\u0383\u00dd\u0001\u0000\u0000\u0000\u0384\u0385\u0003"+
+    "\u00a2M\u0000\u0385\u0386\u0001\u0000\u0000\u0000\u0386\u0387\u0006k\u0010"+
+    "\u0000\u0387\u00df\u0001\u0000\u0000\u0000\u0388\u0389\u0003\u00a0L\u0000"+
+    "\u0389\u038a\u0001\u0000\u0000\u0000\u038a\u038b\u0006l\u0011\u0000\u038b"+
+    "\u00e1\u0001\u0000\u0000\u0000\u038c\u038d\u0003.\u0013\u0000\u038d\u038e"+
+    "\u0001\u0000\u0000\u0000\u038e\u038f\u0006m\u0007\u0000\u038f\u00e3\u0001"+
+    "\u0000\u0000\u0000\u0390\u0391\u00030\u0014\u0000\u0391\u0392\u0001\u0000"+
+    "\u0000\u0000\u0392\u0393\u0006n\u0007\u0000\u0393\u00e5\u0001\u0000\u0000"+
+    "\u0000\u0394\u0395\u00032\u0015\u0000\u0395\u0396\u0001\u0000\u0000\u0000"+
+    "\u0396\u0397\u0006o\u0007\u0000\u0397\u00e7\u0001\u0000\u0000\u0000\u0398"+
+    "\u0399\u0003>\u001b\u0000\u0399\u039a\u0001\u0000\u0000\u0000\u039a\u039b"+
+    "\u0006p\n\u0000\u039b\u039c\u0006p\u000b\u0000\u039c\u00e9\u0001\u0000"+
+    "\u0000\u0000\u039d\u039e\u0003`,\u0000\u039e\u039f\u0001\u0000\u0000\u0000"+
+    "\u039f\u03a0\u0006q\u000e\u0000\u03a0\u00eb\u0001\u0000\u0000\u0000\u03a1"+
+    "\u03a2\u0003b-\u0000\u03a2\u03a3\u0001\u0000\u0000\u0000\u03a3\u03a4\u0006"+
+    "r\r\u0000\u03a4\u00ed\u0001\u0000\u0000\u0000\u03a5\u03a6\u0003f/\u0000"+
     "\u03a6\u03a7\u0001\u0000\u0000\u0000\u03a7\u03a8\u0006s\u000f\u0000\u03a8"+
     "\u00ef\u0001\u0000\u0000\u0000\u03a9\u03aa\u0005o\u0000\u0000\u03aa\u03ab"+
     "\u0005n\u0000\u0000\u03ab\u00f1\u0001\u0000\u0000\u0000\u03ac\u03ad\u0005"+

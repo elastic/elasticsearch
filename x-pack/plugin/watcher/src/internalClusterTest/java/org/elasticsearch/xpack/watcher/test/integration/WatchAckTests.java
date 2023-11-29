@@ -53,9 +53,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
     @Before
     public void indexTestDocument() {
-        DocWriteResponse eventIndexResponse = client().prepareIndex()
-            .setIndex("events")
-            .setId(id)
+        DocWriteResponse eventIndexResponse = prepareIndex("events").setId(id)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .setSource("level", "error")
             .get();
@@ -236,7 +234,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(ackResponse.getStatus().actionStatus("_id").ackStatus().state(), is(ActionStatus.AckStatus.State.ACKED));
 
         refresh("actions");
-        long countAfterAck = client().prepareSearch("actions").setQuery(matchAllQuery()).get().getHits().getTotalHits().value;
+        long countAfterAck = prepareSearch("actions").setQuery(matchAllQuery()).get().getHits().getTotalHits().value;
         assertThat(countAfterAck, greaterThanOrEqualTo(1L));
 
         restartWatcherRandomly();

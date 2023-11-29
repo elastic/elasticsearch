@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -41,9 +43,13 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     PutInferenceModelAction.Request,
     PutInferenceModelAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutInferenceModelAction.class);
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
@@ -97,13 +103,46 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
+        // Check if all the nodes in this cluster know about the service
+        if (service.get().getMinimalSupportedVersion().after(state.getMinTransportVersion())) {
+            logger.warn(
+                format(
+                    "Service [%s] requires version [%s] but minimum cluster version is [%s]",
+                    serviceName,
+                    service.get().getMinimalSupportedVersion(),
+                    state.getMinTransportVersion()
+                )
+            );
+
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    format(
+                        "All nodes in the cluster are not aware of the service [%s]."
+                            + "Wait for the cluster to finish upgrading and try again.",
+                        serviceName
+                    ),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
+
         if (service.get().isInClusterService()) {
             // Find the cluster platform as the service may need that
             // information when creating the model
             MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(ActionListener.wrap(architectures -> {
                 if (architectures.isEmpty() && clusterIsInElasticCloud(clusterService.getClusterSettings())) {
-                    // In Elastic cloud ml nodes run on Linux x86
-                    architectures = Set.of("linux-x86_64");
+                    parseAndStoreModel(
+                        service.get(),
+                        request.getModelId(),
+                        request.getTaskType(),
+                        requestAsMap,
+                        // In Elastic cloud ml nodes run on Linux x86
+                        Set.of("linux-x86_64"),
+                        listener
+                    );
+                } else {
+                    // The architecture field could be an empty set, the individual services will need to handle that
                     parseAndStoreModel(service.get(), request.getModelId(), request.getTaskType(), requestAsMap, architectures, listener);
                 }
             }, listener::onFailure), client, threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME));
@@ -118,10 +157,10 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platfromArchitectures,
+        Set<String> platformArchitectures,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
-        var model = service.parseRequestConfig(modelId, taskType, config, platfromArchitectures);
+        var model = service.parseRequestConfig(modelId, taskType, config, platformArchitectures);
         // model is valid good to persist then start
         this.modelRegistry.storeModel(model, ActionListener.wrap(r -> { startModel(service, model, listener); }, listener::onFailure));
     }

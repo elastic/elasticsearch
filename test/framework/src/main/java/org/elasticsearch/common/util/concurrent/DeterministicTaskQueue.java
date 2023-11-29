@@ -102,6 +102,19 @@ public class DeterministicTaskQueue {
     }
 
     /**
+     * Run all {@code runnableTasks} and {@code deferredTasks} that are scheduled to run before or on the given {@code timeInMillis}.
+     * The current time will be set to {@code timeInMillis} once the method returns.
+     */
+    public void runTasksUpToTimeInOrder(long timeInMillis) {
+        runAllRunnableTasks();
+        while (nextDeferredTaskExecutionTimeMillis <= timeInMillis) {
+            advanceTime();
+            runAllRunnableTasks();
+        }
+        currentTimeMillis = timeInMillis;
+    }
+
+    /**
      * @return whether there are any runnable tasks.
      */
     public boolean hasRunnableTasks() {
@@ -172,6 +185,14 @@ public class DeterministicTaskQueue {
             logger.trace("scheduleAt: adding {} with extra delay of [{}ms]", deferredTask, extraDelayMillis);
             scheduleDeferredTask(deferredTask);
         }
+    }
+
+    /**
+     * Similar to {@link #scheduleAt} but also advance time to {@code executionTimeMillis} and run all eligible tasks.
+     */
+    public void scheduleAtAndRunUpTo(final long executionTimeMillis, final Runnable task) {
+        scheduleAt(executionTimeMillis, task);
+        runTasksUpToTimeInOrder(executionTimeMillis);
     }
 
     private void scheduleDeferredTask(DeferredTask deferredTask) {

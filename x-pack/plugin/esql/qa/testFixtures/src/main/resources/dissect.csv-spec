@@ -15,17 +15,13 @@ foo bar   | null       | null
 
 
 complexPattern
-// tag::dissect[]
 ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;" 
 | DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};" 
 | KEEP Y, M, D, h, m, s, msg, ip
-// end::dissect[]
 ;
 
-// tag::dissect-result[]
 Y:keyword | M:keyword | D:keyword | h:keyword | m:keyword | s:keyword | msg:keyword  | ip:keyword
 1953      | 01        | 23        | 12        | 15        | 00        | some text    | 127.0.0.1
-// end::dissect-result[]
 ;
 
 
@@ -47,6 +43,13 @@ foo 1 bar 2 baz  | bazbarfoo | 1          | 2
 
 appendSeparator
 row a = "foo 1 bar 2 baz" | dissect a "%{+b} %{c} %{+b} %{d} %{+b}" append_separator=",";
+
+a:keyword        | b:keyword   | c:keyword    | d:keyword 
+foo 1 bar 2 baz  | foo,bar,baz | 1            | 2         
+;
+
+appendSeparatorUppercase
+row a = "foo 1 bar 2 baz" | dissect a "%{+b} %{c} %{+b} %{d} %{+b}" APPEND_SEPARATOR=",";
 
 a:keyword        | b:keyword   | c:keyword    | d:keyword 
 foo 1 bar 2 baz  | foo,bar,baz | 1            | 2         
@@ -154,4 +157,34 @@ emp_no:integer | a:keyword            | b:keyword         | c:keyword
 10004          | Head                 | Human             | Resources
 10005          | null                 | null              | null 
 10006          | [Principal, Senior]  | [Support, Team]   | [Engineer, Lead]
+;
+
+emptyPattern#[skip:-8.11.99]
+ROW a="b c d"| DISSECT a "%{b} %{} %{d}";
+
+a:keyword | b:keyword | d:keyword
+b c d     | b         | d
+;
+
+
+multipleEmptyPatterns#[skip:-8.11.99]
+ROW a="b c d e"| DISSECT a "%{b} %{} %{} %{e}";
+
+a:keyword | b:keyword | e:keyword
+b c d e   | b         | e
+;
+
+firstEmptyPattern#[skip:-8.11.99]
+ROW a="x b c d"| DISSECT a "%{} %{b} %{} %{d}";
+
+a:keyword   | b:keyword | d:keyword
+x b c d     | b         | d
+;
+
+
+lastEmptyPattern#[skip:-8.11.99]
+ROW a="b c d x"| DISSECT a "%{b} %{} %{d} %{}";
+
+a:keyword  | b:keyword | d:keyword
+b c d x    | b         | d
 ;

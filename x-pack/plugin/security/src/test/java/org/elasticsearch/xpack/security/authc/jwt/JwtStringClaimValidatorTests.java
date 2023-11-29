@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.text.ParseException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -120,19 +121,37 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
             throw new AssertionError("validation should have passed without exception", e);
         }
 
-        final JWTClaimsSet invalidJwtClaimsSet;
-        if (noFallback) {
-            // fallback is ignored (even when it has a valid value) since the main claim exists
-            invalidJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, "not-" + claimValue, fallbackClaimName, claimValue));
+        String invalidClaimValue;
+        if (randomBoolean()) {
+            invalidClaimValue = "not-" + claimValue;
         } else {
-            invalidJwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, "not-" + claimValue));
+            // letter case mismatch: invert case at pos i
+            int i = randomIntBetween(0, claimValue.length() - 1);
+            invalidClaimValue = claimValue.substring(0, i);
+            if (Character.isUpperCase(claimValue.charAt(i))) {
+                invalidClaimValue += claimValue.substring(i, i).toLowerCase(Locale.ROOT);
+            } else if (Character.isLowerCase(claimValue.charAt(i))) {
+                invalidClaimValue += claimValue.substring(i, i).toUpperCase(Locale.ROOT);
+            } else {
+                throw new AssertionError("Unrecognized case");
+            }
+            invalidClaimValue += claimValue.substring(i + 1);
         }
+        {
+            final JWTClaimsSet invalidJwtClaimsSet;
+            if (noFallback) {
+                // fallback is ignored (even when it has a valid value) since the main claim exists
+                invalidJwtClaimsSet = JWTClaimsSet.parse(Map.of(claimName, invalidClaimValue, fallbackClaimName, claimValue));
+            } else {
+                invalidJwtClaimsSet = JWTClaimsSet.parse(Map.of(fallbackClaimName, invalidClaimValue));
+            }
 
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> validator.validate(getJwsHeader(), invalidJwtClaimsSet)
-        );
-        assertThat(e.getMessage(), containsString("does not match allowed claim values"));
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> validator.validate(getJwsHeader(), invalidJwtClaimsSet)
+            );
+            assertThat(e.getMessage(), containsString("does not match allowed claim values"));
+        }
     }
 
     public void testValueAllowSettingDoesNotSupportWildcardOrRegex() throws ParseException {

@@ -33,12 +33,15 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.application.EnterpriseSearch.CONNECTOR_API_ENDPOINT;
 
 public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobAction.Response> {
 
     public static final PostConnectorSyncJobAction INSTANCE = new PostConnectorSyncJobAction();
 
     public static final String NAME = "cluster:admin/xpack/connector/sync_job/post";
+
+    public static final String CONNECTOR_SYNC_JOB_API_ENDPOINT = CONNECTOR_API_ENDPOINT + "/_sync_job";
 
     private PostConnectorSyncJobAction() {
         super(NAME, PostConnectorSyncJobAction.Response::new);

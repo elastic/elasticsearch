@@ -12,7 +12,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.application.EnterpriseSearch;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,7 +27,7 @@ public class RestPostConnectorSyncJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/" + EnterpriseSearch.CONNECTOR_SYNC_JOB_API_ENDPOINT));
+        return List.of(new Route(POST, "/" + PostConnectorSyncJobAction.CONNECTOR_SYNC_JOB_API_ENDPOINT));
     }
 
     @Override

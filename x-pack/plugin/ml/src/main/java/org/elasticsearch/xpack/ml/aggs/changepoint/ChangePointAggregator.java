@@ -26,7 +26,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.IntToDoubleFunction;
 import java.util.stream.IntStream;
 
@@ -41,6 +40,46 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     private static final int MINIMUM_BUCKETS = 10;
     private static final int MAXIMUM_CANDIDATE_CHANGE_POINTS = 1000;
     private static final KolmogorovSmirnovTest KOLMOGOROV_SMIRNOV_TEST = new KolmogorovSmirnovTest();
+
+    private record DataStats(double nValues, double var, int nCandidateChangePoints) {
+        @Override
+        public String toString() {
+            return "DataStats{nValues=" + nValues + ", var=" + var + ",nCandidateChangePoints=" + nCandidateChangePoints + "}";
+        }
+    }
+
+    private record TestStats(DataStats dataStats, double var, double pValue, double nParams, int changePoint) {
+        TestStats(DataStats dataStats, double pValue, int changePoint) {
+            this(dataStats, -1.0, pValue, -1.0, changePoint);
+        }
+
+        TestStats(DataStats dataStats, double var, double pValue, double nParams) {
+            this(dataStats, var, pValue, nParams, -1);
+        }
+
+        double rSquared() {
+            return 1.0 - var / dataStats.var();
+        }
+
+        double pValueVsStationary() {
+            return independentTrialsPValue(
+                fTestNestedPValue(dataStats.nValues(), dataStats.var(), 1.0, var, nParams),
+                dataStats.nCandidateChangePoints()
+            );
+        }
+
+        @Override
+        public String toString() {
+            return "TestStats{"
+                + ("dataStats=" + dataStats)
+                + (", var=" + var)
+                + (", rSquared=" + rSquared())
+                + (", pValue=" + pValue)
+                + (", nParams=" + nParams)
+                + (", changePoint=" + changePoint)
+                + '}';
+        }
+    }
 
     static Tuple<int[], Integer> candidateChangePoints(double[] values) {
         int minValues = Math.max((int) (0.1 * values.length + 0.5), MINIMUM_BUCKETS);
@@ -112,152 +151,137 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         Tuple<int[], Integer> candidateChangePointsAndStep,
         double pValueThreshold
     ) {
+        ChangeType changeType = new ChangeType.Stationary();
+
         double[] timeWindow = bucketValues.getValues();
         double totalUnweightedVariance = RunningStats.from(timeWindow, i -> 1.0).variance();
-        ChangeType changeType = new ChangeType.Stationary();
         if (totalUnweightedVariance == 0.0) {
             return changeType;
         }
+
         double[] timeWindowWeights = outlierWeights(timeWindow);
-        int[] candidateChangePoints = candidateChangePointsAndStep.v1();
-        int step = candidateChangePointsAndStep.v2();
-        double totalVariance = RunningStats.from(timeWindow, i -> timeWindowWeights[i]).variance();
-        double vNull = totalVariance;
-        if (totalVariance == 0.0) {
+        RunningStats dataRunningStats = RunningStats.from(timeWindow, i -> timeWindowWeights[i]);
+        if (dataRunningStats.variance() == 0.0) {
             return changeType;
         }
-        double n = timeWindow.length;
-        double dfNull = n - 1;
-        LeastSquaresOnlineRegression allLeastSquares = new LeastSquaresOnlineRegression(2);
-        for (int i = 0; i < timeWindow.length; i++) {
-            allLeastSquares.add(i, timeWindow[i], timeWindowWeights[i]);
-        }
-        double rValue = allLeastSquares.rSquared();
 
-        double vAlt = totalVariance * (1 - Math.abs(rValue));
-        double dfAlt = n - 3;
-        double pValueVsNull = fTestPValue(vNull, dfNull, vAlt, dfAlt);
-        if (pValueVsNull < pValueThreshold && Math.abs(rValue) >= 0.5) {
-            double pValueVsStationary = fTestPValue(totalVariance, n - 1, vAlt, dfAlt);
-            SimpleRegression regression = new SimpleRegression();
-            for (int i = 0; i < timeWindow.length; i++) {
-                regression.addData(i, timeWindow[i]);
-            }
-            double slope = regression.getSlope();
-            changeType = new ChangeType.NonStationary(pValueVsStationary, rValue, slope < 0 ? "decreasing" : "increasing");
-            vNull = vAlt;
-            dfNull = dfAlt;
-        }
-        RunningStats lowerRange = new RunningStats();
-        RunningStats upperRange = new RunningStats();
-        // Initialize running stats so that they are only missing the individual changepoint values
-        upperRange.addValues(timeWindow, i -> timeWindowWeights[i], candidateChangePoints[0], timeWindow.length);
-        lowerRange.addValues(timeWindow, i -> timeWindowWeights[i], 0, candidateChangePoints[0]);
-        vAlt = Double.MAX_VALUE;
-        Set<Integer> discoveredChangePoints = new HashSet<>(3, 1.0f);
-        int changePoint = candidateChangePoints[candidateChangePoints.length - 1] + 1;
-        for (int cp : candidateChangePoints) {
-            double maybeVAlt = (cp * lowerRange.variance() + (n - cp) * upperRange.variance()) / n;
-            if (maybeVAlt < vAlt) {
-                vAlt = maybeVAlt;
-                changePoint = cp;
-            }
-            lowerRange.addValues(timeWindow, i -> timeWindowWeights[i], cp, cp + step);
-            upperRange.removeValues(timeWindow, i -> timeWindowWeights[i], cp, cp + step);
-        }
-        discoveredChangePoints.add(changePoint);
-        dfAlt = n - 2;
+        int[] candidateChangePoints = candidateChangePointsAndStep.v1();
+        int step = candidateChangePointsAndStep.v2();
+        HashSet<Integer> discoveredChangePoints = new HashSet<>(3, 1.0f);
 
-        pValueVsNull = independentTrialsPValue(fTestPValue(vNull, dfNull, vAlt, dfAlt), candidateChangePoints.length);
-        if (pValueVsNull < pValueThreshold) {
-            changeType = new ChangeType.StepChange(pValueVsNull, bucketValues.getBucketIndex(changePoint));
-            vNull = vAlt;
-            dfNull = dfAlt;
-        }
+        DataStats dataStats = new DataStats(dataRunningStats.count(), dataRunningStats.variance(), candidateChangePoints.length);
+        TestStats stationary = new TestStats(dataStats, dataStats.var(), 1.0, 1.0);
+        logger.debug("total variance: [{}]", dataStats);
 
-        VarianceAndRValue vAndR = new VarianceAndRValue(Double.MAX_VALUE, Double.MAX_VALUE);
-        changePoint = candidateChangePoints[candidateChangePoints.length - 1] + 1;
-        lowerRange = new RunningStats();
-        upperRange = new RunningStats();
-        // Initialize running stats so that they are only missing the individual changepoint values
-        upperRange.addValues(timeWindow, i -> timeWindowWeights[i], candidateChangePoints[0], timeWindow.length);
-        lowerRange.addValues(timeWindow, i -> timeWindowWeights[i], 0, candidateChangePoints[0]);
-        LeastSquaresOnlineRegression lowerLeastSquares = new LeastSquaresOnlineRegression(2);
-        LeastSquaresOnlineRegression upperLeastSquares = new LeastSquaresOnlineRegression(2);
-        for (int i = 0; i < candidateChangePoints[0]; i++) {
-            lowerLeastSquares.add(i, timeWindow[i], timeWindowWeights[i]);
-        }
-        for (int i = candidateChangePoints[0], x = 0; i < timeWindow.length; i++, x++) {
-            upperLeastSquares.add(x, timeWindow[i], timeWindowWeights[i]);
-        }
-        int upperMovingWindow = 0;
-        for (int cp : candidateChangePoints) {
-            double lowerRangeVar = lowerRange.variance();
-            double upperRangeVar = upperRange.variance();
-            double rv1 = lowerLeastSquares.rSquared();
-            double rv2 = upperLeastSquares.rSquared();
-            double v1 = lowerRangeVar * (1 - Math.abs(rv1));
-            double v2 = upperRangeVar * (1 - Math.abs(rv2));
-            VarianceAndRValue varianceAndRValue = new VarianceAndRValue((cp * v1 + (n - cp) * v2) / n, (cp * rv1 + (n - cp) * rv2) / n);
-            if (varianceAndRValue.compareTo(vAndR) < 0) {
-                vAndR = varianceAndRValue;
-                changePoint = cp;
-            }
-            for (int i = 0; i < step; i++) {
-                lowerRange.addValue(timeWindow[i + cp], timeWindowWeights[i + cp]);
-                upperRange.removeValue(timeWindow[i + cp], timeWindowWeights[i + cp]);
-                lowerLeastSquares.add(i + cp, timeWindow[i + cp], timeWindowWeights[i + cp]);
-                upperLeastSquares.remove(i + upperMovingWindow, timeWindow[i + cp], timeWindowWeights[i + cp]);
-                upperMovingWindow++;
-            }
-        }
-        discoveredChangePoints.add(changePoint);
+        TestStats trendVsStationary = testTrendVs(stationary, timeWindow, timeWindowWeights);
+        logger.debug("trend vs stationary: [{}]", trendVsStationary);
 
-        dfAlt = n - 6;
-        pValueVsNull = independentTrialsPValue(fTestPValue(vNull, dfNull, vAndR.variance, dfAlt), candidateChangePoints.length);
-        if (pValueVsNull < pValueThreshold && Math.abs(vAndR.rValue) >= 0.5) {
-            double pValueVsStationary = independentTrialsPValue(
-                fTestPValue(totalVariance, n - 1, vAndR.variance, dfAlt),
-                candidateChangePoints.length
+        if (trendVsStationary.pValue() < pValueThreshold && trendVsStationary.rSquared() >= 0.5) {
+            // Check if there is a change in the trend.
+            TestStats trendChangeVsTrend = testTrendChangeVs(trendVsStationary, timeWindow, timeWindowWeights, candidateChangePoints, step);
+            logger.debug("trend change vs trend: [{}]", trendChangeVsTrend);
+
+            if (trendChangeVsTrend.pValue() < pValueThreshold && trendChangeVsTrend.rSquared() >= 0.5) {
+                discoveredChangePoints.add(trendChangeVsTrend.changePoint());
+
+                // Check if modeling a trend change adds much over modeling a step change.
+                TestStats trendChangeVsStepChange = testVsStepChange(trendChangeVsTrend, timeWindow, timeWindowWeights);
+                logger.debug("trend change vs step change: [{}]", trendChangeVsStepChange);
+
+                if (trendChangeVsStepChange.pValue() < pValueThreshold) {
+                    changeType = new ChangeType.TrendChange(
+                        trendChangeVsTrend.pValueVsStationary(),
+                        trendChangeVsTrend.rSquared(),
+                        bucketValues.getBucketIndex(trendChangeVsStepChange.changePoint())
+                    );
+                } else {
+                    changeType = new ChangeType.StepChange(
+                        trendChangeVsTrend.pValue(),
+                        bucketValues.getBucketIndex(trendChangeVsTrend.changePoint())
+                    );
+                }
+
+            } else {
+                changeType = new ChangeType.NonStationary(
+                    trendVsStationary.pValue(),
+                    trendVsStationary.rSquared(),
+                    slope(timeWindow, timeWindowWeights) < 0 ? "decreasing" : "increasing"
+                );
+            }
+
+        } else {
+            // Check if there is a step change.
+            TestStats stepChangeVsStationary = testStepChangeVs(
+                stationary,
+                timeWindow,
+                timeWindowWeights,
+                candidateChangePoints,
+                step
             );
-            changeType = new ChangeType.TrendChange(pValueVsStationary, vAndR.rValue, bucketValues.getBucketIndex(changePoint));
+            logger.debug("step change vs stationary: [{}]", stepChangeVsStationary);
+
+            if (stepChangeVsStationary.pValue() < pValueThreshold) {
+                discoveredChangePoints.add(stepChangeVsStationary.changePoint());
+
+                // Check if modeling a trend change adds much over modeling a step change.
+                TestStats trendChangeVsStepChange = testTrendChangeVs(
+                    stepChangeVsStationary,
+                    timeWindow,
+                    timeWindowWeights,
+                    candidateChangePoints,
+                    step
+                );
+                logger.debug("trend change vs step change: [{}]", trendChangeVsStepChange);
+
+                if (trendChangeVsStepChange.pValue() < pValueThreshold && trendChangeVsStepChange.rSquared() >= 0.5) {
+                    discoveredChangePoints.add(stepChangeVsStationary.changePoint());
+                    changeType = new ChangeType.TrendChange(
+                        trendChangeVsStepChange.pValueVsStationary(),
+                        trendChangeVsStepChange.rSquared(),
+                        bucketValues.getBucketIndex(trendChangeVsStepChange.changePoint())
+                    );
+                } else {
+                    changeType = new ChangeType.StepChange(
+                        stepChangeVsStationary.pValue(),
+                        bucketValues.getBucketIndex(stepChangeVsStationary.changePoint())
+                    );
+                }
+
+            } else {
+                // Check if there is a trend change.
+                TestStats trendChangeVsStationary = testTrendChangeVs(
+                    stationary,
+                    timeWindow,
+                    timeWindowWeights,
+                    candidateChangePoints,
+                    step
+                );
+                logger.debug("trend change vs stationary: [{}]", trendChangeVsStationary);
+
+                if (trendChangeVsStationary.pValue() < pValueThreshold && trendChangeVsStationary.rSquared() >= 0.5) {
+                    changeType = new ChangeType.TrendChange(
+                        trendChangeVsStationary.pValue(),
+                        trendChangeVsStationary.rSquared(),
+                        bucketValues.getBucketIndex(trendChangeVsStationary.changePoint())
+                    );
+                }
+            }
         }
 
+        // We're not very confident in the change point, so check if a distribution change fits the data better.
         if (changeType.pValue() > 1e-5) {
-            double diff = 0.0;
-            changePoint = -1;
-            lowerRange = new RunningStats();
-            upperRange = new RunningStats();
-            // Initialize running stats so that they are only missing the individual changepoint values
-            upperRange.addValues(timeWindow, i -> timeWindowWeights[i], candidateChangePoints[0], timeWindow.length);
-            lowerRange.addValues(timeWindow, i -> timeWindowWeights[i], 0, candidateChangePoints[0]);
-            for (int cp : candidateChangePoints) {
-                double otherDiff = Math.min(cp, timeWindow.length - cp) * (0.9 * Math.abs(lowerRange.mean() - upperRange.mean())) + 0.1
-                    * Math.abs(lowerRange.std() - upperRange.std());
-                if (otherDiff >= diff) {
-                    changePoint = cp;
-                    diff = otherDiff;
-                }
-                lowerRange.addValues(timeWindow, i -> timeWindowWeights[i], cp, cp + step);
-                upperRange.removeValues(timeWindow, i -> timeWindowWeights[i], cp, cp + step);
-            }
-            discoveredChangePoints.add(changePoint);
-            double pValue = 1;
-            for (int i : discoveredChangePoints) {
-                double[] x = Arrays.copyOfRange(timeWindow, 0, i);
-                double[] y = Arrays.copyOfRange(timeWindow, i, timeWindow.length);
-                double statistic = KOLMOGOROV_SMIRNOV_TEST.kolmogorovSmirnovStatistic(x, y);
-                double ksTestPValue = x.length > 10_000
-                    ? KOLMOGOROV_SMIRNOV_TEST.approximateP(statistic, x.length, y.length)
-                    : KOLMOGOROV_SMIRNOV_TEST.exactP(statistic, x.length, y.length, false);
-                if (ksTestPValue < pValue) {
-                    changePoint = i;
-                    pValue = ksTestPValue;
-                }
-            }
-            pValue = independentTrialsPValue(pValue, candidateChangePoints.length);
-            if (pValue < Math.min(pValueThreshold, 0.1 * changeType.pValue())) {
-                changeType = new ChangeType.DistributionChange(pValue, bucketValues.getBucketIndex(changePoint));
+            TestStats distChange = testDistributionChange(
+                dataStats,
+                timeWindow,
+                timeWindowWeights,
+                candidateChangePoints,
+                step,
+                discoveredChangePoints
+            );
+            logger.debug("distribution change: [{}]", distChange);
+
+            if (distChange.pValue() < Math.min(pValueThreshold, 0.1 * changeType.pValue())) {
+                changeType = new ChangeType.DistributionChange(distChange.pValue(), bucketValues.getBucketIndex(distChange.changePoint()));
             }
         }
         return changeType;
@@ -279,20 +303,188 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         return weights;
     }
 
+    static double slope(double[] values, double[] weights) {
+        SimpleRegression regression = new SimpleRegression();
+        for (int i = 0; i < values.length; i++) {
+            // Just omit outliers for slope estimation.
+            if (weights[i] == 1.0) {
+                regression.addData(i, values[i]);
+            }
+        }
+        return regression.getSlope();
+    }
+
     static double independentTrialsPValue(double pValue, int nTrials) {
         return pValue > 1e-10 ? 1.0 - Math.pow(1.0 - pValue, nTrials) : nTrials * pValue;
     }
 
-    static double fTestPValue(double vNull, double dfNull, double varianceAlt, double dfAlt) {
-        if (varianceAlt == vNull) {
+    static TestStats testTrendVs(TestStats H0, double[] values, double[] weights) {
+        LeastSquaresOnlineRegression allLeastSquares = new LeastSquaresOnlineRegression(2);
+        for (int i = 0; i < values.length; i++) {
+            allLeastSquares.add(i, values[i], weights[i]);
+        }
+        double vTrend = H0.dataStats().var() * (1.0 - allLeastSquares.rSquared());
+        double pValue = fTestNestedPValue(H0.dataStats().nValues(), H0.var(), H0.nParams(), vTrend, 3.0);
+        return new TestStats(H0.dataStats(), vTrend, pValue, 3.0);
+    }
+
+    static TestStats testStepChangeVs(TestStats H0, double[] values, double[] weights, int[] candidateChangePoints, int step) {
+
+        double vStep = Double.MAX_VALUE;
+        int changePoint = -1;
+
+        // Initialize running stats so that they are only missing the individual changepoint values
+        RunningStats lowerRange = new RunningStats();
+        RunningStats upperRange = new RunningStats();
+        upperRange.addValues(values, i -> weights[i], candidateChangePoints[0], values.length);
+        lowerRange.addValues(values, i -> weights[i], 0, candidateChangePoints[0]);
+        for (int cp : candidateChangePoints) {
+            double v = lowerRange.totalVariance(upperRange);
+            if (v < vStep) {
+                vStep = v;
+                changePoint = cp;
+            }
+            lowerRange.addValues(values, i -> weights[i], cp, cp + step);
+            upperRange.removeValues(values, i -> weights[i], cp, cp + step);
+        }
+
+        double pValue = independentTrialsPValue(
+            fTestNestedPValue(H0.dataStats().nValues(), H0.var(), H0.nParams(), vStep, 2.0),
+            candidateChangePoints.length
+        );
+
+        return new TestStats(H0.dataStats(), vStep, pValue, 2.0, changePoint);
+    }
+
+    static TestStats testTrendChangeVs(TestStats H0, double[] values, double[] weights, int[] candidateChangePoints, int step) {
+
+        double vChange = Double.MAX_VALUE;
+        int changePoint = -1;
+
+        // Initialize running stats so that they are only missing the individual changepoint values
+        RunningStats lowerRange = new RunningStats();
+        RunningStats upperRange = new RunningStats();
+        lowerRange.addValues(values, i -> weights[i], 0, candidateChangePoints[0]);
+        upperRange.addValues(values, i -> weights[i], candidateChangePoints[0], values.length);
+        LeastSquaresOnlineRegression lowerLeastSquares = new LeastSquaresOnlineRegression(2);
+        LeastSquaresOnlineRegression upperLeastSquares = new LeastSquaresOnlineRegression(2);
+        for (int i = 0; i < candidateChangePoints[0]; i++) {
+            lowerLeastSquares.add(i, values[i], weights[i]);
+        }
+        for (int i = candidateChangePoints[0], x = 0; i < values.length; i++, x++) {
+            upperLeastSquares.add(x, values[i], weights[i]);
+        }
+        for (int cp : candidateChangePoints) {
+            double nl = lowerRange.count();
+            double nu = upperRange.count();
+            double vl = lowerRange.variance() * (1.0 - lowerLeastSquares.rSquared());
+            double vu = upperRange.variance() * (1.0 - upperLeastSquares.rSquared());
+            double v = (nl * vl + nu * vu) / (nl + nu);
+            if (v < vChange) {
+                vChange = v;
+                changePoint = cp;
+            }
+            for (int i = cp; i < cp + step; i++) {
+                lowerRange.addValue(values[i], weights[i]);
+                upperRange.removeValue(values[i], weights[i]);
+                lowerLeastSquares.add(i, values[i], weights[i]);
+                upperLeastSquares.remove(i, values[i], weights[i]);
+            }
+        }
+
+        double pValue = independentTrialsPValue(
+            fTestNestedPValue(H0.dataStats().nValues(), H0.var(), H0.nParams(), vChange, 6.0),
+            candidateChangePoints.length
+        );
+
+        return new TestStats(H0.dataStats(), vChange, pValue, 6.0, changePoint);
+    }
+
+    static TestStats testVsStepChange(TestStats trendChange, double[] values, double[] weights) {
+        RunningStats lowerRange = new RunningStats();
+        RunningStats upperRange = new RunningStats();
+        upperRange.addValues(values, i -> weights[i], trendChange.changePoint(), values.length);
+        lowerRange.addValues(values, i -> weights[i], 0, trendChange.changePoint());
+        double n = trendChange.dataStats().nValues();
+        double v = lowerRange.totalVariance(upperRange);
+        double pValue = fTestNestedPValue(n, v, 2.0, trendChange.var(), 6.0);
+        return new TestStats(trendChange.dataStats(), trendChange.var(), pValue, 6.0, trendChange.changePoint());
+    }
+
+    static double fTestNestedPValue(double n, double vNull, double pNull, double vAlt, double pAlt) {
+        if (vAlt == vNull) {
             return 1.0;
         }
-        if (varianceAlt == 0.0) {
+        if (vAlt == 0.0) {
             return 0.0;
         }
-        double F = dfAlt / dfNull * vNull / varianceAlt;
-        double sf = fDistribSf(dfNull, dfAlt, F);
+        double F = (vNull - vAlt) / (pAlt - pNull) * (n - pAlt) / vAlt;
+        double sf = fDistribSf(pAlt - pNull, n - pAlt, F);
         return Math.min(2 * sf, 1.0);
+    }
+
+    static double fDistribSf(double numeratorDegreesOfFreedom, double denominatorDegreesOfFreedom, double x) {
+        if (x <= 0) {
+            return 1;
+        }
+        if (Double.isInfinite(x) || Double.isNaN(x)) {
+            return 0;
+        }
+
+        return Beta.regularizedBeta(
+            denominatorDegreesOfFreedom / (denominatorDegreesOfFreedom + numeratorDegreesOfFreedom * x),
+            0.5 * denominatorDegreesOfFreedom,
+            0.5 * numeratorDegreesOfFreedom
+        );
+    }
+
+    static TestStats testDistributionChange(
+        DataStats stats,
+        double[] values,
+        double[] weights,
+        int[] candidateChangePoints,
+        int step,
+        HashSet<Integer> discoveredChangePoints
+    ) {
+        double maxDiff = 0.0;
+        int changePoint = -1;
+
+        // Initialize running stats so that they are only missing the individual changepoint values
+        RunningStats lowerRange = new RunningStats();
+        RunningStats upperRange = new RunningStats();
+        upperRange.addValues(values, i -> weights[i], candidateChangePoints[0], values.length);
+        lowerRange.addValues(values, i -> weights[i], 0, candidateChangePoints[0]);
+
+        for (int cp : candidateChangePoints) {
+            double scale = Math.min(cp, values.length - cp);
+            double diff = scale * (0.9 * Math.abs(lowerRange.mean() - upperRange.mean()) + 0.1 * Math.abs(
+                lowerRange.std() - upperRange.std()
+            ));
+            if (diff >= maxDiff) {
+                maxDiff = diff;
+                changePoint = cp;
+            }
+            lowerRange.addValues(values, i -> weights[i], cp, cp + step);
+            upperRange.removeValues(values, i -> weights[i], cp, cp + step);
+        }
+        discoveredChangePoints.add(changePoint);
+
+        double pValue = 1;
+        for (int cp : discoveredChangePoints) {
+            double[] x = Arrays.copyOfRange(values, 0, cp);
+            double[] y = Arrays.copyOfRange(values, cp, values.length);
+            double statistic = KOLMOGOROV_SMIRNOV_TEST.kolmogorovSmirnovStatistic(x, y);
+            double ksTestPValue = x.length > 10_000
+                ? KOLMOGOROV_SMIRNOV_TEST.approximateP(statistic, x.length, y.length)
+                : KOLMOGOROV_SMIRNOV_TEST.exactP(statistic, x.length, y.length, false);
+            if (ksTestPValue < pValue) {
+                changePoint = cp;
+                pValue = ksTestPValue;
+            }
+        }
+        pValue = independentTrialsPValue(pValue, candidateChangePoints.length);
+
+        return new TestStats(stats, pValue, changePoint);
     }
 
     static class RunningStats {
@@ -306,12 +498,20 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
 
         RunningStats() {}
 
-        double variance() {
-            return Math.max((sumOfSqrs - ((sum * sum) / count)) / count, 0.0);
+        double count() {
+            return count;
         }
 
         double mean() {
             return sum / count;
+        }
+
+        double totalVariance(RunningStats other) {
+            return (count() * variance() + other.count() * other.variance()) / (count() + other.count());
+        }
+
+        double variance() {
+            return Math.max((sumOfSqrs - ((sum * sum) / count)) / count, 0.0);
         }
 
         double std() {
@@ -346,37 +546,4 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             return this;
         }
     }
-
-    record VarianceAndRValue(double variance, double rValue) implements Comparable<VarianceAndRValue> {
-        @Override
-        public int compareTo(VarianceAndRValue o) {
-            int v = Double.compare(variance, o.variance);
-            if (v == 0) {
-                return Double.compare(rValue, o.rValue);
-            }
-            return v;
-        }
-
-        public VarianceAndRValue min(VarianceAndRValue other) {
-            if (this.compareTo(other) <= 0) {
-                return this;
-            }
-            return other;
-        }
-    }
-
-    static double fDistribSf(double numeratorDegreesOfFreedom, double denominatorDegreesOfFreedom, double x) {
-        if (x <= 0) {
-            return 1;
-        } else if (Double.isInfinite(x) || Double.isNaN(x)) {
-            return 0;
-        }
-
-        return Beta.regularizedBeta(
-            denominatorDegreesOfFreedom / (denominatorDegreesOfFreedom + numeratorDegreesOfFreedom * x),
-            0.5 * denominatorDegreesOfFreedom,
-            0.5 * numeratorDegreesOfFreedom
-        );
-    }
-
 }

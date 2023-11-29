@@ -61,14 +61,14 @@ public final class MlProcessors {
     }
 
     public static Processors getTotalMlNodeProcessors(DiscoveryNodes nodes, Integer allocatedProcessorScale) {
-        int total = 0;
+        double total = 0.0;
         for (DiscoveryNode node : nodes) {
             if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
                 Processors nodeProcessors = get(node, allocatedProcessorScale);
                 // Round down before summing, because ML only uses whole processors
-                total += nodeProcessors.roundDown();
+                total += Math.floor(nodeProcessors.count());
             }
         }
-        return total == 0 ? Processors.ZERO : Processors.of((double) total);
+        return total == 0.0 ? Processors.ZERO : Processors.of(total);
     }
 }

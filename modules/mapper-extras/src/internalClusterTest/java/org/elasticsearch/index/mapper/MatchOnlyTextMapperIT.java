@@ -46,25 +46,26 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
         mappings.startObject().startObject("properties").startObject("message").field("type", "match_only_text").endObject().endObject();
         mappings.endObject();
         assertAcked(prepareCreate("test").setMapping(mappings));
-        BulkRequestBuilder bulk = client().prepareBulk("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < 2000; i++) {
-            bulk.add(
-                client().prepareIndex()
-                    .setSource(
-                        XContentFactory.jsonBuilder()
-                            .startObject()
-                            .field(
-                                "message",
-                                "[.ds-.slm-history-5-2023.09.20-"
-                                    + randomInt()
-                                    + "][0] marking and sending shard failed due to [failed recovery]"
-                            )
-                            .endObject()
-                    )
-            );
+        try (BulkRequestBuilder bulk = client().prepareBulk("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < 2000; i++) {
+                bulk.add(
+                    client().prepareIndex()
+                        .setSource(
+                            XContentFactory.jsonBuilder()
+                                .startObject()
+                                .field(
+                                    "message",
+                                    "[.ds-.slm-history-5-2023.09.20-"
+                                        + randomInt()
+                                        + "][0] marking and sending shard failed due to [failed recovery]"
+                                )
+                                .endObject()
+                        )
+                );
+            }
+            BulkResponse bulkItemResponses = bulk.get();
+            assertNoFailures(bulkItemResponses);
         }
-        BulkResponse bulkItemResponses = bulk.get();
-        assertNoFailures(bulkItemResponses);
 
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(QueryBuilders.matchPhraseQuery("message", "marking and sending shard"))
@@ -95,25 +96,26 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
             }
             """;
         assertAcked(prepareCreate("test").setMapping(mappings));
-        BulkRequestBuilder bulk = client().prepareBulk("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < 2000; i++) {
-            bulk.add(
-                client().prepareIndex()
-                    .setSource(
-                        XContentFactory.jsonBuilder()
-                            .startObject()
-                            .field(
-                                "message",
-                                "[.ds-.slm-history-5-2023.09.20-"
-                                    + randomInt()
-                                    + "][0] marking and sending shard failed due to [failed recovery]"
-                            )
-                            .endObject()
-                    )
-            );
+        try (BulkRequestBuilder bulk = client().prepareBulk("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)) {
+            for (int i = 0; i < 2000; i++) {
+                bulk.add(
+                    client().prepareIndex()
+                        .setSource(
+                            XContentFactory.jsonBuilder()
+                                .startObject()
+                                .field(
+                                    "message",
+                                    "[.ds-.slm-history-5-2023.09.20-"
+                                        + randomInt()
+                                        + "][0] marking and sending shard failed due to [failed recovery]"
+                                )
+                                .endObject()
+                        )
+                );
+            }
+            BulkResponse bulkItemResponses = bulk.get();
+            assertNoFailures(bulkItemResponses);
         }
-        BulkResponse bulkItemResponses = bulk.get();
-        assertNoFailures(bulkItemResponses);
 
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(QueryBuilders.matchPhraseQuery("message", "marking and sending shard"))

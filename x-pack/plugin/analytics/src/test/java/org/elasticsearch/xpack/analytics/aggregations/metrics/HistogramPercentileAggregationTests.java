@@ -32,8 +32,10 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -72,43 +74,52 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
 
         int numberOfSignificantValueDigits = TestUtil.nextInt(random(), 1, 5);
         DoubleHistogram histogram = new DoubleHistogram(numberOfSignificantValueDigits);
-        BulkRequest bulkRequest = new BulkRequest();
+        Set<BulkRequest> toClose = new HashSet<>();
+        try {
+            BulkRequest bulkRequest = new BulkRequest();
+            toClose.add(bulkRequest);
 
-        int numDocs = 10000;
-        int frq = 1000;
+            int numDocs = 10000;
+            int frq = 1000;
 
-        for (int i = 0; i < numDocs; i++) {
-            double value = random().nextDouble();
-            XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("data", value).endObject();
-            bulkRequest.add(new IndexRequest("raw").source(doc));
-            histogram.recordValue(value);
-            if ((i + 1) % frq == 0) {
-                client().bulk(bulkRequest);
-                bulkRequest = new BulkRequest();
-                List<Double> values = new ArrayList<>();
-                List<Integer> counts = new ArrayList<>();
-                Iterator<DoubleHistogramIterationValue> iterator = histogram.recordedValues().iterator();
-                while (iterator.hasNext()) {
-                    DoubleHistogramIterationValue histValue = iterator.next();
-                    values.add(histValue.getValueIteratedTo());
-                    counts.add(Math.toIntExact(histValue.getCountAtValueIteratedTo()));
+            for (int i = 0; i < numDocs; i++) {
+                double value = random().nextDouble();
+                XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("data", value).endObject();
+                bulkRequest.add(new IndexRequest("raw").source(doc));
+                histogram.recordValue(value);
+                if ((i + 1) % frq == 0) {
+                    client().bulk(bulkRequest);
+                    bulkRequest = new BulkRequest();
+                    toClose.add(bulkRequest);
+                    List<Double> values = new ArrayList<>();
+                    List<Integer> counts = new ArrayList<>();
+                    Iterator<DoubleHistogramIterationValue> iterator = histogram.recordedValues().iterator();
+                    while (iterator.hasNext()) {
+                        DoubleHistogramIterationValue histValue = iterator.next();
+                        values.add(histValue.getValueIteratedTo());
+                        counts.add(Math.toIntExact(histValue.getCountAtValueIteratedTo()));
+                    }
+                    XContentBuilder preAggDoc = XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("data")
+                        .field("values", values.toArray(new Double[values.size()]))
+                        .field("counts", counts.toArray(new Integer[counts.size()]))
+                        .endObject()
+                        .endObject();
+                    prepareIndex("pre_agg").setSource(preAggDoc).get();
+                    histogram.reset();
                 }
-                XContentBuilder preAggDoc = XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("data")
-                    .field("values", values.toArray(new Double[values.size()]))
-                    .field("counts", counts.toArray(new Integer[counts.size()]))
-                    .endObject()
-                    .endObject();
-                prepareIndex("pre_agg").setSource(preAggDoc).get();
-                histogram.reset();
+            }
+            client().admin().indices().refresh(new RefreshRequest("raw", "pre_agg")).get();
+
+            assertHitCount(client().prepareSearch("raw").setTrackTotalHits(true), numDocs);
+
+            assertHitCount(client().prepareSearch("pre_agg"), numDocs / frq);
+        } finally {
+            for (BulkRequest bulkRequest : toClose) {
+                bulkRequest.close();
             }
         }
-        client().admin().indices().refresh(new RefreshRequest("raw", "pre_agg")).get();
-
-        assertHitCount(client().prepareSearch("raw").setTrackTotalHits(true), numDocs);
-
-        assertHitCount(client().prepareSearch("pre_agg"), numDocs / frq);
 
         PercentilesAggregationBuilder builder = AggregationBuilders.percentiles("agg")
             .field("data")
@@ -171,51 +182,60 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         client().admin().indices().putMapping(request2).actionGet();
 
         TDigestState histogram = TDigestState.create(compression);
-        BulkRequest bulkRequest = new BulkRequest();
+        Set<BulkRequest> toClose = new HashSet<>();
+        try {
+            BulkRequest bulkRequest = new BulkRequest();
+            toClose.add(bulkRequest);
 
-        int numDocs = 10000;
-        int frq = 1000;
+            int numDocs = 10000;
+            int frq = 1000;
 
-        for (int i = 0; i < numDocs; i++) {
-            double value = random().nextDouble();
-            XContentBuilder doc = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("inner")
-                .field("data", value)
-                .endObject()
-                .endObject();
-            bulkRequest.add(new IndexRequest("raw").source(doc));
-            histogram.add(value);
-            if ((i + 1) % frq == 0) {
-                client().bulk(bulkRequest);
-                bulkRequest = new BulkRequest();
-                List<Double> values = new ArrayList<>();
-                List<Long> counts = new ArrayList<>();
-                Collection<Centroid> centroids = histogram.centroids();
-                for (Centroid centroid : centroids) {
-                    values.add(centroid.mean());
-                    counts.add(centroid.count());
-                }
-                XContentBuilder preAggDoc = XContentFactory.jsonBuilder()
+            for (int i = 0; i < numDocs; i++) {
+                double value = random().nextDouble();
+                XContentBuilder doc = XContentFactory.jsonBuilder()
                     .startObject()
                     .startObject("inner")
-                    .startObject("data")
-                    .field("values", values.toArray(new Double[values.size()]))
-                    .field("counts", counts.toArray(new Long[counts.size()]))
-                    .endObject()
+                    .field("data", value)
                     .endObject()
                     .endObject();
-                prepareIndex("pre_agg").setSource(preAggDoc).get();
-                histogram = TDigestState.create(compression);
+                bulkRequest.add(new IndexRequest("raw").source(doc));
+                histogram.add(value);
+                if ((i + 1) % frq == 0) {
+                    client().bulk(bulkRequest);
+                    bulkRequest = new BulkRequest();
+                    toClose.add(bulkRequest);
+                    List<Double> values = new ArrayList<>();
+                    List<Long> counts = new ArrayList<>();
+                    Collection<Centroid> centroids = histogram.centroids();
+                    for (Centroid centroid : centroids) {
+                        values.add(centroid.mean());
+                        counts.add(centroid.count());
+                    }
+                    XContentBuilder preAggDoc = XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("inner")
+                        .startObject("data")
+                        .field("values", values.toArray(new Double[values.size()]))
+                        .field("counts", counts.toArray(new Long[counts.size()]))
+                        .endObject()
+                        .endObject()
+                        .endObject();
+                    prepareIndex("pre_agg").setSource(preAggDoc).get();
+                    histogram = TDigestState.create(compression);
+                }
+            }
+            client().admin().indices().refresh(new RefreshRequest("raw", "pre_agg")).get();
+
+            SearchResponse response = client().prepareSearch("raw").setTrackTotalHits(true).get();
+            assertEquals(numDocs, response.getHits().getTotalHits().value);
+
+            response = client().prepareSearch("pre_agg").get();
+            assertEquals(numDocs / frq, response.getHits().getTotalHits().value);
+        } finally {
+            for (BulkRequest bulkRequest : toClose) {
+                bulkRequest.close();
             }
         }
-        client().admin().indices().refresh(new RefreshRequest("raw", "pre_agg")).get();
-
-        SearchResponse response = client().prepareSearch("raw").setTrackTotalHits(true).get();
-        assertEquals(numDocs, response.getHits().getTotalHits().value);
-
-        response = client().prepareSearch("pre_agg").get();
-        assertEquals(numDocs / frq, response.getHits().getTotalHits().value);
     }
 
     public void testTDigestHistogram() throws Exception {

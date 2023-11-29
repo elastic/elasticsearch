@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -21,12 +22,13 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
 
     public void testSqlAction() {
         assertAcked(indicesAdmin().prepareCreate("test").get());
-        client().prepareBulk()
-            .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42))
-            .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-        ensureYellow("test");
+        try (BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()) {
+            bulkRequestBuilder.add(new IndexRequest("test").id("1").source("data", "bar", "count", 42))
+                .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+            ensureYellow("test");
+        }
 
         boolean dataBeforeCount = randomBoolean();
         String columns = dataBeforeCount ? "data, count" : "count, data";

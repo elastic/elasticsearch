@@ -453,16 +453,17 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         {
             Instant time = Instant.now();
             for (int i = 0; i < numBulkRequests; i++) {
-                BulkRequest bulkRequest = new BulkRequest(dataStreamName);
-                for (int j = 0; j < numDocsPerBulk; j++) {
-                    var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-                    indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
-                    bulkRequest.add(indexRequest);
-                    time = time.plusMillis(1);
+                try (BulkRequest bulkRequest = new BulkRequest()) {
+                    for (int j = 0; j < numDocsPerBulk; j++) {
+                        var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
+                        indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
+                        bulkRequest.add(indexRequest);
+                        time = time.plusMillis(1);
+                    }
+                    var bulkResponse = client().bulk(bulkRequest).actionGet();
+                    assertThat(bulkResponse.hasFailures(), is(false));
+                    indexName = bulkResponse.getItems()[0].getIndex();
                 }
-                var bulkResponse = client().bulk(bulkRequest).actionGet();
-                assertThat(bulkResponse.hasFailures(), is(false));
-                indexName = bulkResponse.getItems()[0].getIndex();
             }
             client().admin().indices().refresh(new RefreshRequest(dataStreamName)).actionGet();
         }

@@ -528,7 +528,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             // an iteration result might return an empty set of documents to be indexed
             if (bulkRequest.numberOfActions() > 0) {
                 stats.markStartIndexing();
-                doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
+                doNextBulk(bulkRequest, ActionListener.releaseAfter(ActionListener.wrap(bulkResponse -> {
                     // TODO we should check items in the response and move after accordingly to
                     // resume the failing buckets ?
                     if (bulkResponse.hasFailures()) {
@@ -543,7 +543,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     position.set(newPosition);
 
                     onBulkResponse(bulkResponse, newPosition);
-                }, this::finishWithIndexingFailure));
+                }, this::finishWithIndexingFailure), bulkRequest));
             } else {
                 // no documents need to be indexed, continue with search
                 try {

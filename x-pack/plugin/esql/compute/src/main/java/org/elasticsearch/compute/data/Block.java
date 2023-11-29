@@ -145,8 +145,9 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     /**
      * Expand multivalued fields into one row per value. Returns the
      * block if there aren't any multivalued fields to expand.
+     *
+     * The returned block needs to be closed by the caller to release the block's resources.
      */
-    // TODO: We should use refcounting instead of either deep copies or returning the same identical block.
     Block expand();
 
     /**

@@ -152,9 +152,7 @@ public class BlockMultiValuedTests extends ESTestCase {
     }
 
     private void assertExpanded(Block orig) {
-        Block expanded = null;
-        try (orig) {
-            expanded = orig.expand();
+        try (orig; Block expanded = orig.expand()) {
             assertThat(expanded.getPositionCount(), equalTo(orig.getTotalValueCount() + orig.nullValuesCount()));
             assertThat(expanded.getTotalValueCount(), equalTo(orig.getTotalValueCount()));
 
@@ -171,10 +169,6 @@ public class BlockMultiValuedTests extends ESTestCase {
                     assertThat(expanded.getValueCount(np), equalTo(1));
                     assertThat(BasicBlockTests.valuesAtPositions(expanded, np, ++np).get(0), equalTo(List.of(ov)));
                 }
-            }
-        } finally {
-            if (expanded != orig) {
-                Releasables.close(expanded);
             }
         }
     }

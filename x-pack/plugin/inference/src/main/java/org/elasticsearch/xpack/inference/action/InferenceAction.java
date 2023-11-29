@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -23,8 +24,12 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.inference.results.LegacyTextEmbeddingResults;
+import org.elasticsearch.xpack.inference.results.SparseEmbeddingResults;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -183,45 +188,94 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final List<? extends InferenceResults> results;
+        private final InferenceServiceResults results;
 
-        public Response(List<? extends InferenceResults> results) {
+        public Response(InferenceServiceResults results) {
             this.results = results;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
-                results = in.readNamedWriteableCollectionAsList(InferenceResults.class);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_RESULTS_ADDED)) {
+                results = in.readNamedWriteable(InferenceServiceResults.class);
+            } else if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+                // This could be List<InferenceResults> aka List<TextEmbeddingResults> from ml plugin for
+                // hugging face elser and elser or the legacy format for openai
+                results = transformToServiceResults(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             } else {
-                results = List.of(in.readNamedWriteable(InferenceResults.class));
+                // It should only be InferenceResults aka TextEmbeddingResults from ml plugin for
+                // hugging face elser and elser
+                results = transformToServiceResults(List.of(in.readNamedWriteable(InferenceResults.class)));
             }
         }
 
-        public List<? extends InferenceResults> getResults() {
+        @SuppressWarnings("deprecation")
+        static InferenceServiceResults transformToServiceResults(List<? extends InferenceResults> parsedResults) {
+            if (parsedResults.isEmpty()) {
+                throw new ElasticsearchStatusException(
+                    "Failed to transform results to response format, expected a non-empty list, please remove and re-add the service",
+                    RestStatus.INTERNAL_SERVER_ERROR
+                );
+            }
+
+            if (parsedResults.get(0) instanceof LegacyTextEmbeddingResults openaiResults) {
+                if (parsedResults.size() > 1) {
+                    throw new ElasticsearchStatusException(
+                        "Failed to transform results to response format, malformed text embedding result,"
+                            + " please remove and re-add the service",
+                        RestStatus.INTERNAL_SERVER_ERROR
+                    );
+                }
+
+                return openaiResults.transformToTextEmbeddingResults();
+            } else if (parsedResults.get(0) instanceof TextExpansionResults) {
+                return transformToSparseEmbeddingResult(parsedResults);
+            } else {
+                throw new ElasticsearchStatusException(
+                    "Failed to transform results to response format, unknown embedding type received,"
+                        + " please remove and re-add the service",
+                    RestStatus.INTERNAL_SERVER_ERROR
+                );
+            }
+        }
+
+        private static SparseEmbeddingResults transformToSparseEmbeddingResult(List<? extends InferenceResults> parsedResults) {
+            List<TextExpansionResults> textExpansionResults = new ArrayList<>(parsedResults.size());
+
+            for (InferenceResults result : parsedResults) {
+                if (result instanceof TextExpansionResults textExpansion) {
+                    textExpansionResults.add(textExpansion);
+                } else {
+                    throw new ElasticsearchStatusException(
+                        "Failed to transform results to response format, please remove and re-add the service",
+                        RestStatus.INTERNAL_SERVER_ERROR
+                    );
+                }
+            }
+
+            return SparseEmbeddingResults.of(textExpansionResults);
+        }
+
+        public InferenceServiceResults getResults() {
             return results;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
-                out.writeNamedWriteableCollection(results);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_RESULTS_ADDED)) {
+                out.writeNamedWriteable(results);
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MULTIPLE_INPUTS)) {
+                // This includes the legacy openai response format of List<TextEmbedding> and hugging face elser and elser
+                out.writeNamedWriteableCollection(results.transformToLegacyFormat());
             } else {
-                out.writeNamedWriteable(results.get(0));
+                out.writeNamedWriteable(results.transformToLegacyFormat().get(0));
             }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.startArray("inference_results"); // TODO what is the name of this field?
-            for (var result : results) {
-                // inference results implement ToXContentFragment
-                builder.startObject();
-                result.toXContent(builder, params);
-                builder.endObject();
-            }
-            builder.endArray();
+            results.toXContent(builder, params);
             builder.endObject();
             return builder;
         }

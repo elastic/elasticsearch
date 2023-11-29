@@ -83,10 +83,12 @@ import static org.elasticsearch.compute.lucene.LuceneSourceOperatorTests.mockSea
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Tests for {@link ValuesSourceReaderOperator}. Turns off {@link HandleLimitFS}
@@ -327,6 +329,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             @Override
             public Set<String> sourcePaths(String name) {
                 return Set.of(name);
+            }
+
+            @Override
+            public String parentField(String field) {
+                return null;
             }
         })));
     }
@@ -1221,5 +1228,42 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             false,
             false
         );
+    }
+
+    public void testNullsShared() {
+        DriverContext driverContext = driverContext();
+        int[] pages = new int[] { 0 };
+        try (
+            Driver d = new Driver(
+                driverContext,
+                simpleInput(driverContext.blockFactory(), 10),
+                List.of(
+                    new ValuesSourceReaderOperator.Factory(
+                        List.of(
+                            new ValuesSourceReaderOperator.FieldInfo("null1", List.of(BlockLoader.CONSTANT_NULLS)),
+                            new ValuesSourceReaderOperator.FieldInfo("null2", List.of(BlockLoader.CONSTANT_NULLS))
+                        ),
+                        List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
+                        0
+                    ).get(driverContext)
+                ),
+                new PageConsumerOperator(page -> {
+                    try {
+                        assertThat(page.getBlockCount(), equalTo(3));
+                        assertThat(page.getBlock(1).areAllValuesNull(), equalTo(true));
+                        assertThat(page.getBlock(2).areAllValuesNull(), equalTo(true));
+                        assertThat(page.getBlock(1), sameInstance(page.getBlock(2)));
+                        pages[0]++;
+                    } finally {
+                        page.releaseBlocks();
+                    }
+                }),
+                () -> {}
+            )
+        ) {
+            runDriver(d);
+        }
+        assertThat(pages[0], greaterThan(0));
+        assertDriverContext(driverContext);
     }
 }

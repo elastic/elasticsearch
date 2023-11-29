@@ -104,6 +104,7 @@ dependencies {
     changing = true
   }
   testImplementation 'org.ini4j:ini4j:0.5.2'
+  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
 }
 
 artifacts {
@@ -119,15 +120,12 @@ tasks.register("extractNativeLicenses", Copy) {
   }
   include 'platform/licenses/**'
 }
-project.afterEvaluate {
-  // Add an extra licenses directory to the combined notices
-  tasks.named('generateNotice').configure {
-    dependsOn "extractNativeLicenses"
-    licensesDir new File("${project.buildDir}/extractedNativeLicenses/platform/licenses")
-    outputs.upToDateWhen {
-      extractNativeLicenses.didWork
-    }
-  }
+
+// Add an extra licenses directory to the combined notices
+tasks.named('generateNotice').configure {
+  dependsOn "extractNativeLicenses"
+  inputs.dir("${project.buildDir}/extractedNativeLicenses/platform/licenses")
+  licenseDirs.add(tasks.named("extractNativeLicenses").map {new File(it.destinationDir, "platform/licenses") })
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -135,4 +133,3 @@ tasks.named("dependencyLicenses").configure {
 }
 
 addQaCheckDependencies(project)
-

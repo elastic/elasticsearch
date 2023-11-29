@@ -12,7 +12,7 @@ import org.junit.ClassRule;
 
 public class CliPartialResultsIT extends PartialResultsTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
 
     @Override
     protected String getTestRestCluster() {

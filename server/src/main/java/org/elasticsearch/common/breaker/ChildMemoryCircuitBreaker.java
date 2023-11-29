@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.telemetry.metric.LongCounter;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -29,17 +30,25 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final Logger logger;
     private final HierarchyCircuitBreakerService parent;
     private final String name;
+    private final LongCounter trippedCountMeter;
 
     /**
      * Create a circuit breaker that will break if the number of estimated
      * bytes grows above the limit. All estimations will be multiplied by
      * the given overheadConstant. Uses the given oldBreaker to initialize
      * the starting offset.
+     * @param trippedCountMeter the counter used to report the tripped count metric
      * @param settings settings to configure this breaker
      * @param parent parent circuit breaker service to delegate tripped breakers to
      * @param name the name of the breaker
      */
-    public ChildMemoryCircuitBreaker(BreakerSettings settings, Logger logger, HierarchyCircuitBreakerService parent, String name) {
+    public ChildMemoryCircuitBreaker(
+        LongCounter trippedCountMeter,
+        BreakerSettings settings,
+        Logger logger,
+        HierarchyCircuitBreakerService parent,
+        String name
+    ) {
         this.name = name;
         this.limitAndOverhead = new LimitAndOverhead(settings.getLimit(), settings.getOverhead());
         this.durability = settings.getDurability();
@@ -48,6 +57,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         this.logger = logger;
         logger.trace(() -> format("creating ChildCircuitBreaker with settings %s", settings));
         this.parent = parent;
+        this.trippedCountMeter = trippedCountMeter;
     }
 
     /**
@@ -58,6 +68,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     public void circuitBreak(String fieldName, long bytesNeeded) {
         final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
+        this.trippedCountMeter.increment();
         final String message = "["
             + this.name
             + "] Data too large, data for ["

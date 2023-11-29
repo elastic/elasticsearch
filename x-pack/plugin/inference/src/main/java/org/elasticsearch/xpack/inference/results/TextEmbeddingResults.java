@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -39,12 +40,22 @@ import java.util.stream.Collectors;
  *     ]
  * }
  */
-public record TextEmbeddingResults(List<Embedding> embeddings) implements InferenceResults {
-    public static final String NAME = "text_embedding_results";
+public record TextEmbeddingResults(List<Embedding> embeddings) implements InferenceServiceResults {
+    public static final String NAME = "text_embedding_service_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 
     public TextEmbeddingResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(Embedding::new));
+    }
+
+    @SuppressWarnings("deprecation")
+    TextEmbeddingResults(LegacyTextEmbeddingResults legacyTextEmbeddingResults) {
+        this(
+            legacyTextEmbeddingResults.embeddings()
+                .stream()
+                .map(embedding -> new Embedding(embedding.values()))
+                .collect(Collectors.toList())
+        );
     }
 
     @Override
@@ -68,29 +79,20 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
     }
 
     @Override
-    public String getResultsField() {
-        return TEXT_EMBEDDING;
+    @SuppressWarnings("deprecation")
+    public List<? extends InferenceResults> transformToLegacyFormat() {
+        var legacyEmbedding = new LegacyTextEmbeddingResults(
+            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.values)).toList()
+        );
+
+        return List.of(legacyEmbedding);
     }
 
-    @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(getResultsField(), embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
+        map.put(TEXT_EMBEDDING, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
 
         return map;
-    }
-
-    @Override
-    public Map<String, Object> asMap(String outputField) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put(outputField, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
-
-        return map;
-    }
-
-    @Override
-    public Object predictedValue() {
-        throw new UnsupportedOperationException("[" + NAME + "] does not support a single predicted value");
     }
 
     public record Embedding(List<Float> values) implements Writeable, ToXContentObject {

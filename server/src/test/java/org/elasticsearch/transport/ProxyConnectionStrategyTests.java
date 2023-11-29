@@ -535,7 +535,11 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 });
 
                 try (
-                    var remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    var remoteConnectionManager = new RemoteConnectionManager(
+                        clusterAlias,
+                        RemoteClusterCredentialsManager.EMPTY,
+                        connectionManager
+                    );
                     var strategy = new ProxyConnectionStrategy(
                         clusterAlias,
                         localService,

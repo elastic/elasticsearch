@@ -155,14 +155,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
         this.remoteClusterCredentialsManager = new RemoteClusterCredentialsManager(settings);
-
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
-    }
-
-    public RemoteClusterCredentialsManager getRemoteClusterCredentialsManager() {
-        return remoteClusterCredentialsManager;
     }
 
     public DiscoveryNode getLocalNode() {
@@ -310,21 +305,13 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     public void updateRemoteClusterCredentials(Settings settings) {
-        var updatedClusters = remoteClusterCredentialsManager.updateClusterCredentials(settings);
-        for (var clusterAlias : updatedClusters) {
-            logger.info("Credentials changed for cluster [{}], updating cluster", clusterAlias);
-            updateRemoteCluster(clusterAlias, settings, true);
-        }
+        remoteClusterCredentialsManager.updateClusterCredentials(settings);
     }
 
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-        updateRemoteCluster(clusterAlias, settings, false);
-    }
-
-    void updateRemoteCluster(String clusterAlias, Settings settings, boolean forceRebuildConnection) {
         CountDownLatch latch = new CountDownLatch(1);
-        updateRemoteCluster(clusterAlias, settings, forceRebuildConnection, ActionListener.runAfter(new ActionListener<>() {
+        updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(RemoteClusterConnectionStatus status) {
                 logger.info("remote cluster connection [{}] updated: {}", clusterAlias, status);
@@ -405,17 +392,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         DISCONNECTED,
         RECONNECTED,
         UNCHANGED
-    }
-
-    /**
-     * This method updates the list of remote clusters. It's intended to be used as an update consumer on the settings infrastructure
-     *
-     * @param clusterAlias a cluster alias to discovery node mapping representing the remote clusters seeds nodes
-     * @param newSettings the updated settings for the remote connection
-     * @param listener a listener invoked once every configured cluster has been connected to
-     */
-    synchronized void updateRemoteCluster(String clusterAlias, Settings newSettings, ActionListener<Void> listener) {
-        updateRemoteCluster(clusterAlias, newSettings, false, listener);
     }
 
     /**

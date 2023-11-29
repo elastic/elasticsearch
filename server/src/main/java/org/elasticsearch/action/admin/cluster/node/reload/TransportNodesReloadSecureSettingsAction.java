@@ -132,9 +132,15 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
                     exceptions.add(e);
                 }
             });
-            ExceptionsHelper.rethrowAndSuppress(exceptions);
+            // TODO feels hacky
+            try {
+                transportService.getRemoteClusterService().updateRemoteClusterCredentials(settingsWithKeystore);
+            } catch (final Exception e) {
+                logger.warn(() -> "Reload failed for remote cluster credentials", e);
+                exceptions.add(e);
+            }
 
-            transportService.getRemoteClusterService().updateRemoteClusterCredentials(settingsWithKeystore);
+            ExceptionsHelper.rethrowAndSuppress(exceptions);
 
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), null);
         } catch (final Exception e) {

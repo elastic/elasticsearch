@@ -154,6 +154,75 @@ public class JwtStringClaimValidatorTests extends ESTestCase {
         }
     }
 
+    public void testWildcardAndRegexMatchingClaimValues() throws ParseException {
+        final String claimName = randomAlphaOfLengthBetween(10, 18);
+        final String fallbackClaimName = randomAlphaOfLength(8);
+        final List<String> allowedClaimPatterns = List.of("a?\\**", "/https?://[^/]+/?/");
+
+        final boolean noFallback = randomBoolean();
+        final JwtStringClaimValidator validator;
+        if (noFallback) {
+            validator = new JwtStringClaimValidator(claimName, false, List.of(), allowedClaimPatterns);
+        } else {
+            validator = new JwtStringClaimValidator(
+                claimName,
+                false,
+                Map.of(claimName, fallbackClaimName),
+                List.of(),
+                allowedClaimPatterns
+            );
+        }
+        for (String incomingClaimValue : List.of("a1*", "ab*whatever", "https://elastic.co/")) {
+            final JWTClaimsSet validJwtClaimsSet;
+            if (noFallback) {
+                // fallback claim is ignored
+                validJwtClaimsSet = JWTClaimsSet.parse(
+                    Map.of(
+                        claimName,
+                        randomBoolean() ? incomingClaimValue : List.of(incomingClaimValue, "other_stuff"),
+                        fallbackClaimName,
+                        List.of(42)
+                    )
+                );
+            } else {
+                validJwtClaimsSet = JWTClaimsSet.parse(
+                    Map.of(fallbackClaimName, randomBoolean() ? incomingClaimValue : List.of(incomingClaimValue, "other_stuff"))
+                );
+            }
+            try {
+                validator.validate(getJwsHeader(), validJwtClaimsSet);
+            } catch (Exception e) {
+                throw new AssertionError("validation should have passed without exception", e);
+            }
+        }
+        for (String invalidIncomingClaimValue : List.of("a", "abc", "abc*", "https://elastic.co/guide")) {
+            final JWTClaimsSet invalidJwtClaimsSet;
+            if (noFallback) {
+                // fallback claim is ignored
+                invalidJwtClaimsSet = JWTClaimsSet.parse(
+                    Map.of(
+                        claimName,
+                        randomBoolean() ? invalidIncomingClaimValue : List.of(invalidIncomingClaimValue, "other_stuff"),
+                        fallbackClaimName,
+                        List.of(42)
+                    )
+                );
+            } else {
+                invalidJwtClaimsSet = JWTClaimsSet.parse(
+                    Map.of(
+                        fallbackClaimName,
+                        randomBoolean() ? invalidIncomingClaimValue : List.of(invalidIncomingClaimValue, "other_stuff")
+                    )
+                );
+            }
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> validator.validate(getJwsHeader(), invalidJwtClaimsSet)
+            );
+            assertThat(e.getMessage(), containsString("does not match allowed claim values"));
+        }
+    }
+
     public void testValueAllowSettingDoesNotSupportWildcardOrRegex() throws ParseException {
         final String claimName = randomAlphaOfLengthBetween(10, 18);
         final String fallbackClaimName = randomAlphaOfLength(8);

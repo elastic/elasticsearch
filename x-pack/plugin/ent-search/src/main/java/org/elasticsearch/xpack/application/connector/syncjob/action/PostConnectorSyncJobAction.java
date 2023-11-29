@@ -131,7 +131,6 @@ public class PostConnectorSyncJobAction extends ActionType<PostConnectorSyncJobA
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            // TODO: test explicitly
             if (Strings.isNullOrEmpty(getId())) {
                 validationException = addValidationError(EMPTY_CONNECTOR_ID_ERROR_MESSAGE, validationException);
             }

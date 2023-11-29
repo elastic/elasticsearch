@@ -308,6 +308,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         remoteClusterCredentialsManager.updateClusterCredentials(settings);
     }
 
+    public RemoteClusterCredentialsManager getRemoteClusterCredentialsManager() {
+        return remoteClusterCredentialsManager;
+    }
+
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
         CountDownLatch latch = new CountDownLatch(1);

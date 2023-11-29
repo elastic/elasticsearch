@@ -234,7 +234,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         final Map<String, Object> result = new HashMap<>();
 
         // overall status
-        final HealthStatus status = HealthStatus.merge(indicatorResults.stream().map(HealthIndicatorResult::status));
+        final HealthStatus status = calculateOverallStatus(indicatorResults);
         result.put(String.format(Locale.ROOT, "%s.overall.status", HEALTH_FIELD_PREFIX), status.xContentValue());
 
         // top-level status for each indicator
@@ -258,6 +258,10 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         }
 
         return result;
+    }
+
+    static HealthStatus calculateOverallStatus(List<HealthIndicatorResult> indicatorResults) {
+        return HealthStatus.merge(indicatorResults.stream().map(HealthIndicatorResult::status));
     }
 
     /**
@@ -301,6 +305,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
                     metrics.get(result.name()).set(result.status() == RED ? 1 : 0);
                 }
             }
+            metrics.get("overall").set(calculateOverallStatus(healthIndicatorResults) == RED ? 1 : 0);
         }
     }
 

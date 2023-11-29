@@ -191,7 +191,7 @@ respectively. <<regexp-syntax,Lucene regexp>> must be enclosed between `/`,
 for e.g. `/https?://[^/]+/?/` matches any http or https URL with no path component
 (matches https://elastic.co/ but not https://elastic.co/guide).
 
-NOTE: One of the `allowed_subjects` or `allowed_subject_patterns` settings must be specified
+NOTE: At least one of the `allowed_subjects` or `allowed_subject_patterns` settings must be specified
 (and be non-empty) when `token_type` is `access_token`.
 
 NOTE: When both `allowed_subjects` and `allowed_subject_patterns` settings are specified

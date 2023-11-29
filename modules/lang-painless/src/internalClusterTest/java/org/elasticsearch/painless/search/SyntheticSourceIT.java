@@ -10,7 +10,6 @@ package org.elasticsearch.painless.search;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -31,12 +30,12 @@ public class SyntheticSourceIT extends ESIntegTestCase {
         return Collections.singleton(PainlessPlugin.class);
     }
 
-    public void testText() throws Exception {
-        createIndex(b -> b.field("type", "text").field("store", true));
+    public void testSearchUsingRuntimeField() throws Exception {
+        createIndex();
 
         int numDocs = between(1000, 5000);
         for (int i = 0; i < numDocs; i++) {
-            IndexRequestBuilder indexRequest = client().prepareIndex("test").setSource("id", "" + i, "field", "n" + i);
+            IndexRequestBuilder indexRequest = client().prepareIndex("test").setSource("id", "" + i);
             if (randomInt(100) < 5) {
                 indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             }
@@ -46,7 +45,7 @@ public class SyntheticSourceIT extends ESIntegTestCase {
         assertNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("long_id").from(0)));
     }
 
-    private void createIndex(CheckedFunction<XContentBuilder, XContentBuilder, IOException> fieldMapping) throws IOException {
+    private void createIndex() throws IOException {
         XContentBuilder mapping = JsonXContent.contentBuilder();
         mapping.startObject();
         {
@@ -63,9 +62,6 @@ public class SyntheticSourceIT extends ESIntegTestCase {
             mapping.endObject();
             mapping.startObject("properties");
             mapping.startObject("id").field("type", "keyword").endObject();
-            mapping.startObject("field");
-            fieldMapping.apply(mapping);
-            mapping.endObject();
             mapping.endObject();
         }
         mapping.endObject();

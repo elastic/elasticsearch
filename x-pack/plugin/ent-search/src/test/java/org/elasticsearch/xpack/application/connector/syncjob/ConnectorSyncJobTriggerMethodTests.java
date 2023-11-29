@@ -16,7 +16,7 @@ public class ConnectorSyncJobTriggerMethodTests extends ESTestCase {
     public void testFromString_WithValidTriggerMethodString() {
         ConnectorSyncJobTriggerMethod triggerMethod = ConnectorSyncJobTestUtils.getRandomConnectorSyncJobTriggerMethod();
 
-        assertThat(triggerMethod, equalTo(ConnectorSyncJobTriggerMethod.fromString(triggerMethod.toString())));
+        assertThat(ConnectorSyncJobTriggerMethod.fromString(triggerMethod.toString()), equalTo(triggerMethod));
     }
 
     public void testFromString_WithInvalidTriggerMethodString_ExpectException() {

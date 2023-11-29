@@ -51,6 +51,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -117,7 +118,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     private final int desiredSlices;
     private final int desiredDetailSlices;
     private final boolean realtime;
-    private static final Map<String, HostMetadata> hostsTable = new ConcurrentHashMap<>();
 
     @Inject
     public TransportGetStackTracesAction(
@@ -386,11 +386,9 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         List<Index> indices = resolver.resolve(clusterState, "profiling-stacktraces", responseBuilder.getStart(), responseBuilder.getEnd());
 
         // Build a set of unique host IDs.
-        Set<String> unknownHostIDs = new HashSet<>(responseBuilder.hostEventCounts.size());
+        Set<String> uniqueHostIDs = new HashSet<>(responseBuilder.hostEventCounts.size());
         for (HostEventCount hec : responseBuilder.hostEventCounts) {
-            if (hostsTable.containsKey(hec.hostID) == false) {
-                unknownHostIDs.add(hec.hostID);
-            }
+            uniqueHostIDs.add(hec.hostID);
         }
 
         StackTraceHandler handler = new StackTraceHandler(
@@ -400,13 +398,14 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             submitListener,
             eventIds.size(),
             // We need to expect a set of slices for each resolved index, plus one for the host metadata.
-            slicedEventIds.size() * indices.size() + (unknownHostIDs.isEmpty() ? 0 : 1)
+            slicedEventIds.size() * indices.size() + (uniqueHostIDs.isEmpty() ? 0 : 1),
+            uniqueHostIDs.size()
         );
         for (List<String> slice : slicedEventIds) {
             mget(client, indices, slice, ActionListener.wrap(handler::onStackTraceResponse, submitListener::onFailure));
         }
 
-        if (unknownHostIDs.isEmpty()) {
+        if (uniqueHostIDs.isEmpty()) {
             return;
         }
 
@@ -423,7 +422,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                             .lt(responseBuilder.getEnd().toEpochMilli())
                             .format("epoch_millis")
                     )
-                    .filter(QueryBuilders.termsQuery("host.id", unknownHostIDs))
+                    .filter(QueryBuilders.termsQuery("host.id", uniqueHostIDs))
             )
             .setCollapse(
                 // Collapse on host.id to get a single host metadata for each host.
@@ -465,6 +464,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private final AtomicInteger totalFrames = new AtomicInteger();
         private final StopWatch watch = new StopWatch("retrieveStackTraces");
         private final StopWatch hostsWatch = new StopWatch("retrieveHostMetadata");
+        private final Map<String, HostMetadata> hostMetadata;
 
         private StackTraceHandler(
             ClusterState clusterState,
@@ -472,7 +472,8 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             GetStackTracesResponseBuilder responseBuilder,
             ActionListener<GetStackTracesResponse> submitListener,
             int stackTraceCount,
-            int expectedResponses
+            int expectedResponses,
+            int expectedHosts
         ) {
             this.clusterState = clusterState;
             this.stackTracePerId = new ConcurrentHashMap<>(stackTraceCount);
@@ -480,6 +481,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             this.client = client;
             this.responseBuilder = responseBuilder;
             this.submitListener = submitListener;
+            this.hostMetadata = new HashMap<>(expectedHosts);
         }
 
         public void onStackTraceResponse(MultiGetResponse multiGetItemResponses) {
@@ -509,10 +511,10 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             SearchHit[] hits = searchResponse.getHits().getHits();
             for (SearchHit hit : hits) {
                 HostMetadata host = HostMetadata.fromSource(hit.getSourceAsMap());
-                hostsTable.putIfAbsent(host.hostID, host);
+                hostMetadata.put(host.hostID, host);
             }
             log.debug(hostsWatch::report);
-            log.debug("Have [{}] host metadata items", hostsTable.size());
+            log.debug("Got [{}] host metadata items", hostMetadata.size());
 
             mayFinish();
         }
@@ -522,7 +524,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             StopWatch watch = new StopWatch("calculateCO2AndCosts");
             CO2Calculator co2Calculator = new CO2Calculator(
                 instanceTypeService,
-                hostsTable,
+                hostMetadata,
                 responseBuilder.getRequestedDuration(),
                 responseBuilder.customCO2PerKWH,
                 responseBuilder.customDatacenterPUE,
@@ -530,7 +532,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             );
             CostCalculator costCalculator = new CostCalculator(
                 instanceTypeService,
-                hostsTable,
+                hostMetadata,
                 responseBuilder.getRequestedDuration(),
                 responseBuilder.awsCostFactor,
                 responseBuilder.customCostPerCoreHour

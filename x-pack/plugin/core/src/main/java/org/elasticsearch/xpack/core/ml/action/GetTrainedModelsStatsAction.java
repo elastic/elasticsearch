@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.ingest.IngestStats;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -109,7 +111,11 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 this.modelSizeStats = modelSizeStats;
                 this.ingestStats = ingestStats == null ? EMPTY_INGEST_STATS : ingestStats;
                 if (pipelineCount < 0) {
-                    throw new ElasticsearchException("[{}] must be a greater than or equal to 0", PIPELINE_COUNT.getPreferredName());
+                    throw new ElasticsearchStatusException(
+                        "[{}] must be a greater than or equal to 0",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        PIPELINE_COUNT.getPreferredName()
+                    );
                 }
                 this.pipelineCount = pipelineCount;
                 this.inferenceStats = inferenceStats;

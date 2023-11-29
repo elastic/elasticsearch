@@ -427,9 +427,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertEquals(5, card.getValue());
 
         // string stats
-        response = client().prepareSearch(indexName)
-            .addAggregation(new StringStatsAggregationBuilder("stats").field("version"))
-            .get();
+        response = client().prepareSearch(indexName).addAggregation(new StringStatsAggregationBuilder("stats").field("version")).get();
         InternalStringStats stats = response.getAggregations().get("stats");
         assertEquals(3, stats.getMinLength());
         assertEquals(11, stats.getMaxLength());

@@ -33,7 +33,7 @@ import java.util.function.Predicate;
 public class JwtStringClaimValidator implements JwtFieldValidator {
 
     // Allows any non-null value for the sub claim
-    public static JwtStringClaimValidator ALLOW_ALL_SUBJECTS = new JwtStringClaimValidator("sub", true, List.of(), List.of("*"));
+    public static final JwtStringClaimValidator ALLOW_ALL_SUBJECTS = new JwtStringClaimValidator("sub", true, List.of(), List.of("*"));
 
     private final String claimName;
     // Whether the claim should be a single string

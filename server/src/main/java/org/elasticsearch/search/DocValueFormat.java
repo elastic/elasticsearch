@@ -675,6 +675,9 @@ public interface DocValueFormat extends NamedWriteable {
      * DocValues format for time series id.
      */
     class TimeSeriesIdDocValueFormat implements DocValueFormat {
+
+        private static final Base64.Encoder BASE64_ENCODER = Base64.getUrlEncoder().withoutPadding();
+
         private TimeSeriesIdDocValueFormat() {}
 
         @Override
@@ -690,9 +693,21 @@ public interface DocValueFormat extends NamedWriteable {
             return "tsid";
         }
 
+        /**
+         * @param value The TSID as a {@link BytesRef}
+         * @return the Base 64 encoded TSID
+         */
         @Override
         public Object format(BytesRef value) {
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(value.bytes);
+            // NOTE: we need to do this copy to avoid encoding spurious bytes at the end of the
+            // BytesRef buffer. When sorting results the TermOrdValComparator will copy
+            // values using a BytesRefBuilder whose underlying bytes buffer is sized incorrectly,
+            // allocating more bytes than actually required. As a result of these additional bytes
+            // the Base 64 encoding might include spurious bytes (typically 0s) which result in
+            // additional unwanted TSID trailing characters.
+            byte[] bytes = new byte[value.length];
+            System.arraycopy(value.bytes, 0, bytes, 0, value.length);
+            return BASE64_ENCODER.encodeToString(bytes);
         }
 
         @Override

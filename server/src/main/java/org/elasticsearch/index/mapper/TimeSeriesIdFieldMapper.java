@@ -329,11 +329,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static Object decodeTsid(BytesRef bytesRef) {
+    public static Object decodeTsid(final BytesRef bytesRef) {
         return base64Encode(bytesRef);
     }
 
-    private static String base64Encode(BytesRef bytesRef) {
-        return BASE64_ENCODER.encodeToString(bytesRef.bytes);
+    private static String base64Encode(final BytesRef bytesRef) {
+        byte[] bytes = new byte[bytesRef.length];
+        System.arraycopy(bytesRef.bytes, 0, bytes, 0, bytesRef.length);
+        return BASE64_ENCODER.encodeToString(bytes);
     }
 }

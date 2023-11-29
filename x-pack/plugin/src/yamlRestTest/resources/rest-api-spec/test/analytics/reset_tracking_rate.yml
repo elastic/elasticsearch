@@ -129,7 +129,7 @@ setup:
   - match: { hits.total.value: 9 }
   - length: { aggregations.ts.buckets: 1 }
 
-  - match: { aggregations.ts.buckets.0.key: "QxzdeAQNbMXbXqwEXmfHBbkBkHb4zgr9ViIesoONQ1ffMdWT" }
+  - match: { aggregations.ts.buckets.0.key: "JEMc3XgEDWzF216sBF5nxwW5AZB2-M4K_VYiHrKDjUNX3zHVkw" }
   - match: { aggregations.ts.buckets.0.doc_count: 9 }
   - gte: { aggregations.ts.buckets.0.rate.value: 0.0 }
 

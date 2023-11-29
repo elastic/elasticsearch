@@ -48,7 +48,7 @@ add dimensions with put_mapping:
             - field: "@timestamp"
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ "27hcKTYkXCOfYiuRWRTWygaVP_l7r81gY5lZQumYwb0gCVmU" ] }
+  - match: {hits.hits.0.fields._tsid: [ "JNu4XCk2JFwjn2IrkVkU1soGlT_5e6_NYGOZWULpmMG9IAlZlA" ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
@@ -96,7 +96,7 @@ add dimensions to no dims with dynamic_template over index:
             - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ "27hcKTYkXCOfYiuRWRTWygaVP_l7r81gY5lZQumYwb0gCVmU" ] }
+  - match: {hits.hits.0.fields._tsid: [ "JNu4XCk2JFwjn2IrkVkU1soGlT_5e6_NYGOZWULpmMG9IAlZlA" ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
@@ -144,7 +144,7 @@ add dimensions to no dims with dynamic_template over bulk:
             - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ "27hcKTYkXCOfYiuRWRTWygaVP_l7r81gY5lZQumYwb0gCVmU" ] }
+  - match: {hits.hits.0.fields._tsid: [ "JNu4XCk2JFwjn2IrkVkU1soGlT_5e6_NYGOZWULpmMG9IAlZlA" ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
@@ -196,7 +196,7 @@ add dimensions to some dims with dynamic_template over index:
            - field: _tsid
            - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: ["-CXfM53tOdTdJn8GSJ1F1QaVP_kGlT_5U9X7I_7uFS_raLrCjO5zpg"] }
+  - match: {hits.hits.0.fields._tsid: ["KPgl3zOd7TnU3SZ_BkidRdUGlT_5BpU_-VPV-yP-7hUv62i6wozuc6Y"] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
@@ -247,5 +247,5 @@ add dimensions to some dims with dynamic_template over bulk:
             - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: ["-CXfM53tOdTdJn8GSJ1F1QaVP_kGlT_5U9X7I_7uFS_raLrCjO5zpg"] }
+  - match: {hits.hits.0.fields._tsid: ["KPgl3zOd7TnU3SZ_BkidRdUGlT_5BpU_-VPV-yP-7hUv62i6wozuc6Y"] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}

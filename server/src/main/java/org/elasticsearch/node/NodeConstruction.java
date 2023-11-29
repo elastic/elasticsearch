@@ -262,7 +262,13 @@ class NodeConstruction {
             );
 
             // create a set of service helpers
-            ServiceHelpers helpers = constructor.createServiceHelpers(serviceProvider, threadPool, settings, telemetryProvider, circuitBreakerService);
+            ServiceHelpers helpers = constructor.createServiceHelpers(
+                serviceProvider,
+                threadPool,
+                settings,
+                telemetryProvider,
+                circuitBreakerService
+            );
 
             // create cluster service
             ClusterService clusterService = constructor.createClusterService(settingsModule, threadPool, helpers.taskManager());
@@ -661,9 +667,16 @@ class NodeConstruction {
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
         });
 
-        return new ServiceHelpers(taskManager, systemIndices, compatibilityVersions, telemetryProvider, pageCacheRecycler, bigArrays,
+        return new ServiceHelpers(
+            taskManager,
+            systemIndices,
+            compatibilityVersions,
+            telemetryProvider,
+            pageCacheRecycler,
+            bigArrays,
             indexingLimits,
-            getDocumentParsingObserverSupplier());
+            getDocumentParsingObserverSupplier()
+        );
     }
 
     private record PluginServiceInstances(

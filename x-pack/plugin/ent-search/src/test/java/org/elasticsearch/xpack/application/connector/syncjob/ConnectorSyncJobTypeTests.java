@@ -13,13 +13,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ConnectorSyncJobTypeTests extends ESTestCase {
 
-    public void testFromString_WithValidSyncJobTypeString(){
+    public void testFromString_WithValidSyncJobTypeString() {
         ConnectorSyncJobType syncJobType = ConnectorSyncJobTestUtils.getRandomConnectorJobType();
 
         assertThat(ConnectorSyncJobType.fromString(syncJobType.toString()), equalTo(syncJobType));
     }
 
-    public void testFromString_WithInvalidSyncJobTypeString_ExpectException(){
+    public void testFromString_WithInvalidSyncJobTypeString_ExpectException() {
         expectThrows(IllegalArgumentException.class, () -> ConnectorSyncJobType.fromString("invalid sync job type"));
     }
 }

@@ -35,7 +35,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -152,7 +153,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
 
         private final AtomicInteger hits = new AtomicInteger();
 
-        private final AtomicBoolean shouldBlock = new AtomicBoolean(true);
+        private final Semaphore shouldBlock = new Semaphore(Integer.MAX_VALUE);
 
         private final AtomicReference<Runnable> beforeExecution = new AtomicReference<>();
 
@@ -161,11 +162,16 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
         }
 
         public void disableBlock() {
-            shouldBlock.set(false);
+            shouldBlock.release(Integer.MAX_VALUE);
         }
 
         public void enableBlock() {
-            shouldBlock.set(true);
+            try {
+                shouldBlock.acquire(Integer.MAX_VALUE);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
         }
 
         public void setBeforeExecution(Runnable runnable) {
@@ -196,6 +202,23 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             );
         }
 
+        public void tryBlock(String logMessage) {
+            if (shouldBlock.tryAcquire(1) == false) {
+                LogManager.getLogger(AbstractSearchCancellationTestCase.class).info(logMessage);
+            } else {
+                shouldBlock.release(1);
+            }
+        }
+
+        public void waitForBlock(int timeout, TimeUnit timeUnit) {
+            try {
+                assertTrue(shouldBlock.tryAcquire(timeout, timeUnit));
+                shouldBlock.release(1);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         private Object searchBlockScript(Map<String, Object> params) {
             final Runnable runnable = beforeExecution.get();
             if (runnable != null) {
@@ -204,11 +227,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             LeafStoredFieldsLookup fieldsLookup = (LeafStoredFieldsLookup) params.get("_fields");
             LogManager.getLogger(AbstractSearchCancellationTestCase.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
             hits.incrementAndGet();
-            try {
-                assertBusy(() -> assertFalse(shouldBlock.get()));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            waitForBlock(10, TimeUnit.SECONDS);
             return true;
         }
 
@@ -226,15 +245,9 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             if (runnable != null) {
                 runnable.run();
             }
-            if (shouldBlock.get()) {
-                LogManager.getLogger(AbstractSearchCancellationTestCase.class).info("Blocking in reduce");
-            }
+            tryBlock("Blocking in reduce");
             hits.incrementAndGet();
-            try {
-                assertBusy(() -> assertFalse(shouldBlock.get()));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            waitForBlock(10, TimeUnit.SECONDS);
             return 42;
         }
 
@@ -243,15 +256,9 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             if (runnable != null) {
                 runnable.run();
             }
-            if (shouldBlock.get()) {
-                LogManager.getLogger(AbstractSearchCancellationTestCase.class).info("Blocking in map");
-            }
+            tryBlock("Blocking in map");
             hits.incrementAndGet();
-            try {
-                assertBusy(() -> assertFalse(shouldBlock.get()));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            waitForBlock(10, TimeUnit.SECONDS);
             return 1;
         }
 

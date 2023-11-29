@@ -575,10 +575,7 @@ public class Node implements Closeable {
      */
     public void prepareForClose() {
         HttpServerTransport httpServerTransport = injector.getInstance(HttpServerTransport.class);
-        FutureTask<Void> stopper = new FutureTask<>(() -> {
-            httpServerTransport.stop();
-            return null;
-        });
+        FutureTask<Void> stopper = new FutureTask<>(httpServerTransport::close, null);
         new Thread(stopper, "http-server-transport-stop").start();
 
         if (terminationHandler != null) {

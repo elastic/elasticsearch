@@ -20,7 +20,7 @@ public enum ConnectorSyncJobTriggerMethod {
             }
         }
 
-        return null;
+        throw new IllegalArgumentException("Unknown trigger method '" + triggerMethodString + "'.");
     }
 
     @Override

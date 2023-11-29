@@ -18,6 +18,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomMap;
 
@@ -84,5 +85,9 @@ public class ConnectorSyncJobTestUtils {
 
     public static PostConnectorSyncJobAction.Response getRandomPostConnectorSyncJobActionResponse() {
         return new PostConnectorSyncJobAction.Response(randomAlphaOfLength(10));
+    }
+
+    public static ConnectorSyncJobTriggerMethod getRandomTriggerMethod() {
+        return ConnectorSyncJobTriggerMethod.values()[randomIntBetween(0, ConnectorSyncJobTriggerMethod.values().length - 1)];
     }
 }

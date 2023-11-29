@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -28,7 +27,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 public class CoordinatedInferenceIngestIT extends ESRestTestCase {
@@ -107,17 +105,20 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         }
 
         String boostedTreeDocs = Strings.format("""
-                [
-                    {
-                      "_source": %s
-                    },
-                    {
-                      "_source": %s
-                    }
-                ]
-                """, ExampleModels.randomBoostedTreeModelDoc(), ExampleModels.randomBoostedTreeModelDoc());
+            [
+                {
+                  "_source": %s
+                },
+                {
+                  "_source": %s
+                }
+            ]
+            """, ExampleModels.randomBoostedTreeModelDoc(), ExampleModels.randomBoostedTreeModelDoc());
         {
-            var responseMap = simulatePipeline(ExampleModels.boostedTreeRegressionModelPipelineDefinition(boostedTreeModelId), boostedTreeDocs);
+            var responseMap = simulatePipeline(
+                ExampleModels.boostedTreeRegressionModelPipelineDefinition(boostedTreeModelId),
+                boostedTreeDocs
+            );
             var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
             System.out.println("DFA DOCS " + simulatedDocs);
             assertThat(simulatedDocs, hasSize(2));
@@ -162,7 +163,7 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
             var simulatedDocs = (List<Map<String, Object>>) responseMap.get("docs");
             System.out.println("DOCS pt" + simulatedDocs);
             assertThat(simulatedDocs, hasSize(2));
-//            assertEquals(boostedTreeModelId, MapHelper.dig("doc._source.ml.regression.model_id", simulatedDocs.get(0)));
+            // assertEquals(boostedTreeModelId, MapHelper.dig("doc._source.ml.regression.model_id", simulatedDocs.get(0)));
         }
 
         {
@@ -171,10 +172,8 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
             System.out.println("DOCS is" + simulatedDocs);
             assertThat(simulatedDocs, hasSize(2));
             // "[" + inferenceServiceModelId + "] is configured for the _inference API and does not accept documents as input"
-//            assertEquals(boostedTreeModelId, MapHelper.dig("doc._source.ml.regression.model_id", simulatedDocs.get(0)));
+            // assertEquals(boostedTreeModelId, MapHelper.dig("doc._source.ml.regression.model_id", simulatedDocs.get(0)));
         }
-
-
 
     }
 
@@ -234,9 +233,7 @@ public class CoordinatedInferenceIngestIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    protected void startDeployment(
-        String modelId
-    ) throws IOException {
+    protected void startDeployment(String modelId) throws IOException {
         String endPoint = "/_ml/trained_models/"
             + modelId
             + "/deployment/_start?timeout=40s&wait_for=started&threads_per_allocation=1&number_of_allocations=1";

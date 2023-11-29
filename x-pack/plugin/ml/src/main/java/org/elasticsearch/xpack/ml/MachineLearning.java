@@ -1575,12 +1575,7 @@ public class MachineLearning extends Plugin
                         TransportUpdateTrainedModelAssignmentStateAction.class
                     )
                 );
-                actionHandlers.add(
-                    new ActionHandler<>(
-                        CoordinatedInferenceAction.INSTANCE,
-                        TransportCoordinatedInferenceAction.class
-                    )
-                );
+                actionHandlers.add(new ActionHandler<>(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
             }
         }
         return actionHandlers;

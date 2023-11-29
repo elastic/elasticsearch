@@ -78,8 +78,14 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
             // Inference service models do not accept a document map
             // If this fails check if the model is an inference service
             // model and error accordingly
-            doInClusterModel(request, wrapCheckForServiceModelOnMissing(request.getModelId(),
-                "[" + request.getModelId() + "] is configured for the _inference API and does not accept documents as input", listener));
+            doInClusterModel(
+                request,
+                wrapCheckForServiceModelOnMissing(
+                    request.getModelId(),
+                    "[" + request.getModelId() + "] is configured for the _inference API and does not accept documents as input",
+                    listener
+                )
+            );
         } else {
             forNlp(request, listener);  // if no model found check it isn't an NLP model
 

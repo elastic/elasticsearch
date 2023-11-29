@@ -14,6 +14,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -25,7 +26,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.inference.InferenceServiceExtension;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,8 +42,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
     public static class TestInferenceService implements InferenceService {
         private static final String NAME = "test_service";
 
-        public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
-        }
+        public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
         @Override
         public String name() {
@@ -129,7 +128,7 @@ public class TestInferenceServiceExtension implements InferenceServiceExtension 
             var embeddings = new ArrayList<SparseEmbeddingResults.Embedding>();
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<SparseEmbeddingResults.WeightedToken>();
-                for (int j=0; j<5; j++) {
+                for (int j = 0; j < 5; j++) {
                     tokens.add(new SparseEmbeddingResults.WeightedToken(Integer.toString(j), (float) j));
                 }
                 embeddings.add(new SparseEmbeddingResults.Embedding(tokens, false));

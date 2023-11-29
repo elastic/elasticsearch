@@ -8,17 +8,15 @@
 package org.elasticsearch.xpack.ml.queries;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -96,6 +94,10 @@ public class WeightedTermsQueryBuilder extends AbstractQueryBuilder<WeightedTerm
 
   @Override
   protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    final MappedFieldType mapper = context.getFieldType(fieldName);
+    if (mapper == null) {
+      return new MatchNoDocsQuery("The \"" + getName() + "\" query is against a field that does not exist");
+    }
     var qb = new BooleanQuery.Builder();
     var lowTerms = new BooleanQuery.Builder();
     int maxDocs = context.getIndexReader().maxDoc();
@@ -114,9 +116,9 @@ public class WeightedTermsQueryBuilder extends AbstractQueryBuilder<WeightedTerm
       float termFreq = (float) context.getIndexReader().docFreq(term) / maxDocs;
       if (termFreq > cutoffFrequencyRatio * averageTokenFreq
               && token.weight() < cutoffBestWeight * bestWeight) {
-        qb.add(new BoostQuery(new TermQuery(term), token.weight()), BooleanClause.Occur.SHOULD);
+        qb.add(new BoostQuery(mapper.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
       } else {
-        lowTerms.add(new BoostQuery(new TermQuery(term), token.weight()), BooleanClause.Occur.SHOULD);
+        lowTerms.add(new BoostQuery(mapper.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
       }
     }
     switch (queryStrategy) {

@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Map<String, List<ProcessorStat>> processorStats)
     implements
@@ -266,6 +267,12 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         // both lists using a common index iterator.
         private static List<ProcessorStat> merge(List<ProcessorStat> first, List<ProcessorStat> second) {
             var merged = new ArrayList<ProcessorStat>();
+            assert first.size() == second.size()
+                : "stats size mismatch ["
+                    + first.stream().map(ps -> ps.name + ":" + ps.type).collect(Collectors.joining(","))
+                    + "] ["
+                    + second.stream().map(ps -> ps.name + ":" + ps.type).collect(Collectors.joining(","))
+                    + "]";
             for (var i = 0; i < first.size(); i++) {
                 merged.add(new ProcessorStat(first.get(i).name, first.get(i).type, Stats.merge(first.get(i).stats, second.get(i).stats)));
             }

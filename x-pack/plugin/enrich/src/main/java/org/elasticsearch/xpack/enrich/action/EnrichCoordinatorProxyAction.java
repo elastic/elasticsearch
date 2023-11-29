@@ -239,7 +239,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                     final List<Tuple<Integer, SearchRequest>> enrichIndexRequestsAndSlots = entry.getValue();
                     ActionListener<MultiSearchResponse> listener = ActionListener.wrap(response -> {
                         shardResponses.put(enrichIndexName, new Tuple<>(response, null));
-                        response.incRef(); // will be released during
+                        response.incRef(); // will be released during reduce
                         if (counter.incrementAndGet() == itemsPerIndex.size()) {
                             var res = reduce(request.requests().size(), itemsPerIndex, shardResponses);
                             try {

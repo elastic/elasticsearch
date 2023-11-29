@@ -18,13 +18,6 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
     /**
      * Create a new builder for {@link SimulatePipelineRequest}s
      */
-    public SimulatePipelineRequestBuilder(ElasticsearchClient client, SimulatePipelineAction action) {
-        super(client, action, new SimulatePipelineRequest());
-    }
-
-    /**
-     * Create a new builder for {@link SimulatePipelineRequest}s
-     */
     public SimulatePipelineRequestBuilder(
         ElasticsearchClient client,
         SimulatePipelineAction action,

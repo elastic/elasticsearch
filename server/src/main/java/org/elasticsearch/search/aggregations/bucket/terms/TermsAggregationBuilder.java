@@ -38,6 +38,8 @@ import java.util.Objects;
 import java.util.function.ToLongFunction;
 
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
+    public static final int KEY_ORDER_CONCURRENCY_THRESHOLD = 50;
+
     public static final String NAME = "terms";
     public static final ValuesSourceRegistry.RegistryKey<TermsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
@@ -145,18 +147,24 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         if (script() == null
             && (executionHint == null || executionHint.equals(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString()))) {
             long cardinality = fieldCardinalityResolver.applyAsLong(field());
-            if (cardinality != -1) {
-                if (InternalOrder.isKeyOrder(order)) {
-                    if (cardinality <= 50) {
-                        return super.supportsParallelCollection(fieldCardinalityResolver);
-                    }
-                } else {
-                    BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
-                    if (cardinality <= adjusted.getShardSize()) {
-                        return super.supportsParallelCollection(fieldCardinalityResolver);
-                    }
-                }
+            if (supportsParallelCollection(cardinality, order, bucketCountThresholds)) {
+                return super.supportsParallelCollection(fieldCardinalityResolver);
             }
+        }
+        return false;
+    }
+
+    /**
+     * Whether a terms aggregation with the provided order and bucket count thresholds against a field
+     * with the given cardinality should be executed concurrency.
+     */
+    public static boolean supportsParallelCollection(long cardinality, BucketOrder order, BucketCountThresholds bucketCountThresholds) {
+        if (cardinality != -1) {
+            if (InternalOrder.isKeyOrder(order)) {
+                return cardinality <= KEY_ORDER_CONCURRENCY_THRESHOLD;
+            }
+            BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
+            return cardinality <= adjusted.getShardSize();
         }
         return false;
     }
